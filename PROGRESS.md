@@ -41,8 +41,9 @@ Functions that exist as working, tested Python in ravengem.
 | `manipulation/add.py` | `add_reactions_from_equations` | `addRxns.m` | ✅ `tests/test_manipulation_add.py` | Keystone. Adds reactions from equation strings; matches mets by id, name, or `name[comp]`; assigns compartment to new mets; strict/auto policies for new mets & genes; duplicate-ID guard. Equation parsing/arrows/gene-creation delegated to cobra. |
 | `manipulation/change.py` | `change_reaction_equations` | `changeRxns.m` | ✅ `tests/test_manipulation_change.py` | Replaces a reaction's stoichiometry from an equation string (reuses the `add` parser). Edits the `Reaction` in place — other fields, bounds, and order preserved; no remove/re-add/re-sort dance. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` | ✅ `tests/test_io_yaml.py` | Wraps cobra YAML (which already reads the `!!omap` RAVEN/Human-GEM format) and adds what cobra drops: model identity/provenance from `metaData`, RAVEN-only per-entry fields routed by meaning (chemical IDs `smiles`/`inchis` → `annotation`; `deltaG`/`confidence_score`/`*From`/`protein` → `notes`), and verbatim preservation of foreign sections (GECKO ec). Verified on a real yeast-GEM.yml. |
+| `manipulation/remove.py` | `remove_reactions`, `remove_metabolites`, `remove_genes` | `removeReactions.m` / `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: separable orphan cleanup (reactions), `by_name` cross-compartment deletion (mets), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). |
 
-**Test status:** 88 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 101 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -120,6 +121,8 @@ Keyed to commits on `main`.
 | `4c65c8a` | Port GPR lint half of standardizeGrRules (`is_dnf`/`find_non_dnf_grrules`) |
 | `2224eed` | Port addRxns as `add_reactions_from_equations`; add `parse_name_comp` |
 | `5779f47` | Port changeRxns as `change_reaction_equations` |
+| `5a4e292` | Port YAML I/O as `read_yaml_model`/`write_yaml_model` |
+| `f869968` | Route RAVEN-only YAML fields to annotation/notes by meaning |
 
 ---
 
@@ -127,8 +130,7 @@ Keyed to commits on `main`.
 
 Candidate next steps, in rough priority order:
 
-1. **`remove*` family** — `removeReactions`/`removeMets`/`removeGenes` (separable cascade flags,
-   name-based delete, flux-aware gene removal).
-2. **More `manipulation/` transforms** — `simplifyModel` (stage by mode), `mergeModels`.
+1. **`mergeModels`** — N-way merge with name+comp matching, conflict rename, provenance.
+2. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
 3. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
 4. **`io/` Excel / tab-delimited / SIF** exporters.
