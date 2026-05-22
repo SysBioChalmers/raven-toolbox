@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Reconstruction working files (BLAST/DIAMOND DBs, KEGG/MetaCyc dumps)
+*.fasta
+*.dmnd
+blastdb/
+keggModelFiles/
+metacyc/
