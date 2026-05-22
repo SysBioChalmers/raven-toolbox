@@ -17,8 +17,8 @@ _Last updated: 2026-05-23_
 | Phase | Theme | Status |
 |---|---|---|
 | 0 | Scaffold & decisions | ✅ done |
-| 1 | Foundation (`utils/`, `manipulation/`) | 🟡 in progress |
-| 2 | I/O (`io/`) | ⬜ not started |
+| 1 | Foundation (`utils/`, `manipulation/`) | 🟢 functions done (packaging/CI remain) |
+| 2 | I/O (`io/`) | 🟡 YAML done; Excel/tab/SIF remain |
 | 3a | Reconstruction — homology (`reconstruction/homology/`) | ⬜ not started |
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) | ⬜ not started |
 | 3c | Reconstruction — MetaCyc (`reconstruction/metacyc/`) | ⬜ not started |
@@ -48,10 +48,11 @@ Functions that exist as working, tested Python in ravengem.
 | `manipulation/transport.py` | `add_transport_reactions` | `addTransport.m` | ✅ `tests/test_manipulation_transport.py` | Transport reactions across compartments, matching mets by name, sequential `tr_0001` IDs, optional target-metabolite creation. cobra has no transport primitive. |
 | `manipulation/transfer.py` | `add_reactions_from_model` | `addRxnsGenesMets.m` | ✅ `tests/test_manipulation_transfer.py` | Copy reactions from a source model, matching mets by `name[comp]` (not id), adding only new mets/genes. cobra's `merge` is strict-by-id. |
 | `manipulation/merge.py` | `merge_models` | `mergeModels.m` | ✅ `tests/test_manipulation_merge.py` | Merge N models, unify mets by `name[comp]` (or id), keep all reactions (id collisions renamed), merge genes, provenance in `notes['origin']`. cobra's `merge` is pairwise/strict-by-id. |
+| `manipulation/simplify.py` | `remove_dead_end_reactions`, `remove_duplicate_reactions`, `constrain_reversible_reactions`, `group_linear_reactions` | `simplifyModel.m` (gap modes) | ✅ `tests/test_manipulation_simplify.py` | The cobra-absent reduction modes; cobra-covered modes (no-flux→`find_blocked_reactions`, zero-interval, unconstrained) cheatsheeted. `group_linear` is lossy (drops genes), per RAVEN. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` | ✅ `tests/test_io_yaml.py` | Wraps cobra YAML (which already reads the `!!omap` RAVEN/Human-GEM format) and adds what cobra drops: model identity/provenance from `metaData`, RAVEN-only per-entry fields routed by meaning (chemical IDs `smiles`/`inchis` → `annotation`; `deltaG`/`confidence_score`/`*From`/`protein` → `notes`), and verbatim preservation of foreign sections (GECKO ec). Verified on a real yeast-GEM.yml. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 152 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 160 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -62,7 +63,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | subpackage | purpose | port status |
 |---|---|---|
 | `utils/` | GPR hygiene + balance + validation + parse helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `get_elemental_balance` ✅, `check_model` ✅, `parse_name_comp` ✅) — **no** struct adapter; `getRxnsInComp`/`getMetsInComp`, MIRIAM/ID-prefix **not** ported (cobra covers) | 🟢 foundation done |
-| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟢 editing layer + `merge_models` done; `simplifyModel` remains |
+| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | ✅ done — add/change/remove/transport/transfer/merge/simplify/variance + 2 adopted transforms |
 | `io/` | RAVEN YAML/Excel/SIF formats | 🟡 YAML read/write ported |
 | `reconstruction/homology/` | homology-based draft from a template GEM + BLAST/DIAMOND (3a) | ⬜ stub |
 | `reconstruction/kegg/` | KEGG-based draft (orthology/KO assignment) (3b) | ⬜ stub |
@@ -144,15 +145,18 @@ Keyed to commits on `main`.
 | `6b557b2` | Port addRxnsGenesMets as `add_reactions_from_model` |
 | `5d367b4` | Port checkModelStruct curation subset as `check_model` |
 | `e6020c2` | Port mergeModels as `merge_models` |
+| _(pending)_ | Port simplifyModel gap modes (`manipulation/simplify.py`) |
 
 ---
 
 ## Next up
 
-Candidate next steps, in rough priority order:
+**Phase 1 (foundation) functions are complete.** Candidate next steps:
 
-1. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
-2. **`io/` Excel / tab-delimited / SIF** exporters.
-3. **Reconstruction Phase 3a** — `getModelFromHomology` + BLAST/DIAMOND wrappers (the flagship).
+1. **Reconstruction Phase 3a** — `getModelFromHomology` + BLAST/DIAMOND wrappers (the flagship;
+   biggest single effort, needs external tools).
+2. **`io/` Excel / tab-delimited / SIF** exporters (mostly mechanical).
+3. **Phase 4** — metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT (needs a MIP solver).
+4. **Packaging/CI** — make the package pip-installable + set up CI so tests run without geckopy's venv.
 
 Borderline (argue + ask first): `sortModel` (deterministic core; partly cobra).

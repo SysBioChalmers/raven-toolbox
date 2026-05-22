@@ -11,6 +11,12 @@ from .irreversible import convert_to_irreversible
 from .merge import merge_models
 from .parameters import set_variance_bounds
 from .remove import remove_genes, remove_metabolites
+from .simplify import (
+    constrain_reversible_reactions,
+    group_linear_reactions,
+    remove_dead_end_reactions,
+    remove_duplicate_reactions,
+)
 from .transfer import add_reactions_from_model
 from .transport import add_transport_reactions
 
@@ -20,9 +26,13 @@ __all__ = [
     "add_transport_reactions",
     "change_gene_reaction_rules",
     "change_reaction_equations",
+    "constrain_reversible_reactions",
     "convert_to_irreversible",
     "expand_model",
+    "group_linear_reactions",
     "merge_models",
+    "remove_dead_end_reactions",
+    "remove_duplicate_reactions",
     "remove_genes",
     "remove_metabolites",
     "set_variance_bounds",

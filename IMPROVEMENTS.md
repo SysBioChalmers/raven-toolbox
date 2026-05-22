@@ -37,6 +37,14 @@ Ported as `change_gene_reaction_rules` ([manipulation/change.py](src/ravengem/ma
 |---|---|---|---|---|
 | G8 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **changeGrRules: delegate gene creation + normalization to cobra.** RAVEN calls `getGenesFromGrRules` + `addGenesRaven` + `standardizeGrRules` + rebuilds `rxnGeneMat`; cobra does all of that automatically on `gene_reaction_rule =`. The port keeps only the batch loop and the append (`(old) or (new)`) option. |
 
+## simplifyModel
+
+Gap modes ported in [manipulation/simplify.py](src/ravengem/manipulation/simplify.py).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| S3 | EFFICIENCY (scope) | ravengem 🔨 | 🔨 | **Only the cobra-absent modes ported as focused functions**, not a monolithic 8-flag `simplifyModel`. `deleteMinMax`→`find_blocked_reactions`, `deleteZeroInterval`→filter+prune, `deleteUnconstrained`→moot are cheatsheeted. dead-end / duplicate / constrain-reversible / group-linear are standalone, composable functions. |
+
 ## mergeModels
 
 Ported as `merge_models` ([manipulation/merge.py](src/ravengem/manipulation/merge.py)).
