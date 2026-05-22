@@ -141,7 +141,7 @@ Keyed to commits on `main`.
 | `fee1e6b` | Port addTransport as `add_transport_reactions` |
 | `23d3ceb` | Skip setExchangeBounds (cobra `model.medium` covers it) |
 | `6b557b2` | Port addRxnsGenesMets as `add_reactions_from_model` |
-| _(pending)_ | Port checkModelStruct curation subset as `check_model` |
+| `5d367b4` | Port checkModelStruct curation subset as `check_model` |
 
 ---
 
