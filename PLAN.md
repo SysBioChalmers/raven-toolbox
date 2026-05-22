@@ -237,28 +237,21 @@ depends on the task framework, so tasks are built first within the same phase.
 
 ---
 
-## 7. Code to relocate from geckopy
+## 7. Code relocated from geckopy
 During the geckopy refactor, some RAVEN functionality was ported to Python as generic
-`cobra.Model` operations. These fit ravengem better and should become its canonical home.
+`cobra.Model` operations. ravengem is their canonical home.
 
-| geckopy location | function(s) | RAVEN origin | ravengem home |
+| function(s) | RAVEN origin | ravengem location | status |
 |---|---|---|---|
-| `ec_model/pipeline/preprocess.py` | `convert_to_irreversible` | `convertToIrrev.m` | `manipulation/` |
-| `ec_model/pipeline/expand.py` | `expand_model`, `_gpr_to_dnf`, `_node_to_dnf` | `expandModel.m` | `manipulation/` |
+| `convert_to_irreversible` | `convertToIrrev.m` | `manipulation/irreversible.py` | ✅ adopted + tests passing |
+| `expand_model`, `_gpr_to_dnf`, `_node_to_dnf` | `expandModel.m` | `manipulation/expand.py` | ✅ adopted + tests passing |
 
 **Stays in geckopy** (enzyme-constrained or GECKO-only, despite RAVEN mentions in comments):
 `ec_fseof` (= `ecFSEOF.m`, operates on `EcModel`/protein usage), `remove_pseudoreaction_gprs`,
 `invert_backwards_only_reactions`, and `setParam`/legacy-YAML MATLAB-COMPAT notes.
 
-**Open decision — how to relocate without duplicating logic:**
-- **(a) Single source of truth:** ravengem owns them; geckopy adds `ravengem` as a dependency and
-  imports (e.g. `from ravengem.manipulation import convert_to_irreversible`). Cleanest long-term,
-  but makes mature geckopy depend on pre-alpha ravengem.
-- **(b) Relocate now, re-export shim:** move to ravengem; geckopy keeps thin re-export wrappers for
-  back-compat and depends on ravengem.
-- **(c) Adopt copy now, converge later:** ravengem takes the canonical copy immediately; geckopy
-  keeps its copy until ravengem is published on PyPI, then switches to importing. Brief, tracked
-  duplication. *(Pragmatic given ravengem is 0.0.1 and unpublished.)*
-
-Preserve provenance comments and reuse geckopy's existing pytest cases as the initial test suite
-for these functions in ravengem.
+**Resolved — strategy: adopt copy now, converge later.** ✅ ravengem holds the canonical copy
+(provenance comments preserved; geckopy's pytest cases adopted as the initial suite — 34 tests
+pass under cobra 0.31). geckopy keeps its own copy untouched for now and will switch to importing
+from `ravengem.manipulation` once ravengem is published on PyPI. Until then there is brief, tracked
+duplication; keep the two implementations in sync if either changes.
