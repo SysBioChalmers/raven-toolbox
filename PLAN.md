@@ -48,7 +48,6 @@ convenience wrappers or documentation mapping the old names.
 | `changeRxns`, `setParam`, `setExchangeBounds` | direct attribute assignment (`rxn.bounds`, `model.medium`, `model.objective`) |
 | `getExchangeRxns`, `getTransportRxns` | `model.exchanges`, `model.boundary`, custom filters |
 | `constructEquations`, `buildEquation`, `parseRxnEqu` | `reaction.build_reaction_string`, `reaction.reaction`, `reaction.build_reaction_from_string` |
-| `convertToIrrev` | manual split, or `cobra.util.array` helpers |
 | `constructS` | `cobra.util.create_stoichiometric_matrix` |
 | `getElementalBalance` | `reaction.check_mass_balance`, `metabolite.elements` |
 | `deleteUnusedGenes`, parts of `simplifyModel` | `cobra.manipulation.prune_unused_metabolites`, `prune_unused_reactions` |
@@ -78,10 +77,19 @@ objects:
 | `addIdentifierPrefix`, `removeIdentifierPrefix` | `R_`/`M_`/`G_` prefix handling for interop with COBRA-Toolbox-style IDs (only where cobra's SBML layer doesn't already cover it). |
 | ~~`ravenCobraWrapper`, `standardizeModelFieldOrder`, `cobraNamespaces.csv`, `COBRA_structure_fields.csv`~~ | **Dropped** — no parallel struct to convert or order. |
 
+### 2.1b `manipulation/` — structural model transforms cobra lacks  *(Phase 1)*
+Generic `cobra.Model` transforms that RAVEN provides but cobrapy does **not** cover cleanly.
+Two are **already ported in geckopy** and should be relocated here as the canonical home (see §7).
+| RAVEN | Notes |
+|---|---|
+| `convertToIrrev` | Split reversible non-exchange reactions into forward + `_REV` pair. **Already ported** as `convert_to_irreversible` (geckopy `pipeline/preprocess.py`); cobra's old `convert_to_irreversible` was removed, so this is a real port, not a wrapper. |
+| `expandModel` | Split isozyme (OR-GPR) reactions into one reaction per AND-clause (`_EXP_N`). **Already ported** as `expand_model` + `_gpr_to_dnf`/`_node_to_dnf` (geckopy `pipeline/expand.py`), using cobra's GPR AST instead of RAVEN string manipulation. |
+| `simplifyModel`, `contractModel`, `mergeCompartments`, `copyToComps` | Other RAVEN structural transforms to port here as needed (the parts cobra's `prune_*` helpers don't cover). |
+
 ### 2.2 `io/` — RAVEN-specific formats  *(Phase 1–2)*
 | RAVEN | Notes |
 |---|---|
-| `readYAMLmodel`, `writeYAMLmodel` | **Follow the cobrapy YAML standard** (`cobra.io.dict.model_to_dict` / `model_from_dict` for the metabolites/reactions/genes/compartments portion), and **additionally support geckopy's enzyme-constrained extension keys** (`ec-rxns`, `ec-enzymes`, `gecko_light`, `metaData`) so ecModels round-trip. Empty/NaN fields omitted; loader fills them back. `ruamel.yaml`. High priority — heavily used. |
+| `readYAMLmodel`, `writeYAMLmodel` | **Follow the cobrapy YAML standard** (`cobra.io.dict.model_to_dict` / `model_from_dict` for the metabolites/reactions/genes/compartments portion), and **additionally support geckopy's enzyme-constrained extension keys** (`ec-rxns`, `ec-enzymes`, `gecko_light`, `metaData`) so ecModels round-trip. Empty/NaN fields omitted; loader fills them back. **Also read the legacy RAVEN/MATLAB YAML dialect** (`!!omap` tags) that geckopy's loader rejects — this is a ravengem-unique capability. `ruamel.yaml`. High priority — heavily used. |
 | `importExcelModel`, `exportToExcelFormat`, `SBMLFromExcel` | RAVEN Excel model format. `openpyxl` (optional dep). |
 | `exportToTabDelimited`, `exportForGit` | Plain-text / git-friendly model dumps. |
 | `exportModelToSIF` | Cytoscape SIF export (visualization). |
@@ -225,4 +233,32 @@ depends on the task framework, so tasks are built first within the same phase.
    (`ec-rxns`, `ec-enzymes`, `gecko_light`, `metaData`). ✅
 
 ### Still open
-- Final package / PyPI name (see brainstorm below — to be decided).
+- **geckopy → ravengem dependency direction** (see §7).
+
+---
+
+## 7. Code to relocate from geckopy
+During the geckopy refactor, some RAVEN functionality was ported to Python as generic
+`cobra.Model` operations. These fit ravengem better and should become its canonical home.
+
+| geckopy location | function(s) | RAVEN origin | ravengem home |
+|---|---|---|---|
+| `ec_model/pipeline/preprocess.py` | `convert_to_irreversible` | `convertToIrrev.m` | `manipulation/` |
+| `ec_model/pipeline/expand.py` | `expand_model`, `_gpr_to_dnf`, `_node_to_dnf` | `expandModel.m` | `manipulation/` |
+
+**Stays in geckopy** (enzyme-constrained or GECKO-only, despite RAVEN mentions in comments):
+`ec_fseof` (= `ecFSEOF.m`, operates on `EcModel`/protein usage), `remove_pseudoreaction_gprs`,
+`invert_backwards_only_reactions`, and `setParam`/legacy-YAML MATLAB-COMPAT notes.
+
+**Open decision — how to relocate without duplicating logic:**
+- **(a) Single source of truth:** ravengem owns them; geckopy adds `ravengem` as a dependency and
+  imports (e.g. `from ravengem.manipulation import convert_to_irreversible`). Cleanest long-term,
+  but makes mature geckopy depend on pre-alpha ravengem.
+- **(b) Relocate now, re-export shim:** move to ravengem; geckopy keeps thin re-export wrappers for
+  back-compat and depends on ravengem.
+- **(c) Adopt copy now, converge later:** ravengem takes the canonical copy immediately; geckopy
+  keeps its copy until ravengem is published on PyPI, then switches to importing. Brief, tracked
+  duplication. *(Pragmatic given ravengem is 0.0.1 and unpublished.)*
+
+Preserve provenance comments and reuse geckopy's existing pytest cases as the initial test suite
+for these functions in ravengem.
