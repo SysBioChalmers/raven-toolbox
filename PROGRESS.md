@@ -144,11 +144,10 @@ Keyed to commits on `main`.
 
 Candidate next steps, in rough priority order:
 
-1. **`setExchangeBounds`** — media-definition logic (direction detection) beyond `model.medium`.
-2. **`addRxnsGenesMets`** — cross-model reaction transfer with name matching + dedup.
-3. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
-4. **`mergeModels`** — N-way merge with name+comp matching, conflict rename, provenance (heavier).
-5. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
-6. **`io/` Excel / tab-delimited / SIF** exporters.
+1. **`addRxnsGenesMets`** — cross-model reaction transfer with name matching + dedup.
+2. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
+3. **`mergeModels`** — N-way merge with name+comp matching, conflict rename, provenance (heavier).
+4. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
+5. **`io/` Excel / tab-delimited / SIF** exporters.
 
 Borderline (argue + ask first): `sortModel` (deterministic core; partly cobra).
