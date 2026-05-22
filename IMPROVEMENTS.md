@@ -29,6 +29,23 @@ metabolites/genes. Ported as `add_reactions_from_equations`
 | A3 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **Delegate equation/arrow/coefficient parsing and gene/met creation to cobra** (`build_reaction_from_string` semantics, GPR auto-creation) instead of re-implementing RAVEN's `constructS`/`addGenesRaven`. Only the genuinely cobra-absent pieces (name matching, compartment for new mets, strict policies) are hand-written. |
 | A4 | NEW | both 💡 | 💡 | **Infer compartment from a structured metabolite ID** (e.g. `atp_c` → `c`) as an alternative to requiring `compartment`. Not yet implemented; would reduce boilerplate for SBML-style IDs. Revisit alongside `addMets`. |
 
+## readYAMLmodel / writeYAMLmodel
+
+RAVEN `io/readYAMLmodel.m` + `writeYAMLmodel.m` (+ private legacy parser). Ported as
+`read_yaml_model`/`write_yaml_model` ([io/yaml.py](src/ravengem/io/yaml.py)).
+
+**Lens correction (no separate legacy parser).** RAVEN ships a 462-line `parseYAMLLegacy.m` for the
+`!!omap` dialect, and geckopy refuses it ("re-save from MATLAB"). But `!!omap` is **cobra's own YAML
+format**: `cobra.io.load_yaml_model` reads a real yeast-GEM.yml (4102 rxns) directly. So the
+ravengem-unique capability the PLAN imagined (a legacy reader) is unnecessary; the real cobra-absent
+value is preserving `metaData` identity and RAVEN-only per-entry fields, which is what was built.
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| Y1 | EFFICIENCY (scope) | ravengem 🔨 | 🔨 | **Drop the bespoke legacy YAML parser; delegate to cobra's `!!omap` loader.** ~460 lines of RAVEN parsing not reimplemented. ravengem reads old RAVEN/Human-GEM YAML in pure Python with no MATLAB needed (geckopy can't — it tells users to re-save from MATLAB). |
+| Y2 | ERGONOMICS (data loss) | ravengem 🔨 | 🔨 | **Don't silently drop model identity/provenance or RAVEN-only fields.** A plain `cobra.io.load_yaml_model` of a RAVEN file yields `model.id is None` and discards `smiles`/`deltaG`/`confidence_score`/etc. ravengem preserves them (notes + `metaData`). |
+| Y3 | NEW | both 💡 | 💡 | **Emit `!!omap`-tagged output matching cobra/Metabolic-Atlas exactly** for byte-stable diffs and guaranteed `cobra.io.load_yaml_model` interop. Current writer dumps a plain ruamel mapping (still re-readable, and round-trips through ravengem); aligning the exact tag/key order is a later refinement. |
+
 ## changeRxns
 
 RAVEN `core/changeRxns.m` — change reaction equations. Ported as

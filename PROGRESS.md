@@ -40,8 +40,9 @@ Functions that exist as working, tested Python in ravengem.
 | `utils/parse.py` | `parse_name_comp` | `getIndexes.m` (`metcomps` sliver) | ✅ (via `test_manipulation_add.py`) | Parse a `name[comp]` token → `(name, compartment)`. The only cobra-absent bit of `getIndexes`. |
 | `manipulation/add.py` | `add_reactions_from_equations` | `addRxns.m` | ✅ `tests/test_manipulation_add.py` | Keystone. Adds reactions from equation strings; matches mets by id, name, or `name[comp]`; assigns compartment to new mets; strict/auto policies for new mets & genes; duplicate-ID guard. Equation parsing/arrows/gene-creation delegated to cobra. |
 | `manipulation/change.py` | `change_reaction_equations` | `changeRxns.m` | ✅ `tests/test_manipulation_change.py` | Replaces a reaction's stoichiometry from an equation string (reuses the `add` parser). Edits the `Reaction` in place — other fields, bounds, and order preserved; no remove/re-add/re-sort dance. |
+| `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` | ✅ `tests/test_io_yaml.py` | Wraps cobra YAML (which already reads the `!!omap` RAVEN/Human-GEM format) and adds what cobra drops: model identity/provenance from `metaData`, RAVEN-only per-entry fields (→ notes), and verbatim preservation of foreign sections (GECKO ec). Verified on a real yeast-GEM.yml. |
 
-**Test status:** 81 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 88 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -53,7 +54,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 |---|---|---|
 | `utils/` | GPR hygiene + model helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `parse_name_comp`, `checkModelStruct`, MIRIAM/annotation, ID-prefix) — **no** struct adapter | 🟡 GPR lint ported |
 | `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟡 `add_reactions_from_equations` + 2 transforms ported |
-| `io/` | RAVEN YAML/Excel/SIF formats | ⬜ stub |
+| `io/` | RAVEN YAML/Excel/SIF formats | 🟡 YAML read/write ported |
 | `reconstruction/{kegg,metacyc,homology}/` | de novo reconstruction (flagship) | ⬜ stub |
 | `init/` | tINIT/ftINIT context extraction | ⬜ stub |
 | `tasks/` | metabolic task validation | ⬜ stub |
@@ -118,6 +119,7 @@ Keyed to commits on `main`.
 | `62b43d1` | Demote getIndexes (cobra `DictList` covers it) |
 | `4c65c8a` | Port GPR lint half of standardizeGrRules (`is_dnf`/`find_non_dnf_grrules`) |
 | `2224eed` | Port addRxns as `add_reactions_from_equations`; add `parse_name_comp` |
+| `5779f47` | Port changeRxns as `change_reaction_equations` |
 
 ---
 
@@ -125,8 +127,8 @@ Keyed to commits on `main`.
 
 Candidate next steps, in rough priority order:
 
-1. **`io/` YAML reader/writer** — high-use, self-contained, clear oracle (round-trip a
-   yeast-GEM/Human-GEM file), gives immediate ecModel interop with geckopy.
-2. **More `manipulation/` transforms** — `removeReactions`/`removeMets`/`removeGenes`,
-   `simplifyModel`, `mergeModels`.
+1. **`remove*` family** — `removeReactions`/`removeMets`/`removeGenes` (separable cascade flags,
+   name-based delete, flux-aware gene removal).
+2. **More `manipulation/` transforms** — `simplifyModel` (stage by mode), `mergeModels`.
 3. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
+4. **`io/` Excel / tab-delimited / SIF** exporters.
