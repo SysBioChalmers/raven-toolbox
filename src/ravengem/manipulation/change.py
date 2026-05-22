@@ -25,6 +25,8 @@ from cobra import Reaction
 
 from ravengem.manipulation.add import _stoichiometry
 
+__all__ = ["change_reaction_equations", "change_gene_reaction_rules"]
+
 
 def change_reaction_equations(
     model: "cobra.Model",
@@ -81,6 +83,54 @@ def change_reaction_equations(
 
         rxn.subtract_metabolites(dict(rxn.metabolites), combine=True)
         rxn.add_metabolites(coeffs)
+        changed.append(rxn)
+
+    return changed
+
+
+def change_gene_reaction_rules(
+    model: "cobra.Model",
+    rules: Mapping[str, str],
+    *,
+    replace: bool = True,
+) -> list[Reaction]:
+    """Set or append gene-reaction rules on existing reactions.
+
+    Port of RAVEN ``changeGrRules.m``.
+
+    cobra already does the heavy lifting on assignment to
+    ``reaction.gene_reaction_rule``: it auto-creates any new ``Gene`` objects and
+    normalises the rule. So the value here is batching plus RAVEN's ``replace``
+    option to **append** rather than overwrite.
+
+    Parameters
+    ----------
+    model
+        Target ``cobra.Model``, mutated in place.
+    rules
+        Mapping of ``reaction_id -> GPR string``. Every ID must already exist.
+    replace
+        If True (default), overwrite the existing GPR. If False, append the new
+        rule as an isozyme: ``(old) or (new)`` (just ``new`` if the reaction had
+        no GPR).
+
+    Returns
+    -------
+    list of cobra.Reaction
+        The reactions changed, in input order.
+    """
+    changed: list[Reaction] = []
+    for rxn_id, rule in rules.items():
+        if rxn_id not in model.reactions:
+            raise ValueError(f"Reaction {rxn_id!r} not found in the model.")
+        rxn = model.reactions.get_by_id(rxn_id)
+
+        if replace or not rxn.gene_reaction_rule:
+            new_rule = rule
+        else:
+            new_rule = f"({rxn.gene_reaction_rule}) or ({rule})"
+
+        rxn.gene_reaction_rule = new_rule  # cobra creates genes + normalises
         changed.append(rxn)
 
     return changed

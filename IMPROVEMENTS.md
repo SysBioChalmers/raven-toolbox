@@ -29,7 +29,16 @@ metabolites/genes. Ported as `add_reactions_from_equations`
 | A3 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **Delegate equation/arrow/coefficient parsing and gene/met creation to cobra** (`build_reaction_from_string` semantics, GPR auto-creation) instead of re-implementing RAVEN's `constructS`/`addGenesRaven`. Only the genuinely cobra-absent pieces (name matching, compartment for new mets, strict policies) are hand-written. |
 | A4 | NEW | both 💡 | 💡 | **Infer compartment from a structured metabolite ID** (e.g. `atp_c` → `c`) as an alternative to requiring `compartment`. Not yet implemented; would reduce boilerplate for SBML-style IDs. Revisit alongside `addMets`. |
 
-## removeMets / removeGenes
+## changeGrRules / getRxnsInComp / getMetsInComp
+
+Ported as `change_gene_reaction_rules` ([manipulation/change.py](src/ravengem/manipulation/change.py))
+and `get_reactions_in_compartment`/`get_metabolites_in_compartment`
+([utils/compartments.py](src/ravengem/utils/compartments.py)).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| G8 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **changeGrRules: delegate gene creation + normalization to cobra.** RAVEN calls `getGenesFromGrRules` + `addGenesRaven` + `standardizeGrRules` + rebuilds `rxnGeneMat`; cobra does all of that automatically on `gene_reaction_rule =`. The port keeps only the batch loop and the append (`(old) or (new)`) option. |
+| C2 | ERGONOMICS | ravengem 🔨 | 🔨 | **Compartment selectors return objects, not a boolean mask + names** (RAVEN returns `[I, names]`). Built on cobra's `reaction.compartments`; the only encapsulated logic is `include_partial` (fully-contained vs touching). |
 
 Ported as `remove_metabolites` / `remove_genes`
 ([manipulation/remove.py](src/ravengem/manipulation/remove.py)). `removeReactions` was **not**
