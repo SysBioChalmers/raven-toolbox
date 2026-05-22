@@ -158,9 +158,38 @@ and verdicts. **Build order:** `parse_name_comp` (utils) → `addMets`/
 | `getToolboxVersion`, `getMD5Hash` | Provenance helpers. |
 
 ### 2.3 `reconstruction/` — de novo reconstruction  *(Phase 3, flagship)*
-The single biggest reason RAVEN exists and cobrapy does not cover this at all.
+RAVEN's single biggest reason to exist; cobrapy does not cover it at all. There are
+**three independent reconstruction approaches**, each a self-contained track with its
+own top-level entry point, inputs, and external dependencies. They are planned and
+built separately (suggested order **homology → KEGG → MetaCyc**); each can ship on its
+own. The shared piece they all rely on is the model-construction layer (§2.1b
+`add_reactions_from_equations` etc.) and I/O (§2.2).
 
-**`reconstruction/kegg/`**
+#### 2.3a Homology-based — `reconstruction/homology/`  *(Phase 3a)*
+Transfer reactions from an existing **template GEM** of a related organism, via
+bidirectional best BLAST/DIAMOND hits between protein sequences. The most
+self-contained approach (no online database; inputs are a model + FASTA), so built
+first.
+- **Entry point:** `getModelFromHomology` — given a template `cobra.Model` and a
+  homology mapping, transfer reactions and remap genes to the target organism.
+- **Inputs:** a template `cobra.Model` + query/target protein FASTA.
+- **External deps:** BLAST+ / DIAMOND executables (via `subprocess`).
+
+| RAVEN | Notes |
+|---|---|
+| `getModelFromHomology` | Transfer reactions from a template GEM via bidirectional best hits. |
+| `getBlast`, `getDiamond`, `getBlastFromExcel` | Wrap external BLAST+/DIAMOND executables (subprocess). |
+| `makeFakeBlastStructure`, `parseScores` | Homology-score plumbing. |
+
+#### 2.3b KEGG-based — `reconstruction/kegg/`  *(Phase 3b)*
+Build a draft GEM from **KEGG** orthology assignments for the organism. Heavier external
+data than homology; independent of MetaCyc.
+- **Entry point:** `getKEGGModelForOrganism` — orchestrates KO assignment → reaction/
+  metabolite/gene retrieval → draft `cobra.Model`.
+- **Inputs:** organism KEGG id, or a proteome FASTA (for de novo KO assignment).
+- **External deps:** KEGG REST (with on-disk cache) **or** RAVEN's pre-built KEGG dumps
+  (configurable, per §0); HMMER for KO assignment.
+
 | RAVEN | Notes |
 |---|---|
 | `getKEGGModelForOrganism` | Top-level: build a draft GEM for an organism from KEGG. Orchestrates the below. |
@@ -168,19 +197,19 @@ The single biggest reason RAVEN exists and cobrapy does not cover this at all.
 | `getPhylDist` | Phylogenetic-distance weighting of KEGG orthologs. |
 | `constructMultiFasta` | Build per-KO FASTA for homology search. |
 
-**`reconstruction/metacyc/`**
+#### 2.3c MetaCyc-based — `reconstruction/metacyc/`  *(Phase 3c)*
+Build a draft from **MetaCyc** reactions/pathways, and optionally reconcile it with a
+KEGG draft (so this track can build on 3b but does not require it).
+- **Entry point:** `getMetaCycModelForOrganism` — draft `cobra.Model` from MetaCyc;
+  `combineMetaCycKEGGModels` merges a MetaCyc and a KEGG draft.
+- **Inputs:** MetaCyc flat-file dumps (license-restricted); optionally a KEGG draft from 3b.
+- **External deps:** MetaCyc data dumps; cross-DB linking to KEGG (`linkMetaCycKEGGRxns`).
+
 | RAVEN | Notes |
 |---|---|
 | `getMetaCycModelForOrganism`, `getModelFromMetaCyc` | MetaCyc-based draft reconstruction. |
 | `getRxnsFromMetaCyc`, `getMetsFromMetaCyc`, `getEnzymesFromMetaCyc` | MetaCyc flat-file parsers. |
-| `linkMetaCycKEGGRxns`, `combineMetaCycKEGGModels`, `addSpontaneousRxns` | Cross-DB reconciliation. |
-
-**`reconstruction/homology/`**
-| RAVEN | Notes |
-|---|---|
-| `getModelFromHomology` | Transfer reactions from a template GEM via bidirectional best hits. |
-| `getBlast`, `getDiamond`, `getBlastFromExcel` | Wrap external BLAST+/DIAMOND executables (subprocess). |
-| `makeFakeBlastStructure`, `parseScores` | Homology-score plumbing. |
+| `linkMetaCycKEGGRxns`, `combineMetaCycKEGGModels`, `addSpontaneousRxns` | Cross-DB reconciliation (with the KEGG track, 3b). |
 
 ### 2.4 `init/` — context-specific models (tINIT / ftINIT)  *(Phase 4, flagship)*
 RAVEN-unique MILP algorithm; no cobrapy equivalent. Needs a MIP solver.
@@ -258,13 +287,17 @@ Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before 
 |---|---|---|---|
 | **1** | Foundation | `utils/` helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `parse_name_comp`, `checkModelStruct`, MIRIAM/annotation + ID-prefix — **no** struct adapter; `getIndexes` and grRule *normalization* **not** ported, cobra covers them) and the `manipulation/` ergonomic layer (§1b: `addRxns` & co., `setParam`, `removeReactions` & co., `simplifyModel`, `mergeModels`, `sortModel`), packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
 | **2** | I/O | `readYAMLmodel`/`writeYAMLmodel`, Excel import/export, tab-delimited & SIF export. | 1 |
-| **3** | Reconstruction | homology (BLAST/DIAMOND) → KEGG → MetaCyc reconstruction. | 1, 2 |
+| **3a** | Reconstruction — homology | `getModelFromHomology` + BLAST/DIAMOND wrappers (§2.3a). Self-contained; build first. | 1, 2 |
+| **3b** | Reconstruction — KEGG | `getKEGGModelForOrganism` + KEGG retrieval/KO assignment (§2.3b). | 1, 2 |
+| **3c** | Reconstruction — MetaCyc | `getMetaCycModelForOrganism` + MetaCyc parsers + KEGG reconciliation (§2.3c). | 1, 2, (3b for combine) |
 | **4** | Context-specific & tasks | metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT. (Tasks first — INIT depends on them.) | 1, 2, MIP solver |
 | **5** | Data integration & analysis | HPA/omics, localization, `reporterMetabolites`, FSEOF, dFBA, model comparison. | 1–4 |
 | **6** | Visualization | pathway maps / omics overlay (consider Escher). | 1–2 |
 
 **Suggested order rationale:** each phase produces something usable on its own. Reconstruction
-(Phase 3) is RAVEN's headline feature and only needs the foundation + I/O. tINIT (Phase 4)
+(Phase 3) is RAVEN's headline feature and only needs the foundation + I/O; it splits into three
+**independent** tracks (3a homology, 3b KEGG, 3c MetaCyc), built in that order — homology is most
+self-contained, and MetaCyc can optionally reconcile against a KEGG draft. tINIT (Phase 4)
 depends on the task framework, so tasks are built first within the same phase.
 
 ---

@@ -19,7 +19,9 @@ _Last updated: 2026-05-22_
 | 0 | Scaffold & decisions | ✅ done |
 | 1 | Foundation (`utils/`, `manipulation/`) | 🟡 in progress |
 | 2 | I/O (`io/`) | ⬜ not started |
-| 3 | Reconstruction (`reconstruction/`) | ⬜ not started |
+| 3a | Reconstruction — homology (`reconstruction/homology/`) | ⬜ not started |
+| 3b | Reconstruction — KEGG (`reconstruction/kegg/`) | ⬜ not started |
+| 3c | Reconstruction — MetaCyc (`reconstruction/metacyc/`) | ⬜ not started |
 | 4 | Context-specific & tasks (`tasks/`, `gapfilling/`, `init/`) | ⬜ not started |
 | 5 | Data integration & analysis (`omics/`, `localization/`, `analysis/`, `comparison/`) | ⬜ not started |
 | 6 | Visualization (`plotting/`) | ⬜ not started |
@@ -56,7 +58,9 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | `utils/` | GPR hygiene + model helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `parse_name_comp`, `checkModelStruct`, MIRIAM/annotation, ID-prefix) — **no** struct adapter | 🟡 GPR lint ported |
 | `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟡 `add_reactions_from_equations` + 2 transforms ported |
 | `io/` | RAVEN YAML/Excel/SIF formats | 🟡 YAML read/write ported |
-| `reconstruction/{kegg,metacyc,homology}/` | de novo reconstruction (flagship) | ⬜ stub |
+| `reconstruction/homology/` | homology-based draft from a template GEM + BLAST/DIAMOND (3a) | ⬜ stub |
+| `reconstruction/kegg/` | KEGG-based draft (orthology/KO assignment) (3b) | ⬜ stub |
+| `reconstruction/metacyc/` | MetaCyc-based draft + KEGG reconciliation (3c) | ⬜ stub |
 | `init/` | tINIT/ftINIT context extraction | ⬜ stub |
 | `tasks/` | metabolic task validation | ⬜ stub |
 | `gapfilling/` | template-based MILP gap-filling | ⬜ stub |
