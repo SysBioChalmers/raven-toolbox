@@ -139,7 +139,7 @@ Keyed to commits on `main`.
 | `d0e63b6` | Trim set_parameters → set_variance_bounds |
 | `fee1e6b` | Port addTransport as `add_transport_reactions` |
 | `23d3ceb` | Skip setExchangeBounds (cobra `model.medium` covers it) |
-| `fed (this)` | Port addRxnsGenesMets as `add_reactions_from_model` |
+| `6b557b2` | Port addRxnsGenesMets as `add_reactions_from_model` |
 
 ---
 
