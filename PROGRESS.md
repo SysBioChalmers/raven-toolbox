@@ -8,7 +8,7 @@ this file tracks **how far along** the port is. Update it whenever code lands.
 > made smarter/faster or whether RAVEN is missing something that fits — and log those in
 > **[IMPROVEMENTS.md](IMPROVEMENTS.md)** (candidates to also back-port to MATLAB RAVEN).
 
-_Last updated: 2026-05-22_
+_Last updated: 2026-05-23_
 
 ---
 
@@ -61,7 +61,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | subpackage | purpose | port status |
 |---|---|---|
 | `utils/` | GPR hygiene + balance + validation + parse helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `get_elemental_balance` ✅, `check_model` ✅, `parse_name_comp` ✅) — **no** struct adapter; `getRxnsInComp`/`getMetsInComp`, MIRIAM/ID-prefix **not** ported (cobra covers) | 🟢 foundation done |
-| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟡 add/change/remove + set_parameters + 2 transforms ported |
+| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟢 editing layer done (add/change/remove/transport/transfer/variance + 2 transforms); structural transforms `mergeModels`/`simplifyModel` remain |
 | `io/` | RAVEN YAML/Excel/SIF formats | 🟡 YAML read/write ported |
 | `reconstruction/homology/` | homology-based draft from a template GEM + BLAST/DIAMOND (3a) | ⬜ stub |
 | `reconstruction/kegg/` | KEGG-based draft (orthology/KO assignment) (3b) | ⬜ stub |
