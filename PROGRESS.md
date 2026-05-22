@@ -80,10 +80,15 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 
 9. **Ergonomic layer (PLAN §1b)** — re-examined the RAVEN "manipulation" functions first dismissed
    as cobra-redundant. Many earn a port because they batch, chain steps, match by name, or
-   auto-create dependencies cobra leaves to you. PORT keystones: `getIndexes`, `addRxns` (+ family),
-   `setParam`, `removeReactions`/`removeMets`/`removeGenes`, `simplifyModel`, `mergeModels`,
-   `standardizeGrRules`, `sortModel` (deterministic core). These are a thin layer **on top of**
-   cobra primitives, not a parallel data model.
+   auto-create dependencies cobra leaves to you. PORT keystones: `addRxns` (+ family), `setParam`,
+   `removeReactions`/`removeMets`/`removeGenes`, `simplifyModel`, `mergeModels`, `standardizeGrRules`,
+   `sortModel` (deterministic core). These are a thin layer **on top of** cobra primitives, not a
+   parallel data model.
+10. **`getIndexes` NOT ported** — cobra's `DictList` (`get_by_any`/`get_by_id`/`query`/`index`)
+    already covers mixed id/object/index/name lookup more idiomatically; RAVEN needed a central
+    resolver only because of its struct-of-parallel-arrays design. Kept just the `name[comp]`
+    composite resolver as a small helper. Two findings (hash lookup, `[1 1 1]` mask/index bug)
+    logged in IMPROVEMENTS.md as MATLAB-RAVEN-only back-port candidates.
 
 ### Open questions
 - geckopy → ravengem dependency direction once ravengem is published (currently duplicated).
