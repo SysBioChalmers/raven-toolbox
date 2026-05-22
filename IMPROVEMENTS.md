@@ -37,6 +37,15 @@ Ported as `change_gene_reaction_rules` ([manipulation/change.py](src/ravengem/ma
 |---|---|---|---|---|
 | G8 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **changeGrRules: delegate gene creation + normalization to cobra.** RAVEN calls `getGenesFromGrRules` + `addGenesRaven` + `standardizeGrRules` + rebuilds `rxnGeneMat`; cobra does all of that automatically on `gene_reaction_rule =`. The port keeps only the batch loop and the append (`(old) or (new)`) option. |
 
+## checkModelStruct
+
+Ported (curation subset) as `check_model` ([utils/validate.py](src/ravengem/utils/validate.py)).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| V1 | EFFICIENCY (scope) | ravengem 🔨 | 🔨 | **Drop the struct/type/duplicate-ID/`lb>ub`/`rev` checks** — cobra's object model enforces or precludes them (DictList forbids duplicate IDs, Reaction rejects `lb>ub`, no `rev` field). Only the curation checks cobra lacks survive. |
+| V2 | ERGONOMICS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Return structured `ModelIssue`s, not printed warnings** (RAVEN prints / throws). Programmatically filterable by `category`. **MATLAB back-port:** return an issues struct array. |
+
 ## setParam / getElementalBalance
 
 Ported as `set_parameters` ([manipulation/parameters.py](src/ravengem/manipulation/parameters.py))

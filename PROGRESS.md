@@ -44,12 +44,13 @@ Functions that exist as working, tested Python in ravengem.
 | `manipulation/change.py` | `change_reaction_equations`, `change_gene_reaction_rules` | `changeRxns.m`, `changeGrRules.m` | ✅ `tests/test_manipulation_change.py`, `tests/test_change_grrules.py` | Stoichiometry change in place (reuses the `add` parser); and batch GPR set/append (`(old) or (new)`), with gene creation + normalization free from cobra. |
 | `manipulation/parameters.py` | `set_variance_bounds` | `setParam.m` (`'var'` mode) | ✅ `tests/test_parameters.py` | The only `setParam` mode cobra has no idiom for: a ±% band around measured values (sign-aware). Other modes (`lb`/`ub`/`eq`/`obj`/`unc`) are cobra one-liners (cheatsheet). |
 | `utils/balance.py` | `get_elemental_balance`, `ElementalBalance` | `getElementalBalance.m` | ✅ `tests/test_utils_balance.py` | Graded `balanced`/`unbalanced`/`unknown` per reaction — `unknown` catches a missing formula that cobra's `check_mass_balance` silently miscounts. |
+| `utils/validate.py` | `check_model`, `ModelIssue` | `checkModelStruct.m` (curation subset) | ✅ `tests/test_utils_validate.py` | Structured curation report: orphan mets/genes, empty reactions, duplicate name+compartment, empty names, objective sanity. RAVEN's struct/type/duplicate-ID checks are moot in cobra. |
 | `manipulation/transport.py` | `add_transport_reactions` | `addTransport.m` | ✅ `tests/test_manipulation_transport.py` | Transport reactions across compartments, matching mets by name, sequential `tr_0001` IDs, optional target-metabolite creation. cobra has no transport primitive. |
 | `manipulation/transfer.py` | `add_reactions_from_model` | `addRxnsGenesMets.m` | ✅ `tests/test_manipulation_transfer.py` | Copy reactions from a source model, matching mets by `name[comp]` (not id), adding only new mets/genes. cobra's `merge` is strict-by-id. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` | ✅ `tests/test_io_yaml.py` | Wraps cobra YAML (which already reads the `!!omap` RAVEN/Human-GEM format) and adds what cobra drops: model identity/provenance from `metaData`, RAVEN-only per-entry fields routed by meaning (chemical IDs `smiles`/`inchis` → `annotation`; `deltaG`/`confidence_score`/`*From`/`protein` → `notes`), and verbatim preservation of foreign sections (GECKO ec). Verified on a real yeast-GEM.yml. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 133 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 142 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -59,7 +60,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 
 | subpackage | purpose | port status |
 |---|---|---|
-| `utils/` | GPR hygiene + model helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `parse_name_comp`, `checkModelStruct`, MIRIAM/annotation, ID-prefix) — **no** struct adapter; `getRxnsInComp`/`getMetsInComp` **not** ported (cobra one-liners) | 🟡 GPR lint ported |
+| `utils/` | GPR hygiene + balance + validation + parse helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `get_elemental_balance` ✅, `check_model` ✅, `parse_name_comp` ✅) — **no** struct adapter; `getRxnsInComp`/`getMetsInComp`, MIRIAM/ID-prefix **not** ported (cobra covers) | 🟢 foundation done |
 | `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟡 add/change/remove + set_parameters + 2 transforms ported |
 | `io/` | RAVEN YAML/Excel/SIF formats | 🟡 YAML read/write ported |
 | `reconstruction/homology/` | homology-based draft from a template GEM + BLAST/DIAMOND (3a) | ⬜ stub |
@@ -140,6 +141,7 @@ Keyed to commits on `main`.
 | `fee1e6b` | Port addTransport as `add_transport_reactions` |
 | `23d3ceb` | Skip setExchangeBounds (cobra `model.medium` covers it) |
 | `6b557b2` | Port addRxnsGenesMets as `add_reactions_from_model` |
+| _(pending)_ | Port checkModelStruct curation subset as `check_model` |
 
 ---
 
@@ -147,9 +149,9 @@ Keyed to commits on `main`.
 
 Candidate next steps, in rough priority order:
 
-1. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
-2. **`mergeModels`** — N-way merge with name+comp matching, conflict rename, provenance (heavier).
-3. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
-4. **`io/` Excel / tab-delimited / SIF** exporters.
+1. **`mergeModels`** — N-way merge with name+comp matching, conflict rename, provenance (heavier).
+2. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
+3. **`io/` Excel / tab-delimited / SIF** exporters.
+4. **Reconstruction Phase 3a** — `getModelFromHomology` + BLAST/DIAMOND wrappers (the flagship).
 
 Borderline (argue + ask first): `sortModel` (deterministic core; partly cobra).

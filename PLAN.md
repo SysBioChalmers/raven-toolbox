@@ -56,6 +56,8 @@ convenience wrappers or documentation mapping the old names.
 | `addExchangeRxns` | `model.add_boundary(met, type="exchange" / "demand" / "sink")` |
 | `setParam` (`lb`/`ub`/`eq`/`obj`/`unc`) | `rxn.bounds = (lo, hi)` / `rxn.bounds = (v, v)` / `model.objective = {rxn: c}` / `rxn.bounds = cobra.Configuration().bounds`; loop for batch. (`var` band → `set_variance_bounds`.) |
 | `setExchangeBounds`, `getExchangeRxns` | `model.medium = {ex_id: uptake}` (sets uptake, closes others, handles direction); `model.exchanges` / `model.sinks` / `model.demands` |
+| `editMiriam`, `extractMiriam` | `met.annotation["kegg.compound"] = "C00031"` / `met.annotation.get(...)` (annotation is a `{namespace: id(s)}` dict) |
+| `addIdentifierPrefix`, `removeIdentifierPrefix` | handled by `cobra.io` SBML read/write |
 | `constructS` | `cobra.util.create_stoichiometric_matrix` |
 | `printFluxes`, `printModel`, `printModelStats` | `model.summary()`, `reaction.summary()`, `metabolite.summary()` |
 | `getGenesFromGrRules` | `cobra.core.gene.GPR` (parse/eval/AST) |
@@ -123,9 +125,9 @@ directly. Only the genuinely useful, RAVEN-flavored helpers survive, as small fu
 objects:
 | RAVEN | Notes |
 |---|---|
-| `checkModelStruct` | Validate a `cobra.Model` against RAVEN reconstruction expectations (beyond cobra's own `model.validate` / SBML validation). |
-| `editMiriam`, `extractMiriam` | Convenience get/set for MIRIAM-style entries inside cobra `.annotation` dicts. |
-| `addIdentifierPrefix`, `removeIdentifierPrefix` | `R_`/`M_`/`G_` prefix handling for interop with COBRA-Toolbox-style IDs (only where cobra's SBML layer doesn't already cover it). |
+| `checkModelStruct` | **PORT (curation subset)** ✅ — `check_model` ([utils/validate.py](src/ravengem/utils/validate.py)). RAVEN's struct/field-type/duplicate-ID/`lb>ub`/`rev` checks are moot in cobra (object model enforces them); the surviving curation bundle (orphan mets/genes, empty reactions, duplicate name+compartment, empty names, objective sanity) is returned as structured `ModelIssue`s. |
+| ~~`editMiriam`, `extractMiriam`~~ | **DO NOT PORT** — cobra's `.annotation` is already a `{namespace: id(s)}` dict; read/write it directly (cheatsheet). |
+| ~~`addIdentifierPrefix`, `removeIdentifierPrefix`~~ | **DO NOT PORT** — cobra's SBML layer handles `R_`/`M_`/`G_` prefixing on read/write. |
 | `parse_name_comp` (from `getIndexes` `metcomps`) | **PORT** (small helper) ✅ — resolve the `name[comp]` composite (metabolite by name + compartment) cobra can't. Done in [utils/parse.py](src/ravengem/utils/parse.py). The rest of `getIndexes` is **not ported** — `DictList.get_by_any`/`get_by_id`/`query`/`index` already cover mixed id/object/index/name lookup more idiomatically (see §1b note). |
 | `standardizeGrRules` | **PORT lint only** ✅ — normalization is cobra-automatic; non-DNF lint ported as `find_non_dnf_grrules`/`is_dnf`. See §1b. |
 | `getElementalBalance` | **PORT** ✅ — graded balanced/unbalanced/unknown (catches cobra's silent missing-formula); see §1b. Lives in `utils/balance.py`. |
@@ -290,7 +292,7 @@ Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before 
 
 | Phase | Theme | Deliverables | Depends on |
 |---|---|---|---|
-| **1** | Foundation | `utils/` helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `parse_name_comp`, `checkModelStruct`, MIRIAM/annotation + ID-prefix — **no** struct adapter; `getIndexes` and grRule *normalization* **not** ported, cobra covers them) and the `manipulation/` ergonomic layer (§1b: `addRxns` & co., `setParam`, `removeReactions` & co., `simplifyModel`, `mergeModels`, `sortModel`), packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
+| **1** | Foundation | `utils/` helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `get_elemental_balance` ✅, `check_model` ✅, `parse_name_comp` ✅ — **no** struct adapter; `getIndexes`, grRule *normalization*, MIRIAM/ID-prefix helpers **not** ported, cobra covers them) and the `manipulation/` ergonomic layer (§1b: largely done — add/change/remove/transport/transfer/variance ✅), packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
 | **2** | I/O | `readYAMLmodel`/`writeYAMLmodel`, Excel import/export, tab-delimited & SIF export. | 1 |
 | **3a** | Reconstruction — homology | `getModelFromHomology` + BLAST/DIAMOND wrappers (§2.3a). Self-contained; build first. | 1, 2 |
 | **3b** | Reconstruction — KEGG | `getKEGGModelForOrganism` + KEGG retrieval/KO assignment (§2.3b). | 1, 2 |
