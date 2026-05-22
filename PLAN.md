@@ -32,6 +32,13 @@ document (1) maps every RAVEN functional area to its cobrapy equivalent or "port
 These RAVEN functions have direct cobrapy equivalents. `ravengem` should provide, at most, thin
 convenience wrappers or documentation mapping the old names.
 
+> **Caveat (see §1b):** "cobra has an equivalent" is not the same as "cobra makes it as
+> easy." A first pass put many model-*manipulation* functions here; a closer read of the MATLAB
+> source shows several do batch input, multi-step orchestration, name-based matching, or
+> auto-creation of dependencies that cobra forces you to write by hand. Those have been **moved
+> to §1b as genuine port targets.** The table below is now restricted to functions that really do
+> collapse to a one-liner with no ergonomic loss (simulation, analysis, SBML I/O, trivial lookups).
+
 | RAVEN function(s) | cobrapy equivalent |
 |---|---|
 | `importModel`, `exportModel` (SBML) | `cobra.io.read_sbml_model`, `write_sbml_model` |
@@ -43,22 +50,59 @@ convenience wrappers or documentation mapping the old names.
 | `getEssentialRxns` | `cobra.flux_analysis.find_essential_reactions` / `find_essential_genes` |
 | `randomSampling`, `analyzeSampling` | `cobra.sampling` (OptGP, ACHR) |
 | `runProductionEnvelope`, `runPhenotypePhasePlane` | `cobra.flux_analysis.production_envelope` |
-| `addRxns`, `addMets`, `addExchangeRxns`, `addTransport` | `Model.add_reactions`, `add_metabolites`, `add_boundary` |
-| `removeReactions`, `removeMets`, `removeGenes` | `Model.remove_reactions`, `remove_metabolites`, `cobra.manipulation.remove_genes` |
-| `changeRxns`, `setParam`, `setExchangeBounds` | direct attribute assignment (`rxn.bounds`, `model.medium`, `model.objective`) |
 | `getExchangeRxns`, `getTransportRxns` | `model.exchanges`, `model.boundary`, custom filters |
-| `constructEquations`, `buildEquation`, `parseRxnEqu` | `reaction.build_reaction_string`, `reaction.reaction`, `reaction.build_reaction_from_string` |
+| `buildEquation`, `parseRxnEqu` | `reaction.reaction`, `reaction.build_reaction_from_string` |
 | `constructS` | `cobra.util.create_stoichiometric_matrix` |
-| `getElementalBalance` | `reaction.check_mass_balance`, `metabolite.elements` |
-| `deleteUnusedGenes`, parts of `simplifyModel` | `cobra.manipulation.prune_unused_metabolites`, `prune_unused_reactions` |
-| `mergeModels` (basic) | `model.merge` |
 | `printFluxes`, `printModel`, `printModelStats` | `model.summary()`, `reaction.summary()`, `metabolite.summary()` |
-| `standardizeGrRules`, `changeGrRules`, `getGenesFromGrRules` | `cobra.core.gene.GPR` (parse/eval/AST) |
+| `getGenesFromGrRules` | `cobra.core.gene.GPR` (parse/eval/AST) |
 | `parseFormulas` | `metabolite.formula` / `elements` |
-| `getIndexes`, `sortModel`, `sortIdentifiers`, `permuteModel` | native Python indexing / cobra DictList |
+| `deleteUnusedGenes` | `cobra.manipulation.prune_unused_metabolites`, `prune_unused_reactions` |
+| `sortIdentifiers`, `permuteModel` | native Python indexing / cobra DictList |
 
-**Verdict:** ~70 RAVEN functions collapse into cobrapy calls. Capture these as a "migration
-cheatsheet" in the docs rather than as code.
+**Verdict:** these collapse into cobrapy calls with no ergonomic loss. Capture them as a "migration
+cheatsheet" in the docs rather than as code. (Functions reclassified out of this list — `addRxns`,
+`removeReactions`, `setParam`, `getIndexes`, `mergeModels`, `simplifyModel`, etc. — are in §1b.)
+
+---
+
+## 1b. cobra has it, but RAVEN's version is worth porting (ergonomic layer)
+
+Re-examined the MATLAB source of every "manipulation" function first parked in §1. The verdict
+rubric: a function earns a **PORT** if it (1) batches over many objects in one call, (2) chains
+multiple steps, (3) does matching / validation / auto-creation / cascading cleanup cobra leaves to
+you, or (4) lets you work with human-readable equation strings. **WRAP** = minor convenience, often
+just there to support a PORT. These form a thin RAVEN-style ergonomic layer over `cobra.Model`;
+each is still implemented *on top of* cobra primitives, not as a parallel data model.
+
+### Targets for `manipulation/` — model construction & editing
+
+| RAVEN | verdict | Why (beyond the cobra one-liner) |
+|---|---|---|
+| `addRxns` | **PORT** (keystone) | Adds a batch of reactions from **equation strings** *or* mets+coeffs; auto-creates missing metabolites (`allowNewMets`, 3 matching modes: by id, by `name+comp`, or `name[comp]` syntax) and missing genes from grRules (`allowNewGenes`); validates GPR genes. cobra needs hand-built objects + coeff dicts + pre-created genes. |
+| `addRxnsGenesMets` | **PORT** | Copies a batch of reactions from a source model into a draft, matching mets by `name[comp]` (not id), skipping/​reporting duplicates, auto-adding only genuinely new mets/genes with annotation carried over. The post-homology reaction-transfer workflow; cobra makes you hand-write the merge+dedup. |
+| `addTransport` | **PORT** | Batch-creates transport reactions from one compartment to many, matching mets **by name** across comps, auto-naming (`tr_0001`), and auto-creating the target-compartment metabolite when missing. cobra has **no** transport primitive at all. |
+| `changeRxns` | **PORT** (cheap once `addRxns` exists) | Replace a batch of reactions' stoichiometry via **equation strings**, preserving all other fields and original ordering. cobra has no string-equation edit path. |
+| `changeGrRules` | **PORT** | Batch-set grRules with an **append** mode (`(old) or (new)`), auto-adding new genes, then re-standardizing and rebuilding `rxnGeneMat`. cobra's `gene_reaction_rule=` is per-reaction, no append, no consistent gene auto-creation. |
+| `setParam` | **PORT** | One call sets `lb`/`ub`/`eq`/`obj`/`var`(±% band)/`unc` over a list of reactions (ids/index/mask), broadcasts a scalar, silently skips missing reactions, resets objective on `obj`, validates `lb≤ub`. cobra scatters these across attributes + manual loops. (Drop RAVEN-only `rev`.) |
+| `setExchangeBounds` | **PORT** | Real media-definition logic: finds exchanges, maps mets by name/id/index, auto-detects import direction, refuses inconsistent `closeOthers`, optionally restricts to the extracellular compartment, can close all other imports. Richer than `model.medium`. |
+| `removeReactions` | **PORT** | Three **separable** cascade flags (`removeUnusedMets`/`Genes`/`Comps`) vs cobra's single coupled `remove_orphans`; accepts ids / mask / index interchangeably. |
+| `removeMets` | **PORT** | Delete mets **by name across all compartments** at once (`isNames`), then cascade to orphaned reactions/genes/comps and remap `metComps`. cobra's `remove_metabolites` has only `destructive`. |
+| `removeGenes` | **PORT** | Flux-aware: rewrites GPRs dropping the gene, and a `removeBlockedRxns` toggle to either delete reactions that can no longer carry flux **or** constrain them to 0. (Reimplement GPR eval via cobra's GPR AST, not MATLAB `eval`.) |
+| `simplifyModel` | **PORT** (stage by mode) | Orchestrator with 8 reduction modes + reserved-reaction protection + a deletion audit log: delete unconstrained / duplicate (`contractModel`) / zero-interval / inaccessible (dead-end) / no-flux (FVA) reactions, `groupLinear` enzyme chains, `constrainReversible`. Modes 1/3/4 are pure-graph (easy); 5 needs FVA; 6 is complex+lossy. No bundled cobra equivalent. |
+| `mergeModels` | **PORT** | Merge **N** models at once, matching mets by `name+comp` (or id), auto-renaming id conflicts, reconciling compartments, tracking `rxnFrom`/`metFrom`/`geneFrom` provenance. cobra's `merge` is pairwise and strict-by-id. |
+| `sortModel` (core) | **PORT** core / **SKIP** optimizer | Port the **deterministic** canonical ordering (mets by `name[comp]`; reversible reactions flipped to lexicographic-first reactant) — exactly what makes YAML diffable. **Skip** the stochastic `sortReactionOrder` annealer. |
+| `addMets` | **WRAP** | Batch add with dedupe + `copyInfo` (copy formula/charge/InChI/MIRIAM from same-named met in another comp). Mostly exists to back `addRxns`. |
+| `addExchangeRxns` | **WRAP** | Batch over a met list + RAVEN naming (`EXC_OUT_<id>`); `model.add_boundary` already covers the rest. |
+| `constructEquations` | **WRAP** | Inverse of `addRxns`: batch reactions → readable equation strings (met id/name/formula, sorting). Backs `addRxnsGenesMets`; cobra has per-reaction `.reaction`. |
+
+### Targets for `utils/` — lookup, GPR hygiene, balance
+
+| RAVEN | verdict | Why |
+|---|---|---|
+| `getIndexes` | **PORT** (foundational) | Flexible resolver used everywhere: mixed **id / name / index / logical-mask** input → indices *or* boolean mask, dispatching over rxns/mets/genes/comps (and ec fields), with `name[comp]` composite resolution and tolerant multi-match name lookup. cobra's `get_by_id` is exact-id-only-or-raise; `query` returns objects, not positions. Nearly every other port leans on this. |
+| `standardizeGrRules` | **PORT** | Normalizes GPR syntax (bracketing, lowercase `and`/`or`, whitespace) **and** lints suspicious `) and (` isoenzyme-complex ambiguity. cobra parses GPRs but doesn't normalize arbitrary input or surface these curation warnings. Build on cobra's `GPR`; drop the redundant `rxnGeneMat` output. |
+| `getElementalBalance` | **WRAP** | Batch graded balance table (status: balanced / unbalanced / missing-info / parse-error) with InChI fallback — more informative than per-reaction `check_mass_balance`. |
+| `getRxnsInComp`, `getMetsInComp` | **WRAP** | "Objects in compartment" accessors cobra lacks as first-class calls; the only non-trivial bit is `getRxnsInComp(include_partial=False)` (fully-contained vs touching). |
 
 ---
 
@@ -75,16 +119,33 @@ objects:
 | `checkModelStruct` | Validate a `cobra.Model` against RAVEN reconstruction expectations (beyond cobra's own `model.validate` / SBML validation). |
 | `editMiriam`, `extractMiriam` | Convenience get/set for MIRIAM-style entries inside cobra `.annotation` dicts. |
 | `addIdentifierPrefix`, `removeIdentifierPrefix` | `R_`/`M_`/`G_` prefix handling for interop with COBRA-Toolbox-style IDs (only where cobra's SBML layer doesn't already cover it). |
+| `getIndexes` | **PORT** (foundational) — flexible id/name/index/mask → indices-or-mask resolver across rxns/mets/genes/comps; see §1b. Most other ports lean on it. |
+| `standardizeGrRules` | **PORT** — GPR syntax normalization + isoenzyme-complex linting on top of cobra's `GPR`; see §1b. |
+| `getElementalBalance` | **WRAP** — batch graded mass-balance table with InChI fallback; see §1b. |
+| `getRxnsInComp`, `getMetsInComp` | **WRAP** — "objects in compartment" accessors (`include_partial` containment logic); see §1b. |
 | ~~`ravenCobraWrapper`, `standardizeModelFieldOrder`, `cobraNamespaces.csv`, `COBRA_structure_fields.csv`~~ | **Dropped** — no parallel struct to convert or order. |
 
-### 2.1b `manipulation/` — structural model transforms cobra lacks  *(Phase 1)*
-Generic `cobra.Model` transforms that RAVEN provides but cobrapy does **not** cover cleanly.
-Two are **already ported in geckopy** and should be relocated here as the canonical home (see §7).
+### 2.1b `manipulation/` — model construction, editing & structural transforms  *(Phase 1)*
+The home for the RAVEN ergonomic layer (§1b) that *mutates* a `cobra.Model`, plus structural
+transforms cobra lacks. Two transforms are **already ported in geckopy** and relocated here (see §7).
+
+**Structural transforms:**
 | RAVEN | Notes |
 |---|---|
 | `convertToIrrev` | Split reversible non-exchange reactions into forward + `_REV` pair. **Already ported** as `convert_to_irreversible` (geckopy `pipeline/preprocess.py`); cobra's old `convert_to_irreversible` was removed, so this is a real port, not a wrapper. |
 | `expandModel` | Split isozyme (OR-GPR) reactions into one reaction per AND-clause (`_EXP_N`). **Already ported** as `expand_model` + `_gpr_to_dnf`/`_node_to_dnf` (geckopy `pipeline/expand.py`), using cobra's GPR AST instead of RAVEN string manipulation. |
-| `simplifyModel`, `contractModel`, `mergeCompartments`, `copyToComps` | Other RAVEN structural transforms to port here as needed (the parts cobra's `prune_*` helpers don't cover). |
+| `simplifyModel` | **PORT, stage by mode** — 8 reduction modes + reserved-rxn protection + deletion log; see §1b. |
+| `mergeModels` | **PORT** — N-way merge with name+comp matching, conflict rename, provenance; see §1b. |
+| `sortModel` | **PORT** deterministic canonical ordering (skip stochastic optimizer); see §1b. |
+| `contractModel`, `mergeCompartments`, `copyToComps` | Other RAVEN structural transforms to port as needed. |
+
+**Construction & editing (ergonomic layer, §1b):** `addRxns` (keystone — equation-string batch add
+with met/gene auto-creation), `addRxnsGenesMets`, `addTransport`, `changeRxns`, `changeGrRules`,
+`setParam`, `setExchangeBounds`, `removeReactions`, `removeMets`, `removeGenes`; plus `addMets`,
+`addExchangeRxns`, `constructEquations` as supporting **WRAP**s. See §1b for per-function rationale
+and verdicts. **Build order:** `getIndexes` + `standardizeGrRules` (utils) → `addMets`/
+`constructEquations` → `addRxns` → everything that depends on it (`changeRxns`, `addRxnsGenesMets`,
+`addTransport`).
 
 ### 2.2 `io/` — RAVEN-specific formats  *(Phase 1–2)*
 | RAVEN | Notes |
@@ -194,7 +255,7 @@ Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before 
 
 | Phase | Theme | Deliverables | Depends on |
 |---|---|---|---|
-| **1** | Foundation | `utils/` model helpers (`checkModelStruct` validation, MIRIAM/annotation + ID-prefix helpers — **no** struct adapter), packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
+| **1** | Foundation | `utils/` helpers (`getIndexes`, `standardizeGrRules`, `checkModelStruct`, MIRIAM/annotation + ID-prefix — **no** struct adapter) and the `manipulation/` ergonomic layer (§1b: `addRxns` & co., `setParam`, `removeReactions` & co., `simplifyModel`, `mergeModels`, `sortModel`), packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
 | **2** | I/O | `readYAMLmodel`/`writeYAMLmodel`, Excel import/export, tab-delimited & SIF export. | 1 |
 | **3** | Reconstruction | homology (BLAST/DIAMOND) → KEGG → MetaCyc reconstruction. | 1, 2 |
 | **4** | Context-specific & tasks | metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT. (Tasks first — INIT depends on them.) | 1, 2, MIP solver |
