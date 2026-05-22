@@ -29,6 +29,15 @@ metabolites/genes. Ported as `add_reactions_from_equations`
 | A3 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **Delegate equation/arrow/coefficient parsing and gene/met creation to cobra** (`build_reaction_from_string` semantics, GPR auto-creation) instead of re-implementing RAVEN's `constructS`/`addGenesRaven`. Only the genuinely cobra-absent pieces (name matching, compartment for new mets, strict policies) are hand-written. |
 | A4 | NEW | both 💡 | 💡 | **Infer compartment from a structured metabolite ID** (e.g. `atp_c` → `c`) as an alternative to requiring `compartment`. Not yet implemented; would reduce boilerplate for SBML-style IDs. Revisit alongside `addMets`. |
 
+## changeRxns
+
+RAVEN `core/changeRxns.m` — change reaction equations. Ported as
+`change_reaction_equations` ([manipulation/change.py](src/ravengem/manipulation/change.py)).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| C1 | EFFICIENCY | ravengem 🔨 | 🔨 | **Edit the reaction in place** instead of RAVEN's copy-all-fields → `removeReactions` → `addRxns` → `permuteModel` round-trip. cobra mutates the same `Reaction` object, so every other field and the model order are preserved for free, with no O(n) re-sort. (Not a MATLAB back-port — the round-trip is inherent to the struct layout there.) |
+
 ## getIndexes
 
 RAVEN `core/getIndexes.m` — resolve a list of IDs / logical mask / index vector into positional

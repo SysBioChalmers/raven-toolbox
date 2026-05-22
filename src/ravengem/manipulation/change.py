@@ -1,0 +1,86 @@
+"""Change the stoichiometry of existing reactions from equation strings.
+
+Port of RAVEN ``changeRxns.m``.
+
+RAVEN changes a reaction by copying all its other fields, removing it, re-adding
+it via ``addRxns``, then re-sorting the model back to the original order — a
+dance forced by its struct-of-parallel-arrays layout. In cobra none of that is
+needed: editing the same ``Reaction`` object changes only its stoichiometry and
+preserves its ID, name, bounds, GPR, subsystem, and position automatically.
+
+So this port simply re-parses the equation (reusing the same metabolite
+matching as :func:`~ravengem.manipulation.add.add_reactions_from_equations`,
+including name and ``name[comp]`` modes that cobra lacks) and swaps the
+metabolites in place.
+
+Like RAVEN, **bounds are left unchanged** even if the new equation's arrow
+implies a different reversibility — use a bounds setter for that.
+"""
+from __future__ import annotations
+
+from typing import Mapping
+
+import cobra
+from cobra import Reaction
+
+from ravengem.manipulation.add import _stoichiometry
+
+
+def change_reaction_equations(
+    model: "cobra.Model",
+    equations: Mapping[str, str],
+    *,
+    mets_by: str = "id",
+    compartment: str | None = None,
+    allow_new_mets: bool = True,
+    new_met_prefix: str = "m",
+) -> list[Reaction]:
+    """Replace the stoichiometry of existing reactions.
+
+    Port of RAVEN ``changeRxns.m``.
+
+    Parameters
+    ----------
+    model
+        Target ``cobra.Model``, mutated in place.
+    equations
+        Mapping of ``reaction_id -> equation string``. Every ID must already
+        exist in the model. Equation syntax is identical to
+        :func:`~ravengem.manipulation.add.add_reactions_from_equations`.
+    mets_by, compartment, allow_new_mets, new_met_prefix
+        Metabolite-matching options, as in ``add_reactions_from_equations``.
+
+    Returns
+    -------
+    list of cobra.Reaction
+        The reactions changed, in input order.
+
+    Notes
+    -----
+    Bounds are **not** modified, matching RAVEN. Changing an equation from
+    ``-->`` to ``<=>`` does not by itself make the reaction reversible; adjust
+    the bounds separately.
+    """
+    if mets_by not in ("id", "name"):
+        raise ValueError(f"mets_by must be 'id' or 'name', got {mets_by!r}")
+
+    changed: list[Reaction] = []
+    for rxn_id, equation in equations.items():
+        if rxn_id not in model.reactions:
+            raise ValueError(f"Reaction {rxn_id!r} not found in the model.")
+        rxn = model.reactions.get_by_id(rxn_id)
+
+        coeffs, _reversible = _stoichiometry(
+            model,
+            equation,
+            mets_by=mets_by,
+            compartment=compartment,
+            allow_new_mets=allow_new_mets,
+            new_met_prefix=new_met_prefix,
+        )
+
+        rxn.subtract_metabolites(dict(rxn.metabolites), combine=True)
+        rxn.add_metabolites(coeffs)
+        changed.append(rxn)
+
+    return changed

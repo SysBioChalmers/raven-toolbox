@@ -39,8 +39,9 @@ Functions that exist as working, tested Python in ravengem.
 | `utils/gpr.py` | `is_dnf`, `find_non_dnf_grrules`, `GPRIssue` | `standardizeGrRules.m` (`findPotentialErrors` half) | ✅ `tests/test_utils_gpr.py` | Lint half only — flags GPRs not in disjunctive normal form via cobra's GPR AST, structured `GPRIssue` output. The normalization half is **not** ported (cobra auto-normalizes GPRs on assignment). |
 | `utils/parse.py` | `parse_name_comp` | `getIndexes.m` (`metcomps` sliver) | ✅ (via `test_manipulation_add.py`) | Parse a `name[comp]` token → `(name, compartment)`. The only cobra-absent bit of `getIndexes`. |
 | `manipulation/add.py` | `add_reactions_from_equations` | `addRxns.m` | ✅ `tests/test_manipulation_add.py` | Keystone. Adds reactions from equation strings; matches mets by id, name, or `name[comp]`; assigns compartment to new mets; strict/auto policies for new mets & genes; duplicate-ID guard. Equation parsing/arrows/gene-creation delegated to cobra. |
+| `manipulation/change.py` | `change_reaction_equations` | `changeRxns.m` | ✅ `tests/test_manipulation_change.py` | Replaces a reaction's stoichiometry from an equation string (reuses the `add` parser). Edits the `Reaction` in place — other fields, bounds, and order preserved; no remove/re-add/re-sort dance. |
 
-**Test status:** 73 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 81 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -116,6 +117,7 @@ Keyed to commits on `main`.
 | `30b1582` | Add IMPROVEMENTS.md; getIndexes improvement proposals |
 | `62b43d1` | Demote getIndexes (cobra `DictList` covers it) |
 | `4c65c8a` | Port GPR lint half of standardizeGrRules (`is_dnf`/`find_non_dnf_grrules`) |
+| `2224eed` | Port addRxns as `add_reactions_from_equations`; add `parse_name_comp` |
 
 ---
 
@@ -123,10 +125,8 @@ Keyed to commits on `main`.
 
 Candidate next steps, in rough priority order:
 
-1. **`changeRxns`** — cheap now that `add_reactions_from_equations` exists (string-equation
-   stoichiometry edits, reusing the parser).
-2. **`io/` YAML reader/writer** — high-use, self-contained, clear oracle (round-trip a
+1. **`io/` YAML reader/writer** — high-use, self-contained, clear oracle (round-trip a
    yeast-GEM/Human-GEM file), gives immediate ecModel interop with geckopy.
-3. **More `manipulation/` transforms** — `removeReactions`/`removeMets`/`removeGenes`,
+2. **More `manipulation/` transforms** — `removeReactions`/`removeMets`/`removeGenes`,
    `simplifyModel`, `mergeModels`.
-4. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
+3. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
