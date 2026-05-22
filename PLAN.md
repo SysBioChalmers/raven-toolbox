@@ -98,7 +98,7 @@ each is still implemented *on top of* cobra primitives, not as a parallel data m
 | `removeMets` | **PORT (thin)** ⚠️ | Done ([manipulation/remove.py](src/ravengem/manipulation/remove.py)). Delegates to cobra; the **only** add is `by_name` (delete a metabolite across all compartments). That need is likely rare — flagged as a **deletion candidate** if unused. |
 | `removeGenes` | **PORT** ✅ | Done. cobra's `remove_genes` already rewrites GPRs via AST with correct AND/OR semantics (RAVEN did this with `eval`); the port adds the `blocked_reactions` policy — `"remove"` / `"constrain"` (bounds→0, RAVEN default) / `"keep"` — for reactions left with no enzyme. |
 | `simplifyModel` | **PORT** (stage by mode) | Orchestrator with 8 reduction modes + reserved-reaction protection + a deletion audit log: delete unconstrained / duplicate (`contractModel`) / zero-interval / inaccessible (dead-end) / no-flux (FVA) reactions, `groupLinear` enzyme chains, `constrainReversible`. Modes 1/3/4 are pure-graph (easy); 5 needs FVA; 6 is complex+lossy. No bundled cobra equivalent. |
-| `mergeModels` | **PORT** | Merge **N** models at once, matching mets by `name+comp` (or id), auto-renaming id conflicts, reconciling compartments, tracking `rxnFrom`/`metFrom`/`geneFrom` provenance. cobra's `merge` is pairwise and strict-by-id. |
+| `mergeModels` | **PORT** ✅ | Done as `merge_models` ([manipulation/merge.py](src/ravengem/manipulation/merge.py)). Merges **N** models, unifying mets by `name[comp]` (or id), keeping **all** reactions (RAVEN does not dedup; id collisions renamed `id_<source>`), merging genes, tracking provenance in `notes['origin']`. cobra's `merge` is pairwise and strict-by-id. |
 | `sortModel` (core) | **PORT** core / **SKIP** optimizer | Port the **deterministic** canonical ordering (mets by `name[comp]`; reversible reactions flipped to lexicographic-first reactant) — exactly what makes YAML diffable. **Skip** the stochastic `sortReactionOrder` annealer. |
 | `addMets` | **DO NOT PORT** | `model.add_metabolites([Metabolite(...), ...])` covers batch add; `copyInfo` is niche. `addRxns` already auto-creates new mets. |
 | `addExchangeRxns` | **DO NOT PORT** | `model.add_boundary(met, type="exchange"/"demand"/"sink")` covers it; only RAVEN's `EXC_OUT_*` naming differs. |
@@ -144,7 +144,7 @@ transforms cobra lacks. Two transforms are **already ported in geckopy** and rel
 | `convertToIrrev` | Split reversible non-exchange reactions into forward + `_REV` pair. **Already ported** as `convert_to_irreversible` (geckopy `pipeline/preprocess.py`); cobra's old `convert_to_irreversible` was removed, so this is a real port, not a wrapper. |
 | `expandModel` | Split isozyme (OR-GPR) reactions into one reaction per AND-clause (`_EXP_N`). **Already ported** as `expand_model` + `_gpr_to_dnf`/`_node_to_dnf` (geckopy `pipeline/expand.py`), using cobra's GPR AST instead of RAVEN string manipulation. |
 | `simplifyModel` | **PORT, stage by mode** — 8 reduction modes + reserved-rxn protection + deletion log; see §1b. |
-| `mergeModels` | **PORT** — N-way merge with name+comp matching, conflict rename, provenance; see §1b. |
+| `mergeModels` | **PORT** ✅ — N-way merge with name+comp matching, conflict rename, provenance ([manipulation/merge.py](src/ravengem/manipulation/merge.py)); see §1b. |
 | `sortModel` | **PORT** deterministic canonical ordering (skip stochastic optimizer); see §1b. |
 | `contractModel`, `mergeCompartments`, `copyToComps` | Other RAVEN structural transforms to port as needed. |
 

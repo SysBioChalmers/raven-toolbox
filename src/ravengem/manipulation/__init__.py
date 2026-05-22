@@ -8,6 +8,7 @@ from .add import add_reactions_from_equations
 from .change import change_gene_reaction_rules, change_reaction_equations
 from .expand import expand_model
 from .irreversible import convert_to_irreversible
+from .merge import merge_models
 from .parameters import set_variance_bounds
 from .remove import remove_genes, remove_metabolites
 from .transfer import add_reactions_from_model
@@ -21,6 +22,7 @@ __all__ = [
     "change_reaction_equations",
     "convert_to_irreversible",
     "expand_model",
+    "merge_models",
     "remove_genes",
     "remove_metabolites",
     "set_variance_bounds",

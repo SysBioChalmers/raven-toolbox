@@ -47,10 +47,11 @@ Functions that exist as working, tested Python in ravengem.
 | `utils/validate.py` | `check_model`, `ModelIssue` | `checkModelStruct.m` (curation subset) | ✅ `tests/test_utils_validate.py` | Structured curation report: orphan mets/genes, empty reactions, duplicate name+compartment, empty names, objective sanity. RAVEN's struct/type/duplicate-ID checks are moot in cobra. |
 | `manipulation/transport.py` | `add_transport_reactions` | `addTransport.m` | ✅ `tests/test_manipulation_transport.py` | Transport reactions across compartments, matching mets by name, sequential `tr_0001` IDs, optional target-metabolite creation. cobra has no transport primitive. |
 | `manipulation/transfer.py` | `add_reactions_from_model` | `addRxnsGenesMets.m` | ✅ `tests/test_manipulation_transfer.py` | Copy reactions from a source model, matching mets by `name[comp]` (not id), adding only new mets/genes. cobra's `merge` is strict-by-id. |
+| `manipulation/merge.py` | `merge_models` | `mergeModels.m` | ✅ `tests/test_manipulation_merge.py` | Merge N models, unify mets by `name[comp]` (or id), keep all reactions (id collisions renamed), merge genes, provenance in `notes['origin']`. cobra's `merge` is pairwise/strict-by-id. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` | ✅ `tests/test_io_yaml.py` | Wraps cobra YAML (which already reads the `!!omap` RAVEN/Human-GEM format) and adds what cobra drops: model identity/provenance from `metaData`, RAVEN-only per-entry fields routed by meaning (chemical IDs `smiles`/`inchis` → `annotation`; `deltaG`/`confidence_score`/`*From`/`protein` → `notes`), and verbatim preservation of foreign sections (GECKO ec). Verified on a real yeast-GEM.yml. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 142 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 152 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -61,7 +62,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | subpackage | purpose | port status |
 |---|---|---|
 | `utils/` | GPR hygiene + balance + validation + parse helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `get_elemental_balance` ✅, `check_model` ✅, `parse_name_comp` ✅) — **no** struct adapter; `getRxnsInComp`/`getMetsInComp`, MIRIAM/ID-prefix **not** ported (cobra covers) | 🟢 foundation done |
-| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟢 editing layer done (add/change/remove/transport/transfer/variance + 2 transforms); structural transforms `mergeModels`/`simplifyModel` remain |
+| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟢 editing layer + `merge_models` done; `simplifyModel` remains |
 | `io/` | RAVEN YAML/Excel/SIF formats | 🟡 YAML read/write ported |
 | `reconstruction/homology/` | homology-based draft from a template GEM + BLAST/DIAMOND (3a) | ⬜ stub |
 | `reconstruction/kegg/` | KEGG-based draft (orthology/KO assignment) (3b) | ⬜ stub |
@@ -142,6 +143,7 @@ Keyed to commits on `main`.
 | `23d3ceb` | Skip setExchangeBounds (cobra `model.medium` covers it) |
 | `6b557b2` | Port addRxnsGenesMets as `add_reactions_from_model` |
 | `5d367b4` | Port checkModelStruct curation subset as `check_model` |
+| _(pending)_ | Port mergeModels as `merge_models` |
 
 ---
 
@@ -149,9 +151,8 @@ Keyed to commits on `main`.
 
 Candidate next steps, in rough priority order:
 
-1. **`mergeModels`** — N-way merge with name+comp matching, conflict rename, provenance (heavier).
-2. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
-3. **`io/` Excel / tab-delimited / SIF** exporters.
-4. **Reconstruction Phase 3a** — `getModelFromHomology` + BLAST/DIAMOND wrappers (the flagship).
+1. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
+2. **`io/` Excel / tab-delimited / SIF** exporters.
+3. **Reconstruction Phase 3a** — `getModelFromHomology` + BLAST/DIAMOND wrappers (the flagship).
 
 Borderline (argue + ask first): `sortModel` (deterministic core; partly cobra).

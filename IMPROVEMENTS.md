@@ -37,6 +37,15 @@ Ported as `change_gene_reaction_rules` ([manipulation/change.py](src/ravengem/ma
 |---|---|---|---|---|
 | G8 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **changeGrRules: delegate gene creation + normalization to cobra.** RAVEN calls `getGenesFromGrRules` + `addGenesRaven` + `standardizeGrRules` + rebuilds `rxnGeneMat`; cobra does all of that automatically on `gene_reaction_rule =`. The port keeps only the batch loop and the append (`(old) or (new)`) option. |
 
+## mergeModels
+
+Ported as `merge_models` ([manipulation/merge.py](src/ravengem/manipulation/merge.py)).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| M1 | EFFICIENCY (scope) | ravengem 🔨 | 🔨 | **~560 lines of struct field-padding + manual S-matrix assembly dropped.** On `cobra.Model` the merge is just: unify metabolites by `name[comp]`, re-add reactions remapped to the merged metabolites, let cobra rebuild S and create genes. |
+| M2 | ERGONOMICS | ravengem 🔨 | 🔨 | **Provenance via `notes['origin']`** (one place) instead of three parallel `rxnFrom`/`metFrom`/`geneFrom` fields. `match_by="name"|"id"` keyword replaces RAVEN's `metParam` string. |
+
 ## checkModelStruct
 
 Ported (curation subset) as `check_model` ([utils/validate.py](src/ravengem/utils/validate.py)).
