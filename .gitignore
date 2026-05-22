@@ -20,9 +20,10 @@ htmlcov/
 .idea/
 .DS_Store
 
-# Reconstruction working files (BLAST/DIAMOND DBs, KEGG/MetaCyc dumps)
+# Reconstruction working files (BLAST/DIAMOND DBs, KEGG/MetaCyc dumps).
+# Anchored to repo root so they don't shadow the src/ravenpy/reconstruction/ packages.
 *.fasta
 *.dmnd
-blastdb/
-keggModelFiles/
-metacyc/
+/blastdb/
+/keggModelFiles/
+/metacyc_cache/
