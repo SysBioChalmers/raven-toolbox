@@ -44,7 +44,7 @@ and `get_elemental_balance` ([utils/balance.py](src/ravengem/utils/balance.py)).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
-| P1 | ERGONOMICS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **setParam: readable keywords instead of a `paramType` string.** RAVEN takes `paramType='lb'\|'ub'\|'eq'\|'obj'\|'var'\|'unc'`; ravengem uses `lb=`/`ub=`/`eq=`/`objective=`/`var=`/`reset=` (and can set several at once). RAVEN-only `'rev'` dropped. **MATLAB back-port:** name-value pairs. |
+| ~~P1~~ | ERGONOMICS | — | ↩ revised | A 6-mode keyword `set_parameters` was built then **trimmed** (review: not Pythonic — it re-wrapped cobra one-liners for `lb`/`ub`/`eq`/`obj`/`unc`). Only the `var` ±% band, which cobra has no idiom for, is kept as `set_variance_bounds`; the rest are documented as cobra idioms in the §1 cheatsheet. |
 | B1 | ERGONOMICS (correctness) | ravengem 🔨 | 🔨 | **getElementalBalance: report `unknown` for missing formulas.** cobra's `check_mass_balance` silently treats a metabolite with no formula as contributing nothing, so the reaction can read as (un)balanced on incomplete data. ravengem flags those as `unknown` rather than guessing — preserving RAVEN's distinction (its `-1` status). |
 
 ## getRxnsInComp / getMetsInComp — not ported

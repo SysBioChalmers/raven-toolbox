@@ -42,12 +42,12 @@ Functions that exist as working, tested Python in ravengem.
 | `utils/parse.py` | `parse_name_comp` | `getIndexes.m` (`metcomps` sliver) | ✅ (via `test_manipulation_add.py`) | Parse a `name[comp]` token → `(name, compartment)`. The only cobra-absent bit of `getIndexes`. |
 | `manipulation/add.py` | `add_reactions_from_equations` | `addRxns.m` | ✅ `tests/test_manipulation_add.py` | Keystone. Adds reactions from equation strings; matches mets by id, name, or `name[comp]`; assigns compartment to new mets; strict/auto policies for new mets & genes; duplicate-ID guard. Equation parsing/arrows/gene-creation delegated to cobra. |
 | `manipulation/change.py` | `change_reaction_equations`, `change_gene_reaction_rules` | `changeRxns.m`, `changeGrRules.m` | ✅ `tests/test_manipulation_change.py`, `tests/test_change_grrules.py` | Stoichiometry change in place (reuses the `add` parser); and batch GPR set/append (`(old) or (new)`), with gene creation + normalization free from cobra. |
-| `manipulation/parameters.py` | `set_parameters` | `setParam.m` | ✅ `tests/test_parameters.py` | Batch `lb`/`ub`/`eq`/`objective`/`var`(±% band)/`reset` with scalar broadcast; readable keywords instead of RAVEN's `paramType` string. |
+| `manipulation/parameters.py` | `set_variance_bounds` | `setParam.m` (`'var'` mode) | ✅ `tests/test_parameters.py` | The only `setParam` mode cobra has no idiom for: a ±% band around measured values (sign-aware). Other modes (`lb`/`ub`/`eq`/`obj`/`unc`) are cobra one-liners (cheatsheet). |
 | `utils/balance.py` | `get_elemental_balance`, `ElementalBalance` | `getElementalBalance.m` | ✅ `tests/test_utils_balance.py` | Graded `balanced`/`unbalanced`/`unknown` per reaction — `unknown` catches a missing formula that cobra's `check_mass_balance` silently miscounts. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` | ✅ `tests/test_io_yaml.py` | Wraps cobra YAML (which already reads the `!!omap` RAVEN/Human-GEM format) and adds what cobra drops: model identity/provenance from `metaData`, RAVEN-only per-entry fields routed by meaning (chemical IDs `smiles`/`inchis` → `annotation`; `deltaG`/`confidence_score`/`*From`/`protein` → `notes`), and verbatim preservation of foreign sections (GECKO ec). Verified on a real yeast-GEM.yml. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 118 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 114 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 

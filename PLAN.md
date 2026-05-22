@@ -54,6 +54,7 @@ convenience wrappers or documentation mapping the old names.
 | `buildEquation`, `parseRxnEqu`, `constructEquations` | `reaction.reaction`, `reaction.build_reaction_string(use_metabolite_names=...)`, `reaction.build_reaction_from_string` |
 | `addMets` | `model.add_metabolites([cobra.Metabolite(...), ...])` |
 | `addExchangeRxns` | `model.add_boundary(met, type="exchange" / "demand" / "sink")` |
+| `setParam` (`lb`/`ub`/`eq`/`obj`/`unc`) | `rxn.bounds = (lo, hi)` / `rxn.bounds = (v, v)` / `model.objective = {rxn: c}` / `rxn.bounds = cobra.Configuration().bounds`; loop for batch. (`var` band → `set_variance_bounds`.) |
 | `constructS` | `cobra.util.create_stoichiometric_matrix` |
 | `printFluxes`, `printModel`, `printModelStats` | `model.summary()`, `reaction.summary()`, `metabolite.summary()` |
 | `getGenesFromGrRules` | `cobra.core.gene.GPR` (parse/eval/AST) |
@@ -88,7 +89,7 @@ each is still implemented *on top of* cobra primitives, not as a parallel data m
 | `addTransport` | **PORT** | Batch-creates transport reactions from one compartment to many, matching mets **by name** across comps, auto-naming (`tr_0001`), and auto-creating the target-compartment metabolite when missing. cobra has **no** transport primitive at all. |
 | `changeRxns` | **PORT** ✅ | Done as `change_reaction_equations` ([manipulation/change.py](src/ravengem/manipulation/change.py)). Replaces stoichiometry from equation strings, reusing the `add` parser (id/name/`name[comp]`). cobra edits the same `Reaction` object in place, so RAVEN's remove→re-add→re-sort dance is unnecessary — other fields and order are preserved automatically. Bounds left unchanged, per RAVEN. |
 | `changeGrRules` | **PORT** ✅ | Done as `change_gene_reaction_rules` ([manipulation/change.py](src/ravengem/manipulation/change.py)). Batch-set with an **append** mode (`(old) or (new)`); gene auto-creation and normalization come free from cobra's `gene_reaction_rule=` setter. |
-| `setParam` | **PORT** ✅ | Done as `set_parameters` ([manipulation/parameters.py](src/ravengem/manipulation/parameters.py)). Batch `lb`/`ub`/`eq`/`objective`/`var`(±% band)/`reset` over reactions, scalar broadcast. RAVEN's stringly `paramType` became readable keywords; `rev` dropped. |
+| `setParam` | **MOSTLY DO NOT PORT** | All modes but one are cobra one-liners (`lb`/`ub`/`eq` → `reaction.bounds`; `obj` → `model.objective`; `unc` → `Configuration().bounds`; batch → a loop) — see §1 cheatsheet. The only mode without a clean cobra idiom, the `var` ±% band, is kept as the focused `set_variance_bounds` ([manipulation/parameters.py](src/ravengem/manipulation/parameters.py)) ✅. A 6-mode `set_parameters` was built then trimmed (review: not Pythonic, mostly re-wrapped cobra). |
 | `setExchangeBounds` | **PORT** | Real media-definition logic: finds exchanges, maps mets by name/id/index, auto-detects import direction, refuses inconsistent `closeOthers`, optionally restricts to the extracellular compartment, can close all other imports. Richer than `model.medium`. |
 | `removeReactions` | **DO NOT PORT** | Decided not to separate orphan-metabolite from orphan-gene cleanup; coupled, it is exactly `cobra.Model.remove_reactions(remove_orphans=...)`. Use cobra directly. |
 | `removeMets` | **PORT (thin)** ⚠️ | Done ([manipulation/remove.py](src/ravengem/manipulation/remove.py)). Delegates to cobra; the **only** add is `by_name` (delete a metabolite across all compartments). That need is likely rare — flagged as a **deletion candidate** if unused. |
@@ -145,8 +146,8 @@ transforms cobra lacks. Two transforms are **already ported in geckopy** and rel
 | `contractModel`, `mergeCompartments`, `copyToComps` | Other RAVEN structural transforms to port as needed. |
 
 **Construction & editing (ergonomic layer, §1b):** `addRxns` (keystone — equation-string batch add
-with met/gene auto-creation) ✅, `changeRxns` ✅, `changeGrRules` ✅, `setParam` ✅, `removeMets`/
-`removeGenes` ✅, and still to do `addRxnsGenesMets`, `addTransport`, `setExchangeBounds`.
+with met/gene auto-creation) ✅, `changeRxns` ✅, `changeGrRules` ✅, `setParam` (→ `set_variance_bounds`
+only) ✅, `removeMets`/`removeGenes` ✅, and still to do `addRxnsGenesMets`, `addTransport`, `setExchangeBounds`.
 `addMets`, `addExchangeRxns`, `constructEquations` are **not ported** — cobra covers them (§1
 cheatsheet). See §1b for per-function rationale and verdicts.
 
