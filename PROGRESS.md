@@ -36,8 +36,9 @@ Functions that exist as working, tested Python in ravengem.
 |---|---|---|---|---|
 | `manipulation/irreversible.py` | `convert_to_irreversible` | `convertToIrrev.m` | ✅ `tests/test_manipulation_irreversible.py` | Adopted from geckopy `pipeline/preprocess.py`. Splits reversible non-exchange reactions into forward + `_REV`. cobra's old `convert_to_irreversible` was removed, so this is a real port. |
 | `manipulation/expand.py` | `expand_model`, `_gpr_to_dnf`, `_node_to_dnf` | `expandModel.m` | ✅ `tests/test_manipulation_expand.py` | Adopted from geckopy `pipeline/expand.py`. Splits isozyme (OR-GPR) reactions into one reaction per AND-clause (`_EXP_N`), using cobra's GPR AST. |
+| `utils/gpr.py` | `is_dnf`, `find_non_dnf_grrules`, `GPRIssue` | `standardizeGrRules.m` (`findPotentialErrors` half) | ✅ `tests/test_utils_gpr.py` | Lint half only — flags GPRs not in disjunctive normal form via cobra's GPR AST, structured `GPRIssue` output. The normalization half is **not** ported (cobra auto-normalizes GPRs on assignment). |
 
-**Test status:** 34 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 51 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -47,7 +48,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 
 | subpackage | purpose | port status |
 |---|---|---|
-| `utils/` | lookup + GPR hygiene + model helpers (`getIndexes`, `standardizeGrRules`, `checkModelStruct`, MIRIAM/annotation, ID-prefix) — **no** struct adapter | ⬜ stub |
+| `utils/` | GPR hygiene + model helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `parse_name_comp`, `checkModelStruct`, MIRIAM/annotation, ID-prefix) — **no** struct adapter | 🟡 GPR lint ported |
 | `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟡 2 functions ported |
 | `io/` | RAVEN YAML/Excel/SIF formats | ⬜ stub |
 | `reconstruction/{kegg,metacyc,homology}/` | de novo reconstruction (flagship) | ⬜ stub |
@@ -81,9 +82,10 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 9. **Ergonomic layer (PLAN §1b)** — re-examined the RAVEN "manipulation" functions first dismissed
    as cobra-redundant. Many earn a port because they batch, chain steps, match by name, or
    auto-create dependencies cobra leaves to you. PORT keystones: `addRxns` (+ family), `setParam`,
-   `removeReactions`/`removeMets`/`removeGenes`, `simplifyModel`, `mergeModels`, `standardizeGrRules`,
+   `removeReactions`/`removeMets`/`removeGenes`, `simplifyModel`, `mergeModels`,
    `sortModel` (deterministic core). These are a thin layer **on top of** cobra primitives, not a
-   parallel data model.
+   parallel data model. `standardizeGrRules` shrank to its lint half only — cobra auto-normalizes
+   GPR syntax, so only `find_non_dnf_grrules`/`is_dnf` were ported (✅).
 10. **`getIndexes` NOT ported** — cobra's `DictList` (`get_by_any`/`get_by_id`/`query`/`index`)
     already covers mixed id/object/index/name lookup more idiomatically; RAVEN needed a central
     resolver only because of its struct-of-parallel-arrays design. Kept just the `name[comp]`

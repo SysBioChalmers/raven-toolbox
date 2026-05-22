@@ -41,3 +41,20 @@ as upstream-only back-port candidates.
 **Obsoleted by cobra (no action — these were earlier ravengem proposals now covered by `DictList`):**
 predictable return type, return objects-not-positions, configurable missing-object policy across a
 batch, and substring/regex matching — all already provided by `get_by_any` / `get_by_id` / `query`.
+
+---
+
+## standardizeGrRules
+
+RAVEN `core/standardizeGrRules.m` — normalize grRule syntax + flag rules not in simple
+OR-of-AND-complex (DNF) form (`findPotentialErrors`).
+
+**Decision (ravengem): port the lint half only.** cobra auto-normalizes a GPR on assignment
+(`"(G1 AND G2)  OR  G3"` is stored as `"(G1 and G2) or G3"`), so the normalization half is
+redundant. The non-DNF lint has no cobra equivalent and was ported as `find_non_dnf_grrules`/`is_dnf`
+([utils/gpr.py](src/ravengem/utils/gpr.py)).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| S1 | ERGONOMICS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Return structured lint results, don't just print.** RAVEN's `findPotentialErrors` only emits a `warning()` string; you can't act on it programmatically. ravengem returns a list of `GPRIssue(reaction_id, gpr, reason)`. **MATLAB back-port:** return the `indexes2check`/messages as a struct array (it already computes `indexes2check` — just surface it cleanly instead of only warning). |
+| S2 | EFFICIENCY (robustness) | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Detect non-DNF via the boolean AST, not substring search.** RAVEN scans for the `) and (`, `) and`, `and (` substrings, which is brittle (sensitive to spacing/bracketing and to gene IDs containing those characters). ravengem walks cobra's GPR AST (`is_dnf`: no OR beneath any AND), which is exact. **MATLAB back-port:** parse the rule to a tree rather than string-matching. |

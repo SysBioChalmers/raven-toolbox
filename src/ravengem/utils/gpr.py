@@ -1,0 +1,129 @@
+"""GPR (gene-protein-reaction rule) linting.
+
+Partial port of RAVEN ``standardizeGrRules.m``.
+
+RAVEN's ``standardizeGrRules`` did two things: (1) normalise grRule syntax
+(lowercase ``and``/``or``, strip redundant brackets, tidy whitespace) and
+(2) flag rules that are not a simple "OR of AND-complexes" — its
+``findPotentialErrors`` helper, which searched for the ``) and (`` family of
+substrings.
+
+Part (1) is **not ported**: cobrapy already normalises a GPR whenever it is
+assigned (``reaction.gene_reaction_rule = "(G1 AND G2)  OR  G3"`` is stored as
+``"(G1 and G2) or G3"``), so every GPR in a ``cobra.Model`` is normal by
+construction. Re-implementing it would be redundant.
+
+Part (2) has no cobrapy equivalent and is ported here, reworked onto cobra's
+GPR AST instead of RAVEN's brittle substring search. The relevant property is
+**disjunctive normal form (DNF)**: an OR of AND-clauses of single genes, e.g.
+``(G1 and G2) or G3``. Rules where an AND contains an OR — e.g.
+``(G1 or G2) and (G3 or G4)`` — are *valid* for cobra but ambiguous for the
+isoenzyme/complex reasoning used across RAVEN/GECKO, and ``expand_model``
+(see :mod:`ravengem.manipulation.expand`) only does something for DNF rules.
+:func:`find_non_dnf_grrules` surfaces them as structured data rather than, as
+RAVEN did, only printing a warning.
+"""
+from __future__ import annotations
+
+import ast
+from dataclasses import dataclass
+
+import cobra
+from cobra.core.gene import GPR
+
+
+def _contains_or(node: ast.AST | None) -> bool:
+    """True if ``node``'s subtree contains an OR operator anywhere."""
+    if isinstance(node, ast.BoolOp):
+        if isinstance(node.op, ast.Or):
+            return True
+        return any(_contains_or(value) for value in node.values)
+    return False
+
+
+def _is_dnf_node(node: ast.AST | None) -> bool:
+    """True if the AST rooted at ``node`` is in disjunctive normal form.
+
+    DNF here means no AND operator has an OR anywhere beneath it, i.e. the
+    rule is a single gene, a pure AND-complex, or an OR of those.
+    """
+    if node is None or isinstance(node, ast.Name):
+        return True
+    if isinstance(node, ast.BoolOp):
+        if isinstance(node.op, ast.And):
+            return not any(_contains_or(value) for value in node.values)
+        # OR: every disjunct must itself be DNF
+        return all(_is_dnf_node(value) for value in node.values)
+    # Unknown node type: don't flag it as a problem.
+    return True
+
+
+def is_dnf(gpr: "GPR | str | None") -> bool:
+    """Return whether a GPR is in disjunctive normal form (OR of AND-complexes).
+
+    Parameters
+    ----------
+    gpr
+        A cobra :class:`~cobra.core.gene.GPR`, a grRule string, or ``None``.
+        An empty/``None`` rule is trivially DNF.
+
+    Examples
+    --------
+    >>> is_dnf("(G1 and G2) or G3")
+    True
+    >>> is_dnf("(G1 or G2) and G3")
+    False
+    """
+    if isinstance(gpr, str):
+        gpr = GPR.from_string(gpr)
+    if gpr is None:
+        return True
+    return _is_dnf_node(gpr.body)
+
+
+@dataclass(frozen=True)
+class GPRIssue:
+    """A reaction whose GPR is flagged by the linter.
+
+    Attributes
+    ----------
+    reaction_id
+        ID of the reaction.
+    gpr
+        The (already cobra-normalised) grRule string.
+    reason
+        Human-readable explanation of why it was flagged.
+    """
+
+    reaction_id: str
+    gpr: str
+    reason: str
+
+
+_NON_DNF_REASON = (
+    "GPR is not in disjunctive normal form (an AND clause contains an OR). "
+    "Isoenzyme/complex reasoning and expand_model assume an OR of AND-complexes, "
+    'e.g. rewrite "(G1 or G2) and (G3 or G4)" as '
+    '"(G1 and G3) or (G1 and G4) or (G2 and G3) or (G2 and G4)".'
+)
+
+
+def find_non_dnf_grrules(model: "cobra.Model") -> list[GPRIssue]:
+    """Find reactions whose GPR is not in disjunctive normal form.
+
+    Port of the ``findPotentialErrors`` half of RAVEN ``standardizeGrRules.m``,
+    using cobra's GPR AST. Reactions with no GPR are skipped.
+
+    Returns
+    -------
+    list of GPRIssue
+        One entry per flagged reaction, in model reaction order. Empty if all
+        GPRs are simple OR-of-AND-complexes.
+    """
+    issues: list[GPRIssue] = []
+    for rxn in model.reactions:
+        if not rxn.gene_reaction_rule:
+            continue
+        if not is_dnf(rxn.gpr):
+            issues.append(GPRIssue(rxn.id, rxn.gene_reaction_rule, _NON_DNF_REASON))
+    return issues

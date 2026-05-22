@@ -101,7 +101,7 @@ each is still implemented *on top of* cobra primitives, not as a parallel data m
 | RAVEN | verdict | Why |
 |---|---|---|
 | `getIndexes` | **DO NOT PORT** (keep `name[comp]` sliver only) | RAVEN needs a central index resolver because it's a struct of parallel arrays. cobra is object-oriented and already covers mixed lookup more idiomatically: `DictList.get_by_any` (mixed id/object/**index** → objects), `get_by_id` (O(1)), `query` (name/substring/regex), `index` (position), comprehensions for filtering. A 1-based-index port would be redundant and un-Pythonic. **Keep only** the `name[comp]` composite resolver (`parse_name_comp`) as a small helper for `addRxns`/`addTransport`/`mergeModels` — that's the one bit cobra lacks. |
-| `standardizeGrRules` | **PORT** | Normalizes GPR syntax (bracketing, lowercase `and`/`or`, whitespace) **and** lints suspicious `) and (` isoenzyme-complex ambiguity. cobra parses GPRs but doesn't normalize arbitrary input or surface these curation warnings. Build on cobra's `GPR`; drop the redundant `rxnGeneMat` output. |
+| `standardizeGrRules` | **PORT lint only** ✅ | Two halves: (1) syntax normalization — **not ported**, cobra auto-normalizes every GPR on assignment (case, whitespace, redundant brackets); (2) the `findPotentialErrors` lint for non-DNF rules — **ported** as `find_non_dnf_grrules` + `is_dnf` ([utils/gpr.py](src/ravengem/utils/gpr.py)), reworked onto cobra's GPR AST and returning structured `GPRIssue`s instead of printing. |
 | `getElementalBalance` | **WRAP** | Batch graded balance table (status: balanced / unbalanced / missing-info / parse-error) with InChI fallback — more informative than per-reaction `check_mass_balance`. |
 | `getRxnsInComp`, `getMetsInComp` | **WRAP** | "Objects in compartment" accessors cobra lacks as first-class calls; the only non-trivial bit is `getRxnsInComp(include_partial=False)` (fully-contained vs touching). |
 
@@ -121,7 +121,7 @@ objects:
 | `editMiriam`, `extractMiriam` | Convenience get/set for MIRIAM-style entries inside cobra `.annotation` dicts. |
 | `addIdentifierPrefix`, `removeIdentifierPrefix` | `R_`/`M_`/`G_` prefix handling for interop with COBRA-Toolbox-style IDs (only where cobra's SBML layer doesn't already cover it). |
 | `parse_name_comp` (from `getIndexes` `metcomps`) | **PORT** (small helper) — resolve the `name[comp]` composite (metabolite by name + compartment) cobra can't. The rest of `getIndexes` is **not ported** — `DictList.get_by_any`/`get_by_id`/`query`/`index` already cover mixed id/object/index/name lookup more idiomatically (see §1b note). |
-| `standardizeGrRules` | **PORT** — GPR syntax normalization + isoenzyme-complex linting on top of cobra's `GPR`; see §1b. |
+| `standardizeGrRules` | **PORT lint only** ✅ — normalization is cobra-automatic; non-DNF lint ported as `find_non_dnf_grrules`/`is_dnf`. See §1b. |
 | `getElementalBalance` | **WRAP** — batch graded mass-balance table with InChI fallback; see §1b. |
 | `getRxnsInComp`, `getMetsInComp` | **WRAP** — "objects in compartment" accessors (`include_partial` containment logic); see §1b. |
 | ~~`ravenCobraWrapper`, `standardizeModelFieldOrder`, `cobraNamespaces.csv`, `COBRA_structure_fields.csv`~~ | **Dropped** — no parallel struct to convert or order. |
@@ -144,7 +144,7 @@ transforms cobra lacks. Two transforms are **already ported in geckopy** and rel
 with met/gene auto-creation), `addRxnsGenesMets`, `addTransport`, `changeRxns`, `changeGrRules`,
 `setParam`, `setExchangeBounds`, `removeReactions`, `removeMets`, `removeGenes`; plus `addMets`,
 `addExchangeRxns`, `constructEquations` as supporting **WRAP**s. See §1b for per-function rationale
-and verdicts. **Build order:** `parse_name_comp` + `standardizeGrRules` (utils) → `addMets`/
+and verdicts. **Build order:** `parse_name_comp` (utils) → `addMets`/
 `constructEquations` → `addRxns` → everything that depends on it (`changeRxns`, `addRxnsGenesMets`,
 `addTransport`).
 
@@ -256,7 +256,7 @@ Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before 
 
 | Phase | Theme | Deliverables | Depends on |
 |---|---|---|---|
-| **1** | Foundation | `utils/` helpers (`parse_name_comp`, `standardizeGrRules`, `checkModelStruct`, MIRIAM/annotation + ID-prefix — **no** struct adapter; `getIndexes` **not** ported, use cobra `DictList`) and the `manipulation/` ergonomic layer (§1b: `addRxns` & co., `setParam`, `removeReactions` & co., `simplifyModel`, `mergeModels`, `sortModel`), packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
+| **1** | Foundation | `utils/` helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `parse_name_comp`, `checkModelStruct`, MIRIAM/annotation + ID-prefix — **no** struct adapter; `getIndexes` and grRule *normalization* **not** ported, cobra covers them) and the `manipulation/` ergonomic layer (§1b: `addRxns` & co., `setParam`, `removeReactions` & co., `simplifyModel`, `mergeModels`, `sortModel`), packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
 | **2** | I/O | `readYAMLmodel`/`writeYAMLmodel`, Excel import/export, tab-delimited & SIF export. | 1 |
 | **3** | Reconstruction | homology (BLAST/DIAMOND) → KEGG → MetaCyc reconstruction. | 1, 2 |
 | **4** | Context-specific & tasks | metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT. (Tasks first — INIT depends on them.) | 1, 2, MIP solver |
