@@ -14,7 +14,6 @@ def test_package_imports():
 
 def test_subpackages_importable():
     for sub in (
-        "structure",
         "io",
         "reconstruction",
         "reconstruction.kegg",

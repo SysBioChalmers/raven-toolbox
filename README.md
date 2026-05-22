@@ -21,11 +21,13 @@ manipulation) and focuses its own code on the functionality that is **unique to 
 
 ## Design principle
 
-The canonical in-memory object is a [`cobra.Model`](https://cobrapy.readthedocs.io). RAVEN-specific
-fields that cobrapy does not model natively (e.g. `rxnMiriams`, `metDeltaG`, `rxnConfidenceScores`)
-are stored in cobra's `annotation` / `notes` dictionaries via a thin adapter layer
-([`ravenpy.structure`](src/ravenpy/structure/)). This avoids duplicating cobrapy's data model and
-keeps `ravenpy` interoperable with the wider COBRA ecosystem.
+The canonical in-memory object is a [`cobra.Model`](https://cobrapy.readthedocs.io) — ravenpy
+functions consume and produce `cobra.Model` directly, with **no parallel RAVEN struct and no
+`ravenCobraWrapper`-style adapter**. RAVEN-specific fields that cobrapy does not model natively
+(e.g. `rxnMiriams`, `metDeltaG`, `rxnConfidenceScores`) live in cobra's `annotation` / `notes`
+dictionaries. This avoids duplicating cobrapy's data model and keeps `ravenpy` interoperable with
+the wider COBRA ecosystem. ravenpy's YAML I/O follows the cobrapy YAML standard and additionally
+supports geckopy's enzyme-constrained extension keys so ecModels round-trip.
 
 ## Installation (development)
 

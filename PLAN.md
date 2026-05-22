@@ -17,7 +17,7 @@ document (1) maps every RAVEN functional area to its cobrapy equivalent or "port
 |---|---|---|
 | In-memory model object | `cobra.Model` (not a re-implemented RAVEN struct) | Reuse cobrapy's data model, solver interface, SBML I/O, ecosystem interop. |
 | RAVEN-only fields (`rxnMiriams`, `metDeltaG`, `rxnConfidenceScores`, `compMiriams`, `geneShortNames`, `eccodes`, `inchis`, …) | Stored in `cobra` `.annotation` / `.notes`; `subSystems` → SBML groups | cobrapy already round-trips these through SBML; no parallel struct needed. |
-| RAVEN↔COBRA conversion | A `structure` adapter (port of `ravenCobraWrapper.m`) converting between a RAVEN-style dict/`xarray`-ish view and `cobra.Model` | Lets users coming from MATLAB pass familiar field names; bridges to/from the COBRA Toolbox dialect. |
+| RAVEN↔COBRA conversion | **None.** ravenpy functions consume and produce `cobra.Model` directly — there is no `ravenCobraWrapper` port and no parallel RAVEN struct | Adhere to the cobrapy model format throughout; full COBRA-ecosystem interop for free, nothing to keep in sync. |
 | Solver | cobrapy's optlang (GLPK/Gurobi/CPLEX/HiGHS) | Replaces RAVEN's `solveLP`/`solveQP`/`optimizeProb` MILP/LP layer. MILP for INIT/gap-filling needs a MIP-capable solver (Gurobi/CPLEX/SCIP). |
 | Naming on PyPI | `raven-toolbox` (import as `ravenpy`) | ⚠️ `ravenpy` on PyPI is taken by an unrelated hydrology package. Distribution name mirrors the "RAVEN Toolbox" branding; import name stays `ravenpy`. |
 | Repo home | `SysBioChalmers/ravenpy` | Alongside the MATLAB RAVEN. |
@@ -67,19 +67,21 @@ cheatsheet" in the docs rather than as code.
 
 Organized by the `src/ravenpy/` subpackage that will host them.
 
-### 2.1 `structure/` — RAVEN ⇄ COBRA bridge  *(Phase 1, foundational)*
+### 2.1 `utils/` — model helpers (NO struct adapter)  *(Phase 1, foundational)*
+The `ravenCobraWrapper` adapter is **explicitly not ported** — ravenpy works on `cobra.Model`
+directly. Only the genuinely useful, RAVEN-flavored helpers survive, as small functions on cobra
+objects:
 | RAVEN | Notes |
 |---|---|
-| `ravenCobraWrapper` | Core adapter: RAVEN field names ⇄ `cobra.Model`. Everything else builds on this. |
-| `standardizeModelFieldOrder`, `checkModelStruct` | Validation against cobrapy's `model.validate` plus RAVEN field rules. |
-| `editMiriam`, `extractMiriam` | MIRIAM annotation get/set → cobra `.annotation` dict. |
-| `addIdentifierPrefix`, `removeIdentifierPrefix` | `R_`/`M_`/`G_` SBML prefix handling. |
-| `cobraNamespaces.csv`, `COBRA_structure_fields.csv` | Ship as package data to drive the field mapping. |
+| `checkModelStruct` | Validate a `cobra.Model` against RAVEN reconstruction expectations (beyond cobra's own `model.validate` / SBML validation). |
+| `editMiriam`, `extractMiriam` | Convenience get/set for MIRIAM-style entries inside cobra `.annotation` dicts. |
+| `addIdentifierPrefix`, `removeIdentifierPrefix` | `R_`/`M_`/`G_` prefix handling for interop with COBRA-Toolbox-style IDs (only where cobra's SBML layer doesn't already cover it). |
+| ~~`ravenCobraWrapper`, `standardizeModelFieldOrder`, `cobraNamespaces.csv`, `COBRA_structure_fields.csv`~~ | **Dropped** — no parallel struct to convert or order. |
 
 ### 2.2 `io/` — RAVEN-specific formats  *(Phase 1–2)*
 | RAVEN | Notes |
 |---|---|
-| `readYAMLmodel`, `writeYAMLmodel` | Metabolic-Atlas / Human-GEM YAML schema (differs from cobra's YAML). High priority — heavily used. `ruamel.yaml`. |
+| `readYAMLmodel`, `writeYAMLmodel` | **Follow the cobrapy YAML standard** (`cobra.io.dict.model_to_dict` / `model_from_dict` for the metabolites/reactions/genes/compartments portion), and **additionally support geckopy's enzyme-constrained extension keys** (`ec-rxns`, `ec-enzymes`, `gecko_light`, `metaData`) so ecModels round-trip. Empty/NaN fields omitted; loader fills them back. `ruamel.yaml`. High priority — heavily used. |
 | `importExcelModel`, `exportToExcelFormat`, `SBMLFromExcel` | RAVEN Excel model format. `openpyxl` (optional dep). |
 | `exportToTabDelimited`, `exportForGit` | Plain-text / git-friendly model dumps. |
 | `exportModelToSIF` | Cytoscape SIF export (visualization). |
@@ -184,7 +186,7 @@ Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before 
 
 | Phase | Theme | Deliverables | Depends on |
 |---|---|---|---|
-| **1** | Foundation | `structure/` adapter (RAVEN⇄cobra), `checkModelStruct`, MIRIAM/annotation handling, packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
+| **1** | Foundation | `utils/` model helpers (`checkModelStruct` validation, MIRIAM/annotation + ID-prefix helpers — **no** struct adapter), packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
 | **2** | I/O | `readYAMLmodel`/`writeYAMLmodel`, Excel import/export, tab-delimited & SIF export. | 1 |
 | **3** | Reconstruction | homology (BLAST/DIAMOND) → KEGG → MetaCyc reconstruction. | 1, 2 |
 | **4** | Context-specific & tasks | metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT. (Tasks first — INIT depends on them.) | 1, 2, MIP solver |
@@ -217,6 +219,10 @@ depends on the task framework, so tasks are built first within the same phase.
 4. **KEGG/MetaCyc data:** support both live REST (with disk cache) and reused RAVEN dumps,
    selectable via configuration. ✅
 
+5. **No RAVEN⇄COBRA adapter:** `ravenCobraWrapper` is not ported; ravenpy adheres to the
+   `cobra.Model` format directly. ✅
+6. **YAML I/O:** follow the cobrapy YAML standard plus geckopy's ec extension keys
+   (`ec-rxns`, `ec-enzymes`, `gecko_light`, `metaData`). ✅
+
 ### Still open
-- Should YAML I/O target the exact Human-GEM / Metabolic-Atlas schema for round-trip
-  compatibility, or a ravenpy-native schema?
+- Final package / PyPI name (see brainstorm below — to be decided).
