@@ -4,6 +4,10 @@ Living status tracker for the RAVEN (MATLAB) → ravengem (Python/cobrapy) port.
 **PLAN.md** is the design spec (what to port, why, and how it maps to cobrapy);
 this file tracks **how far along** the port is. Update it whenever code lands.
 
+> This is **not** a one-to-one transcription. When porting a function, also judge whether it can be
+> made smarter/faster or whether RAVEN is missing something that fits — and log those in
+> **[IMPROVEMENTS.md](IMPROVEMENTS.md)** (candidates to also back-port to MATLAB RAVEN).
+
 _Last updated: 2026-05-22_
 
 ---
