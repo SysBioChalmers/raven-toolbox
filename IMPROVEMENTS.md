@@ -16,6 +16,19 @@ Status legend: 💡 proposed · 🔨 implemented in ravengem · ⬆️ upstreame
 
 ---
 
+## addRxns
+
+RAVEN `core/addRxns.m` — add reactions from equation strings (or mets+coeffs), auto-creating
+metabolites/genes. Ported as `add_reactions_from_equations`
+([manipulation/add.py](src/ravengem/manipulation/add.py)).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| A1 | ERGONOMICS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Readable matching mode instead of the `eqnType` integer.** RAVEN takes `eqnType=1/2/3` (match by id / by name in a given compartment / `name[comp]`), which is opaque at call sites. ravengem uses `mets_by="id"\|"name"` and auto-detects `name[comp]` per token. **MATLAB back-port:** accept a string keyword. |
+| A2 | ERGONOMICS (bug-class) | ravengem 🔨 | 🔨 | **Error on duplicate reaction IDs explicitly.** RAVEN errors; cobra's `add_reactions` *silently ignores* a duplicate. ravengem keeps RAVEN's stricter behaviour (raise) rather than cobra's silent drop. |
+| A3 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **Delegate equation/arrow/coefficient parsing and gene/met creation to cobra** (`build_reaction_from_string` semantics, GPR auto-creation) instead of re-implementing RAVEN's `constructS`/`addGenesRaven`. Only the genuinely cobra-absent pieces (name matching, compartment for new mets, strict policies) are hand-written. |
+| A4 | NEW | both 💡 | 💡 | **Infer compartment from a structured metabolite ID** (e.g. `atp_c` → `c`) as an alternative to requiring `compartment`. Not yet implemented; would reduce boilerplate for SBML-style IDs. Revisit alongside `addMets`. |
+
 ## getIndexes
 
 RAVEN `core/getIndexes.m` — resolve a list of IDs / logical mask / index vector into positional

@@ -37,8 +37,10 @@ Functions that exist as working, tested Python in ravengem.
 | `manipulation/irreversible.py` | `convert_to_irreversible` | `convertToIrrev.m` | ✅ `tests/test_manipulation_irreversible.py` | Adopted from geckopy `pipeline/preprocess.py`. Splits reversible non-exchange reactions into forward + `_REV`. cobra's old `convert_to_irreversible` was removed, so this is a real port. |
 | `manipulation/expand.py` | `expand_model`, `_gpr_to_dnf`, `_node_to_dnf` | `expandModel.m` | ✅ `tests/test_manipulation_expand.py` | Adopted from geckopy `pipeline/expand.py`. Splits isozyme (OR-GPR) reactions into one reaction per AND-clause (`_EXP_N`), using cobra's GPR AST. |
 | `utils/gpr.py` | `is_dnf`, `find_non_dnf_grrules`, `GPRIssue` | `standardizeGrRules.m` (`findPotentialErrors` half) | ✅ `tests/test_utils_gpr.py` | Lint half only — flags GPRs not in disjunctive normal form via cobra's GPR AST, structured `GPRIssue` output. The normalization half is **not** ported (cobra auto-normalizes GPRs on assignment). |
+| `utils/parse.py` | `parse_name_comp` | `getIndexes.m` (`metcomps` sliver) | ✅ (via `test_manipulation_add.py`) | Parse a `name[comp]` token → `(name, compartment)`. The only cobra-absent bit of `getIndexes`. |
+| `manipulation/add.py` | `add_reactions_from_equations` | `addRxns.m` | ✅ `tests/test_manipulation_add.py` | Keystone. Adds reactions from equation strings; matches mets by id, name, or `name[comp]`; assigns compartment to new mets; strict/auto policies for new mets & genes; duplicate-ID guard. Equation parsing/arrows/gene-creation delegated to cobra. |
 
-**Test status:** 51 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 73 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -49,7 +51,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | subpackage | purpose | port status |
 |---|---|---|
 | `utils/` | GPR hygiene + model helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `parse_name_comp`, `checkModelStruct`, MIRIAM/annotation, ID-prefix) — **no** struct adapter | 🟡 GPR lint ported |
-| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟡 2 functions ported |
+| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟡 `add_reactions_from_equations` + 2 transforms ported |
 | `io/` | RAVEN YAML/Excel/SIF formats | ⬜ stub |
 | `reconstruction/{kegg,metacyc,homology}/` | de novo reconstruction (flagship) | ⬜ stub |
 | `init/` | tINIT/ftINIT context extraction | ⬜ stub |
@@ -110,15 +112,21 @@ Keyed to commits on `main`.
 | `cb88c02` | Rename package to `ravengem` (PyPI dist == import name) |
 | `ba71a90` | Plan to relocate RAVEN-derived code from geckopy; add `manipulation/` |
 | `6798cb3` | Adopt `convert_to_irreversible` and `expand_model` from geckopy |
+| `e6ce70d` | Reclassify ergonomic RAVEN functions as port targets; add PROGRESS.md |
+| `30b1582` | Add IMPROVEMENTS.md; getIndexes improvement proposals |
+| `62b43d1` | Demote getIndexes (cobra `DictList` covers it) |
+| `4c65c8a` | Port GPR lint half of standardizeGrRules (`is_dnf`/`find_non_dnf_grrules`) |
 
 ---
 
 ## Next up
 
-Candidate next steps (Phase 1–2), in rough priority order:
+Candidate next steps, in rough priority order:
 
-1. **`io/` YAML reader/writer** — high-use, self-contained, clear oracle (round-trip a
+1. **`changeRxns`** — cheap now that `add_reactions_from_equations` exists (string-equation
+   stoichiometry edits, reusing the parser).
+2. **`io/` YAML reader/writer** — high-use, self-contained, clear oracle (round-trip a
    yeast-GEM/Human-GEM file), gives immediate ecModel interop with geckopy.
-2. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
-3. **More `manipulation/` transforms** — `simplifyModel`, `contractModel`, `mergeCompartments`,
-   `copyToComps` (the parts cobra's `prune_*` helpers don't cover).
+3. **More `manipulation/` transforms** — `removeReactions`/`removeMets`/`removeGenes`,
+   `simplifyModel`, `mergeModels`.
+4. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
