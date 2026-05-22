@@ -1,0 +1,135 @@
+"""Copy reactions (with their metabolites and genes) from another model.
+
+Port of RAVEN ``addRxnsGenesMets.m``.
+
+cobra's ``Model.merge`` / ``add_reactions`` match metabolites strictly by **ID**.
+This transfers a chosen set of reactions from a *source* model into a draft,
+matching metabolites by **name[compartment]** instead — so a compound that is
+present in both models under different IDs is reused rather than duplicated, and
+only genuinely new metabolites are created (copying the source's id, formula,
+charge, and annotation). New genes are auto-created by cobra when the GPR is set.
+This is the post-``getModelFromHomology`` "copy a few more reactions across"
+workflow.
+"""
+from __future__ import annotations
+
+import copy
+from typing import Iterable, Union
+
+import cobra
+from cobra import Metabolite, Reaction
+
+from ravengem.manipulation.add import _new_met_id
+
+
+def _name_comp(met: Metabolite) -> str:
+    return f"{met.name}[{met.compartment}]"
+
+
+def add_reactions_from_model(
+    model: "cobra.Model",
+    source_model: "cobra.Model",
+    reactions: Union[str, Iterable[str]],
+    *,
+    genes: Union[bool, str, Iterable[str]] = False,
+    note: str | None = "Added via add_reactions_from_model()",
+    confidence: int | None = None,
+) -> list[Reaction]:
+    """Copy reactions from ``source_model`` into ``model``.
+
+    Port of RAVEN ``addRxnsGenesMets.m``.
+
+    Parameters
+    ----------
+    model
+        Draft model to copy into (mutated in place).
+    source_model
+        Model to copy reactions from.
+    reactions
+        Reaction ID(s) in ``source_model``. Reactions already present in
+        ``model`` (by ID) are skipped.
+    genes
+        ``False`` (default): add reactions without GPRs. ``True``: copy each
+        reaction's GPR from the source. A string: use it as the GPR for every
+        added reaction. A list: per-reaction GPRs (matching the reactions that
+        are actually added). New genes are created automatically.
+    note
+        Stored in each added reaction's ``notes['note']`` (set ``None`` to skip).
+    confidence
+        If given, stored in each added reaction's ``notes['confidence_score']``.
+
+    Returns
+    -------
+    list of cobra.Reaction
+        The reactions added, in input order.
+    """
+    rxn_ids = [reactions] if isinstance(reactions, str) else list(reactions)
+    missing = [r for r in rxn_ids if r not in source_model.reactions]
+    if missing:
+        raise ValueError(f"Reactions not found in the source model: {missing}")
+
+    new_ids = [r for r in rxn_ids if r not in model.reactions]
+    if not new_ids:
+        raise ValueError("All reactions are already in the model.")
+    source_rxns = [source_model.reactions.get_by_id(r) for r in new_ids]
+
+    if genes is False:
+        rules = [""] * len(source_rxns)
+    elif genes is True:
+        rules = [r.gene_reaction_rule for r in source_rxns]
+    elif isinstance(genes, str):
+        rules = [genes] * len(source_rxns)
+    else:
+        rules = list(genes)
+        if len(rules) != len(source_rxns):
+            raise ValueError(
+                f"genes list has {len(rules)} rules but {len(source_rxns)} "
+                "reactions are being added."
+            )
+
+    # Match metabolites by name[comp]; create only the genuinely new ones.
+    draft_by_name = {_name_comp(m): m for m in model.metabolites}
+    new_mets: list[Metabolite] = []
+    pending: set[str] = set()
+    for srx in source_rxns:
+        for met in srx.metabolites:
+            key = _name_comp(met)
+            if key in draft_by_name or key in pending:
+                continue
+            pending.add(key)
+            new_id = met.id if met.id not in model.metabolites else _new_met_id(model, "m")
+            new_met = Metabolite(
+                new_id,
+                name=met.name,
+                compartment=met.compartment,
+                formula=met.formula,
+                charge=met.charge,
+            )
+            new_met.annotation = copy.deepcopy(met.annotation)
+            new_met.notes = copy.deepcopy(met.notes)
+            new_mets.append(new_met)
+            draft_by_name[key] = new_met
+    if new_mets:
+        model.add_metabolites(new_mets)
+
+    added: list[Reaction] = []
+    for srx, rule in zip(source_rxns, rules):
+        rxn = Reaction(srx.id, name=srx.name)
+        rxn.bounds = srx.bounds
+        rxn.subsystem = srx.subsystem
+        model.add_reactions([rxn])
+        rxn.add_metabolites(
+            {draft_by_name[_name_comp(met)]: coef for met, coef in srx.metabolites.items()}
+        )
+        if rule:
+            rxn.gene_reaction_rule = rule
+        rxn.annotation = copy.deepcopy(srx.annotation)
+        notes = copy.deepcopy(srx.notes)
+        if note is not None:
+            notes["note"] = note
+        if confidence is not None:
+            notes["confidence_score"] = confidence
+        rxn.notes = notes
+        added.append(rxn)
+
+    return added

@@ -86,7 +86,7 @@ each is still implemented *on top of* cobra primitives, not as a parallel data m
 | RAVEN | verdict | Why (beyond the cobra one-liner) |
 |---|---|---|
 | `addRxns` | **PORT (keystone)** ✅ | Done as `add_reactions_from_equations` ([manipulation/add.py](src/ravengem/manipulation/add.py)). cobra's `build_reaction_from_string` already parses equations/arrows/coeffs and auto-creates ID-matched mets, and setting `gene_reaction_rule` auto-creates genes — so the port keeps only what cobra lacks: **name-based matching** (`mets_by="name"`) and **`name[comp]` syntax**, **compartment** assignment for new mets (cobra leaves them `None`), **strict** policies (error vs auto-create mets/genes), and a duplicate-ID guard. RAVEN's `eqnType` 1/2/3 integer became the readable `mets_by` keyword (+ auto `name[comp]`). |
-| `addRxnsGenesMets` | **PORT** | Copies a batch of reactions from a source model into a draft, matching mets by `name[comp]` (not id), skipping/​reporting duplicates, auto-adding only genuinely new mets/genes with annotation carried over. The post-homology reaction-transfer workflow; cobra makes you hand-write the merge+dedup. |
+| `addRxnsGenesMets` | **PORT** ✅ | Done as `add_reactions_from_model` ([manipulation/transfer.py](src/ravengem/manipulation/transfer.py)). Copies reactions from a source model into a draft, matching mets by `name[comp]` (not id), skipping duplicates, adding only genuinely new mets (copying id/formula/charge/annotation) and genes. cobra's `merge` is strict-by-id. |
 | `addTransport` | **PORT** ✅ | Done as `add_transport_reactions` ([manipulation/transport.py](src/ravengem/manipulation/transport.py)). Creates transport reactions from one compartment to many, matching mets **by name** across comps, sequential `tr_0001` IDs, optionally creating the target metabolite (copying formula/charge/annotation). cobra has **no** transport primitive at all. |
 | `changeRxns` | **PORT** ✅ | Done as `change_reaction_equations` ([manipulation/change.py](src/ravengem/manipulation/change.py)). Replaces stoichiometry from equation strings, reusing the `add` parser (id/name/`name[comp]`). cobra edits the same `Reaction` object in place, so RAVEN's remove→re-add→re-sort dance is unnecessary — other fields and order are preserved automatically. Bounds left unchanged, per RAVEN. |
 | `changeGrRules` | **PORT** ✅ | Done as `change_gene_reaction_rules` ([manipulation/change.py](src/ravengem/manipulation/change.py)). Batch-set with an **append** mode (`(old) or (new)`); gene auto-creation and normalization come free from cobra's `gene_reaction_rule=` setter. |
@@ -148,8 +148,8 @@ transforms cobra lacks. Two transforms are **already ported in geckopy** and rel
 
 **Construction & editing (ergonomic layer, §1b):** `addRxns` (keystone — equation-string batch add
 with met/gene auto-creation) ✅, `changeRxns` ✅, `changeGrRules` ✅, `setParam` (→ `set_variance_bounds`
-only) ✅, `removeMets`/`removeGenes` ✅, `addTransport` ✅, and still to do `addRxnsGenesMets`.
-`setExchangeBounds` is **not ported** (cobra's `model.medium` covers it; §1 cheatsheet).
+only) ✅, `removeMets`/`removeGenes` ✅, `addTransport` ✅, `addRxnsGenesMets` ✅ — the editing layer
+is essentially complete. `setExchangeBounds` is **not ported** (cobra's `model.medium` covers it; §1 cheatsheet).
 `addMets`, `addExchangeRxns`, `constructEquations` are **not ported** — cobra covers them (§1
 cheatsheet). See §1b for per-function rationale and verdicts.
 
