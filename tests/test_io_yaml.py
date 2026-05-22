@@ -1,115 +1,110 @@
-"""Tests for ravengem.io.yaml (readYAMLmodel / writeYAMLmodel port)."""
-import textwrap
+"""Tests for ravengem.io.yaml against the RAVEN fa281a1 (cobra-native !!omap) schema."""
 from pathlib import Path
 
 import cobra
 import pytest
+from cobra.io.yaml import yaml as cobra_yaml
 
 from ravengem.io import read_yaml_model, write_yaml_model
 
-# A small RAVEN/Metabolic-Atlas-style YAML: metaData block, RAVEN-only per-entry
-# fields (smiles/deltaG, confidence_score/references, protein) and a foreign
-# GECKO ec-rxns section.
-RAVEN_YAML = textwrap.dedent(
-    """
-    metaData:
-      id: testModel
-      name: Test Model
-      taxonomy: taxonomy/559292
-      defaultLB: "-1000"
-    compartments:
-      c: cytoplasm
-    metabolites:
-      - id: a_c
-        name: A
-        compartment: c
-        formula: C6H12O6
-        charge: 0
-        smiles: C(C)O
-        deltaG: 12.5
-      - id: b_c
-        name: B
-        compartment: c
-    reactions:
-      - id: R1
-        name: rxn one
-        metabolites:
-          a_c: -1
-          b_c: 1
-        lower_bound: -1000
-        upper_bound: 1000
-        gene_reaction_rule: G1
-        subsystem: glyco
-        confidence_score: 2
-        references: "PMID:123"
-    genes:
-      - id: G1
-        name: gene one
-        protein: P12345
-    ec-rxns:
-      - id: R1
-        kcat: 100
-    """
-)
+# A model laid out exactly as RAVEN writeYAMLmodel (fa281a1) emits: cobra-native
+# structure, RAVEN-only fields as top-level per-entry keys, smiles/ec-code inside
+# the annotation block, metaData provenance-only, id/name/version top-level.
+RAVEN_DOC = {
+    "metabolites": [
+        {
+            "id": "s_0001",
+            "name": "ATP",
+            "compartment": "c",
+            "formula": "C10H16N5O13P3",
+            "charge": -4,
+            "inchis": "InChI=1S/CH4",
+            "deltaG": 12.5,
+            "notes": "a metabolite note",
+            "metFrom": "KEGG",
+            "annotation": {"kegg.compound": ["C00002"], "smiles": ["C1=NC2"]},
+        },
+        {"id": "s_0002", "name": "ADP", "compartment": "c"},
+    ],
+    "reactions": [
+        {
+            "id": "R1",
+            "name": "rxn one",
+            "metabolites": {"s_0001": -1, "s_0002": 1},
+            "lower_bound": -1000.0,
+            "upper_bound": 1000.0,
+            "gene_reaction_rule": "G1",
+            "subsystem": "glycolysis",
+            "confidence_score": 2,
+            "references": "PMID:123",
+            "rxnFrom": "manual",
+            "notes": "a reaction note",
+            "deltaG": -5.0,
+            "annotation": {"ec-code": ["1.1.1.1"]},
+        }
+    ],
+    "genes": [
+        {"id": "G1", "name": "gene one", "protein": "P12345", "annotation": {"uniprot": ["P12345"]}}
+    ],
+    "id": "testModel",
+    "name": "Test Model",
+    "compartments": {"c": "cytoplasm"},
+    "version": "1.0",
+    "metaData": {"date": "2026-05-23", "taxonomy": "taxonomy/559292", "defaultLB": "-1000"},
+    "ec-rxns": [{"id": "R1", "kcat": 100.0}],
+}
 
 
 @pytest.fixture
 def yaml_file(tmp_path) -> Path:
     p = tmp_path / "model.yml"
-    p.write_text(RAVEN_YAML, encoding="utf-8")
+    with open(p, "w", encoding="utf-8") as fh:
+        cobra_yaml.dump(RAVEN_DOC, fh)
     return p
 
 
-def test_reads_standard_model(yaml_file):
+def test_standard_content(yaml_file):
     model = read_yaml_model(yaml_file)
-    assert len(model.metabolites) == 2
-    assert len(model.reactions) == 1
-    assert len(model.genes) == 1
-    r = model.reactions.get_by_id("R1")
-    assert r.bounds == (-1000, 1000)
-    assert {m.id: r.get_coefficient(m.id) for m in r.metabolites} == {"a_c": -1, "b_c": 1}
-
-
-def test_metadata_sets_identity_and_is_preserved(yaml_file):
-    model = read_yaml_model(yaml_file)
-    # cobra alone would leave model.id is None; metaData restores it
     assert model.id == "testModel"
     assert model.name == "Test Model"
-    assert model.notes["metaData"]["taxonomy"] == "taxonomy/559292"
-    assert model.notes["metaData"]["defaultLB"] == "-1000"
+    assert {m.id for m in model.metabolites} == {"s_0001", "s_0002"}
+    r = model.reactions.get_by_id("R1")
+    assert r.bounds == (-1000.0, 1000.0)
+    assert r.subsystem == "glycolysis"
+    assert r.gene_reaction_rule == "G1"
 
 
-def test_raven_only_fields_routed_by_meaning(yaml_file):
+def test_annotation_owned_by_cobra(yaml_file):
+    # smiles / ec-code / miriam live in the annotation block (cobra reads them)
     model = read_yaml_model(yaml_file)
-    a = model.metabolites.get_by_id("a_c")
-    # chemical identifiers go to annotation, not notes
-    assert a.annotation["smiles"] == "C(C)O"
-    assert "smiles" not in a.notes
-    # non-standard numeric/provenance data goes to notes
+    assert model.metabolites.get_by_id("s_0001").annotation["smiles"] == ["C1=NC2"]
+    assert model.metabolites.get_by_id("s_0001").annotation["kegg.compound"] == ["C00002"]
+    assert model.reactions.get_by_id("R1").annotation["ec-code"] == ["1.1.1.1"]
+    assert model.genes.get_by_id("G1").annotation["uniprot"] == ["P12345"]
+
+
+def test_raven_only_fields_captured(yaml_file):
+    model = read_yaml_model(yaml_file)
+    a = model.metabolites.get_by_id("s_0001")
+    assert a.notes["inchis"] == "InChI=1S/CH4"
     assert a.notes["deltaG"] == 12.5
+    assert a.notes["note"] == "a metabolite note"  # RAVEN metNotes string, no crash
+    assert a.notes["metFrom"] == "KEGG"
+    assert "smiles" not in a.notes  # smiles stays in annotation
     r = model.reactions.get_by_id("R1")
     assert r.notes["confidence_score"] == 2
     assert r.notes["references"] == "PMID:123"
+    assert r.notes["rxnFrom"] == "manual"
+    assert r.notes["note"] == "a reaction note"
+    assert r.notes["deltaG"] == -5.0
     assert model.genes.get_by_id("G1").notes["protein"] == "P12345"
 
 
-def test_inchis_routed_to_annotation_as_inchi(tmp_path):
-    p = tmp_path / "m.yml"
-    p.write_text(
-        "compartments: {c: cyt}\n"
-        "metabolites:\n"
-        "  - id: x_c\n    name: X\n    compartment: c\n    inchis: 'InChI=1S/CH4/h1H4'\n"
-        "reactions: []\ngenes: []\n",
-        encoding="utf-8",
-    )
-    model = read_yaml_model(p)
-    assert model.metabolites.get_by_id("x_c").annotation["inchi"] == "InChI=1S/CH4/h1H4"
-
-
-def test_foreign_sections_preserved(yaml_file):
+def test_model_level_extras(yaml_file):
     model = read_yaml_model(yaml_file)
-    assert "ec-rxns" in model.notes["_yaml_sections"]
-    assert model.notes["_yaml_sections"]["ec-rxns"][0]["kcat"] == 100
+    assert model.notes["metaData"]["taxonomy"] == "taxonomy/559292"
+    assert model.notes["version"] == "1.0"
+    assert model.notes["_yaml_sections"]["ec-rxns"][0]["kcat"] == 100.0
 
 
 def test_round_trip(yaml_file, tmp_path):
@@ -119,36 +114,66 @@ def test_round_trip(yaml_file, tmp_path):
     reloaded = read_yaml_model(out)
 
     assert reloaded.id == "testModel"
-    assert reloaded.name == "Test Model"
+    assert reloaded.notes["version"] == "1.0"
     assert reloaded.notes["metaData"]["taxonomy"] == "taxonomy/559292"
-    a = reloaded.metabolites.get_by_id("a_c")
+    a = reloaded.metabolites.get_by_id("s_0001")
     assert a.notes["deltaG"] == 12.5
-    assert a.annotation["smiles"] == "C(C)O"
-    assert reloaded.reactions.get_by_id("R1").notes["confidence_score"] == 2
+    assert a.notes["note"] == "a metabolite note"
+    assert a.annotation["smiles"] == ["C1=NC2"]
+    r = reloaded.reactions.get_by_id("R1")
+    assert r.notes["confidence_score"] == 2
     assert reloaded.genes.get_by_id("G1").notes["protein"] == "P12345"
     assert reloaded.notes["_yaml_sections"]["ec-rxns"][0]["id"] == "R1"
 
 
-def test_write_lifts_extras_to_top_level(yaml_file, tmp_path):
-    # Confirm RAVEN-only fields are emitted as per-entry top-level keys, not buried in notes.
+def test_output_is_cobra_readable(yaml_file, tmp_path):
+    # The written file must load with stock cobra (it's cobra's native format).
+    model = read_yaml_model(yaml_file)
+    out = tmp_path / "out.yml"
+    write_yaml_model(model, out)
+    cobra_model = cobra.io.load_yaml_model(str(out))
+    assert cobra_model.id == "testModel"
+    assert {m.id for m in cobra_model.metabolites} == {"s_0001", "s_0002"}
+    # RAVEN-only fields land in cobra notes; smiles in annotation
+    assert cobra_model.metabolites.get_by_id("s_0001").annotation["smiles"] == ["C1=NC2"]
+
+
+def test_write_emits_raven_top_level_keys(yaml_file, tmp_path):
     model = read_yaml_model(yaml_file)
     out = tmp_path / "out.yml"
     write_yaml_model(model, out)
     text = out.read_text()
+    # RAVEN-only fields are lifted back to top-level entry keys, not buried in notes
+    assert "inchis:" in text
     assert "deltaG:" in text
     assert "confidence_score:" in text
     assert "metaData:" in text
 
 
-# Optional smoke test against a real yeast-GEM file if present locally.
+def test_legacy_id_in_metadata(tmp_path):
+    # Older RAVEN files nest id/name under metaData and have no top-level id.
+    legacy = {
+        "metabolites": [{"id": "a_c", "name": "A", "compartment": "c"}],
+        "reactions": [],
+        "genes": [],
+        "compartments": {"c": "cyt"},
+        "metaData": {"id": "legacyModel", "name": "Legacy"},
+    }
+    p = tmp_path / "legacy.yml"
+    with open(p, "w", encoding="utf-8") as fh:
+        cobra_yaml.dump(legacy, fh)
+    model = read_yaml_model(p)
+    assert model.id == "legacyModel"
+    assert model.name == "Legacy"
+
+
+# Optional smoke test against a real model file if present.
 _YEAST = Path("/home/eduardk/github/GECKO/tutorials/full_ecModel/models/yeast-GEM.yml")
 
 
 @pytest.mark.skipif(not _YEAST.exists(), reason="real yeast-GEM.yml not available")
-def test_real_yeast_gem_preserves_identity_and_deltaG():
+def test_real_yeast_gem_loads():
     model = read_yaml_model(_YEAST)
-    # cobra.io.load_yaml_model gives model.id is None here; we restore it from metaData
-    assert model.id == "yeastGEM_develop"
-    assert model.notes["metaData"]["taxonomy"] == "taxonomy/559292"
-    # a RAVEN-only field cobra would have dropped
-    assert any("deltaG" in m.notes for m in model.metabolites)
+    assert len(model.reactions) > 1000
+    # legacy file: identity comes from metaData
+    assert model.id
