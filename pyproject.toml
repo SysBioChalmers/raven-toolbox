@@ -59,13 +59,13 @@ plotting = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/SysBioChalmers/ravenpy"
-Source = "https://github.com/SysBioChalmers/ravenpy"
-Issues = "https://github.com/SysBioChalmers/ravenpy/issues"
+Homepage = "https://github.com/SysBioChalmers/ravengem"
+Source = "https://github.com/SysBioChalmers/ravengem"
+Issues = "https://github.com/SysBioChalmers/ravengem/issues"
 "RAVEN MATLAB" = "https://github.com/SysBioChalmers/RAVEN"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ravenpy"]
+packages = ["src/ravengem"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

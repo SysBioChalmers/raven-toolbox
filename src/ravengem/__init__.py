@@ -1,6 +1,6 @@
-"""ravenpy — a Python port of the RAVEN Toolbox built on cobrapy.
+"""ravengem — a Python port of the RAVEN Toolbox built on cobrapy.
 
-ravenpy reuses cobrapy for simulation, standard analyses, SBML I/O, and model
+ravengem reuses cobrapy for simulation, standard analyses, SBML I/O, and model
 manipulation, and implements the functionality unique to RAVEN: de novo
 reconstruction (KEGG / MetaCyc / homology), context-specific modeling
 (tINIT / ftINIT), metabolic task validation, RAVEN-style gap-filling, omics

@@ -1,10 +1,10 @@
-# ravenpy
+# ravengem
 
 **Reconstruction, Analysis and Visualization of Metabolic Networks — in Python.**
 
-`ravenpy` is a Python port of the [RAVEN Toolbox 2](https://github.com/SysBioChalmers/RAVEN)
+`ravengem` is a Python port of the [RAVEN Toolbox 2](https://github.com/SysBioChalmers/RAVEN)
 (a MATLAB suite for genome-scale metabolic model reconstruction). Rather than re-implementing
-the whole toolbox, `ravenpy` builds on [**cobrapy**](https://github.com/opencobra/cobrapy) for
+the whole toolbox, `ravengem` builds on [**cobrapy**](https://github.com/opencobra/cobrapy) for
 everything cobrapy already does well (simulation, standard analyses, SBML I/O, model
 manipulation) and focuses its own code on the functionality that is **unique to RAVEN**:
 
@@ -13,7 +13,7 @@ manipulation) and focuses its own code on the functionality that is **unique to 
 - **Metabolic task** validation (`checkTasks` / `fitTasks`).
 - **RAVEN-style gap-filling** against template models.
 - **Omics integration** (Human Protein Atlas) and **subcellular localization** prediction.
-- **RAVEN ⇄ COBRA model conversion** and RAVEN Excel/YAML I/O.
+- **RAVEN Excel I/O** and **YAML I/O** (cobrapy-standard YAML plus geckopy enzyme-constrained fields).
 
 > **Status:** Pre-alpha. This repository currently contains the project scaffold and the
 > [port plan](PLAN.md). See [PLAN.md](PLAN.md) for the full RAVEN→cobrapy functionality map and
@@ -21,25 +21,25 @@ manipulation) and focuses its own code on the functionality that is **unique to 
 
 ## Design principle
 
-The canonical in-memory object is a [`cobra.Model`](https://cobrapy.readthedocs.io) — ravenpy
+The canonical in-memory object is a [`cobra.Model`](https://cobrapy.readthedocs.io) — ravengem
 functions consume and produce `cobra.Model` directly, with **no parallel RAVEN struct and no
 `ravenCobraWrapper`-style adapter**. RAVEN-specific fields that cobrapy does not model natively
 (e.g. `rxnMiriams`, `metDeltaG`, `rxnConfidenceScores`) live in cobra's `annotation` / `notes`
-dictionaries. This avoids duplicating cobrapy's data model and keeps `ravenpy` interoperable with
-the wider COBRA ecosystem. ravenpy's YAML I/O follows the cobrapy YAML standard and additionally
+dictionaries. This avoids duplicating cobrapy's data model and keeps `ravengem` interoperable with
+the wider COBRA ecosystem. ravengem's YAML I/O follows the cobrapy YAML standard and additionally
 supports geckopy's enzyme-constrained extension keys so ecModels round-trip.
 
 ## Installation (development)
 
 ```bash
-git clone https://github.com/SysBioChalmers/ravenpy
-cd ravenpy
+git clone https://github.com/SysBioChalmers/ravengem
+cd ravengem
 pip install -e ".[dev]"
 ```
 
 ## Relationship to the MATLAB RAVEN Toolbox
 
-`ravenpy` is a derivative work of RAVEN and is therefore released under the same
+`ravengem` is a derivative work of RAVEN and is therefore released under the same
 **GPL-3.0-or-later** license. If you use it in scientific work, please cite the RAVEN 2 paper:
 
 > Wang H, Marcišauskas S, Sánchez BJ, Domenzain I, Hermansson D, Agren R, Nielsen J,

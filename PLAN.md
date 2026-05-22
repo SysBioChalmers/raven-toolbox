@@ -1,10 +1,10 @@
-# ravenpy — Port Plan
+# ravengem — Port Plan
 
 A plan for porting the [RAVEN Toolbox 2](https://github.com/SysBioChalmers/RAVEN)
 (MATLAB, v2.11.1, ~271 `.m` files) to a Python package built on **cobrapy**.
 
 The guiding principle is **do not re-port what cobrapy already provides.** RAVEN and cobrapy
-overlap heavily on simulation and model-manipulation primitives. The value of `ravenpy` is in
+overlap heavily on simulation and model-manipulation primitives. The value of `ravengem` is in
 RAVEN's *reconstruction* and *context-specific modeling* features, which cobrapy lacks. This
 document (1) maps every RAVEN functional area to its cobrapy equivalent or "port" verdict, and
 (2) lays out a phased roadmap.
@@ -17,10 +17,10 @@ document (1) maps every RAVEN functional area to its cobrapy equivalent or "port
 |---|---|---|
 | In-memory model object | `cobra.Model` (not a re-implemented RAVEN struct) | Reuse cobrapy's data model, solver interface, SBML I/O, ecosystem interop. |
 | RAVEN-only fields (`rxnMiriams`, `metDeltaG`, `rxnConfidenceScores`, `compMiriams`, `geneShortNames`, `eccodes`, `inchis`, …) | Stored in `cobra` `.annotation` / `.notes`; `subSystems` → SBML groups | cobrapy already round-trips these through SBML; no parallel struct needed. |
-| RAVEN↔COBRA conversion | **None.** ravenpy functions consume and produce `cobra.Model` directly — there is no `ravenCobraWrapper` port and no parallel RAVEN struct | Adhere to the cobrapy model format throughout; full COBRA-ecosystem interop for free, nothing to keep in sync. |
+| RAVEN↔COBRA conversion | **None.** ravengem functions consume and produce `cobra.Model` directly — there is no `ravenCobraWrapper` port and no parallel RAVEN struct | Adhere to the cobrapy model format throughout; full COBRA-ecosystem interop for free, nothing to keep in sync. |
 | Solver | cobrapy's optlang (GLPK/Gurobi/CPLEX/HiGHS) | Replaces RAVEN's `solveLP`/`solveQP`/`optimizeProb` MILP/LP layer. MILP for INIT/gap-filling needs a MIP-capable solver (Gurobi/CPLEX/SCIP). |
-| Naming on PyPI | `raven-toolbox` (import as `ravenpy`) | ⚠️ `ravenpy` on PyPI is taken by an unrelated hydrology package. Distribution name mirrors the "RAVEN Toolbox" branding; import name stays `ravenpy`. |
-| Repo home | `SysBioChalmers/ravenpy` | Alongside the MATLAB RAVEN. |
+| Package name | `ravengem` (PyPI distribution **and** import name) | "raven" keeps discoverability; "gem" = genome-scale metabolic model. The obvious `ravenpy` is taken on PyPI by an unrelated hydrology package, so it was avoided; `ravengem` is free and dist==import. |
+| Repo home | `SysBioChalmers/ravengem` | Alongside the MATLAB RAVEN. |
 | tINIT/ftINIT & tasks fidelity | **Functional equivalence** (not bit-exact) | Same algorithm/intent; minor numerical differences from solver behavior are acceptable. |
 | KEGG/MetaCyc data source | **Configurable**: live REST (+disk cache) *or* reuse RAVEN's pre-built dumps | Live for currency; dumps for reproducibility with MATLAB results. |
 | License | GPL-3.0-or-later | Derivative of GPLv3 RAVEN. |
@@ -29,7 +29,7 @@ document (1) maps every RAVEN functional area to its cobrapy equivalent or "port
 
 ## 1. Already in cobrapy — DO NOT PORT (use/wrap instead)
 
-These RAVEN functions have direct cobrapy equivalents. `ravenpy` should provide, at most, thin
+These RAVEN functions have direct cobrapy equivalents. `ravengem` should provide, at most, thin
 convenience wrappers or documentation mapping the old names.
 
 | RAVEN function(s) | cobrapy equivalent |
@@ -65,10 +65,10 @@ cheatsheet" in the docs rather than as code.
 
 ## 2. RAVEN-UNIQUE — the real port targets
 
-Organized by the `src/ravenpy/` subpackage that will host them.
+Organized by the `src/ravengem/` subpackage that will host them.
 
 ### 2.1 `utils/` — model helpers (NO struct adapter)  *(Phase 1, foundational)*
-The `ravenCobraWrapper` adapter is **explicitly not ported** — ravenpy works on `cobra.Model`
+The `ravenCobraWrapper` adapter is **explicitly not ported** — ravengem works on `cobra.Model`
 directly. Only the genuinely useful, RAVEN-flavored helpers survive, as small functions on cobra
 objects:
 | RAVEN | Notes |
@@ -213,13 +213,13 @@ depends on the task framework, so tasks are built first within the same phase.
 ---
 
 ## 6. Resolved decisions
-1. **PyPI name:** `raven-toolbox` (import as `ravenpy`). ✅
-2. **Repo home:** `SysBioChalmers/ravenpy`. ✅
+1. **Package name:** `ravengem` — both PyPI distribution and import name (`pip install ravengem`,
+   `import ravengem`). The obvious `ravenpy` is taken on PyPI by an unrelated hydrology package. ✅
+2. **Repo home:** `SysBioChalmers/ravengem`. ✅
 3. **tINIT/ftINIT & tasks:** functional equivalence is sufficient (not bit-exact). ✅
 4. **KEGG/MetaCyc data:** support both live REST (with disk cache) and reused RAVEN dumps,
    selectable via configuration. ✅
-
-5. **No RAVEN⇄COBRA adapter:** `ravenCobraWrapper` is not ported; ravenpy adheres to the
+5. **No RAVEN⇄COBRA adapter:** `ravenCobraWrapper` is not ported; ravengem adheres to the
    `cobra.Model` format directly. ✅
 6. **YAML I/O:** follow the cobrapy YAML standard plus geckopy's ec extension keys
    (`ec-rxns`, `ec-enzymes`, `gecko_light`, `metaData`). ✅

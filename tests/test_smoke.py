@@ -1,4 +1,4 @@
-"""Smoke tests for the ravenpy scaffold.
+"""Smoke tests for the ravengem scaffold.
 
 Real functionality tests are added per-function as the port proceeds (see PLAN.md).
 """
@@ -7,9 +7,9 @@ import importlib
 
 
 def test_package_imports():
-    import ravenpy
+    import ravengem
 
-    assert ravenpy.__version__
+    assert ravengem.__version__
 
 
 def test_subpackages_importable():
@@ -29,7 +29,7 @@ def test_subpackages_importable():
         "plotting",
         "utils",
     ):
-        assert importlib.import_module(f"ravenpy.{sub}")
+        assert importlib.import_module(f"ravengem.{sub}")
 
 
 def test_cobra_available():
