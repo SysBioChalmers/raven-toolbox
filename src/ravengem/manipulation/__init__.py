@@ -8,6 +8,7 @@ from .add import add_reactions_from_equations
 from .change import change_gene_reaction_rules, change_reaction_equations
 from .expand import expand_model
 from .irreversible import convert_to_irreversible
+from .parameters import set_parameters
 from .remove import remove_genes, remove_metabolites
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "expand_model",
     "remove_genes",
     "remove_metabolites",
+    "set_parameters",
 ]

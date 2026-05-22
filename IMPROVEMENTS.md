@@ -37,6 +37,16 @@ Ported as `change_gene_reaction_rules` ([manipulation/change.py](src/ravengem/ma
 |---|---|---|---|---|
 | G8 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **changeGrRules: delegate gene creation + normalization to cobra.** RAVEN calls `getGenesFromGrRules` + `addGenesRaven` + `standardizeGrRules` + rebuilds `rxnGeneMat`; cobra does all of that automatically on `gene_reaction_rule =`. The port keeps only the batch loop and the append (`(old) or (new)`) option. |
 
+## setParam / getElementalBalance
+
+Ported as `set_parameters` ([manipulation/parameters.py](src/ravengem/manipulation/parameters.py))
+and `get_elemental_balance` ([utils/balance.py](src/ravengem/utils/balance.py)).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| P1 | ERGONOMICS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **setParam: readable keywords instead of a `paramType` string.** RAVEN takes `paramType='lb'\|'ub'\|'eq'\|'obj'\|'var'\|'unc'`; ravengem uses `lb=`/`ub=`/`eq=`/`objective=`/`var=`/`reset=` (and can set several at once). RAVEN-only `'rev'` dropped. **MATLAB back-port:** name-value pairs. |
+| B1 | ERGONOMICS (correctness) | ravengem 🔨 | 🔨 | **getElementalBalance: report `unknown` for missing formulas.** cobra's `check_mass_balance` silently treats a metabolite with no formula as contributing nothing, so the reaction can read as (un)balanced on incomplete data. ravengem flags those as `unknown` rather than guessing — preserving RAVEN's distinction (its `-1` status). |
+
 ## getRxnsInComp / getMetsInComp — not ported
 
 Briefly ported, then **removed** (user review): too thin over cobra (`metabolite.compartment` /

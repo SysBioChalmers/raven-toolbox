@@ -42,10 +42,12 @@ Functions that exist as working, tested Python in ravengem.
 | `utils/parse.py` | `parse_name_comp` | `getIndexes.m` (`metcomps` sliver) | ✅ (via `test_manipulation_add.py`) | Parse a `name[comp]` token → `(name, compartment)`. The only cobra-absent bit of `getIndexes`. |
 | `manipulation/add.py` | `add_reactions_from_equations` | `addRxns.m` | ✅ `tests/test_manipulation_add.py` | Keystone. Adds reactions from equation strings; matches mets by id, name, or `name[comp]`; assigns compartment to new mets; strict/auto policies for new mets & genes; duplicate-ID guard. Equation parsing/arrows/gene-creation delegated to cobra. |
 | `manipulation/change.py` | `change_reaction_equations`, `change_gene_reaction_rules` | `changeRxns.m`, `changeGrRules.m` | ✅ `tests/test_manipulation_change.py`, `tests/test_change_grrules.py` | Stoichiometry change in place (reuses the `add` parser); and batch GPR set/append (`(old) or (new)`), with gene creation + normalization free from cobra. |
+| `manipulation/parameters.py` | `set_parameters` | `setParam.m` | ✅ `tests/test_parameters.py` | Batch `lb`/`ub`/`eq`/`objective`/`var`(±% band)/`reset` with scalar broadcast; readable keywords instead of RAVEN's `paramType` string. |
+| `utils/balance.py` | `get_elemental_balance`, `ElementalBalance` | `getElementalBalance.m` | ✅ `tests/test_utils_balance.py` | Graded `balanced`/`unbalanced`/`unknown` per reaction — `unknown` catches a missing formula that cobra's `check_mass_balance` silently miscounts. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` | ✅ `tests/test_io_yaml.py` | Wraps cobra YAML (which already reads the `!!omap` RAVEN/Human-GEM format) and adds what cobra drops: model identity/provenance from `metaData`, RAVEN-only per-entry fields routed by meaning (chemical IDs `smiles`/`inchis` → `annotation`; `deltaG`/`confidence_score`/`*From`/`protein` → `notes`), and verbatim preservation of foreign sections (GECKO ec). Verified on a real yeast-GEM.yml. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 103 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 118 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -56,7 +58,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | subpackage | purpose | port status |
 |---|---|---|
 | `utils/` | GPR hygiene + model helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `parse_name_comp`, `checkModelStruct`, MIRIAM/annotation, ID-prefix) — **no** struct adapter; `getRxnsInComp`/`getMetsInComp` **not** ported (cobra one-liners) | 🟡 GPR lint ported |
-| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟡 `add_reactions_from_equations` + 2 transforms ported |
+| `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | 🟡 add/change/remove + set_parameters + 2 transforms ported |
 | `io/` | RAVEN YAML/Excel/SIF formats | 🟡 YAML read/write ported |
 | `reconstruction/homology/` | homology-based draft from a template GEM + BLAST/DIAMOND (3a) | ⬜ stub |
 | `reconstruction/kegg/` | KEGG-based draft (orthology/KO assignment) (3b) | ⬜ stub |
@@ -129,6 +131,9 @@ Keyed to commits on `main`.
 | `f869968` | Route RAVEN-only YAML fields to annotation/notes by meaning |
 | `9169c25` | Drop `remove_reactions`; flag `remove_metabolites` by_name |
 | `77f39cc` | Split reconstruction plan into homology/KEGG/MetaCyc tracks |
+| `5972fed` | Remove compartment selectors (too thin over cobra) |
+| `da80d9d` | Port changeGrRules (compartment selectors removed in `5972fed`) |
+| _(pending)_ | Port setParam + getElementalBalance |
 
 ---
 
@@ -136,9 +141,12 @@ Keyed to commits on `main`.
 
 Candidate next steps, in rough priority order:
 
-1. **More light functions** — `setParam` (batch bounds/objective + var-band), `addTransport`,
-   `setExchangeBounds`, `sortModel` (deterministic core), `getElementalBalance`.
-2. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
-3. **`mergeModels`** — N-way merge with name+comp matching, conflict rename, provenance (heavier).
-4. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
-5. **`io/` Excel / tab-delimited / SIF** exporters.
+1. **`addTransport`** — transport reactions across compartments (cobra has no transport primitive);
+   genuine value, medium size.
+2. **`setExchangeBounds`** — media-definition logic (direction detection) beyond `model.medium`.
+3. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
+4. **`mergeModels`** — N-way merge with name+comp matching, conflict rename, provenance (heavier).
+5. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
+6. **`io/` Excel / tab-delimited / SIF** exporters.
+
+Borderline (argue + ask first): `sortModel` (deterministic core; partly cobra).

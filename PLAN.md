@@ -51,7 +51,9 @@ convenience wrappers or documentation mapping the old names.
 | `randomSampling`, `analyzeSampling` | `cobra.sampling` (OptGP, ACHR) |
 | `runProductionEnvelope`, `runPhenotypePhasePlane` | `cobra.flux_analysis.production_envelope` |
 | `getExchangeRxns`, `getTransportRxns` | `model.exchanges`, `model.boundary`, custom filters |
-| `buildEquation`, `parseRxnEqu` | `reaction.reaction`, `reaction.build_reaction_from_string` |
+| `buildEquation`, `parseRxnEqu`, `constructEquations` | `reaction.reaction`, `reaction.build_reaction_string(use_metabolite_names=...)`, `reaction.build_reaction_from_string` |
+| `addMets` | `model.add_metabolites([cobra.Metabolite(...), ...])` |
+| `addExchangeRxns` | `model.add_boundary(met, type="exchange" / "demand" / "sink")` |
 | `constructS` | `cobra.util.create_stoichiometric_matrix` |
 | `printFluxes`, `printModel`, `printModelStats` | `model.summary()`, `reaction.summary()`, `metabolite.summary()` |
 | `getGenesFromGrRules` | `cobra.core.gene.GPR` (parse/eval/AST) |
@@ -86,7 +88,7 @@ each is still implemented *on top of* cobra primitives, not as a parallel data m
 | `addTransport` | **PORT** | Batch-creates transport reactions from one compartment to many, matching mets **by name** across comps, auto-naming (`tr_0001`), and auto-creating the target-compartment metabolite when missing. cobra has **no** transport primitive at all. |
 | `changeRxns` | **PORT** ✅ | Done as `change_reaction_equations` ([manipulation/change.py](src/ravengem/manipulation/change.py)). Replaces stoichiometry from equation strings, reusing the `add` parser (id/name/`name[comp]`). cobra edits the same `Reaction` object in place, so RAVEN's remove→re-add→re-sort dance is unnecessary — other fields and order are preserved automatically. Bounds left unchanged, per RAVEN. |
 | `changeGrRules` | **PORT** ✅ | Done as `change_gene_reaction_rules` ([manipulation/change.py](src/ravengem/manipulation/change.py)). Batch-set with an **append** mode (`(old) or (new)`); gene auto-creation and normalization come free from cobra's `gene_reaction_rule=` setter. |
-| `setParam` | **PORT** | One call sets `lb`/`ub`/`eq`/`obj`/`var`(±% band)/`unc` over a list of reactions (ids/index/mask), broadcasts a scalar, silently skips missing reactions, resets objective on `obj`, validates `lb≤ub`. cobra scatters these across attributes + manual loops. (Drop RAVEN-only `rev`.) |
+| `setParam` | **PORT** ✅ | Done as `set_parameters` ([manipulation/parameters.py](src/ravengem/manipulation/parameters.py)). Batch `lb`/`ub`/`eq`/`objective`/`var`(±% band)/`reset` over reactions, scalar broadcast. RAVEN's stringly `paramType` became readable keywords; `rev` dropped. |
 | `setExchangeBounds` | **PORT** | Real media-definition logic: finds exchanges, maps mets by name/id/index, auto-detects import direction, refuses inconsistent `closeOthers`, optionally restricts to the extracellular compartment, can close all other imports. Richer than `model.medium`. |
 | `removeReactions` | **DO NOT PORT** | Decided not to separate orphan-metabolite from orphan-gene cleanup; coupled, it is exactly `cobra.Model.remove_reactions(remove_orphans=...)`. Use cobra directly. |
 | `removeMets` | **PORT (thin)** ⚠️ | Done ([manipulation/remove.py](src/ravengem/manipulation/remove.py)). Delegates to cobra; the **only** add is `by_name` (delete a metabolite across all compartments). That need is likely rare — flagged as a **deletion candidate** if unused. |
@@ -94,9 +96,9 @@ each is still implemented *on top of* cobra primitives, not as a parallel data m
 | `simplifyModel` | **PORT** (stage by mode) | Orchestrator with 8 reduction modes + reserved-reaction protection + a deletion audit log: delete unconstrained / duplicate (`contractModel`) / zero-interval / inaccessible (dead-end) / no-flux (FVA) reactions, `groupLinear` enzyme chains, `constrainReversible`. Modes 1/3/4 are pure-graph (easy); 5 needs FVA; 6 is complex+lossy. No bundled cobra equivalent. |
 | `mergeModels` | **PORT** | Merge **N** models at once, matching mets by `name+comp` (or id), auto-renaming id conflicts, reconciling compartments, tracking `rxnFrom`/`metFrom`/`geneFrom` provenance. cobra's `merge` is pairwise and strict-by-id. |
 | `sortModel` (core) | **PORT** core / **SKIP** optimizer | Port the **deterministic** canonical ordering (mets by `name[comp]`; reversible reactions flipped to lexicographic-first reactant) — exactly what makes YAML diffable. **Skip** the stochastic `sortReactionOrder` annealer. |
-| `addMets` | **WRAP** | Batch add with dedupe + `copyInfo` (copy formula/charge/InChI/MIRIAM from same-named met in another comp). Mostly exists to back `addRxns`. |
-| `addExchangeRxns` | **WRAP** | Batch over a met list + RAVEN naming (`EXC_OUT_<id>`); `model.add_boundary` already covers the rest. |
-| `constructEquations` | **WRAP** | Inverse of `addRxns`: batch reactions → readable equation strings (met id/name/formula, sorting). Backs `addRxnsGenesMets`; cobra has per-reaction `.reaction`. |
+| `addMets` | **DO NOT PORT** | `model.add_metabolites([Metabolite(...), ...])` covers batch add; `copyInfo` is niche. `addRxns` already auto-creates new mets. |
+| `addExchangeRxns` | **DO NOT PORT** | `model.add_boundary(met, type="exchange"/"demand"/"sink")` covers it; only RAVEN's `EXC_OUT_*` naming differs. |
+| `constructEquations` | **DO NOT PORT** | `reaction.build_reaction_string(use_metabolite_names=...)` gives id or name equations; formula-rendering is niche. See §1 cheatsheet. |
 
 ### Targets for `utils/` — lookup, GPR hygiene, balance
 
@@ -104,7 +106,7 @@ each is still implemented *on top of* cobra primitives, not as a parallel data m
 |---|---|---|
 | `getIndexes` | **DO NOT PORT** (keep `name[comp]` sliver only) | RAVEN needs a central index resolver because it's a struct of parallel arrays. cobra is object-oriented and already covers mixed lookup more idiomatically: `DictList.get_by_any` (mixed id/object/**index** → objects), `get_by_id` (O(1)), `query` (name/substring/regex), `index` (position), comprehensions for filtering. A 1-based-index port would be redundant and un-Pythonic. **Keep only** the `name[comp]` composite resolver (`parse_name_comp`) as a small helper for `addRxns`/`addTransport`/`mergeModels` — that's the one bit cobra lacks. |
 | `standardizeGrRules` | **PORT lint only** ✅ | Two halves: (1) syntax normalization — **not ported**, cobra auto-normalizes every GPR on assignment (case, whitespace, redundant brackets); (2) the `findPotentialErrors` lint for non-DNF rules — **ported** as `find_non_dnf_grrules` + `is_dnf` ([utils/gpr.py](src/ravengem/utils/gpr.py)), reworked onto cobra's GPR AST and returning structured `GPRIssue`s instead of printing. |
-| `getElementalBalance` | **WRAP** | Batch graded balance table (status: balanced / unbalanced / missing-info / parse-error) with InChI fallback — more informative than per-reaction `check_mass_balance`. |
+| `getElementalBalance` | **PORT** ✅ | Done as `get_elemental_balance` ([utils/balance.py](src/ravengem/utils/balance.py)). Graded `balanced`/`unbalanced`/`unknown` status — distinguishing a missing formula, which cobra's `check_mass_balance` silently miscounts. |
 | `getRxnsInComp`, `getMetsInComp` | **DO NOT PORT** | One-liners over cobra's `reaction.compartments` / `metabolite.compartment`; not worth a wrapper (see §1 cheatsheet). |
 
 ---
@@ -124,7 +126,7 @@ objects:
 | `addIdentifierPrefix`, `removeIdentifierPrefix` | `R_`/`M_`/`G_` prefix handling for interop with COBRA-Toolbox-style IDs (only where cobra's SBML layer doesn't already cover it). |
 | `parse_name_comp` (from `getIndexes` `metcomps`) | **PORT** (small helper) ✅ — resolve the `name[comp]` composite (metabolite by name + compartment) cobra can't. Done in [utils/parse.py](src/ravengem/utils/parse.py). The rest of `getIndexes` is **not ported** — `DictList.get_by_any`/`get_by_id`/`query`/`index` already cover mixed id/object/index/name lookup more idiomatically (see §1b note). |
 | `standardizeGrRules` | **PORT lint only** ✅ — normalization is cobra-automatic; non-DNF lint ported as `find_non_dnf_grrules`/`is_dnf`. See §1b. |
-| `getElementalBalance` | **WRAP** — batch graded mass-balance table with InChI fallback; see §1b. |
+| `getElementalBalance` | **PORT** ✅ — graded balanced/unbalanced/unknown (catches cobra's silent missing-formula); see §1b. Lives in `utils/balance.py`. |
 | `getRxnsInComp`, `getMetsInComp` | **DO NOT PORT** | Too thin over cobra (one-liners via `reaction.compartments` / `metabolite.compartment`); see §1 cheatsheet. Reconsider only if a downstream consumer (e.g. localization) genuinely needs the `include_partial` distinction in several places. |
 | ~~`ravenCobraWrapper`, `standardizeModelFieldOrder`, `cobraNamespaces.csv`, `COBRA_structure_fields.csv`~~ | **Dropped** — no parallel struct to convert or order. |
 
@@ -143,12 +145,10 @@ transforms cobra lacks. Two transforms are **already ported in geckopy** and rel
 | `contractModel`, `mergeCompartments`, `copyToComps` | Other RAVEN structural transforms to port as needed. |
 
 **Construction & editing (ergonomic layer, §1b):** `addRxns` (keystone — equation-string batch add
-with met/gene auto-creation), `addRxnsGenesMets`, `addTransport`, `changeRxns`, `changeGrRules`,
-`setParam`, `setExchangeBounds`, `removeReactions`, `removeMets`, `removeGenes`; plus `addMets`,
-`addExchangeRxns`, `constructEquations` as supporting **WRAP**s. See §1b for per-function rationale
-and verdicts. **Build order:** `parse_name_comp` (utils) → `addMets`/
-`constructEquations` → `addRxns` → everything that depends on it (`changeRxns`, `addRxnsGenesMets`,
-`addTransport`).
+with met/gene auto-creation) ✅, `changeRxns` ✅, `changeGrRules` ✅, `setParam` ✅, `removeMets`/
+`removeGenes` ✅, and still to do `addRxnsGenesMets`, `addTransport`, `setExchangeBounds`.
+`addMets`, `addExchangeRxns`, `constructEquations` are **not ported** — cobra covers them (§1
+cheatsheet). See §1b for per-function rationale and verdicts.
 
 ### 2.2 `io/` — RAVEN-specific formats  *(Phase 1–2)*
 | RAVEN | Notes |
