@@ -58,6 +58,12 @@ _RXN_FIELDS = (
     ("rxnFrom", "notes", "rxnFrom"),
     ("deltaG", "notes", "deltaG"),
 )
+# NB: `protein` is RAVEN's `proteins` field = the SBML fbc:geneProduct *name*
+# (importModel.m: "protein associated to each gene"), i.e. a label, not an
+# accession. UniProt *IDs* are not here — they live in the standard
+# `annotation: uniprot:` block (cobra reads them natively), so they need no
+# routing. Hence `protein` -> notes (a name), consistent with the
+# identifiers->annotation / names->notes rule.
 _GENE_FIELDS = (("protein", "notes", "protein"),)
 
 # cobra's own top-level dict keys (everything else is a foreign section).
