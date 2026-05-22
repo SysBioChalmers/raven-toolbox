@@ -41,9 +41,9 @@ Functions that exist as working, tested Python in ravengem.
 | `manipulation/add.py` | `add_reactions_from_equations` | `addRxns.m` | ✅ `tests/test_manipulation_add.py` | Keystone. Adds reactions from equation strings; matches mets by id, name, or `name[comp]`; assigns compartment to new mets; strict/auto policies for new mets & genes; duplicate-ID guard. Equation parsing/arrows/gene-creation delegated to cobra. |
 | `manipulation/change.py` | `change_reaction_equations` | `changeRxns.m` | ✅ `tests/test_manipulation_change.py` | Replaces a reaction's stoichiometry from an equation string (reuses the `add` parser). Edits the `Reaction` in place — other fields, bounds, and order preserved; no remove/re-add/re-sort dance. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` | ✅ `tests/test_io_yaml.py` | Wraps cobra YAML (which already reads the `!!omap` RAVEN/Human-GEM format) and adds what cobra drops: model identity/provenance from `metaData`, RAVEN-only per-entry fields routed by meaning (chemical IDs `smiles`/`inchis` → `annotation`; `deltaG`/`confidence_score`/`*From`/`protein` → `notes`), and verbatim preservation of foreign sections (GECKO ec). Verified on a real yeast-GEM.yml. |
-| `manipulation/remove.py` | `remove_reactions`, `remove_metabolites`, `remove_genes` | `removeReactions.m` / `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: separable orphan cleanup (reactions), `by_name` cross-compartment deletion (mets), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). |
+| `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 101 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 98 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 

@@ -1,62 +1,37 @@
-"""Remove reactions, metabolites, or genes from a model.
+"""Remove metabolites or genes from a model.
 
-Port of RAVEN ``removeReactions.m`` / ``removeMets.m`` / ``removeGenes.m``.
+Partial port of RAVEN ``removeMets.m`` / ``removeGenes.m``.
 
-cobra already covers the core of all three, so this module delegates to it and
-adds only the genuinely cobra-absent behaviour:
+``removeReactions`` is **not** ported: once orphan-metabolite and orphan-gene
+cleanup are kept coupled (as decided — they are not separated), it is exactly
+``cobra.Model.remove_reactions(reactions, remove_orphans=...)`` with nothing to
+add. Use cobra's method directly.
 
-* ``remove_reactions`` — cobra's ``Model.remove_reactions(remove_orphans=True)``
-  drops orphaned metabolites **and** genes together; RAVEN exposes *separable*
-  flags. We keep them separable (``remove_orphan_metabolites`` /
-  ``remove_orphan_genes`` independent), plus the cobra-trivial reaction removal.
-* ``remove_metabolites`` — cobra matches metabolites only by ID; RAVEN's
-  ``isNames`` lets you delete a metabolite in **every compartment at once** by
-  name. That name resolution is the value here.
+The two functions kept here delegate the core to cobra and add only the
+cobra-absent behaviour:
+
+* ``remove_metabolites`` — cobra matches metabolites by ID; RAVEN's ``isNames``
+  deletes a metabolite in **every compartment at once** by name. That name
+  resolution is the *sole* reason this wrapper exists (see the note on it).
 * ``remove_genes`` — cobra's ``cobra.manipulation.remove_genes`` already rewrites
-  GPRs through the boolean AST (correctly: removing one gene of ``A and B``
-  empties the rule, of ``A or B`` keeps the other), which is what RAVEN does via
+  GPRs through the boolean AST (removing one gene of ``A and B`` empties the
+  rule, of ``A or B`` keeps the other) — exactly RAVEN's intent, without its
   ``eval``. The gap is RAVEN's default of **constraining** flux-blocked reactions
-  to zero rather than deleting them — gene-knockout semantics. We expose a
-  ``blocked_reactions`` policy: ``"remove"``, ``"constrain"``, or ``"keep"``.
+  to zero instead of deleting them; exposed as ``blocked_reactions``.
 """
 from __future__ import annotations
 
 from typing import Iterable, Union
 
 import cobra
-from cobra import Gene, Metabolite, Reaction
+from cobra import Gene, Metabolite
 from cobra.manipulation import remove_genes as _cobra_remove_genes
 
 
 def _as_list(obj) -> list:
-    if isinstance(obj, (str, Reaction, Metabolite, Gene)):
+    if isinstance(obj, (str, Metabolite, Gene)):
         return [obj]
     return list(obj)
-
-
-def remove_reactions(
-    model: "cobra.Model",
-    reactions: Union[str, Reaction, Iterable],
-    *,
-    remove_orphan_metabolites: bool = False,
-    remove_orphan_genes: bool = False,
-) -> None:
-    """Remove reactions, with *separable* orphan cleanup.
-
-    Port of RAVEN ``removeReactions.m``. Unlike cobra's coupled
-    ``remove_orphans``, the metabolite and gene cleanups are independent flags.
-    """
-    model.remove_reactions(_as_list(reactions), remove_orphans=False)
-
-    if remove_orphan_metabolites:
-        orphan_mets = [m for m in model.metabolites if not m.reactions]
-        if orphan_mets:
-            model.remove_metabolites(orphan_mets)
-
-    if remove_orphan_genes:
-        orphan_genes = [g for g in model.genes if not g.reactions]
-        for gene in orphan_genes:
-            model.genes.remove(gene)
 
 
 def remove_metabolites(
@@ -68,7 +43,7 @@ def remove_metabolites(
 ) -> None:
     """Remove metabolites, optionally matching by name across all compartments.
 
-    Port of RAVEN ``removeMets.m``.
+    Partial port of RAVEN ``removeMets.m``.
 
     Parameters
     ----------
@@ -78,8 +53,14 @@ def remove_metabolites(
         If False, they are IDs/objects, resolved via cobra.
     destructive
         Passed to cobra: if True, also remove every reaction the metabolite
-        participates in (RAVEN's ``removeUnusedRxns`` is similar but only drops
-        reactions left empty — use cobra's ``prune_unused_reactions`` for that).
+        participates in.
+
+    Note
+    ----
+    With ``by_name=False`` this is just ``model.remove_metabolites`` — so the
+    ``by_name`` cross-compartment deletion is the only thing this adds over
+    cobra. It is likely a rare need (one usually knows the compartment-specific
+    IDs); if it proves unused, drop this wrapper and call cobra directly.
     """
     if by_name:
         wanted = set(_as_list(metabolites))
@@ -95,7 +76,7 @@ def remove_genes(
     genes: Union[str, Gene, Iterable],
     *,
     blocked_reactions: str = "remove",
-    remove_orphan_metabolites: bool = False,
+    remove_orphans: bool = False,
 ) -> list[str]:
     """Remove genes and handle reactions left unable to carry flux.
 
@@ -106,6 +87,9 @@ def remove_genes(
     * ``"remove"`` — delete them (cobra's default; RAVEN ``removeBlockedRxns=true``).
     * ``"constrain"`` — keep them but set bounds to ``(0, 0)`` (RAVEN default).
     * ``"keep"`` — leave them with an empty GPR and unchanged bounds.
+
+    ``remove_orphans`` (only meaningful with ``blocked_reactions="remove"``)
+    passes through to cobra: drop metabolites *and* genes orphaned by the removal.
 
     Returns
     -------
@@ -138,7 +122,7 @@ def remove_genes(
     ]
 
     if blocked_reactions == "remove":
-        model.remove_reactions(blocked, remove_orphans=remove_orphan_metabolites)
+        model.remove_reactions(blocked, remove_orphans=remove_orphans)
     elif blocked_reactions == "constrain":
         for rid in blocked:
             model.reactions.get_by_id(rid).bounds = (0, 0)

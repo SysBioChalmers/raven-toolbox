@@ -1,4 +1,4 @@
-"""Tests for ravengem.manipulation.remove (removeReactions/Mets/Genes ports)."""
+"""Tests for ravengem.manipulation.remove (removeMets/removeGenes ports)."""
 import cobra
 import pytest
 
@@ -6,7 +6,6 @@ from ravengem.manipulation import (
     add_reactions_from_equations,
     remove_genes,
     remove_metabolites,
-    remove_reactions,
 )
 
 
@@ -30,28 +29,6 @@ def model():
         ],
     )
     return m
-
-
-# --- remove_reactions ------------------------------------------------------
-
-def test_remove_reactions_basic(model):
-    remove_reactions(model, ["R3"])
-    assert "R3" not in model.reactions
-
-
-def test_remove_reactions_separable_orphan_flags(model):
-    # Removing R2 orphans x_c (only used there). Drop orphan mets but KEEP genes.
-    genes_before = {g.id for g in model.genes}
-    remove_reactions(model, ["R2"], remove_orphan_metabolites=True, remove_orphan_genes=False)
-    assert "x_c" not in model.metabolites
-    # G3/G4 orphaned but kept because the gene flag is independent (cobra couples them)
-    assert {g.id for g in model.genes} == genes_before
-
-
-def test_remove_reactions_orphan_genes_only(model):
-    remove_reactions(model, ["R2"], remove_orphan_genes=True)
-    assert "x_c" in model.metabolites  # mets untouched
-    assert {g.id for g in model.genes} == {"G1", "G2"}  # G3/G4 pruned
 
 
 # --- remove_metabolites ----------------------------------------------------

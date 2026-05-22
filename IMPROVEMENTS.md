@@ -29,16 +29,19 @@ metabolites/genes. Ported as `add_reactions_from_equations`
 | A3 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **Delegate equation/arrow/coefficient parsing and gene/met creation to cobra** (`build_reaction_from_string` semantics, GPR auto-creation) instead of re-implementing RAVEN's `constructS`/`addGenesRaven`. Only the genuinely cobra-absent pieces (name matching, compartment for new mets, strict policies) are hand-written. |
 | A4 | NEW | both 💡 | 💡 | **Infer compartment from a structured metabolite ID** (e.g. `atp_c` → `c`) as an alternative to requiring `compartment`. Not yet implemented; would reduce boilerplate for SBML-style IDs. Revisit alongside `addMets`. |
 
-## removeReactions / removeMets / removeGenes
+## removeMets / removeGenes
 
-Ported as `remove_reactions` / `remove_metabolites` / `remove_genes`
-([manipulation/remove.py](src/ravengem/manipulation/remove.py)).
+Ported as `remove_metabolites` / `remove_genes`
+([manipulation/remove.py](src/ravengem/manipulation/remove.py)). `removeReactions` was **not**
+ported: with orphan cleanup kept coupled (decision: don't separate metabolites from genes), it is
+identical to `cobra.Model.remove_reactions(remove_orphans=...)`.
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
-| R1 | ERGONOMICS | ravengem 🔨 | 🔨 | **Separable orphan cleanup.** cobra's `remove_reactions(remove_orphans=True)` drops orphan metabolites *and* genes together; ravengem exposes `remove_orphan_metabolites` / `remove_orphan_genes` as independent flags (RAVEN's `removeUnusedMets`/`removeUnusedGenes`). |
+| ~~R1~~ | ERGONOMICS | — | ❌ rejected | Separable orphan-met vs orphan-gene cleanup was considered, then **dropped** by decision — keep them coupled like cobra. (Removed the `remove_reactions` wrapper entirely as a result.) |
 | R2 | EFFICIENCY (reuse) | ravengem 🔨 | 🔨 | **GPR rewriting delegated to cobra's AST**, not RAVEN's `eval` of a `&&`/`\|\|`-substituted rule string. cobra's `remove_genes` already gives correct AND/OR semantics (removing one gene of `A and B` empties the rule; of `A or B` keeps the other). **MATLAB back-port:** replace `canRxnCarryFlux`'s `eval` with a parsed boolean tree (safer, no eval). |
 | R3 | ERGONOMICS | ravengem 🔨 | 🔨 | **`blocked_reactions` policy as a clear keyword** (`remove`/`constrain`/`keep`) instead of RAVEN's `removeBlockedRxns` boolean — and `keep` (rewrite GPR, leave bounds) is a third option RAVEN lacks. |
+| R4 | (review) | ravengem ⚠️ | 💡 | **`remove_metabolites` is a deletion candidate.** Its only value over cobra is `by_name` cross-compartment deletion, likely rarely used; revisit and possibly drop the wrapper. |
 
 ## readYAMLmodel / writeYAMLmodel
 
