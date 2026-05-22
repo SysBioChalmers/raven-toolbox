@@ -161,9 +161,10 @@ cheatsheet). See §1b for per-function rationale and verdicts.
 | RAVEN | Notes |
 |---|---|
 | `readYAMLmodel`, `writeYAMLmodel` | **DONE** ✅ as `read_yaml_model`/`write_yaml_model` ([io/yaml.py](src/ravengem/io/yaml.py)). **Aligned to RAVEN commit `fa281a1`** (`feat/geckopy-compat-yaml`, in `/mnt/c/Work/GitHub/RAVEN`), whose writer emits **cobra's native `!!omap`**. Because the format *is* cobra's, cobra reads/writes the standard content **and the whole `annotation` block** (which holds `smiles`, `ec-code`, MIRIAM). This port adds only what cobra drops: (1) RAVEN-only **top-level per-entry keys** — `inchis`/`deltaG`/`metFrom`/`notes`(metNotes) on mets, `confidence_score`/`references`/`rxnFrom`/`deltaG`/`notes` on rxns, `protein` on genes — stashed in `.notes` on read, lifted to top-level on write; (2) model-level `version`, `metaData` provenance, and GECKO `ec-*`/`gecko_light` sections; (3) legacy files with id/name in `metaData`. Note vs the earlier port: `smiles` is **annotation** (cobra-owned), `inchis` is **top-level**, and the top-level `notes` **string** is handled (no longer crashes). |
-| `importExcelModel`, `exportToExcelFormat`, `SBMLFromExcel` | RAVEN Excel model format. `openpyxl` (optional dep). |
+| `importExcelModel`, `SBMLFromExcel` | **DO NOT PORT** (per decision) — Excel *import* is not enabled in ravengem. |
+| `exportToExcelFormat` | Optional Excel *export* (`openpyxl`); export only, lower priority. |
 | `exportToTabDelimited`, `exportForGit` | Plain-text / git-friendly model dumps. |
-| `exportModelToSIF` | Cytoscape SIF export (visualization). |
+| `exportModelToSIF` | **DONE** ✅ as `export_model_to_sif` ([io/sif.py](src/ravengem/io/sif.py)) — Cytoscape SIF (`rc`/`rr`/`cc` graphs). cobra has no network export. |
 | `getToolboxVersion`, `getMD5Hash` | Provenance helpers. |
 
 ### 2.3 `reconstruction/` — de novo reconstruction  *(Phase 3, flagship)*
