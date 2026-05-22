@@ -143,7 +143,7 @@ Keyed to commits on `main`.
 | `23d3ceb` | Skip setExchangeBounds (cobra `model.medium` covers it) |
 | `6b557b2` | Port addRxnsGenesMets as `add_reactions_from_model` |
 | `5d367b4` | Port checkModelStruct curation subset as `check_model` |
-| _(pending)_ | Port mergeModels as `merge_models` |
+| `e6020c2` | Port mergeModels as `merge_models` |
 
 ---
 
