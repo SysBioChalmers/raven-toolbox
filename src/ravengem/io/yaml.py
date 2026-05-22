@@ -16,10 +16,18 @@ It adds only the two things cobra silently drops:
    has ``id is None``. We map ``metaData.id``/``name`` onto the model and keep the
    whole block in ``model.notes['metaData']`` so it round-trips.
 2. **RAVEN-only per-entry fields** that sit as top-level keys on each entry and
-   have no slot in cobra's dict: ``smiles``/``inchis``/``deltaG``/``metFrom`` on
-   metabolites, ``confidence_score``/``references``/``rxnFrom``/``deltaG`` on
-   reactions, ``protein`` on genes. We move them into the object's ``notes`` on
-   read and lift them back to top-level on write.
+   have no slot in cobra's standard reaction/metabolite/gene dict. Each is routed
+   to its *semantically correct* cobra container, not blindly to ``notes``:
+
+   * chemical-structure identifiers (``smiles``, ``inchis``) → ``annotation``,
+     the standardized MIRIAM-style store other tools read;
+   * everything that is genuinely not a cross-reference (``deltaG``,
+     ``confidence_score``, ``metFrom``/``rxnFrom``, ``protein``) → ``notes``,
+     cobra's designed home for non-standard per-object data.
+
+   (We deliberately do *not* invent attributes like ``met.deltaG``: cobra only
+   persists ``annotation`` and ``notes`` through copy/SBML/JSON/YAML, so a custom
+   attribute would silently vanish.)
 
 Any other unrecognised top-level sections (e.g. GECKO's ``ec-rxns`` /
 ``ec-enzymes`` / ``gecko_light``) are preserved verbatim in
@@ -35,11 +43,22 @@ import cobra
 from cobra.io.dict import model_from_dict, model_to_dict
 from cobra.io.yaml import yaml as _cobra_yaml  # ruamel round-trip YAML (handles !!omap)
 
-# RAVEN-only fields written as top-level keys on each entry, with no place in
-# cobra's metabolite/reaction/gene dict. Moved to/from the object's notes.
-_MET_EXTRAS = ("smiles", "inchis", "deltaG", "metFrom")
-_RXN_EXTRAS = ("confidence_score", "references", "rxnFrom", "deltaG")
-_GENE_EXTRAS = ("protein",)
+# RAVEN-only per-entry fields written as top-level YAML keys, with no slot in
+# cobra's dict. Each maps to (yaml_key, cobra container, key within container),
+# routed by meaning: chemical identifiers -> annotation, the rest -> notes.
+_MET_FIELDS = (
+    ("smiles", "annotation", "smiles"),
+    ("inchis", "annotation", "inchi"),
+    ("deltaG", "notes", "deltaG"),
+    ("metFrom", "notes", "metFrom"),
+)
+_RXN_FIELDS = (
+    ("confidence_score", "notes", "confidence_score"),
+    ("references", "notes", "references"),
+    ("rxnFrom", "notes", "rxnFrom"),
+    ("deltaG", "notes", "deltaG"),
+)
+_GENE_FIELDS = (("protein", "notes", "protein"),)
 
 # cobra's own top-level dict keys (everything else is a foreign section).
 _COBRA_TOP_KEYS = frozenset(
@@ -62,28 +81,24 @@ def _to_plain(obj):
     return obj if obj is None else str(obj) if not isinstance(obj, str) else obj
 
 
-def _absorb_entry_extras(entries: list[dict], extras: tuple[str, ...]) -> None:
-    """Move RAVEN-only top-level keys into each entry's ``notes`` dict (in place)."""
+def _absorb_entry_extras(entries: list[dict], fields: tuple[tuple[str, str, str], ...]) -> None:
+    """Move RAVEN-only top-level keys into annotation/notes per spec (in place)."""
     for entry in entries:
-        notes = dict(entry.get("notes") or {})
-        for key in extras:
-            if key in entry:
-                notes[key] = entry.pop(key)
-        if notes:
-            entry["notes"] = notes
+        for yaml_key, container, container_key in fields:
+            if yaml_key in entry:
+                target = entry.setdefault(container, {})
+                target[container_key] = entry.pop(yaml_key)
 
 
-def _emit_entry_extras(entries: list[dict], extras: tuple[str, ...]) -> None:
-    """Lift RAVEN-only keys from each entry's ``notes`` back to top level (in place)."""
+def _emit_entry_extras(entries: list[dict], fields: tuple[tuple[str, str, str], ...]) -> None:
+    """Lift RAVEN-only keys from annotation/notes back to top level (in place)."""
     for entry in entries:
-        notes = entry.get("notes")
-        if not isinstance(notes, dict):
-            continue
-        for key in extras:
-            if key in notes:
-                entry[key] = notes.pop(key)
-        if not notes:
-            entry.pop("notes", None)
+        for yaml_key, container, container_key in fields:
+            holder = entry.get(container)
+            if isinstance(holder, dict) and container_key in holder:
+                entry[yaml_key] = holder.pop(container_key)
+                if not holder:
+                    entry.pop(container, None)
 
 
 def read_yaml_model(path: Union[str, Path]) -> "cobra.Model":
@@ -104,9 +119,9 @@ def read_yaml_model(path: Union[str, Path]) -> "cobra.Model":
     metadata = raw.pop("metaData", None) or {}
     foreign = {k: raw.pop(k) for k in list(raw) if k not in _COBRA_TOP_KEYS}
 
-    _absorb_entry_extras(raw.get("metabolites", []), _MET_EXTRAS)
-    _absorb_entry_extras(raw.get("reactions", []), _RXN_EXTRAS)
-    _absorb_entry_extras(raw.get("genes", []), _GENE_EXTRAS)
+    _absorb_entry_extras(raw.get("metabolites", []), _MET_FIELDS)
+    _absorb_entry_extras(raw.get("reactions", []), _RXN_FIELDS)
+    _absorb_entry_extras(raw.get("genes", []), _GENE_FIELDS)
 
     model = model_from_dict(raw)
 
@@ -138,9 +153,9 @@ def write_yaml_model(model: "cobra.Model", path: Union[str, Path]) -> None:
     # serialized model-level notes (cobra's dict has no model-level notes key, but
     # be safe in case of future cobra versions).
 
-    _emit_entry_extras(doc.get("metabolites", []), _MET_EXTRAS)
-    _emit_entry_extras(doc.get("reactions", []), _RXN_EXTRAS)
-    _emit_entry_extras(doc.get("genes", []), _GENE_EXTRAS)
+    _emit_entry_extras(doc.get("metabolites", []), _MET_FIELDS)
+    _emit_entry_extras(doc.get("reactions", []), _RXN_FIELDS)
+    _emit_entry_extras(doc.get("genes", []), _GENE_FIELDS)
 
     metadata = dict(stored_meta)
     if model.id:

@@ -79,15 +79,31 @@ def test_metadata_sets_identity_and_is_preserved(yaml_file):
     assert model.notes["metaData"]["defaultLB"] == "-1000"
 
 
-def test_raven_only_fields_captured_in_notes(yaml_file):
+def test_raven_only_fields_routed_by_meaning(yaml_file):
     model = read_yaml_model(yaml_file)
     a = model.metabolites.get_by_id("a_c")
+    # chemical identifiers go to annotation, not notes
+    assert a.annotation["smiles"] == "C(C)O"
+    assert "smiles" not in a.notes
+    # non-standard numeric/provenance data goes to notes
     assert a.notes["deltaG"] == 12.5
-    assert a.notes["smiles"] == "C(C)O"
     r = model.reactions.get_by_id("R1")
     assert r.notes["confidence_score"] == 2
     assert r.notes["references"] == "PMID:123"
     assert model.genes.get_by_id("G1").notes["protein"] == "P12345"
+
+
+def test_inchis_routed_to_annotation_as_inchi(tmp_path):
+    p = tmp_path / "m.yml"
+    p.write_text(
+        "compartments: {c: cyt}\n"
+        "metabolites:\n"
+        "  - id: x_c\n    name: X\n    compartment: c\n    inchis: 'InChI=1S/CH4/h1H4'\n"
+        "reactions: []\ngenes: []\n",
+        encoding="utf-8",
+    )
+    model = read_yaml_model(p)
+    assert model.metabolites.get_by_id("x_c").annotation["inchi"] == "InChI=1S/CH4/h1H4"
 
 
 def test_foreign_sections_preserved(yaml_file):
@@ -107,7 +123,7 @@ def test_round_trip(yaml_file, tmp_path):
     assert reloaded.notes["metaData"]["taxonomy"] == "taxonomy/559292"
     a = reloaded.metabolites.get_by_id("a_c")
     assert a.notes["deltaG"] == 12.5
-    assert a.notes["smiles"] == "C(C)O"
+    assert a.annotation["smiles"] == "C(C)O"
     assert reloaded.reactions.get_by_id("R1").notes["confidence_score"] == 2
     assert reloaded.genes.get_by_id("G1").notes["protein"] == "P12345"
     assert reloaded.notes["_yaml_sections"]["ec-rxns"][0]["id"] == "R1"
