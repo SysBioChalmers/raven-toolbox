@@ -55,6 +55,8 @@ convenience wrappers or documentation mapping the old names.
 | `constructS` | `cobra.util.create_stoichiometric_matrix` |
 | `printFluxes`, `printModel`, `printModelStats` | `model.summary()`, `reaction.summary()`, `metabolite.summary()` |
 | `getGenesFromGrRules` | `cobra.core.gene.GPR` (parse/eval/AST) |
+| `getMetsInComp` | `[m for m in model.metabolites if m.compartment == c]` |
+| `getRxnsInComp` | `[r for r in model.reactions if r.compartments == {c}]` (fully in `c`); use `c in r.compartments` to include transport |
 | `getIndexes` | `DictList.get_by_any` (mixed id/object/index→objects), `get_by_id`, `query` (name/regex), `index` (position). See §1b note — only the `name[comp]` resolver sliver is kept. |
 | `parseFormulas` | `metabolite.formula` / `elements` |
 | `deleteUnusedGenes` | `cobra.manipulation.prune_unused_metabolites`, `prune_unused_reactions` |
@@ -103,7 +105,7 @@ each is still implemented *on top of* cobra primitives, not as a parallel data m
 | `getIndexes` | **DO NOT PORT** (keep `name[comp]` sliver only) | RAVEN needs a central index resolver because it's a struct of parallel arrays. cobra is object-oriented and already covers mixed lookup more idiomatically: `DictList.get_by_any` (mixed id/object/**index** → objects), `get_by_id` (O(1)), `query` (name/substring/regex), `index` (position), comprehensions for filtering. A 1-based-index port would be redundant and un-Pythonic. **Keep only** the `name[comp]` composite resolver (`parse_name_comp`) as a small helper for `addRxns`/`addTransport`/`mergeModels` — that's the one bit cobra lacks. |
 | `standardizeGrRules` | **PORT lint only** ✅ | Two halves: (1) syntax normalization — **not ported**, cobra auto-normalizes every GPR on assignment (case, whitespace, redundant brackets); (2) the `findPotentialErrors` lint for non-DNF rules — **ported** as `find_non_dnf_grrules` + `is_dnf` ([utils/gpr.py](src/ravengem/utils/gpr.py)), reworked onto cobra's GPR AST and returning structured `GPRIssue`s instead of printing. |
 | `getElementalBalance` | **WRAP** | Batch graded balance table (status: balanced / unbalanced / missing-info / parse-error) with InChI fallback — more informative than per-reaction `check_mass_balance`. |
-| `getRxnsInComp`, `getMetsInComp` | **WRAP** | "Objects in compartment" accessors cobra lacks as first-class calls; the only non-trivial bit is `getRxnsInComp(include_partial=False)` (fully-contained vs touching). |
+| `getRxnsInComp`, `getMetsInComp` | **DO NOT PORT** | One-liners over cobra's `reaction.compartments` / `metabolite.compartment`; not worth a wrapper (see §1 cheatsheet). |
 
 ---
 
@@ -123,7 +125,7 @@ objects:
 | `parse_name_comp` (from `getIndexes` `metcomps`) | **PORT** (small helper) ✅ — resolve the `name[comp]` composite (metabolite by name + compartment) cobra can't. Done in [utils/parse.py](src/ravengem/utils/parse.py). The rest of `getIndexes` is **not ported** — `DictList.get_by_any`/`get_by_id`/`query`/`index` already cover mixed id/object/index/name lookup more idiomatically (see §1b note). |
 | `standardizeGrRules` | **PORT lint only** ✅ — normalization is cobra-automatic; non-DNF lint ported as `find_non_dnf_grrules`/`is_dnf`. See §1b. |
 | `getElementalBalance` | **WRAP** — batch graded mass-balance table with InChI fallback; see §1b. |
-| `getRxnsInComp`, `getMetsInComp` | **WRAP** ✅ — done as `get_reactions_in_compartment` / `get_metabolites_in_compartment` ([utils/compartments.py](src/ravengem/utils/compartments.py)); thin over cobra's `reaction.compartments`, encapsulating the `include_partial` (fully-contained vs touching) distinction. |
+| `getRxnsInComp`, `getMetsInComp` | **DO NOT PORT** | Too thin over cobra (one-liners via `reaction.compartments` / `metabolite.compartment`); see §1 cheatsheet. Reconsider only if a downstream consumer (e.g. localization) genuinely needs the `include_partial` distinction in several places. |
 | ~~`ravenCobraWrapper`, `standardizeModelFieldOrder`, `cobraNamespaces.csv`, `COBRA_structure_fields.csv`~~ | **Dropped** — no parallel struct to convert or order. |
 
 ### 2.1b `manipulation/` — model construction, editing & structural transforms  *(Phase 1)*
