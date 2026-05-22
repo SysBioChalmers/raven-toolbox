@@ -10,9 +10,11 @@ from .expand import expand_model
 from .irreversible import convert_to_irreversible
 from .parameters import set_variance_bounds
 from .remove import remove_genes, remove_metabolites
+from .transport import add_transport_reactions
 
 __all__ = [
     "add_reactions_from_equations",
+    "add_transport_reactions",
     "change_gene_reaction_rules",
     "change_reaction_equations",
     "convert_to_irreversible",

@@ -44,10 +44,11 @@ Functions that exist as working, tested Python in ravengem.
 | `manipulation/change.py` | `change_reaction_equations`, `change_gene_reaction_rules` | `changeRxns.m`, `changeGrRules.m` | ✅ `tests/test_manipulation_change.py`, `tests/test_change_grrules.py` | Stoichiometry change in place (reuses the `add` parser); and batch GPR set/append (`(old) or (new)`), with gene creation + normalization free from cobra. |
 | `manipulation/parameters.py` | `set_variance_bounds` | `setParam.m` (`'var'` mode) | ✅ `tests/test_parameters.py` | The only `setParam` mode cobra has no idiom for: a ±% band around measured values (sign-aware). Other modes (`lb`/`ub`/`eq`/`obj`/`unc`) are cobra one-liners (cheatsheet). |
 | `utils/balance.py` | `get_elemental_balance`, `ElementalBalance` | `getElementalBalance.m` | ✅ `tests/test_utils_balance.py` | Graded `balanced`/`unbalanced`/`unknown` per reaction — `unknown` catches a missing formula that cobra's `check_mass_balance` silently miscounts. |
+| `manipulation/transport.py` | `add_transport_reactions` | `addTransport.m` | ✅ `tests/test_manipulation_transport.py` | Transport reactions across compartments, matching mets by name, sequential `tr_0001` IDs, optional target-metabolite creation. cobra has no transport primitive. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` | ✅ `tests/test_io_yaml.py` | Wraps cobra YAML (which already reads the `!!omap` RAVEN/Human-GEM format) and adds what cobra drops: model identity/provenance from `metaData`, RAVEN-only per-entry fields routed by meaning (chemical IDs `smiles`/`inchis` → `annotation`; `deltaG`/`confidence_score`/`*From`/`protein` → `notes`), and verbatim preservation of foreign sections (GECKO ec). Verified on a real yeast-GEM.yml. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 114 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 123 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -133,7 +134,9 @@ Keyed to commits on `main`.
 | `77f39cc` | Split reconstruction plan into homology/KEGG/MetaCyc tracks |
 | `5972fed` | Remove compartment selectors (too thin over cobra) |
 | `da80d9d` | Port changeGrRules (compartment selectors removed in `5972fed`) |
-| _(pending)_ | Port setParam + getElementalBalance |
+| `9dacc75` | Port setParam + getElementalBalance (3 simplest skipped) |
+| `d0e63b6` | Trim set_parameters → set_variance_bounds |
+| `d? (this)` | Port addTransport as `add_transport_reactions` |
 
 ---
 
@@ -141,9 +144,8 @@ Keyed to commits on `main`.
 
 Candidate next steps, in rough priority order:
 
-1. **`addTransport`** — transport reactions across compartments (cobra has no transport primitive);
-   genuine value, medium size.
-2. **`setExchangeBounds`** — media-definition logic (direction detection) beyond `model.medium`.
+1. **`setExchangeBounds`** — media-definition logic (direction detection) beyond `model.medium`.
+2. **`addRxnsGenesMets`** — cross-model reaction transfer with name matching + dedup.
 3. **`utils/` foundation** — `checkModelStruct` validation + MIRIAM/annotation + ID-prefix helpers.
 4. **`mergeModels`** — N-way merge with name+comp matching, conflict rename, provenance (heavier).
 5. **`simplifyModel`** — stage by mode (pure-graph modes first; FVA/groupLinear later).
