@@ -19,7 +19,10 @@ document (1) maps every RAVEN functional area to its cobrapy equivalent or "port
 | RAVEN-only fields (`rxnMiriams`, `metDeltaG`, `rxnConfidenceScores`, `compMiriams`, `geneShortNames`, `eccodes`, `inchis`, …) | Stored in `cobra` `.annotation` / `.notes`; `subSystems` → SBML groups | cobrapy already round-trips these through SBML; no parallel struct needed. |
 | RAVEN↔COBRA conversion | A `structure` adapter (port of `ravenCobraWrapper.m`) converting between a RAVEN-style dict/`xarray`-ish view and `cobra.Model` | Lets users coming from MATLAB pass familiar field names; bridges to/from the COBRA Toolbox dialect. |
 | Solver | cobrapy's optlang (GLPK/Gurobi/CPLEX/HiGHS) | Replaces RAVEN's `solveLP`/`solveQP`/`optimizeProb` MILP/LP layer. MILP for INIT/gap-filling needs a MIP-capable solver (Gurobi/CPLEX/SCIP). |
-| Naming on PyPI | `ravenpy-gem` (import as `ravenpy`) | ⚠️ The name `ravenpy` on PyPI is already taken by an unrelated hydrology package. Import name stays `ravenpy`; distribution name is disambiguated. **Confirm with author.** |
+| Naming on PyPI | `raven-toolbox` (import as `ravenpy`) | ⚠️ `ravenpy` on PyPI is taken by an unrelated hydrology package. Distribution name mirrors the "RAVEN Toolbox" branding; import name stays `ravenpy`. |
+| Repo home | `SysBioChalmers/ravenpy` | Alongside the MATLAB RAVEN. |
+| tINIT/ftINIT & tasks fidelity | **Functional equivalence** (not bit-exact) | Same algorithm/intent; minor numerical differences from solver behavior are acceptable. |
+| KEGG/MetaCyc data source | **Configurable**: live REST (+disk cache) *or* reuse RAVEN's pre-built dumps | Live for currency; dumps for reproducibility with MATLAB results. |
 | License | GPL-3.0-or-later | Derivative of GPLv3 RAVEN. |
 
 ---
@@ -207,10 +210,13 @@ depends on the task framework, so tasks are built first within the same phase.
 
 ---
 
-## 6. Open questions for the author
-1. PyPI distribution name — `ravenpy` is taken (hydrology). `ravenpy-gem`? `raven-gem`? other?
-2. Repo home — under `SysBioChalmers/` org, or personal namespace (as with `geckopy`)?
-3. Should YAML I/O target the exact Human-GEM/Metabolic-Atlas schema for round-trip compatibility?
-4. Is reproducing tINIT/ftINIT *numerically* (same MILP formulation/solver behavior) a hard
-   requirement, or is functional equivalence acceptable?
-5. KEGG/MetaCyc: prefer live REST access, or reuse RAVEN's pre-built database dumps?
+## 6. Resolved decisions
+1. **PyPI name:** `raven-toolbox` (import as `ravenpy`). ✅
+2. **Repo home:** `SysBioChalmers/ravenpy`. ✅
+3. **tINIT/ftINIT & tasks:** functional equivalence is sufficient (not bit-exact). ✅
+4. **KEGG/MetaCyc data:** support both live REST (with disk cache) and reused RAVEN dumps,
+   selectable via configuration. ✅
+
+### Still open
+- Should YAML I/O target the exact Human-GEM / Metabolic-Atlas schema for round-trip
+  compatibility, or a ravenpy-native schema?

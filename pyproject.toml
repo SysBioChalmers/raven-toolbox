@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ravenpy-gem"
+name = "raven-toolbox"
 version = "0.0.1"
 description = "Reconstruction, Analysis and Visualization of Metabolic Networks in Python, a port of the RAVEN Toolbox built on cobrapy"
 readme = "README.md"
