@@ -145,7 +145,7 @@ Keyed to commits on `main`.
 | `6b557b2` | Port addRxnsGenesMets as `add_reactions_from_model` |
 | `5d367b4` | Port checkModelStruct curation subset as `check_model` |
 | `e6020c2` | Port mergeModels as `merge_models` |
-| _(pending)_ | Port simplifyModel gap modes (`manipulation/simplify.py`) |
+| `cd2eea9` | Port simplifyModel gap modes (`manipulation/simplify.py`) |
 
 ---
 
