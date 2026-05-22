@@ -148,7 +148,7 @@ Keyed to commits on `main`.
 | `e6020c2` | Port mergeModels as `merge_models` |
 | `cd2eea9` | Port simplifyModel gap modes (`manipulation/simplify.py`) |
 | `a9c90cc` | Realign YAML I/O to RAVEN fa281a1 (cobra-native !!omap) |
-| _(pending)_ | Port exportModelToSIF as `export_model_to_sif` |
+| `53d94df` | Port exportModelToSIF as `export_model_to_sif` |
 
 ---
 
