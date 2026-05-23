@@ -167,6 +167,7 @@ Keyed to commits on `main`.
 | `1b0e4a6` | Port KEGG dump parser (3b.2) → reference model + gzipped-TSV tables |
 | `17f7eb3` | Port KEGG download/arrange (3b.1) as pure-stdlib tooling |
 | `a61beb7` | Port KEGG model-for-species (3b.4) |
+| `9d6f0af` | Port KEGG HMM-library construction (3b.3) |
 
 ---
 
