@@ -175,6 +175,36 @@ Always ship the upstream licence in the ZIP, and keep a `BINARIES_PROVENANCE.md`
 (or a note in the release body) recording, per asset: upstream URL, upstream
 version, upstream checksum, and the SHA256 you published.
 
+### Native OS support per tool
+
+ravengem invokes each tool through `subprocess.run([resolved_path, …])` — that
+call is itself cross-platform, so the real constraint is whether a given tool has
+a binary that runs natively on each OS. It varies:
+
+| Tool | Linux | macOS (incl. arm64) | Windows (native) |
+|---|---|---|---|
+| BLAST+ (`blastp`, `makeblastdb`) | ✅ | ✅ | ✅ (NCBI ships Windows builds) |
+| DIAMOND | ✅ | ✅ | ⚠️ native build exists but Linux-first |
+| HMMER (`hmmbuild`/`hmmpress`/`hmmsearch`/`hmmscan`) | ✅ | ✅ | ❌ no official native build |
+| MAFFT | ✅ | ✅ | ⚠️ Windows package is a wrapper |
+| CD-HIT | ✅ | ✅ | ❌ no Windows build exists |
+
+Implications:
+
+- **Linux / macOS** — everything works. `conda install -c bioconda hmmer mafft
+  cd-hit blast diamond`, or point the `RAVENGEM_*` env vars at your installs.
+- **Native Windows** — the homology track (BLAST+/DIAMOND) works, but the **KEGG
+  HMM build (3b.3) and HMM query (3b.5) do not**: HMMER and CD-HIT have no Windows
+  binaries, and bioconda has no Windows packages for any of them. Bundling can't
+  fix this — there is no binary to bundle.
+- **Windows users should run ravengem inside WSL2** (or a Linux container), where
+  every tool is native Linux. ravengem does **not** replicate RAVEN's
+  `getWSLpath`/`wsl …` path translation: it calls the resolved binary directly, so
+  mixing native-Windows Python with WSL binaries is unsupported — keep the whole
+  stack inside WSL2.
+- The common end-user paths — homology reconstruction and the KEGG *species* model
+  (3b.4) — need no HMMER/MAFFT/CD-HIT, so they are fully cross-platform.
+
 ---
 
 ## 7. Optional: a build helper

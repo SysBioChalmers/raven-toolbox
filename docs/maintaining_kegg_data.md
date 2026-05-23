@@ -90,6 +90,10 @@ searches. This needs **HMMER** (`hmmbuild`, `hmmpress`), **MAFFT**, and
 **CD-HIT** on `PATH` (or set `RAVENGEM_HMMBUILD` / `RAVENGEM_MAFFT` /
 `RAVENGEM_CDHIT`, etc.); install e.g. `conda install -c bioconda hmmer mafft cd-hit`.
 
+> **OS note:** these three tools run on Linux and macOS but **not native
+> Windows** — on Windows, run this step inside WSL2. See the native-OS-support
+> matrix in [maintaining_binaries.md](maintaining_binaries.md#native-os-support-per-tool).
+
 ```python
 from ravengem.reconstruction.kegg import build_hmm_library, read_kegg_table
 
