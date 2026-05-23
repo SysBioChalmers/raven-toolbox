@@ -79,9 +79,10 @@ from ravengem.reconstruction.kegg import parse_kegg_dump
 parse_kegg_dump("keggdb", "artefacts")
 ```
 
-This writes the gene-free reference model (`reference_model.xml`) and the
-relational tables as gzipped TSV. See [kegg_data_format.md](kegg_data_format.md)
-for what those tables contain and why they use gzipped TSV.
+This writes the gene-free reference model (`reference_model.yml.gz`, gzipped
+RAVEN/cobra YAML) and the relational tables as gzipped TSV. See
+[kegg_data_format.md](kegg_data_format.md) for what those tables contain and the
+format rationale.
 
 ## Step 3b.3 — build the HMM libraries
 
@@ -118,8 +119,12 @@ and tables.
 
 ## End-user paths (3b.4 / 3b.5)
 
-End users do **not** run the steps above — they fetch the published artefacts. Two
-runtime entry points build a draft model from them:
+End users do **not** run the steps above — the published artefacts are fetched and
+cached automatically by `ensure_data` (`ravengem.data`) under
+`~/.cache/ravengem/data/kegg-<version>/` on first use, so the entry points below
+can be called with no local paths at all (pass an explicit `artefact_dir=`/
+`library=` to use your own build instead). Two runtime entry points build a draft
+model from the artefacts:
 
 - **3b.4 — species in KEGG** (`get_kegg_model_for_organism_from_artefacts`): no
   binaries needed; uses the organism's KEGG gene↔KO annotations. Fully

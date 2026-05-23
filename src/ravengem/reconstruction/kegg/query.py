@@ -25,6 +25,7 @@ import cobra
 import pandas as pd
 
 from ravengem.binaries import resolve_binary
+from ravengem.io.yaml import read_yaml_model
 from ravengem.reconstruction.kegg.assemble import assemble_model_from_ko_genes
 from ravengem.reconstruction.kegg.parse import read_kegg_table
 
@@ -176,13 +177,28 @@ def get_kegg_model_from_sequences(
 
 def get_kegg_model_from_sequences_with_artefacts(
     fasta: str | Path,
-    artefact_dir: str | Path,
-    library: str | Path,
+    artefact_dir: str | Path | None = None,
+    library: str | Path | None = None,
+    *,
+    domain: str = "prokaryotes",
+    version: str | None = None,
     **kwargs,
 ) -> cobra.Model:
-    """Load reference model + tables from ``artefact_dir`` and run the HMM query."""
+    """Load reference model + tables from ``artefact_dir`` and run the HMM query.
+
+    If ``artefact_dir`` / ``library`` are ``None`` they are fetched/cached via
+    :func:`ravengem.data.ensure_kegg_data` / :func:`ravengem.data.ensure_kegg_hmm_library`
+    (``domain`` selects the prok/euk library; ``version`` the release).
+    """
+    if artefact_dir is None or library is None:
+        from ravengem.data import ensure_kegg_data, ensure_kegg_hmm_library
+
+        if artefact_dir is None:
+            artefact_dir = ensure_kegg_data(version=version)
+        if library is None:
+            library = ensure_kegg_hmm_library(domain, version=version)
     artefact_dir = Path(artefact_dir)
-    reference_model = cobra.io.read_sbml_model(str(artefact_dir / "reference_model.xml"))
+    reference_model = read_yaml_model(artefact_dir / "reference_model.yml.gz")
     ko_reaction = read_kegg_table(artefact_dir / "ko_reaction.tsv.gz")
     rxn_flags = read_kegg_table(artefact_dir / "rxn_flags.tsv.gz")
     return get_kegg_model_from_sequences(

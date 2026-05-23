@@ -24,12 +24,20 @@ The reader also accepts the older RAVEN files (id/name nested in ``metaData``).
 """
 from __future__ import annotations
 
+import gzip
 from collections import OrderedDict
 from pathlib import Path
 
 import cobra
 from cobra.io.dict import model_from_dict, model_to_dict
 from cobra.io.yaml import yaml as _cobra_yaml  # ruamel round-trip YAML (handles !!omap)
+
+
+def _open_text(path: str | Path, mode: str):
+    """Open ``path`` as a text handle, transparently gzipping when it ends ``.gz``."""
+    if str(path).endswith(".gz"):
+        return gzip.open(path, f"{mode}t", encoding="utf-8")
+    return open(path, mode, encoding="utf-8")
 
 # RAVEN-only top-level per-entry keys -> the key used inside the cobra object's
 # .notes dict. ('notes' is RAVEN's free-text metNotes/rxnNotes; stored under
@@ -79,7 +87,7 @@ def _capture_entry_fields(entries, fields):
 
 def read_yaml_model(path: str | Path) -> cobra.Model:
     """Read a RAVEN/cobrapy YAML model into a ``cobra.Model``."""
-    with open(path, encoding="utf-8") as handle:
+    with _open_text(path, "r") as handle:
         raw = _to_plain(_cobra_yaml.load(handle))
 
     if not isinstance(raw, dict):
@@ -174,5 +182,5 @@ def write_yaml_model(
     for key, value in foreign.items():
         doc[key] = value
 
-    with open(path, "w", encoding="utf-8") as handle:
+    with _open_text(path, "w") as handle:
         _cobra_yaml.dump(doc, handle)

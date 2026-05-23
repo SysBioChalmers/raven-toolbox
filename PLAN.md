@@ -293,9 +293,10 @@ sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
   `getPhylDist` → `phylogenetic_distance` helper for 3b.5 score weighting.
 - **Storage & distribution (decided):** **not** RAVEN's `.mat` structs.
   - **Reference GEM = gene-free** — only reactions + metabolites (the chemistry), **no genes/GPRs**
-    (organism genes number in the millions → would dwarf the model). Stored as a cobra file
-    (YAML/SBML). Per-organism GPRs are built at runtime (3b.4/3b.5) from the KO↔reaction +
-    organism gene↔KO tables.
+    (organism genes number in the millions → would dwarf the model). Stored as **gzipped
+    RAVEN/cobra YAML** (`reference_model.yml.gz`) — RAVEN-native, MATLAB-readable, and gzipped to
+    match the tables (the YAML I/O is gzip-aware on a `.gz` suffix). Per-organism GPRs are built at
+    runtime (3b.4/3b.5) from the KO↔reaction + organism gene↔KO tables.
   - **Relational tables = minimal, stored as gzipped TSV** — store *only* what 3b.4/3b.5/HMM-build
     consume: `ko_reaction` (KO↔reaction), `organism_gene_ko` (the large one; for 3b.4), `phyl_dist`
     (for 3b.5 weighting), KO names, and reaction-quality flags (spontaneous/incomplete/general/
@@ -307,10 +308,14 @@ sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
     would need MATLAB's Database Toolbox; Parquet would need `pyarrow`/`fastparquet` on the Python
     side. See [docs/kegg_data_format.md](docs/kegg_data_format.md) for the rationale and the future
     options (Parquet/SQLite) we may revisit if a table grows large enough to justify the dependency.
-  - **Distribution:** the gene-free reference GEM, the gzipped-TSV tables, and the prok90/euk90 **HMM
-    library** are **separate, version-pinned downloads** — fetched on first use, SHA256-verified,
-    cached in `platformdirs`, via an **`ensure_data(...)`** registry mirroring `binaries.py`'s
-    `ensure_binary`. **Not bundled in the pip wheel** (size). Redistribution is licensed (above).
+  - **Distribution ✅ (`ensure_data`):** the gene-free reference GEM, the gzipped-TSV tables, and the
+    prok90/euk90 **HMM library** are **separate, version-pinned downloads** — fetched on first use,
+    SHA256-verified, cached under `~/.cache/ravengem/data/kegg-<version>/` (platformdirs), via the
+    **`ensure_data`** registry in `data.py` mirroring `binaries.py`'s `ensure_binary`
+    (`ensure_kegg_data` for the core set, `ensure_kegg_hmm_library` for a domain library). **Not
+    bundled in the pip wheel** (size). The `…_from_artefacts` entry points fetch automatically when
+    no local dir is given. Registry empty until the artefacts are published (same as the binary
+    registry). Redistribution is licensed (above).
 
 **Improvements to log:** split the overloaded `getKEGGModelForOrganism` (organism-vs-FASTA modes,
 ~15 params) into the two clear entry points **3b.4 / 3b.5**; ship version-pinned ravengem KEGG

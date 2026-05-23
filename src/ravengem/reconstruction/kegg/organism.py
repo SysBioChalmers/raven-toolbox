@@ -26,6 +26,7 @@ from pathlib import Path
 import cobra
 import pandas as pd
 
+from ravengem.io.yaml import read_yaml_model
 from ravengem.reconstruction.kegg.assemble import _DOMAINS, assemble_model_from_ko_genes
 from ravengem.reconstruction.kegg.parse import read_kegg_table
 from ravengem.reconstruction.kegg.taxonomy import organisms_in_domain
@@ -120,15 +121,25 @@ def get_kegg_model_for_organism(
 
 
 def get_kegg_model_for_organism_from_artefacts(
-    organism_id: str, artefact_dir: str | Path, **kwargs
+    organism_id: str,
+    artefact_dir: str | Path | None = None,
+    *,
+    version: str | None = None,
+    **kwargs,
 ) -> cobra.Model:
     """Load the published 3b.2 artefacts from ``artefact_dir`` and build the model.
 
-    Reads ``reference_model.xml`` and the ``ko_reaction``/``organism_gene_ko``/
+    Reads ``reference_model.yml.gz`` and the ``ko_reaction``/``organism_gene_ko``/
     ``rxn_flags`` gzipped-TSV tables, then calls :func:`get_kegg_model_for_organism`.
+    If ``artefact_dir`` is ``None`` the published artefacts are fetched/cached via
+    :func:`ravengem.data.ensure_kegg_data` (``version`` selects the release).
     """
+    if artefact_dir is None:
+        from ravengem.data import ensure_kegg_data
+
+        artefact_dir = ensure_kegg_data(version=version)
     artefact_dir = Path(artefact_dir)
-    reference_model = cobra.io.read_sbml_model(str(artefact_dir / "reference_model.xml"))
+    reference_model = read_yaml_model(artefact_dir / "reference_model.yml.gz")
     ko_reaction = read_kegg_table(artefact_dir / "ko_reaction.tsv.gz")
     organism_gene_ko = read_kegg_table(artefact_dir / "organism_gene_ko.tsv.gz")
     rxn_flags = read_kegg_table(artefact_dir / "rxn_flags.tsv.gz")

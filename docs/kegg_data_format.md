@@ -3,8 +3,16 @@
 This note records *why* ravengem stores its KEGG-derived relational tables as
 **gzipped TSV**, and what other options we deliberately deferred. It applies to
 the maintainer-built KEGG artefacts described in PLAN.md §2.3b — the `ko_reaction`,
-`organism_gene_ko`, `phyl_dist`, KO-name, and reaction-flag tables. (The reference
-GEM itself is a cobra model file — YAML/SBML — not covered here.)
+`organism_gene_ko`, KO-name, and reaction-flag tables.
+
+The reference GEM itself is stored as **gzipped RAVEN/cobra YAML**
+(`reference_model.yml.gz`) — RAVEN-native and MATLAB-readable, gzipped to match the
+tables (the YAML I/O transparently gzips on a `.gz` suffix). On the real KEGG dump
+this is ~1.1 MB (vs ~30 MB as SBML) for the full 12k-reaction gene-free model.
+
+End users do not build any of this: the published artefacts are fetched and cached
+under `~/.cache/ravengem/data/kegg-<version>/` by `ensure_data` (see
+`ravengem.data`), mirroring how binaries are provisioned.
 
 ## Decision (current)
 

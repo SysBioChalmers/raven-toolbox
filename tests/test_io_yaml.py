@@ -126,6 +126,17 @@ def test_round_trip(yaml_file, tmp_path):
     assert reloaded.notes["_yaml_sections"]["ec-rxns"][0]["id"] == "R1"
 
 
+def test_gzipped_round_trip(yaml_file, tmp_path):
+    # A .yml.gz path is transparently gzipped on write and read.
+    model = read_yaml_model(yaml_file)
+    out = tmp_path / "out.yml.gz"
+    write_yaml_model(model, out)
+    assert out.read_bytes()[:2] == b"\x1f\x8b"  # gzip magic
+    reloaded = read_yaml_model(out)
+    assert reloaded.id == "testModel"
+    assert {m.id for m in reloaded.metabolites} == {"s_0001", "s_0002"}
+
+
 def test_output_is_cobra_readable(yaml_file, tmp_path):
     # The written file must load with stock cobra (it's cobra's native format).
     model = read_yaml_model(yaml_file)

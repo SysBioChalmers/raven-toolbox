@@ -38,6 +38,8 @@ from pathlib import Path
 import cobra
 import pandas as pd
 
+from ravengem.io.yaml import write_yaml_model
+
 # A KEGG entry id is the first token after the 12-char ENTRY label (6 chars:
 # R00010, C00001, K01194, ...).
 _ID_LEN = 6
@@ -485,8 +487,9 @@ def stream_organism_gene_ko(
 def parse_kegg_dump(kegg_dir: str | Path, out_dir: str | Path) -> dict[str, Path]:
     """Parse a full KEGG dump into the reference model + tables and write them out.
 
-    Writes ``reference_model.xml`` (SBML) plus the gzipped-TSV tables into
-    ``out_dir`` and returns ``{name: path}`` for everything written. The large
+    Writes ``reference_model.yml.gz`` (gzipped RAVEN/cobra YAML) plus the
+    gzipped-TSV tables into ``out_dir`` and returns ``{name: path}`` for
+    everything written. The large
     ``organism_gene_ko`` table is streamed to disk (see
     :func:`stream_organism_gene_ko`) rather than built in memory, so this scales
     to the full KEGG database; the small derived tables are built in memory.
@@ -518,7 +521,7 @@ def parse_kegg_dump(kegg_dir: str | Path, out_dir: str | Path) -> dict[str, Path
         zip(["ko_names"], write_kegg_tables({"ko_names": ko_names}, out_dir), strict=True)
     )
 
-    sbml = out_dir / "reference_model.xml"
-    cobra.io.write_sbml_model(model, str(sbml))
-    paths["reference_model"] = sbml
+    ref_path = out_dir / "reference_model.yml.gz"
+    write_yaml_model(model, ref_path)
+    paths["reference_model"] = ref_path
     return paths
