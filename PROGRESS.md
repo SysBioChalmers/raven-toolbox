@@ -17,7 +17,7 @@ _Last updated: 2026-05-23_
 | Phase | Theme | Status |
 |---|---|---|
 | 0 | Scaffold & decisions | ✅ done |
-| 1 | Foundation (`utils/`, `manipulation/`) | 🟢 functions done (packaging/CI remain) |
+| 1 | Foundation (`utils/`, `manipulation/`) | 🟢 functions done; package pip-installable (own `.venv`); CI remains |
 | 2 | I/O (`io/`) | 🟢 done in scope — YAML/SIF/Excel-export/exportForGit (+sort_ids); Excel import excluded |
 | 3a | Reconstruction — homology (`reconstruction/homology/`) | ⬜ not started |
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) | ⬜ not started |
@@ -56,7 +56,7 @@ Functions that exist as working, tested Python in ravengem.
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` (RAVEN `fa281a1`) | ✅ `tests/test_io_yaml.py` | Aligned to RAVEN's cobra-native `!!omap` writer (`fa281a1`). cobra owns standard fields + the `annotation` block (smiles/ec-code/MIRIAM); this adds the RAVEN-only top-level per-entry keys (inchis/deltaG/metFrom/notes; confidence_score/references/rxnFrom/deltaG; protein) → `.notes`, plus `version`/`metaData`/GECKO `ec-*`. Output verified cobra-readable; legacy id-in-metaData supported. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 182 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 182 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
 
 ---
 
