@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 
 import cobra
 import pandas as pd
-from cobra.core.gene import GPR
 
 from ravengem.manipulation.merge import merge_models
 from ravengem.reconstruction.homology.hits import validate_hits
@@ -33,7 +32,7 @@ class HomologyResult:
         ``{model_id: {template_gene: [new_gene, ...]}}`` ortholog mapping used.
     """
 
-    model: "cobra.Model"
+    model: cobra.Model
     gene_map: dict = field(default_factory=dict)
 
 
@@ -155,7 +154,7 @@ def _ortholog_map(
     pairs = pairs[pairs.apply(lambda r: r.template_gene in model_genes.get(r.model_id, ()), axis=1)]
 
     ortho: dict = {}
-    for model_id, template_gene, new_gene in zip(pairs.model_id, pairs.template_gene, pairs.new_gene):
+    for model_id, template_gene, new_gene in zip(pairs.model_id, pairs.template_gene, pairs.new_gene, strict=True):
         ortho.setdefault(model_id, {}).setdefault(template_gene, [])
         if new_gene not in ortho[model_id][template_gene]:
             ortho[model_id][template_gene].append(new_gene)

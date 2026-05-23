@@ -1,5 +1,6 @@
 """Tests for homology reconstruction core (make_ortholog_hits + get_model_from_homology)."""
 import cobra
+import pandas as pd
 import pytest
 
 from ravengem.manipulation import add_reactions_from_equations
@@ -8,7 +9,6 @@ from ravengem.reconstruction.homology import (
     get_model_from_homology,
     make_ortholog_hits,
 )
-
 
 # --- make_ortholog_hits ----------------------------------------------------
 
@@ -125,11 +125,13 @@ def test_one_directional_non_reciprocal():
 # --- preferred order -------------------------------------------------------
 
 def test_preferred_order_routes_gene_to_one_model():
-    t1 = _template(); t1.id = "modelA"
-    t2 = _template(); t2.id = "modelB"
+    t1 = _template()
+    t1.id = "modelA"
+    t2 = _template()
+    t2.id = "modelB"
     hits1 = make_ortholog_hits([("tg1", "ng1")], "modelA", "bug")
     hits2 = make_ortholog_hits([("tg1", "ng1")], "modelB", "bug")
-    hits = __import__("pandas").concat([hits1, hits2], ignore_index=True)
+    hits = pd.concat([hits1, hits2], ignore_index=True)
     res = get_model_from_homology([t1, t2], hits, "bug", preferred_order=["modelA", "modelB"])
     # ng1's reaction comes only from modelA
     sources = {r.notes.get("homology_source") for r in res.model.reactions if r.id.startswith("R_single")}

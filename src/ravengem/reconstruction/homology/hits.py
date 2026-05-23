@@ -11,7 +11,7 @@ genes; ``from_gene`` is in ``from_id``), and the hit metrics
 """
 from __future__ import annotations
 
-from typing import Iterable, Tuple
+from collections.abc import Iterable
 
 import pandas as pd
 
@@ -22,7 +22,7 @@ HIT_COLUMNS = [
 
 
 def make_ortholog_hits(
-    ortholog_pairs: Iterable[Tuple[str, str]],
+    ortholog_pairs: Iterable[tuple[str, str]],
     source_model_id: str,
     target_id: str,
 ) -> pd.DataFrame:

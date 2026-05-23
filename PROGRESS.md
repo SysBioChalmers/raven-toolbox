@@ -19,7 +19,7 @@ _Last updated: 2026-05-23_
 | 0 | Scaffold & decisions | ✅ done |
 | 1 | Foundation (`utils/`, `manipulation/`) | 🟢 functions done; package pip-installable (own `.venv`); CI remains |
 | 2 | I/O (`io/`) | 🟢 done in scope — YAML/SIF/Excel-export/exportForGit (+sort_ids); Excel import excluded |
-| 3a | Reconstruction — homology (`reconstruction/homology/`) | ⬜ not started |
+| 3a | Reconstruction — homology (`reconstruction/homology/`) | 🟢 implemented (get_model_from_homology + BLAST/DIAMOND wrappers); binary ZIPs/CI pending |
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) | ⬜ not started |
 | 3c | Reconstruction — MetaCyc (`reconstruction/metacyc/`) | ⬜ not started |
 | 4 | Context-specific & tasks (`tasks/`, `gapfilling/`, `init/`) | ⬜ not started |
@@ -56,8 +56,12 @@ Functions that exist as working, tested Python in ravengem.
 | `utils/sort.py` | `sort_identifiers` | `sortIdentifiers.m` | ✅ `tests/test_utils_sort.py` | Model-wide alphabetical `DictList.sort`; also `sort_ids=` on `write_yaml_model`. cobra has per-list sort only. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` (RAVEN `fa281a1`) | ✅ `tests/test_io_yaml.py` | Aligned to RAVEN's cobra-native `!!omap` writer (`fa281a1`). cobra owns standard fields + the `annotation` block (smiles/ec-code/MIRIAM); this adds the RAVEN-only top-level per-entry keys (inchis/deltaG/metFrom/notes; confidence_score/references/rxnFrom/deltaG; protein) → `.notes`, plus `version`/`metaData`/GECKO `ec-*`. Output verified cobra-readable; legacy id-in-metaData supported. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
+| `reconstruction/homology/hits.py` | `make_ortholog_hits`, `HIT_COLUMNS` | `makeFakeBlastStructure.m` | ✅ `tests/test_reconstruction_homology.py` | Bidirectional hits DataFrame (the `blastStructure` replacement); the no-BLAST seeding/testing path. |
+| `reconstruction/homology/homology.py` | `get_model_from_homology`, `HomologyResult` | `getModelFromHomology.m` | ✅ `tests/test_reconstruction_homology.py` | Core homology reconstruction with logic improvements H1–H6 (bidirectional/best_hits_only, AST GPR rewrite, complex_policy, bitscore best-hits, DataFrame ortholog map, provenance). No BLAST needed. |
+| `reconstruction/homology/blast.py` | `run_blast`, `run_diamond`, `blast_from_table` | `getBlast.m`/`getDiamond.m`/`getBlastFromExcel.m` | ✅ `tests/test_reconstruction_blast.py` | Subprocess wrappers → hits DataFrame; `blast_from_table` loads a CSV (no Excel). `run_blast` verified against installed BLAST+. |
+| `binaries.py` | `resolve_binary`, `ensure_binary` | `software/` provisioning | ✅ `tests/test_binaries.py` | Generic binary resolver (arg→env→PATH→bundled ZIP) + version-pinned release-ZIP registry (SHA256-verified cache). Registry empty until ZIPs published. |
 
-**Test status:** 182 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
+**Test status:** 208 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
 
 ---
 
