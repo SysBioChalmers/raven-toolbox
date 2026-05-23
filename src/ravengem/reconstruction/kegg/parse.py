@@ -1,0 +1,482 @@
+"""Parse a local KEGG flat-file dump into a reference model + relational tables.
+
+Maintainer-side, build-time tooling (PLAN.md §2.3b, step 3b.2). Ports the parsing
+core of RAVEN's ``getRxnsFromKEGG`` / ``getMetsFromKEGG`` / ``getGenesFromKEGG`` /
+``getModelFromKEGG``, but produces ravengem's published artefacts instead of
+``.mat`` structs:
+
+* a **gene-free reference GEM** (reactions + metabolites only) as a ``cobra.Model``;
+* minimal **relational tables** (``pandas.DataFrame``) written as gzipped TSV —
+  ``ko_reaction``, ``ko_names``, ``organism_gene_ko`` (the large one), and
+  ``rxn_flags`` (spontaneous / undefined-stoich / incomplete / general).
+
+Genes live only in ``organism_gene_ko``; per-organism GPRs are built at runtime
+(3b.4/3b.5), so the reference model stays small.
+
+Improvements over the RAVEN port (logged in IMPROVEMENTS.md):
+
+* **K1** — equations are read from each reaction entry's own ``EQUATION`` field,
+  dropping RAVEN's fragile dependence on ``reaction.lst`` being in the exact same
+  line order as ``reaction``.
+* **K2** — undefined-stoichiometry terms (``n C00001``, ``(n+1) C00002``) keep
+  their real compound id with coefficient 1 and the reaction is *flagged*, rather
+  than minting ``"n C00001"`` pseudo-metabolites and renaming them ``undefined_N``.
+* **K3** — quality labels become a tidy boolean ``rxn_flags`` table instead of
+  free-text appended to ``rxnNotes``.
+
+The KEGG flat-file format: each entry is a block of lines terminated by ``///``;
+a field label occupies columns 1-12, continuation lines are indented 12 spaces.
+"""
+from __future__ import annotations
+
+import gzip
+import re
+from collections.abc import Iterator
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import cobra
+import pandas as pd
+
+# A KEGG entry id is the first token after the 12-char ENTRY label (6 chars:
+# R00010, C00001, K01194, ...).
+_ID_LEN = 6
+_LABEL_WIDTH = 12
+
+# Compound token inside an equation, optionally a glycan (G) or drug (D); we also
+# tolerate trailing polymer suffixes like "C00404(n)" by matching the stem.
+_MET_TOKEN = re.compile(r"^([CGD]\d{5})")
+_NUMERIC = re.compile(r"^\d+(\.\d+)?$")
+
+
+# --------------------------------------------------------------------------- #
+# Generic flat-file reader
+# --------------------------------------------------------------------------- #
+def _iter_entries(path: str | Path) -> Iterator[dict[str, list[str]]]:
+    """Yield one ``{field_label: [value_lines]}`` dict per ``///``-delimited entry.
+
+    Field labels (columns 1-12) key a list of their value lines in file order;
+    continuation lines (12 leading spaces) append to the current field.
+    """
+    entry: dict[str, list[str]] = {}
+    current: str | None = None
+    with open(path, encoding="utf-8") as handle:
+        for raw in handle:
+            line = raw.rstrip("\n")
+            if line.startswith("///"):
+                if entry:
+                    yield entry
+                entry, current = {}, None
+                continue
+            if not line.strip():
+                continue
+            label = line[:_LABEL_WIDTH].strip()
+            value = line[_LABEL_WIDTH:].rstrip()
+            if label:
+                current = label
+                entry.setdefault(current, []).append(value)
+            elif current is not None:
+                entry[current].append(value)
+    if entry:  # tolerate a missing final '///'
+        yield entry
+
+
+# --------------------------------------------------------------------------- #
+# Reactions
+# --------------------------------------------------------------------------- #
+@dataclass
+class KeggReaction:
+    """A reaction parsed from the KEGG ``reaction`` flat file."""
+
+    id: str
+    name: str = ""
+    equation: str = ""
+    reversible: bool = True
+    eccodes: list[str] = field(default_factory=list)
+    kos: list[str] = field(default_factory=list)
+    pathways: list[str] = field(default_factory=list)
+    modules: list[str] = field(default_factory=list)
+    rhea: list[str] = field(default_factory=list)
+    spontaneous: bool = False
+    incomplete: bool = False
+    general: bool = False
+    undefined_stoich: bool = False
+
+
+def _first_id(lines: list[str]) -> str:
+    return lines[0][:_ID_LEN].strip() if lines else ""
+
+
+def _comment_flags(rxn: KeggReaction, comment: str) -> None:
+    text = comment.upper()
+    rxn.spontaneous = "SPONTANEOUS" in text
+    rxn.incomplete = any(w in text for w in ("INCOMPLETE", "ERRONEOUS", "UNCLEAR"))
+    rxn.general = "GENERAL REACTION" in text
+
+
+def _parse_equation(equation: str) -> tuple[dict[str, float], bool, bool]:
+    """Parse a KEGG equation into ``({met_id: coef}, reversible, undefined_stoich)``.
+
+    Reactants get negative coefficients, products positive. Non-numeric
+    coefficients (``n``, ``(n+1)``, ``2n``) are treated as 1.0 and flag the
+    reaction as having undefined stoichiometry (improvement K2).
+    """
+    reversible = "<=>" in equation
+    parts = re.split(r"\s(?:<=>|=>|<=)\s", equation, maxsplit=1)
+    lhs, rhs = (parts + ["", ""])[:2]
+
+    stoich: dict[str, float] = {}
+    undefined = False
+    for side, sign in ((lhs, -1.0), (rhs, 1.0)):
+        for term in filter(None, (t.strip() for t in side.split(" + "))):
+            tokens = term.split()
+            met_token = tokens[-1]
+            coef_tokens = tokens[:-1]
+            if coef_tokens and _NUMERIC.match(coef_tokens[0]):
+                coef = float(coef_tokens[0])
+            else:
+                coef = 1.0
+                if coef_tokens:  # a symbolic coefficient like 'n' or '(n+1)'
+                    undefined = True
+            match = _MET_TOKEN.match(met_token)
+            if not match:  # unparseable term -> flag, keep raw token
+                undefined = True
+                met_id = met_token
+            else:
+                met_id = match.group(1)
+            stoich[met_id] = stoich.get(met_id, 0.0) + sign * coef
+    # Drop metabolites that cancel out (A <=> A + B leaves A at 0).
+    stoich = {m: c for m, c in stoich.items() if c != 0.0}
+    return stoich, reversible, undefined
+
+
+def parse_kegg_reactions(kegg_dir: str | Path) -> list[KeggReaction]:
+    """Parse ``<kegg_dir>/reaction`` into :class:`KeggReaction` records.
+
+    Reversibility is taken from the equation arrow and, when
+    ``reaction_mapformula.lst`` is present, refined to mark reactions that are
+    irreversible across all KEGG maps (see :func:`_irreversible_from_mapformula`).
+    """
+    kegg_dir = Path(kegg_dir)
+    reactions: list[KeggReaction] = []
+    for entry in _iter_entries(kegg_dir / "reaction"):
+        rxn = KeggReaction(id=_first_id(entry.get("ENTRY", [])))
+        if not rxn.id:
+            continue
+        if entry.get("NAME"):
+            rxn.name = entry["NAME"][0].rstrip(";").strip()
+        if entry.get("COMMENT"):
+            _comment_flags(rxn, " ".join(entry["COMMENT"]))
+        if entry.get("ENZYME"):
+            rxn.eccodes = [ec for line in entry["ENZYME"] for ec in line.split()]
+        rxn.kos = [line[:_ID_LEN].strip() for line in entry.get("ORTHOLOGY", [])]
+        rxn.modules = [line[:_ID_LEN].strip() for line in entry.get("MODULE", [])]
+        for line in entry.get("PATHWAY", []):
+            pid = line[:7].strip()
+            if pid and not pid.startswith(("rn011", "rn012")):  # skip global/overview
+                rxn.pathways.append(pid)
+        for line in entry.get("DBLINKS", []):
+            if line.startswith("RHEA:"):
+                rxn.rhea.extend(line.split(":", 1)[1].split())
+        if entry.get("EQUATION"):
+            rxn.equation = " ".join(s.strip() for s in entry["EQUATION"])
+            _, rxn.reversible, rxn.undefined_stoich = _parse_equation(rxn.equation)
+        reactions.append(rxn)
+
+    irrev = _irreversible_from_mapformula(kegg_dir / "reaction_mapformula.lst")
+    for rxn in reactions:
+        if rxn.id in irrev:
+            rxn.reversible = False
+    return reactions
+
+
+def _irreversible_from_mapformula(path: str | Path) -> set[str]:
+    """Reaction ids that are irreversible in *every* KEGG map they appear in.
+
+    ``reaction_mapformula.lst`` lines look like ``R00005: 00330: C01010 => C00011``.
+    A reaction is considered irreversible only if no map lists it as ``<=>`` and
+    every map draws it in the same direction. Direction (substrate/product order)
+    is not propagated back into the model stoichiometry — a documented
+    simplification of RAVEN's column-flipping logic, which only affects the small
+    set of map-directional reactions.
+    """
+    path = Path(path)
+    if not path.is_file():
+        return set()
+    seen_reversible: set[str] = set()
+    products: dict[str, str] = {}
+    conflicting: set[str] = set()
+    for entry in _iter_mapformula_lines(path):
+        rid, reversible, product = entry
+        if reversible:
+            seen_reversible.add(rid)
+        elif rid in products and products[rid] != product:
+            conflicting.add(rid)  # drawn both directions across maps -> reversible
+        else:
+            products.setdefault(rid, product)
+    return {rid for rid in products if rid not in seen_reversible and rid not in conflicting}
+
+
+def _iter_mapformula_lines(path: Path) -> Iterator[tuple[str, bool, str]]:
+    with open(path, encoding="utf-8") as handle:
+        for raw in handle:
+            line = raw.strip()
+            if not line or ":" not in line:
+                continue
+            rid = line[:_ID_LEN]
+            reversible = "<=>" in line
+            product = line.split()[-1]
+            yield rid, reversible, product
+
+
+# --------------------------------------------------------------------------- #
+# Compounds
+# --------------------------------------------------------------------------- #
+@dataclass
+class KeggCompound:
+    """A metabolite parsed from the KEGG ``compound`` flat file."""
+
+    id: str
+    name: str = ""
+    formula: str = ""
+    inchi: str = ""
+    chebi: list[str] = field(default_factory=list)
+    pubchem: list[str] = field(default_factory=list)
+
+
+def parse_kegg_compounds(kegg_dir: str | Path) -> list[KeggCompound]:
+    """Parse ``<kegg_dir>/compound`` (+ optional ``compound.inchi``) into records."""
+    kegg_dir = Path(kegg_dir)
+    compounds: list[KeggCompound] = []
+    for entry in _iter_entries(kegg_dir / "compound"):
+        cid = _first_id(entry.get("ENTRY", []))
+        if not cid:
+            continue
+        cmp = KeggCompound(id=cid)
+        if entry.get("NAME"):
+            # Only the first synonym; KEGG separates them with ';'.
+            cmp.name = entry["NAME"][0].split(";")[0].strip()
+        if entry.get("FORMULA"):
+            cmp.formula = entry["FORMULA"][0].strip()
+        for line in entry.get("DBLINKS", []):
+            if line.startswith("ChEBI:"):
+                cmp.chebi += [f"CHEBI:{x}" for x in line.split(":", 1)[1].split()]
+            elif line.startswith("PubChem:"):
+                cmp.pubchem += line.split(":", 1)[1].split()
+        compounds.append(cmp)
+
+    inchis = _parse_inchis(kegg_dir / "compound.inchi")
+    for cmp in compounds:
+        if cmp.id in inchis:
+            cmp.inchi = inchis[cmp.id]
+            cmp.formula = ""  # prefer the InChI; matches RAVEN
+    return compounds
+
+
+def _parse_inchis(path: str | Path) -> dict[str, str]:
+    path = Path(path)
+    if not path.is_file():
+        return {}
+    out: dict[str, str] = {}
+    with open(path, encoding="utf-8") as handle:
+        for raw in handle:
+            cid, _, inchi = raw.rstrip("\n").partition("\t")
+            if cid and inchi:
+                out[cid.strip()] = inchi.strip()
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# KOs and organism genes
+# --------------------------------------------------------------------------- #
+@dataclass
+class KeggKO:
+    """A KEGG Orthology entry: its name and the organism genes assigned to it."""
+
+    id: str
+    name: str = ""
+    genes: list[tuple[str, str]] = field(default_factory=list)  # (organism, gene)
+
+
+def parse_kegg_kos(kegg_dir: str | Path, *, keep: set[str] | None = None) -> list[KeggKO]:
+    """Parse ``<kegg_dir>/ko`` into :class:`KeggKO` records (name + organism genes).
+
+    ``keep`` limits parsing to those KO ids (e.g. only KOs linked to reactions),
+    mirroring RAVEN's ``koList`` argument — the gene lists are huge, so this is
+    the usual call.
+    """
+    ko_records: list[KeggKO] = []
+    for entry in _iter_entries(Path(kegg_dir) / "ko"):
+        ko_id = _first_id(entry.get("ENTRY", []))
+        if not ko_id or (keep is not None and ko_id not in keep):
+            continue
+        ko = KeggKO(id=ko_id)
+        if entry.get("DEFINITION"):
+            ko.name = entry["DEFINITION"][0].strip()
+        ko.genes = list(_parse_gene_lines(entry.get("GENES", [])))
+        ko_records.append(ko)
+    return ko_records
+
+
+def _parse_gene_lines(lines: list[str]) -> Iterator[tuple[str, str]]:
+    """Yield ``(organism, gene)`` pairs from a KO entry's GENES block.
+
+    Lines look like ``BSU: BSU31050(gbsB) BSU31060`` — an upper-case organism
+    code, a colon, then space-separated gene ids (with an optional ``(name)``
+    suffix that we strip). Organism codes are lower-cased to match KEGG's protein
+    sequence files (as RAVEN does).
+    """
+    for line in lines:
+        org, sep, rest = line.partition(":")
+        if not sep:
+            continue
+        organism = org.strip().lower()
+        for token in rest.split():
+            gene = token.split("(", 1)[0]
+            if gene:
+                yield organism, gene
+
+
+# --------------------------------------------------------------------------- #
+# Reference model + tables
+# --------------------------------------------------------------------------- #
+_COMPARTMENT = "s"  # single 'system' compartment, as in getModelFromKEGG
+
+
+def build_reference_model(
+    reactions: list[KeggReaction], compounds: list[KeggCompound]
+) -> cobra.Model:
+    """Assemble the gene-free KEGG reference model from parsed records.
+
+    Only metabolites actually used by a reaction are added. Reactions carry KEGG
+    annotations (reaction id, KO ids, EC codes, pathways) but **no genes/GPRs**.
+    Bounds are ``(-1000, 1000)`` for reversible reactions and ``(0, 1000)``
+    otherwise.
+    """
+    model = cobra.Model("KEGG")
+    model.name = "Automatically generated from KEGG database"
+
+    by_id = {c.id: c for c in compounds}
+    parsed = {r.id: _parse_equation(r.equation)[0] for r in reactions}
+    used = {m for stoich in parsed.values() for m in stoich}
+
+    metabolites = []
+    for cid in sorted(used):
+        cmp = by_id.get(cid)
+        met = cobra.Metabolite(cid, compartment=_COMPARTMENT)
+        if cmp:
+            met.name = cmp.name or cid
+            met.formula = cmp.formula or None
+            if cmp.chebi:
+                met.annotation["chebi"] = cmp.chebi
+            if cmp.pubchem:
+                met.annotation["pubchem.substance"] = cmp.pubchem
+            if cmp.inchi:
+                met.annotation["inchi"] = cmp.inchi
+        else:
+            met.name = cid
+        metabolites.append(met)
+    model.add_metabolites(metabolites)
+    met_index = {m.id: m for m in metabolites}
+
+    cobra_reactions = []
+    for rxn in reactions:
+        stoich = parsed[rxn.id]
+        if not stoich:  # empty (e.g. A <=> A) -> skip, as RAVEN drops bad rxns
+            continue
+        reaction = cobra.Reaction(rxn.id, name=rxn.name)
+        reaction.bounds = (-1000.0, 1000.0) if rxn.reversible else (0.0, 1000.0)
+        reaction.add_metabolites({met_index[m]: c for m, c in stoich.items()})
+        reaction.annotation["kegg.reaction"] = rxn.id
+        if rxn.kos:
+            reaction.annotation["kegg.orthology"] = rxn.kos
+        if rxn.eccodes:
+            reaction.annotation["ec-code"] = rxn.eccodes
+        if rxn.pathways:
+            reaction.annotation["kegg.pathway"] = rxn.pathways
+        cobra_reactions.append(reaction)
+    model.add_reactions(cobra_reactions)
+    return model
+
+
+def build_kegg_tables(
+    reactions: list[KeggReaction], kos: list[KeggKO]
+) -> dict[str, pd.DataFrame]:
+    """Build the minimal relational tables from parsed records.
+
+    Returns a dict of ``DataFrame``s keyed by table name: ``ko_reaction``,
+    ``ko_names``, ``organism_gene_ko``, ``rxn_flags``.
+    """
+    ko_reaction = pd.DataFrame(
+        [(ko, r.id) for r in reactions for ko in r.kos],
+        columns=["ko", "reaction"],
+    ).drop_duplicates(ignore_index=True)
+
+    ko_names = pd.DataFrame(
+        [(ko.id, ko.name) for ko in kos], columns=["ko", "name"]
+    )
+
+    organism_gene_ko = pd.DataFrame(
+        [(org, gene, ko.id) for ko in kos for org, gene in ko.genes],
+        columns=["organism", "gene", "ko"],
+    ).drop_duplicates(ignore_index=True)
+
+    rxn_flags = pd.DataFrame(
+        [
+            (r.id, r.spontaneous, r.undefined_stoich, r.incomplete, r.general)
+            for r in reactions
+        ],
+        columns=["reaction", "spontaneous", "undefined_stoich", "incomplete", "general"],
+    )
+
+    return {
+        "ko_reaction": ko_reaction,
+        "ko_names": ko_names,
+        "organism_gene_ko": organism_gene_ko,
+        "rxn_flags": rxn_flags,
+    }
+
+
+def write_kegg_tables(tables: dict[str, pd.DataFrame], out_dir: str | Path) -> list[Path]:
+    """Write each table as a gzipped TSV (``<name>.tsv.gz``) into ``out_dir``.
+
+    Gzipped TSV is the dependency-free cross-language format shared with MATLAB
+    RAVEN (see docs/kegg_data_format.md). Returns the written paths.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for name, frame in tables.items():
+        path = out_dir / f"{name}.tsv.gz"
+        with gzip.open(path, "wt", encoding="utf-8", newline="") as handle:
+            frame.to_csv(handle, sep="\t", index=False)
+        written.append(path)
+    return written
+
+
+def read_kegg_table(path: str | Path) -> pd.DataFrame:
+    """Read a gzipped-TSV KEGG table written by :func:`write_kegg_tables`."""
+    return pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
+
+
+def parse_kegg_dump(
+    kegg_dir: str | Path, out_dir: str | Path
+) -> tuple[cobra.Model, dict[str, pd.DataFrame]]:
+    """Parse a full KEGG dump into the reference model + tables and write them out.
+
+    Writes ``reference_model.xml`` (SBML) plus the gzipped-TSV tables into
+    ``out_dir``. Returns the in-memory ``(model, tables)`` for inspection/testing.
+    """
+    out_dir = Path(out_dir)
+    reactions = parse_kegg_reactions(kegg_dir)
+    compounds = parse_kegg_compounds(kegg_dir)
+    linked_kos = {ko for r in reactions for ko in r.kos}
+    kos = parse_kegg_kos(kegg_dir, keep=linked_kos)
+
+    model = build_reference_model(reactions, compounds)
+    tables = build_kegg_tables(reactions, kos)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cobra.io.write_sbml_model(model, str(out_dir / "reference_model.xml"))
+    write_kegg_tables(tables, out_dir)
+    return model, tables
