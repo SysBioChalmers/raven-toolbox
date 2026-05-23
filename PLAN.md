@@ -271,21 +271,28 @@ sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
 
 | Step | ravengem (proposed) | RAVEN | What it does |
 |---|---|---|---|
-| **3b.1 Download KEGG** | `download_kegg(dest, version=…)` | (REST/dump retrieval inside `getModelFromKEGG`) | Fetch the KEGG flat-file dump (reactions, compounds, KOs, organism gene↔KO) into a local `keggdb/`. KEGG REST (cache) or a pre-built dump; respect KEGG terms. |
+| **3b.1 Download KEGG** | `download_kegg(dest, version=…)` | (REST/dump retrieval inside `getModelFromKEGG`) | Fetch reactions (equations/EC/KO links), compounds (formulas), KO list, and organism gene↔KO into a local `keggdb/` cache. **Decided: use the free KEGG REST API** (`rest.kegg.jp`) — verified to provide all of this (`get/rn:`, `get/cpd:`, `link/reaction/ko`, `list/organism`); **no (paid) FTP needed.** |
 | **3b.2 Parse dump → KEGG reference model** | `parse_kegg_model(keggdb_dir, …) -> (cobra.Model, ko_map)` | `getModelFromKEGG` + `getRxnsFromKEGG`/`getMetsFromKEGG`/`getGenesFromKEGG` | Parse the dump into a reference KEGG `cobra.Model` plus the KO→reaction/gene mapping. Reusable across organisms; cache it. |
-| **3b.3 Construct HMMs** | `build_kegg_hmms(keggdb_dir, out_dir, …)` (or `fetch_kegg_hmms()`) | `constructMultiFasta` + align + `hmmbuild`/`hmmpress` | Per-KO multi-FASTA → multiple alignment → profile HMMs (`hmms/`). Build-once and heavy; offer a `fetch_kegg_hmms` to download a pre-built set (as RAVEN does from BioMet Toolbox). |
+| **3b.3 Construct HMMs** (build our own) | `construct_multi_fasta(...)` → `build_kegg_hmms(...)` | `constructMultiFasta` + align + `hmmbuild`/`hmmpress` | **We build the HMMs ourselves** (no KOfam, no pre-built download). For a configurable set of KEGG **reference organisms**: fetch gene↔KO links + protein sequences (`get/<org>:<gene>/aaseq`, free REST) → group into per-KO multi-FASTA → optional identity-dereplication (CD-HIT; the "90" in prok90/euk90) → multiple alignment (MAFFT) → `hmmbuild`/`hmmpress` → the `hmms/` library. Build-once, heavy; bounded by the reference-organism set. |
 | **3b.4 Model for a KEGG species** | `get_kegg_model_for_organism(organism_id, kegg_model, …)` | `getKEGGModelForOrganism(organismID)` | Use KEGG's existing gene↔KO annotation for an organism already in KEGG — **no** homology search. |
 | **3b.5 Model by HMM sequence query** | `get_kegg_model_from_sequences(fasta, kegg_model, hmms, …)` | `getKEGGModelForOrganism(fastaFile)` | `hmmsearch` a proteome FASTA against the KO HMMs → assign KOs (score/phyl-dist cutoffs) → draft model. The de-novo path for organisms not in KEGG. |
 
-- **Inputs:** KEGG dump (3b.1); then either a KEGG `organism_id` (3b.4) or a proteome FASTA (3b.5).
-- **External deps:** KEGG REST (+disk cache) or pre-built dumps; **HMMER** (`hmmbuild`/`hmmpress`/
-  `hmmsearch`) and an aligner (e.g. MAFFT) — all via the shared `binaries.py` `ensure_binary`
-  registry (add `hmmer`/`mafft` bundles; same pattern as BLAST/DIAMOND in 3a). `getPhylDist` →
-  `phylogenetic_distance` helper for 3b.5 score weighting.
+- **Inputs:** KEGG dump (3b.1); a reference-organism set for HMM building (3b.3); then either a
+  KEGG `organism_id` (3b.4) or a proteome FASTA (3b.5).
+- **Data access (decided):** **free KEGG REST API** for everything — the model graph *and* the
+  per-KO protein sequences (`aaseq`) used to build our own HMMs. **No paid FTP; no KOfam; no
+  pre-built HMM download.** REST is free for academic use (commercial → KEGG licence), rate-limited
+  (~3 req/s, `get` ≤10 entries/call) → **cache aggressively** in `keggdb/`. Building HMMs from the
+  full KEGG is large; scale is bounded by the chosen reference-organism set.
+- **External tools:** **HMMER** (`hmmbuild`/`hmmpress`/`hmmsearch`), an aligner (**MAFFT**), and
+  optionally **CD-HIT** (identity dereplication) — all via the shared `binaries.py` `ensure_binary`
+  registry (add `hmmer`/`mafft`/`cd-hit` bundles; same pattern as BLAST/DIAMOND in 3a).
+  `getPhylDist` → `phylogenetic_distance` helper for 3b.5 score weighting.
 
 **Improvements to log:** split the overloaded `getKEGGModelForOrganism` (organism-vs-FASTA modes,
 ~15 params) into the two clear entry points **3b.4 / 3b.5**; cache the parsed KEGG reference model
-(3b.2) and reuse it; HMMER/MAFFT obtained via the same version-pinned binary registry as 3a.
+(3b.2) and the REST downloads; HMMER/MAFFT/CD-HIT obtained via the same version-pinned binary
+registry as 3a.
 
 *Build order:* 3b.2 (parse — testable against a tiny dump fixture) → 3b.4 (annotation mode, no
 HMM) → 3b.1 (download) → 3b.3 (HMM build/fetch) → 3b.5 (HMM query). Like 3a, the model-building
