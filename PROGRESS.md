@@ -20,7 +20,7 @@ _Last updated: 2026-05-23_
 | 1 | Foundation (`utils/`, `manipulation/`) | 🟢 functions done; package pip-installable (own `.venv`); CI remains |
 | 2 | I/O (`io/`) | 🟢 done in scope — YAML/SIF/Excel-export/exportForGit (+sort_ids); Excel import excluded |
 | 3a | Reconstruction — homology (`reconstruction/homology/`) | 🟢 implemented (get_model_from_homology + BLAST/DIAMOND wrappers); binary ZIPs/CI pending |
-| 3b | Reconstruction — KEGG (`reconstruction/kegg/`) | ⬜ not started |
+| 3b | Reconstruction — KEGG (`reconstruction/kegg/`) — 5-step pipeline: download → parse dump → build HMMs → model-for-species → model-by-HMM-query | ⬜ not started |
 | 3c | Reconstruction — MetaCyc (`reconstruction/metacyc/`) | ⬜ not started |
 | 4 | Context-specific & tasks (`tasks/`, `gapfilling/`, `init/`) | ⬜ not started |
 | 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | ⬜ not started |

@@ -263,20 +263,33 @@ captured tabular fixture.
 consistent with the Excel-import exclusion); core testable without BLAST installed.
 
 #### 2.3b KEGG-based — `reconstruction/kegg/`  *(Phase 3b)*
-Build a draft GEM from **KEGG** orthology assignments for the organism. Heavier external
-data than homology; independent of MetaCyc.
-- **Entry point:** `getKEGGModelForOrganism` — orchestrates KO assignment → reaction/
-  metabolite/gene retrieval → draft `cobra.Model`.
-- **Inputs:** organism KEGG id, or a proteome FASTA (for de novo KO assignment).
-- **External deps:** KEGG REST (with on-disk cache) **or** RAVEN's pre-built KEGG dumps
-  (configurable, per §0); HMMER for KO assignment.
+Build a draft GEM from **KEGG** orthology (KO) assignments. cobra covers none of this. The track
+is a **pipeline of five sub-steps** — the first three build a *shared, reusable* KEGG reference +
+HMM library (done once per KEGG version), the last two build a model for a *specific organism* in
+two modes. RAVEN's `getKEGGModelForOrganism` documents exactly these stages via its `dataDir`
+sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
 
-| RAVEN | Notes |
-|---|---|
-| `getKEGGModelForOrganism` | Top-level: build a draft GEM for an organism from KEGG. Orchestrates the below. |
-| `getModelFromKEGG`, `getRxnsFromKEGG`, `getMetsFromKEGG`, `getGenesFromKEGG` | Parse KEGG flat-files / REST into a model. |
-| `getPhylDist` | Phylogenetic-distance weighting of KEGG orthologs. |
-| `constructMultiFasta` | Build per-KO FASTA for homology search. |
+| Step | ravengem (proposed) | RAVEN | What it does |
+|---|---|---|---|
+| **3b.1 Download KEGG** | `download_kegg(dest, version=…)` | (REST/dump retrieval inside `getModelFromKEGG`) | Fetch the KEGG flat-file dump (reactions, compounds, KOs, organism gene↔KO) into a local `keggdb/`. KEGG REST (cache) or a pre-built dump; respect KEGG terms. |
+| **3b.2 Parse dump → KEGG reference model** | `parse_kegg_model(keggdb_dir, …) -> (cobra.Model, ko_map)` | `getModelFromKEGG` + `getRxnsFromKEGG`/`getMetsFromKEGG`/`getGenesFromKEGG` | Parse the dump into a reference KEGG `cobra.Model` plus the KO→reaction/gene mapping. Reusable across organisms; cache it. |
+| **3b.3 Construct HMMs** | `build_kegg_hmms(keggdb_dir, out_dir, …)` (or `fetch_kegg_hmms()`) | `constructMultiFasta` + align + `hmmbuild`/`hmmpress` | Per-KO multi-FASTA → multiple alignment → profile HMMs (`hmms/`). Build-once and heavy; offer a `fetch_kegg_hmms` to download a pre-built set (as RAVEN does from BioMet Toolbox). |
+| **3b.4 Model for a KEGG species** | `get_kegg_model_for_organism(organism_id, kegg_model, …)` | `getKEGGModelForOrganism(organismID)` | Use KEGG's existing gene↔KO annotation for an organism already in KEGG — **no** homology search. |
+| **3b.5 Model by HMM sequence query** | `get_kegg_model_from_sequences(fasta, kegg_model, hmms, …)` | `getKEGGModelForOrganism(fastaFile)` | `hmmsearch` a proteome FASTA against the KO HMMs → assign KOs (score/phyl-dist cutoffs) → draft model. The de-novo path for organisms not in KEGG. |
+
+- **Inputs:** KEGG dump (3b.1); then either a KEGG `organism_id` (3b.4) or a proteome FASTA (3b.5).
+- **External deps:** KEGG REST (+disk cache) or pre-built dumps; **HMMER** (`hmmbuild`/`hmmpress`/
+  `hmmsearch`) and an aligner (e.g. MAFFT) — all via the shared `binaries.py` `ensure_binary`
+  registry (add `hmmer`/`mafft` bundles; same pattern as BLAST/DIAMOND in 3a). `getPhylDist` →
+  `phylogenetic_distance` helper for 3b.5 score weighting.
+
+**Improvements to log:** split the overloaded `getKEGGModelForOrganism` (organism-vs-FASTA modes,
+~15 params) into the two clear entry points **3b.4 / 3b.5**; cache the parsed KEGG reference model
+(3b.2) and reuse it; HMMER/MAFFT obtained via the same version-pinned binary registry as 3a.
+
+*Build order:* 3b.2 (parse — testable against a tiny dump fixture) → 3b.4 (annotation mode, no
+HMM) → 3b.1 (download) → 3b.3 (HMM build/fetch) → 3b.5 (HMM query). Like 3a, the model-building
+core (3b.2/3b.4) is testable without any external tool; HMMER/REST steps sit behind `skipif`.
 
 #### 2.3c MetaCyc-based — `reconstruction/metacyc/`  *(Phase 3c)*
 Build a draft from **MetaCyc** reactions/pathways, and optionally reconcile it with a
@@ -380,7 +393,7 @@ Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before 
 | **1** | Foundation | `utils/` helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `get_elemental_balance` ✅, `check_model` ✅, `parse_name_comp` ✅ — **no** struct adapter; `getIndexes`, grRule *normalization*, MIRIAM/ID-prefix helpers **not** ported, cobra covers them) and the `manipulation/` ergonomic layer (§1b: largely done — add/change/remove/transport/transfer/variance ✅), packaging, CI, pytest skeleton. Migration cheatsheet doc. | — |
 | **2** | I/O | `readYAMLmodel`/`writeYAMLmodel`, Excel import/export, tab-delimited & SIF export. | 1 |
 | **3a** | Reconstruction — homology | `getModelFromHomology` + BLAST/DIAMOND wrappers (§2.3a). Self-contained; build first. | 1, 2 |
-| **3b** | Reconstruction — KEGG | `getKEGGModelForOrganism` + KEGG retrieval/KO assignment (§2.3b). | 1, 2 |
+| **3b** | Reconstruction — KEGG | 5-step pipeline (§2.3b): download KEGG → parse dump to reference model → build HMMs → model-for-species (annotation) → model-by-HMM-query (FASTA). | 1, 2 |
 | **3c** | Reconstruction — MetaCyc | `getMetaCycModelForOrganism` + MetaCyc parsers + KEGG reconciliation (§2.3c). | 1, 2, (3b for combine) |
 | **4** | Context-specific & tasks | metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT. (Tasks first — INIT depends on them.) | 1, 2, MIP solver |
 | **5** | Data integration & analysis | HPA/omics scoring, `reporterMetabolites`, FSEOF, dFBA, model comparison. | 1–4 |
