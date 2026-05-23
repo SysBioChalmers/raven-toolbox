@@ -18,7 +18,7 @@ _Last updated: 2026-05-23_
 |---|---|---|
 | 0 | Scaffold & decisions | ✅ done |
 | 1 | Foundation (`utils/`, `manipulation/`) | 🟢 functions done (packaging/CI remain) |
-| 2 | I/O (`io/`) | 🟡 YAML + SIF done; tab-delimited / Excel-export remain (Excel import excluded) |
+| 2 | I/O (`io/`) | 🟡 YAML + SIF + Excel-export done; tab excluded, Excel-import excluded |
 | 3a | Reconstruction — homology (`reconstruction/homology/`) | ⬜ not started |
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) | ⬜ not started |
 | 3c | Reconstruction — MetaCyc (`reconstruction/metacyc/`) | ⬜ not started |
@@ -50,10 +50,11 @@ Functions that exist as working, tested Python in ravengem.
 | `manipulation/merge.py` | `merge_models` | `mergeModels.m` | ✅ `tests/test_manipulation_merge.py` | Merge N models, unify mets by `name[comp]` (or id), keep all reactions (id collisions renamed), merge genes, provenance in `notes['origin']`. cobra's `merge` is pairwise/strict-by-id. |
 | `manipulation/simplify.py` | `remove_dead_end_reactions`, `remove_duplicate_reactions`, `constrain_reversible_reactions`, `group_linear_reactions` | `simplifyModel.m` (gap modes) | ✅ `tests/test_manipulation_simplify.py` | The cobra-absent reduction modes; cobra-covered modes (no-flux→`find_blocked_reactions`, zero-interval, unconstrained) cheatsheeted. `group_linear` is lossy (drops genes), per RAVEN. |
 | `io/sif.py` | `export_model_to_sif` | `exportModelToSIF.m` | ✅ `tests/test_io_sif.py` | Cytoscape SIF export (`rc`/`rr`/`cc` graphs). cobra has no network export. |
+| `io/excel.py` | `export_to_excel` | `exportToExcelFormat.m` (export only) | ✅ `tests/test_io_excel.py` | RAVEN 5-sheet xlsx (RXNS/METS/COMPS/GENES/MODEL); RAVEN fields pulled from cobra annotation/notes. `openpyxl` (lazy, `[excel]` extra). Excel **import** intentionally excluded. cobra has no Excel I/O. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` (RAVEN `fa281a1`) | ✅ `tests/test_io_yaml.py` | Aligned to RAVEN's cobra-native `!!omap` writer (`fa281a1`). cobra owns standard fields + the `annotation` block (smiles/ec-code/MIRIAM); this adds the RAVEN-only top-level per-entry keys (inchis/deltaG/metFrom/notes; confidence_score/references/rxnFrom/deltaG; protein) → `.notes`, plus `version`/`metaData`/GECKO `ec-*`. Output verified cobra-readable; legacy id-in-metaData supported. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 167 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 173 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -65,7 +66,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 |---|---|---|
 | `utils/` | GPR hygiene + balance + validation + parse helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `get_elemental_balance` ✅, `check_model` ✅, `parse_name_comp` ✅) — **no** struct adapter; `getRxnsInComp`/`getMetsInComp`, MIRIAM/ID-prefix **not** ported (cobra covers) | 🟢 foundation done |
 | `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | ✅ done — add/change/remove/transport/transfer/merge/simplify/variance + 2 adopted transforms |
-| `io/` | RAVEN YAML/SIF/tab formats (Excel import excluded) | 🟡 YAML + SIF ported |
+| `io/` | RAVEN YAML/SIF/Excel-export (Excel import excluded) | 🟡 YAML + SIF + xlsx-export ported |
 | `reconstruction/homology/` | homology-based draft from a template GEM + BLAST/DIAMOND (3a) | ⬜ stub |
 | `reconstruction/kegg/` | KEGG-based draft (orthology/KO assignment) (3b) | ⬜ stub |
 | `reconstruction/metacyc/` | MetaCyc-based draft + KEGG reconciliation (3c) | ⬜ stub |
