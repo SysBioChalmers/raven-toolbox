@@ -132,14 +132,27 @@ def _emit_entry_fields(entries, fields):
             entry.setdefault("notes", notes)
 
 
-def write_yaml_model(model: "cobra.Model", path: Union[str, Path]) -> None:
-    """Write a ``cobra.Model`` to RAVEN/cobrapy (``!!omap``) YAML."""
+def write_yaml_model(
+    model: "cobra.Model", path: Union[str, Path], *, sort_ids: bool = False
+) -> None:
+    """Write a ``cobra.Model`` to RAVEN/cobrapy (``!!omap``) YAML.
+
+    With ``sort_ids=True`` metabolites/reactions/genes/compartments are written
+    in alphabetical order (diff-friendly), without modifying ``model``.
+    """
     model_notes = dict(model.notes or {})
     stored_meta = model_notes.pop("metaData", None) or {}
     version = model_notes.pop("version", None)
     foreign = model_notes.pop("_yaml_sections", None) or {}
 
     doc = OrderedDict(_to_plain(model_to_dict(model)))
+
+    if sort_ids:
+        for section in ("metabolites", "reactions", "genes"):
+            if section in doc:
+                doc[section] = sorted(doc[section], key=lambda e: e.get("id", ""))
+        if isinstance(doc.get("compartments"), dict):
+            doc["compartments"] = dict(sorted(doc["compartments"].items()))
 
     _emit_entry_fields(doc.get("metabolites", []), _MET_FIELDS)
     _emit_entry_fields(doc.get("reactions", []), _RXN_FIELDS)

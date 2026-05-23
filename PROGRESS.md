@@ -18,7 +18,7 @@ _Last updated: 2026-05-23_
 |---|---|---|
 | 0 | Scaffold & decisions | ✅ done |
 | 1 | Foundation (`utils/`, `manipulation/`) | 🟢 functions done (packaging/CI remain) |
-| 2 | I/O (`io/`) | 🟡 YAML + SIF + Excel-export done; tab excluded, Excel-import excluded |
+| 2 | I/O (`io/`) | 🟢 done in scope — YAML/SIF/Excel-export/exportForGit (+sort_ids); Excel import excluded |
 | 3a | Reconstruction — homology (`reconstruction/homology/`) | ⬜ not started |
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) | ⬜ not started |
 | 3c | Reconstruction — MetaCyc (`reconstruction/metacyc/`) | ⬜ not started |
@@ -51,10 +51,12 @@ Functions that exist as working, tested Python in ravengem.
 | `manipulation/simplify.py` | `remove_dead_end_reactions`, `remove_duplicate_reactions`, `constrain_reversible_reactions`, `group_linear_reactions` | `simplifyModel.m` (gap modes) | ✅ `tests/test_manipulation_simplify.py` | The cobra-absent reduction modes; cobra-covered modes (no-flux→`find_blocked_reactions`, zero-interval, unconstrained) cheatsheeted. `group_linear` is lossy (drops genes), per RAVEN. |
 | `io/sif.py` | `export_model_to_sif` | `exportModelToSIF.m` | ✅ `tests/test_io_sif.py` | Cytoscape SIF export (`rc`/`rr`/`cc` graphs). cobra has no network export. |
 | `io/excel.py` | `export_to_excel` | `exportToExcelFormat.m` (export only) | ✅ `tests/test_io_excel.py` | RAVEN 5-sheet xlsx (RXNS/METS/COMPS/GENES/MODEL); RAVEN fields pulled from cobra annotation/notes. `openpyxl` (lazy, `[excel]` extra). Excel **import** intentionally excluded. cobra has no Excel I/O. |
+| `io/git.py` | `export_for_git` | `exportForGit.m` | ✅ `tests/test_io_git.py` | Standard-GEM repo layout (`model/<fmt>/`) for yml/xml/mat/xlsx/txt + `dependencies.txt`; sorts a copy first. Orchestrates the other writers; cobra has no repo-layout writer. |
+| `utils/sort.py` | `sort_identifiers` | `sortIdentifiers.m` | ✅ `tests/test_utils_sort.py` | Model-wide alphabetical `DictList.sort`; also `sort_ids=` on `write_yaml_model`. cobra has per-list sort only. |
 | `io/yaml.py` | `read_yaml_model`, `write_yaml_model` | `readYAMLmodel.m` / `writeYAMLmodel.m` (RAVEN `fa281a1`) | ✅ `tests/test_io_yaml.py` | Aligned to RAVEN's cobra-native `!!omap` writer (`fa281a1`). cobra owns standard fields + the `annotation` block (smiles/ec-code/MIRIAM); this adds the RAVEN-only top-level per-entry keys (inchis/deltaG/metFrom/notes; confidence_score/references/rxnFrom/deltaG; protein) → `.notes`, plus `version`/`metaData`/GECKO `ec-*`. Output verified cobra-readable; legacy id-in-metaData supported. |
 | `manipulation/remove.py` | `remove_metabolites`, `remove_genes` | `removeMets.m` / `removeGenes.m` | ✅ `tests/test_manipulation_remove.py` | Delegate to cobra; add the gaps: `by_name` cross-compartment deletion (mets — flagged as a deletion candidate if unused), and a `blocked_reactions` remove/constrain/keep policy for gene knockouts (genes). `removeReactions` **not** ported (coupled orphan cleanup = cobra's `remove_reactions`). |
 
-**Test status:** 173 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
+**Test status:** 182 tests passing (incl. smoke) under cobra 0.31.1, run via geckopy's `.venv`.
 
 ---
 
@@ -66,7 +68,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 |---|---|---|
 | `utils/` | GPR hygiene + balance + validation + parse helpers (`is_dnf`/`find_non_dnf_grrules` ✅, `get_elemental_balance` ✅, `check_model` ✅, `parse_name_comp` ✅) — **no** struct adapter; `getRxnsInComp`/`getMetsInComp`, MIRIAM/ID-prefix **not** ported (cobra covers) | 🟢 foundation done |
 | `manipulation/` | model construction, editing & structural transforms (ergonomic layer, see PLAN §1b) | ✅ done — add/change/remove/transport/transfer/merge/simplify/variance + 2 adopted transforms |
-| `io/` | RAVEN YAML/SIF/Excel-export (Excel import excluded) | 🟡 YAML + SIF + xlsx-export ported |
+| `io/` | RAVEN YAML/SIF/Excel-export/git-layout (Excel import excluded) | 🟢 done in scope |
 | `reconstruction/homology/` | homology-based draft from a template GEM + BLAST/DIAMOND (3a) | ⬜ stub |
 | `reconstruction/kegg/` | KEGG-based draft (orthology/KO assignment) (3b) | ⬜ stub |
 | `reconstruction/metacyc/` | MetaCyc-based draft + KEGG reconciliation (3c) | ⬜ stub |
@@ -150,18 +152,18 @@ Keyed to commits on `main`.
 | `cd2eea9` | Port simplifyModel gap modes (`manipulation/simplify.py`) |
 | `a9c90cc` | Realign YAML I/O to RAVEN fa281a1 (cobra-native !!omap) |
 | `53d94df` | Port exportModelToSIF as `export_model_to_sif` |
+| `8879b57` | Plan exportForGit + sortIdentifiers |
+| `5d4fef2` | Port exportToExcelFormat as `export_to_excel` (export only) |
+| _(pending)_ | Port sortIdentifiers + exportForGit (incl. xlsx) |
 
 ---
 
 ## Next up
 
-**Phase 1 (foundation) functions complete; Phase 2 I/O: YAML + SIF done.** Candidate next steps:
+**Phases 1 (foundation) & 2 (I/O) complete in scope.** Candidate next steps:
 
-1. **`io/` tab-delimited export** (`exportToTabDelimited`) — finishes the practical I/O set.
-   (Excel *import* is excluded by decision; Excel *export* optional/low-priority.)
-2. **Reconstruction Phase 3a** — `getModelFromHomology` + BLAST/DIAMOND wrappers (the flagship;
-   biggest single effort, needs external tools).
-3. **Phase 4** — metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT (needs a MIP solver).
+1. **Reconstruction Phase 3a** — `getModelFromHomology` + BLAST/DIAMOND wrappers (the flagship;
+   biggest single effort, needs external tools — mockable in tests).
+2. **Phase 4** — metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT (needs a MIP solver).
+3. **Phase 5/6** — omics/localization/analysis/comparison; visualization.
 4. **Packaging/CI** — make the package pip-installable + set up CI so tests run without geckopy's venv.
-
-Borderline (argue + ask first): `sortModel` (deterministic core; partly cobra).
