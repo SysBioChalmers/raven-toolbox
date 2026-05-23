@@ -49,6 +49,7 @@ and `taxonomy.py` (3b.3). Maintainer-side, build-time tooling (PLAN.md §2.3b).
 | K6 | EFFICIENCY | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Per-KO multi-FASTA via a stdlib offset index** (`_index_fasta` → seek), replacing `constructMultiFasta`'s Java-`Hashtable` byte scan with 5M-element preallocation. One streaming pass, only wanted ids retained; no MATLAB/Java heap tuning. |
 | K7 | EFFICIENCY | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Concatenate per-KO HMMs and `hmmpress` into one pressed library**, so the query path (3b.5) runs a single `hmmscan` against the database instead of RAVEN's thousands of per-KO `hmmsearch` invocations. |
 | K8 | EFFICIENCY (scope) | ravengem 🔨 | 🔨 | **Drop the `getPhylDist` distance matrix.** Its only uses in RAVEN were per-organism HMM-sequence subsampling (`maxPhylDist`/`nSequences`) and the kingdom filter. Our fixed prok90/euk90 libraries (3b.3) remove the subsampling rationale, and domain mode (3b.4) uses the taxonomy domain classification directly — so the O(n²) matrix is never built. Simpler, faster, less code. |
+| K9 | EFFICIENCY (memory) | ravengem 🔨 | 🔨 | **Stream `organism_gene_ko` straight to gzipped TSV** in `parse_kegg_dump` instead of building it in memory. Real KEGG has **9.05M** gene↔KO associations; the in-memory DataFrame build OOMs in a few GB. Streaming runs the full parse in **82 s at 0.9 GB peak**. (Found by validating against a real KEGG FTP dump.) |
 
 ## addRxns
 

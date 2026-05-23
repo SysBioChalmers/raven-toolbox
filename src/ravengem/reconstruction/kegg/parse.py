@@ -459,24 +459,66 @@ def read_kegg_table(path: str | Path) -> pd.DataFrame:
     return pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
 
 
-def parse_kegg_dump(
-    kegg_dir: str | Path, out_dir: str | Path
-) -> tuple[cobra.Model, dict[str, pd.DataFrame]]:
+def stream_organism_gene_ko(
+    kegg_dir: str | Path, keep: set[str], ogk_path: str | Path
+) -> pd.DataFrame:
+    """Stream the ``ko`` file straight to ``organism_gene_ko.tsv.gz``; return ``ko_names``.
+
+    Real KEGG has ~9M gene↔KO associations — far too many to hold in memory as a
+    DataFrame. This writes them row-by-row to a gzipped TSV in one pass, keeping
+    only the small ``ko_names`` table (one row per KO) in memory and returning it.
+    """
+    ogk_path = Path(ogk_path)
+    names: list[tuple[str, str]] = []
+    with gzip.open(ogk_path, "wt", encoding="utf-8", newline="") as out:
+        out.write("organism\tgene\tko\n")
+        for entry in _iter_entries(Path(kegg_dir) / "ko"):
+            ko_id = _first_id(entry.get("ENTRY", []))
+            if not ko_id or ko_id not in keep:
+                continue
+            names.append((ko_id, entry["DEFINITION"][0].strip() if entry.get("DEFINITION") else ""))
+            for organism, gene in _parse_gene_lines(entry.get("GENES", [])):
+                out.write(f"{organism}\t{gene}\t{ko_id}\n")
+    return pd.DataFrame(names, columns=["ko", "name"])
+
+
+def parse_kegg_dump(kegg_dir: str | Path, out_dir: str | Path) -> dict[str, Path]:
     """Parse a full KEGG dump into the reference model + tables and write them out.
 
     Writes ``reference_model.xml`` (SBML) plus the gzipped-TSV tables into
-    ``out_dir``. Returns the in-memory ``(model, tables)`` for inspection/testing.
+    ``out_dir`` and returns ``{name: path}`` for everything written. The large
+    ``organism_gene_ko`` table is streamed to disk (see
+    :func:`stream_organism_gene_ko`) rather than built in memory, so this scales
+    to the full KEGG database; the small derived tables are built in memory.
     """
     out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     reactions = parse_kegg_reactions(kegg_dir)
     compounds = parse_kegg_compounds(kegg_dir)
     linked_kos = {ko for r in reactions for ko in r.kos}
-    kos = parse_kegg_kos(kegg_dir, keep=linked_kos)
 
     model = build_reference_model(reactions, compounds)
-    tables = build_kegg_tables(reactions, kos)
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    cobra.io.write_sbml_model(model, str(out_dir / "reference_model.xml"))
-    write_kegg_tables(tables, out_dir)
-    return model, tables
+    small = {
+        "ko_reaction": pd.DataFrame(
+            [(ko, r.id) for r in reactions for ko in r.kos], columns=["ko", "reaction"]
+        ).drop_duplicates(ignore_index=True),
+        "rxn_flags": pd.DataFrame(
+            [(r.id, r.spontaneous, r.undefined_stoich, r.incomplete, r.general) for r in reactions],
+            columns=["reaction", "spontaneous", "undefined_stoich", "incomplete", "general"],
+        ),
+    }
+    paths = {name: p for name, p in zip(small, write_kegg_tables(small, out_dir), strict=True)}
+
+    ogk_path = out_dir / "organism_gene_ko.tsv.gz"
+    ko_names = stream_organism_gene_ko(kegg_dir, linked_kos, ogk_path)
+    paths["organism_gene_ko"] = ogk_path
+    paths.update(
+        zip(["ko_names"], write_kegg_tables({"ko_names": ko_names}, out_dir), strict=True)
+    )
+
+    sbml = out_dir / "reference_model.xml"
+    cobra.io.write_sbml_model(model, str(sbml))
+    paths["reference_model"] = sbml
+    return paths

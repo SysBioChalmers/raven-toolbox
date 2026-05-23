@@ -29,6 +29,7 @@ from ravengem.reconstruction.kegg.parse import (
     parse_kegg_kos,
     parse_kegg_reactions,
     read_kegg_table,
+    stream_organism_gene_ko,
     write_kegg_tables,
 )
 from ravengem.reconstruction.kegg.query import (
@@ -71,5 +72,6 @@ __all__ = [
     "parse_taxonomy",
     "read_kegg_table",
     "run_hmmscan",
+    "stream_organism_gene_ko",
     "write_kegg_tables",
 ]

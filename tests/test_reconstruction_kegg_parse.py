@@ -181,8 +181,12 @@ def test_tables_roundtrip_gzipped_tsv(reactions, kos, tmp_path):
 
 
 def test_parse_kegg_dump_writes_artefacts(tmp_path):
-    model, tables = parse_kegg_dump(DUMP, tmp_path)
+    paths = parse_kegg_dump(DUMP, tmp_path)
+    assert set(paths) >= {
+        "ko_reaction", "ko_names", "organism_gene_ko", "rxn_flags", "reference_model"
+    }
     assert (tmp_path / "reference_model.xml").is_file()
-    assert (tmp_path / "organism_gene_ko.tsv.gz").is_file()
-    assert "R00010" in model.reactions
-    assert "ko_reaction" in tables
+    # organism_gene_ko is streamed straight to gzipped TSV.
+    ogk = read_kegg_table(paths["organism_gene_ko"])
+    assert set(ogk.columns) == {"organism", "gene", "ko"}
+    assert ("eco", "b0001", "K00002") in set(map(tuple, ogk.to_numpy()))
