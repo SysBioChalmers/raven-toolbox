@@ -189,9 +189,51 @@ first.
 
 | RAVEN | Notes |
 |---|---|
-| `getModelFromHomology` | Transfer reactions from a template GEM via bidirectional best hits. |
-| `getBlast`, `getDiamond`, `getBlastFromExcel` | Wrap external BLAST+/DIAMOND executables (subprocess). |
-| `makeFakeBlastStructure`, `parseScores` | Homology-score plumbing. |
+| `getModelFromHomology` | → `get_model_from_homology` — the core algorithm; pure Python on cobra models + a hits table. |
+| `getBlast`, `getDiamond` | → `run_blast` / `run_diamond` — subprocess wrappers (BLAST+ / DIAMOND). |
+| `getBlastFromExcel` | → `blast_from_table` — load hits from a CSV/DataFrame (no Excel). |
+| `makeFakeBlastStructure`, `parseScores` | → `make_ortholog_hits` + the tabular parser inside `run_blast`. |
+
+**Design (Phase 3a):**
+
+*Data structure — `blastStructure` → a tidy DataFrame.* RAVEN's struct array of directional
+hit sets becomes one `pandas.DataFrame` of bidirectional hits with columns
+`from_id, to_id, from_gene, to_gene, evalue, identity, align_len, bitscore, ppos`
+(one row per hit). This makes the strictness/best-hit filtering plain groupby logic. A thin
+`BlastResult` wrapper (or just the DataFrame with a documented schema) is the currency between
+the BLAST wrappers and `get_model_from_homology`.
+
+*Functions (`reconstruction/homology/`):*
+- **`make_ortholog_hits(ortholog_pairs, source_model_id, target_id)`** (makeFakeBlastStructure) —
+  build a hits DataFrame from a predefined ortholog list, sentinel metrics (e=0, ident=100,
+  len=1000) so all pass filters. Pure Python — the testing/seeding entry point.
+- **`get_model_from_homology(models, hits, model_for, *, preferred_order=None, strictness=1,
+  only_genes_in_models=False, max_evalue=1e-30, min_align_len=200, min_identity=40,
+  map_new_to_old=True)`** (getModelFromHomology) — filter hits, resolve the target↔template gene
+  mapping per `strictness`, transfer reactions from the (importance-ordered) template models whose
+  genes have orthologs, remapping GPRs to target genes. Pure Python on `cobra.Model`; reuses the
+  reaction-transfer/merge ideas from §1b. **Fully testable via `make_ortholog_hits`** (no BLAST).
+- **`run_blast(organism_id, fasta, model_ids, ref_fastas, *, evalue=1e-5)`** (getBlast) — bidirectional
+  BLAST+ via `subprocess` (`makeblastdb` + `blastp -outfmt 6 'qseqid sseqid evalue length pident
+  bitscore ppos'`), parse tabular output → hits DataFrame. Detect binaries via `shutil.which`,
+  clear error if missing.
+- **`run_diamond(...)`** (getDiamond) — same contract via DIAMOND (`diamond makedb`/`blastp`).
+- **`blast_from_table(path_or_df, ...)`** (getBlastFromExcel) — accept a precomputed homology
+  table (CSV/DataFrame), validate columns → hits DataFrame.
+
+*External tools:* BLAST+/DIAMOND are system binaries (not pip), optional & detected at call time.
+No new pip deps (pandas comes via cobra).
+
+*Test strategy:* the **core (`get_model_from_homology` + `make_ortholog_hits` + tabular parsing) is
+tested without any external tool**; `run_blast`/`run_diamond` execution gets a `skipif`-guarded test
+(only when the binary is present), with command-construction + output-parsing unit-tested against a
+captured tabular fixture.
+
+*Build order:* `make_ortholog_hits` + hits schema → `get_model_from_homology` → `run_blast`/
+`run_diamond` → `blast_from_table`.
+
+*Improvements to log:* struct-array→DataFrame (filterable); `getBlastFromExcel`→CSV (no Excel,
+consistent with the Excel-import exclusion); core testable without BLAST installed.
 
 #### 2.3b KEGG-based — `reconstruction/kegg/`  *(Phase 3b)*
 Build a draft GEM from **KEGG** orthology assignments for the organism. Heavier external
@@ -251,12 +293,23 @@ RAVEN's template-based MILP gap-filling differs from cobrapy's `gapfilling.GapFi
 | `removeBadRxns` | Remove reactions enabling erroneous production. |
 | `fitParameters` | Parameter fitting. |
 
-### 2.7 `omics/` & `localization/` — data integration  *(Phase 5)*
+### 2.7 `omics/` — data integration  *(Phase 5)*
 | RAVEN | Notes |
 |---|---|
 | `parseHPA`, `parseHPArna`, `scoreModel` | Human Protein Atlas → reaction scores (feeds INIT). |
-| `predictLocalization`, `getWoLFScores` | WoLF PSORT-based subcellular localization → compartmentalize model. |
-| `mapCompartments`, `mergeCompartments`, `copyToComps`, `getMetsInComp`, `getRxnsInComp` | Compartment manipulation (some overlaps cobra; port the RAVEN-specific logic). |
+
+### 2.7b `localization/` — subcellular localization  *(Phase L, its own phase)*
+A self-contained track: predict subcellular localization of gene products and compartmentalize a
+single-compartment model accordingly. Independent of omics/analysis; no cobra equivalent.
+- **Entry point:** `predict_localization` (`predictLocalization`) — assign reactions to compartments
+  from per-gene localization scores, iteratively moving reactions to minimise cross-membrane transport.
+- **Inputs:** a model + a gene→compartment score table (e.g. from WoLF PSORT via `getWoLFScores`).
+
+| RAVEN | Notes |
+|---|---|
+| `predictLocalization` | Compartmentalize a model from localization scores (the algorithm). |
+| `getWoLFScores` | Parse WoLF PSORT output → gene/compartment score table. |
+| `mapCompartments`, `mergeCompartments`, `copyToComps` | Supporting compartment manipulation (port the RAVEN-specific logic; `getMetsInComp`/`getRxnsInComp` are cobra one-liners — see §1). |
 
 ### 2.8 `analysis/` — RAVEN-specific analyses  *(Phase 5)*
 Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before porting).
@@ -303,7 +356,8 @@ Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before 
 | **3b** | Reconstruction — KEGG | `getKEGGModelForOrganism` + KEGG retrieval/KO assignment (§2.3b). | 1, 2 |
 | **3c** | Reconstruction — MetaCyc | `getMetaCycModelForOrganism` + MetaCyc parsers + KEGG reconciliation (§2.3c). | 1, 2, (3b for combine) |
 | **4** | Context-specific & tasks | metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT. (Tasks first — INIT depends on them.) | 1, 2, MIP solver |
-| **5** | Data integration & analysis | HPA/omics, localization, `reporterMetabolites`, FSEOF, dFBA, model comparison. | 1–4 |
+| **5** | Data integration & analysis | HPA/omics scoring, `reporterMetabolites`, FSEOF, dFBA, model comparison. | 1–4 |
+| **L** | Localization | `predictLocalization` + `getWoLFScores` — subcellular localization → compartmentalize a model (its own self-contained phase). | 1 |
 | **6** | Visualization | pathway maps / omics overlay (consider Escher). | 1–2 |
 
 **Suggested order rationale:** each phase produces something usable on its own. Reconstruction

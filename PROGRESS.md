@@ -23,7 +23,8 @@ _Last updated: 2026-05-23_
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) | ⬜ not started |
 | 3c | Reconstruction — MetaCyc (`reconstruction/metacyc/`) | ⬜ not started |
 | 4 | Context-specific & tasks (`tasks/`, `gapfilling/`, `init/`) | ⬜ not started |
-| 5 | Data integration & analysis (`omics/`, `localization/`, `analysis/`, `comparison/`) | ⬜ not started |
+| 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | ⬜ not started |
+| L | Localization (`localization/`) — its own phase (`predictLocalization` + WoLF scores) | ⬜ not started |
 | 6 | Visualization (`plotting/`) | ⬜ not started |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
@@ -76,7 +77,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | `tasks/` | metabolic task validation | ⬜ stub |
 | `gapfilling/` | template-based MILP gap-filling | ⬜ stub |
 | `omics/` | HPA omics → reaction scores | ⬜ stub |
-| `localization/` | WoLF PSORT subcellular localization | ⬜ stub |
+| `localization/` | subcellular localization (`predictLocalization` + WoLF scores) — **its own phase L** | ⬜ stub |
 | `analysis/` | reporterMetabolites, FSEOF, dFBA, … | ⬜ stub |
 | `comparison/` | multi-model comparison | ⬜ stub |
 | `plotting/` | pathway maps / omics overlay | ⬜ stub |
@@ -162,8 +163,10 @@ Keyed to commits on `main`.
 
 **Phases 1 (foundation) & 2 (I/O) complete in scope.** Candidate next steps:
 
-1. **Reconstruction Phase 3a** — `getModelFromHomology` + BLAST/DIAMOND wrappers (the flagship;
-   biggest single effort, needs external tools — mockable in tests).
-2. **Phase 4** — metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT (needs a MIP solver).
-3. **Phase 5/6** — omics/localization/analysis/comparison; visualization.
-4. **Packaging/CI** — make the package pip-installable + set up CI so tests run without geckopy's venv.
+1. **Reconstruction Phase 3a** — **planned** (PLAN §2.3a): `make_ortholog_hits` →
+   `get_model_from_homology` → `run_blast`/`run_diamond` → `blast_from_table`. Core testable
+   without BLAST. Ready to implement.
+2. **Phase L** — Localization (`predictLocalization` + WoLF scores), its own self-contained phase.
+3. **Phase 4** — metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT (needs a MIP solver).
+4. **Phase 5 / 6** — omics/analysis/comparison; visualization.
+5. **CI** — GitHub Actions running the suite in ravengem's own venv.
