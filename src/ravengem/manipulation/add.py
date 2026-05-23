@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import re
 from collections import OrderedDict
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 import cobra
 from cobra import Metabolite, Reaction
@@ -75,7 +75,7 @@ def _parse_side(side: str) -> list[tuple[float, str]]:
     return terms
 
 
-def _new_met_id(model: "cobra.Model", prefix: str) -> str:
+def _new_met_id(model: cobra.Model, prefix: str) -> str:
     """Next free ``<prefix><int>`` metabolite ID (RAVEN m1, m2, ... scheme)."""
     pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
     used = [int(m.group(1)) for met in model.metabolites if (m := pattern.match(met.id))]
@@ -86,7 +86,7 @@ def _new_met_id(model: "cobra.Model", prefix: str) -> str:
 
 
 def _resolve_metabolite(
-    model: "cobra.Model",
+    model: cobra.Model,
     token: str,
     *,
     mets_by: str,
@@ -141,7 +141,7 @@ def _resolve_metabolite(
 
 
 def _stoichiometry(
-    model: "cobra.Model",
+    model: cobra.Model,
     equation: str,
     *,
     mets_by: str,
@@ -151,7 +151,7 @@ def _stoichiometry(
 ) -> tuple[dict[Metabolite, float], bool]:
     """Parse an equation into a {Metabolite: net coefficient} dict + reversibility."""
     lhs, rhs, reversible = _split_equation(equation)
-    coeffs: "OrderedDict[Metabolite, float]" = OrderedDict()
+    coeffs: OrderedDict[Metabolite, float] = OrderedDict()
     for sign, side in ((-1.0, lhs), (1.0, rhs)):
         for coeff, token in _parse_side(side):
             met = _resolve_metabolite(
@@ -169,7 +169,7 @@ def _stoichiometry(
 
 
 def add_reactions_from_equations(
-    model: "cobra.Model",
+    model: cobra.Model,
     reactions: Sequence[Mapping],
     *,
     mets_by: str = "id",

@@ -1,6 +1,5 @@
 """Tests for simplifyModel reduction modes."""
 import cobra
-import pytest
 
 from ravengem.manipulation import (
     add_reactions_from_equations,
@@ -9,7 +8,6 @@ from ravengem.manipulation import (
     remove_dead_end_reactions,
     remove_duplicate_reactions,
 )
-
 
 # --- remove_dead_end_reactions --------------------------------------------
 

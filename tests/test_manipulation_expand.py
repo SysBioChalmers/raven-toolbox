@@ -7,7 +7,6 @@ import cobra
 from ravengem.manipulation import expand_model
 from ravengem.manipulation.expand import _gpr_to_dnf
 
-
 # --------------------------------------------------------------------------- #
 # DNF conversion (internal helper, worth testing directly)
 # --------------------------------------------------------------------------- #

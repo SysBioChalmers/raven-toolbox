@@ -26,7 +26,6 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Union
 
 import cobra
 from cobra.io.dict import model_from_dict, model_to_dict
@@ -78,7 +77,7 @@ def _capture_entry_fields(entries, fields):
     return captured
 
 
-def read_yaml_model(path: Union[str, Path]) -> "cobra.Model":
+def read_yaml_model(path: str | Path) -> cobra.Model:
     """Read a RAVEN/cobrapy YAML model into a ``cobra.Model``."""
     with open(path, encoding="utf-8") as handle:
         raw = _to_plain(_cobra_yaml.load(handle))
@@ -96,11 +95,11 @@ def read_yaml_model(path: Union[str, Path]) -> "cobra.Model":
 
     model = model_from_dict(raw)
 
-    for met, notes in zip(model.metabolites, met_notes):
+    for met, notes in zip(model.metabolites, met_notes, strict=False):
         met.notes = notes
-    for rxn, notes in zip(model.reactions, rxn_notes):
+    for rxn, notes in zip(model.reactions, rxn_notes, strict=False):
         rxn.notes = notes
-    for gene, notes in zip(model.genes, gene_notes):
+    for gene, notes in zip(model.genes, gene_notes, strict=False):
         gene.notes = notes
 
     # Legacy files keep id/name inside metaData; restore them if cobra found none.
@@ -133,7 +132,7 @@ def _emit_entry_fields(entries, fields):
 
 
 def write_yaml_model(
-    model: "cobra.Model", path: Union[str, Path], *, sort_ids: bool = False
+    model: cobra.Model, path: str | Path, *, sort_ids: bool = False
 ) -> None:
     """Write a ``cobra.Model`` to RAVEN/cobrapy (``!!omap``) YAML.
 

@@ -14,7 +14,7 @@ workflow.
 from __future__ import annotations
 
 import copy
-from typing import Iterable, Union
+from collections.abc import Iterable
 
 import cobra
 from cobra import Metabolite, Reaction
@@ -27,11 +27,11 @@ def _name_comp(met: Metabolite) -> str:
 
 
 def add_reactions_from_model(
-    model: "cobra.Model",
-    source_model: "cobra.Model",
-    reactions: Union[str, Iterable[str]],
+    model: cobra.Model,
+    source_model: cobra.Model,
+    reactions: str | Iterable[str],
     *,
-    genes: Union[bool, str, Iterable[str]] = False,
+    genes: bool | str | Iterable[str] = False,
     note: str | None = "Added via add_reactions_from_model()",
     confidence: int | None = None,
 ) -> list[Reaction]:
@@ -113,7 +113,7 @@ def add_reactions_from_model(
         model.add_metabolites(new_mets)
 
     added: list[Reaction] = []
-    for srx, rule in zip(source_rxns, rules):
+    for srx, rule in zip(source_rxns, rules, strict=True):
         rxn = Reaction(srx.id, name=srx.name)
         rxn.bounds = srx.bounds
         rxn.subsystem = srx.subsystem

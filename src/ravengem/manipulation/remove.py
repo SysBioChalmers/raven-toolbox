@@ -21,7 +21,7 @@ cobra-absent behaviour:
 """
 from __future__ import annotations
 
-from typing import Iterable, Union
+from collections.abc import Iterable
 
 import cobra
 from cobra import Gene, Metabolite
@@ -35,8 +35,8 @@ def _as_list(obj) -> list:
 
 
 def remove_metabolites(
-    model: "cobra.Model",
-    metabolites: Union[str, Metabolite, Iterable],
+    model: cobra.Model,
+    metabolites: str | Metabolite | Iterable,
     *,
     by_name: bool = False,
     destructive: bool = False,
@@ -72,8 +72,8 @@ def remove_metabolites(
 
 
 def remove_genes(
-    model: "cobra.Model",
-    genes: Union[str, Gene, Iterable],
+    model: cobra.Model,
+    genes: str | Gene | Iterable,
     *,
     blocked_reactions: str = "remove",
     remove_orphans: bool = False,

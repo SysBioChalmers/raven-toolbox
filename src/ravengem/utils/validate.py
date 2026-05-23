@@ -39,7 +39,7 @@ class ModelIssue:
     message: str
 
 
-def check_model(model: "cobra.Model") -> list[ModelIssue]:
+def check_model(model: cobra.Model) -> list[ModelIssue]:
     """Run curation checks on a model and return the issues found.
 
     Port of the still-meaningful checks in RAVEN ``checkModelStruct.m``. Does not

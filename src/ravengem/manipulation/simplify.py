@@ -15,7 +15,7 @@ Implemented here: ``remove_dead_end_reactions`` (``deleteInaccessible``),
 """
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 import cobra
 from cobra.flux_analysis import flux_variability_analysis
@@ -23,7 +23,7 @@ from cobra.flux_analysis import flux_variability_analysis
 from ravengem.manipulation.irreversible import convert_to_irreversible
 
 
-def _prune_orphan_metabolites(model: "cobra.Model") -> list[str]:
+def _prune_orphan_metabolites(model: cobra.Model) -> list[str]:
     orphans = [m for m in model.metabolites if not m.reactions]
     if orphans:
         model.remove_metabolites(orphans)
@@ -45,7 +45,7 @@ def _can_produce_and_consume(met) -> tuple[bool, bool]:
 
 
 def remove_dead_end_reactions(
-    model: "cobra.Model", *, reserved: Iterable[str] | None = None
+    model: cobra.Model, *, reserved: Iterable[str] | None = None
 ) -> tuple[list[str], list[str]]:
     """Iteratively remove dead-end reactions and metabolites.
 
@@ -84,7 +84,7 @@ def _signature(rxn):
 
 
 def remove_duplicate_reactions(
-    model: "cobra.Model", *, reserved: Iterable[str] | None = None
+    model: cobra.Model, *, reserved: Iterable[str] | None = None
 ) -> list[str]:
     """Remove all-but-one of each set of duplicate reactions.
 
@@ -111,7 +111,7 @@ def remove_duplicate_reactions(
 
 
 def constrain_reversible_reactions(
-    model: "cobra.Model", *, eps: float = 1e-9
+    model: cobra.Model, *, eps: float = 1e-9
 ) -> list[str]:
     """Constrain reversible reactions that can only carry flux one way.
 
@@ -145,7 +145,7 @@ def constrain_reversible_reactions(
 
 
 def group_linear_reactions(
-    model: "cobra.Model", *, reserved: Iterable[str] | None = None
+    model: cobra.Model, *, reserved: Iterable[str] | None = None
 ) -> None:
     """Merge linear (single-producer, single-consumer) reaction chains.
 

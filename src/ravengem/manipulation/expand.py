@@ -61,7 +61,7 @@ def _node_to_dnf(node) -> list[list[str]]:
     raise ValueError(f"Unexpected GPR node type: {type(node).__name__}")
 
 
-def expand_model(model: "cobra.Model") -> list[str]:
+def expand_model(model: cobra.Model) -> list[str]:
     """Split reactions with isozymes (OR in GPR) into one reaction per isozyme.
 
     Port of RAVEN ``expandModel.m``.

@@ -13,7 +13,7 @@ from __future__ import annotations
 import cobra
 
 
-def convert_to_irreversible(model: "cobra.Model") -> list[str]:
+def convert_to_irreversible(model: cobra.Model) -> list[str]:
     """Split non-exchange reversible reactions into a forward + reverse pair.
 
     Port of RAVEN ``convertToIrrev.m``.

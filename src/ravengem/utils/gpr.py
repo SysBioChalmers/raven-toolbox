@@ -58,7 +58,7 @@ def _is_dnf_node(node: ast.AST | None) -> bool:
     return True
 
 
-def is_dnf(gpr: "GPR | str | None") -> bool:
+def is_dnf(gpr: GPR | str | None) -> bool:
     """Return whether a GPR is in disjunctive normal form (OR of AND-complexes).
 
     Parameters
@@ -108,7 +108,7 @@ _NON_DNF_REASON = (
 )
 
 
-def find_non_dnf_grrules(model: "cobra.Model") -> list[GPRIssue]:
+def find_non_dnf_grrules(model: cobra.Model) -> list[GPRIssue]:
     """Find reactions whose GPR is not in disjunctive normal form.
 
     Port of the ``findPotentialErrors`` half of RAVEN ``standardizeGrRules.m``,

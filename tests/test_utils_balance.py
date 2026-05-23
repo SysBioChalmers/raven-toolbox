@@ -16,11 +16,14 @@ def model():
             cobra.Metabolite("n_c", compartment="c"),  # no formula
         ]
     )
-    r_bal = cobra.Reaction("R_bal"); m.add_reactions([r_bal])
+    r_bal = cobra.Reaction("R_bal")
+    m.add_reactions([r_bal])
     r_bal.build_reaction_from_string("a_c --> b_c")        # C6H12O6 -> C6H12O6
-    r_unbal = cobra.Reaction("R_unbal"); m.add_reactions([r_unbal])
+    r_unbal = cobra.Reaction("R_unbal")
+    m.add_reactions([r_unbal])
     r_unbal.build_reaction_from_string("a_c --> c_c")      # C6H12O6 -> C3H6O3
-    r_unknown = cobra.Reaction("R_unknown"); m.add_reactions([r_unknown])
+    r_unknown = cobra.Reaction("R_unknown")
+    m.add_reactions([r_unknown])
     r_unknown.build_reaction_from_string("a_c --> n_c")    # n_c has no formula
     return m
 

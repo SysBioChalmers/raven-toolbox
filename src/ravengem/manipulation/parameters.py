@@ -12,15 +12,15 @@ left to cobra (see the migration cheatsheet in PLAN.md §1):
 """
 from __future__ import annotations
 
-from typing import Iterable, Sequence, Union
+from collections.abc import Iterable, Sequence
 
 import cobra
 from cobra import Reaction
 
-Number = Union[int, float]
+Number = int | float
 
 
-def _resolve(model: "cobra.Model", reactions) -> list[Reaction]:
+def _resolve(model: cobra.Model, reactions) -> list[Reaction]:
     if isinstance(reactions, (str, Reaction)):
         reactions = [reactions]
     out: list[Reaction] = []
@@ -46,9 +46,9 @@ def _broadcast(value, n: int) -> list[float]:
 
 
 def set_variance_bounds(
-    model: "cobra.Model",
-    reactions: Union[str, Reaction, Iterable],
-    values: Union[Number, Sequence[Number]],
+    model: cobra.Model,
+    reactions: str | Reaction | Iterable,
+    values: Number | Sequence[Number],
     percent: Number,
 ) -> list[Reaction]:
     """Constrain reactions to a ``±percent/2`` band around measured values.
@@ -76,7 +76,7 @@ def set_variance_bounds(
     """
     rxns = _resolve(model, reactions)
     half = percent / 200.0
-    for rxn, v in zip(rxns, _broadcast(values, len(rxns))):
+    for rxn, v in zip(rxns, _broadcast(values, len(rxns)), strict=True):
         lo, hi = v * (1 - half), v * (1 + half)
         rxn.bounds = (hi, lo) if v < 0 else (lo, hi)
     return rxns

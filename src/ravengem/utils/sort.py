@@ -9,7 +9,7 @@ from __future__ import annotations
 import cobra
 
 
-def sort_identifiers(model: "cobra.Model") -> "cobra.Model":
+def sort_identifiers(model: cobra.Model) -> cobra.Model:
     """Sort reactions, metabolites and genes alphabetically by ID, in place.
 
     Returns the same (mutated) model for convenience. Compartments are a plain

@@ -11,7 +11,6 @@ Requires the optional ``openpyxl`` dependency (``pip install ravengem[excel]``).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Union
 
 import cobra
 
@@ -29,7 +28,7 @@ def _miriam_string(annotation: dict, exclude: tuple[str, ...] = ()) -> str:
     return ";".join(parts)
 
 
-def _equation(rxn: "cobra.Reaction") -> str:
+def _equation(rxn: cobra.Reaction) -> str:
     """Human-readable equation in RAVEN ``name[comp]`` form."""
 
     def side(items):
@@ -43,7 +42,7 @@ def _equation(rxn: "cobra.Reaction") -> str:
     return f"{side(reactants)}{arrow}{side(products)}"
 
 
-def _ec_codes(rxn: "cobra.Reaction") -> str:
+def _ec_codes(rxn: cobra.Reaction) -> str:
     codes = rxn.annotation.get("ec-code", [])
     if isinstance(codes, str):
         codes = [codes]
@@ -51,7 +50,7 @@ def _ec_codes(rxn: "cobra.Reaction") -> str:
 
 
 def export_to_excel(
-    model: "cobra.Model", path: Union[str, Path], *, sort_ids: bool = False
+    model: cobra.Model, path: str | Path, *, sort_ids: bool = False
 ) -> None:
     """Write ``model`` to a RAVEN-format ``.xlsx`` file.
 

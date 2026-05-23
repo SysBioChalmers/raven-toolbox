@@ -13,8 +13,8 @@ A SIF line is ``source <tab> graph_type <tab> target1 <tab> target2 ...``.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping, Union
 
 import cobra
 
@@ -45,8 +45,8 @@ def _edges(model, graph_type):
 
 
 def export_model_to_sif(
-    model: "cobra.Model",
-    path: Union[str, Path],
+    model: cobra.Model,
+    path: str | Path,
     graph_type: str = "rc",
     *,
     reaction_labels: Mapping[str, str] | None = None,

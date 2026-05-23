@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import importlib.metadata as _md
 import platform
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Union
 
 import cobra
 
@@ -33,7 +33,7 @@ def _version(package: str) -> str:
         return "unknown"
 
 
-def _write_txt(model: "cobra.Model", path: Path) -> None:
+def _write_txt(model: cobra.Model, path: Path) -> None:
     """Single-file, human-readable reaction table (RAVEN exportForGit txt)."""
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("Rxn name\tFormula\tGene-reaction association\tLB\tUB\tObjective\n")
@@ -45,8 +45,8 @@ def _write_txt(model: "cobra.Model", path: Path) -> None:
 
 
 def export_for_git(
-    model: "cobra.Model",
-    path: Union[str, Path] = ".",
+    model: cobra.Model,
+    path: str | Path = ".",
     *,
     prefix: str = "model",
     formats: Iterable[str] = ("yml", "xml", "mat", "xlsx"),

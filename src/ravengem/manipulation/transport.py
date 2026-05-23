@@ -9,7 +9,7 @@ builds a ``-1 from / +1 to`` reaction with a sequential ``tr_0001`` ID.
 from __future__ import annotations
 
 import re
-from typing import Iterable, Union
+from collections.abc import Iterable
 
 import cobra
 from cobra import Metabolite, Reaction
@@ -17,7 +17,7 @@ from cobra import Metabolite, Reaction
 from ravengem.manipulation.add import _new_met_id
 
 
-def _transport_id_factory(model: "cobra.Model", prefix: str):
+def _transport_id_factory(model: cobra.Model, prefix: str):
     pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
     used = [int(m.group(1)) for r in model.reactions if (m := pattern.match(r.id))]
     counter = max(used) + 1 if used else 1
@@ -34,10 +34,10 @@ def _transport_id_factory(model: "cobra.Model", prefix: str):
 
 
 def add_transport_reactions(
-    model: "cobra.Model",
+    model: cobra.Model,
     from_compartment: str,
-    to_compartments: Union[str, Iterable[str]],
-    metabolite_names: Union[str, Iterable[str], None] = None,
+    to_compartments: str | Iterable[str],
+    metabolite_names: str | Iterable[str] | None = None,
     *,
     reversible: bool = True,
     only_to_existing: bool = True,

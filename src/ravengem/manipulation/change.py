@@ -18,7 +18,7 @@ implies a different reversibility — use a bounds setter for that.
 """
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 import cobra
 from cobra import Reaction
@@ -29,7 +29,7 @@ __all__ = ["change_reaction_equations", "change_gene_reaction_rules"]
 
 
 def change_reaction_equations(
-    model: "cobra.Model",
+    model: cobra.Model,
     equations: Mapping[str, str],
     *,
     mets_by: str = "id",
@@ -89,7 +89,7 @@ def change_reaction_equations(
 
 
 def change_gene_reaction_rules(
-    model: "cobra.Model",
+    model: cobra.Model,
     rules: Mapping[str, str],
     *,
     replace: bool = True,

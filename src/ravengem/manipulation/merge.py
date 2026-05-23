@@ -14,7 +14,7 @@ assembly, none of which is needed on ``cobra.Model``.
 from __future__ import annotations
 
 import copy
-from typing import Iterable
+from collections.abc import Iterable
 
 import cobra
 from cobra import Metabolite, Model, Reaction
@@ -33,11 +33,11 @@ def _unique_id(existing, base: str, suffix: str) -> str:
 
 
 def merge_models(
-    models: Iterable["cobra.Model"],
+    models: Iterable[cobra.Model],
     *,
     match_by: str = "name",
     track_origin: bool = True,
-) -> "cobra.Model":
+) -> cobra.Model:
     """Merge models into a single new model.
 
     Port of RAVEN ``mergeModels.m``.
