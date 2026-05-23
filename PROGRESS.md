@@ -154,7 +154,7 @@ Keyed to commits on `main`.
 | `53d94df` | Port exportModelToSIF as `export_model_to_sif` |
 | `8879b57` | Plan exportForGit + sortIdentifiers |
 | `5d4fef2` | Port exportToExcelFormat as `export_to_excel` (export only) |
-| _(pending)_ | Port sortIdentifiers + exportForGit (incl. xlsx) |
+| `df315ab` | Port sortIdentifiers + exportForGit (incl. xlsx) |
 
 ---
 
