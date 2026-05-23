@@ -8,6 +8,10 @@ from ravengem.reconstruction.kegg.download import (
     extract_kegg_dump,
     fetch_kegg_files,
 )
+from ravengem.reconstruction.kegg.organism import (
+    get_kegg_model_for_organism,
+    get_kegg_model_for_organism_from_artefacts,
+)
 from ravengem.reconstruction.kegg.parse import (
     KeggCompound,
     KeggKO,
@@ -31,6 +35,8 @@ __all__ = [
     "download_kegg_dump",
     "extract_kegg_dump",
     "fetch_kegg_files",
+    "get_kegg_model_for_organism",
+    "get_kegg_model_for_organism_from_artefacts",
     "parse_kegg_compounds",
     "parse_kegg_dump",
     "parse_kegg_kos",
