@@ -145,9 +145,31 @@ def test_unknown_organism_raises(artefacts):
         _build(artefacts, "zzz")
 
 
-def test_domain_mode_not_implemented(artefacts):
-    with pytest.raises(NotImplementedError, match="getPhylDist"):
+def test_domain_mode_needs_taxonomy(artefacts):
+    with pytest.raises(ValueError, match="taxonomy"):
         _build(artefacts, "eukaryotes")
+
+
+def test_domain_mode_keeps_all_domain_organisms(artefacts):
+    # Prokaryotes (bsu + eco) -> R00010 (bsu genes) and R00100 (eco gene).
+    model = _build(artefacts, "prokaryotes", taxonomy=DUMP / "taxonomy")
+    assert "R00010" in model.reactions
+    assert "R00100" in model.reactions
+    # Genes are organism-qualified in domain mode to stay distinct.
+    assert {g.id for g in model.reactions.get_by_id("R00010").genes} == {
+        "bsu:BSU31050",
+        "bsu:BSU31060",
+    }
+
+
+def test_domain_mode_eukaryotes(artefacts):
+    # Eukaryotes (hsa) -> R00010 via hsa:124/125; eco-only R00100 absent of genes
+    # but it is spontaneous, so kept without GPR.
+    model = _build(artefacts, "eukaryotes", taxonomy=DUMP / "taxonomy")
+    assert {g.id for g in model.reactions.get_by_id("R00010").genes} == {
+        "hsa:124",
+        "hsa:125",
+    }
 
 
 def test_from_artefacts_roundtrip(tmp_path):

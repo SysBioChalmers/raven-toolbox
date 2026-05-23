@@ -5,13 +5,19 @@ taken when no FASTA file is given). For an organism already annotated in KEGG it
 needs no homology search: take the organism's gene↔KO assignments, map KO→reaction
 against the gene-free reference model, OR-join the organism's genes into each
 reaction's GPR, and keep the reactions that end up with genes (plus spontaneous
-reactions, optionally). The HMM/FASTA path is step 3b.5.
+reactions, optionally). The HMM/FASTA path is step 3b.5 (:mod:`.query`).
 
 Consumes the 3b.2 artefacts: the gene-free reference ``cobra.Model`` plus the
 ``ko_reaction``, ``organism_gene_ko`` and ``rxn_flags`` tables. The KO→reaction
 mapping is taken from the ``ko_reaction`` table (a lossless published artefact)
 rather than from the reference model's annotations, so it does not depend on KEGG
 annotations surviving an SBML round-trip.
+
+Domain mode (``organism_id`` = ``"eukaryotes"``/``"prokaryotes"``) keeps the genes
+of every organism in that domain; it needs the KEGG ``taxonomy`` file. Unlike
+RAVEN, this uses the domain classification directly rather than the full
+``getPhylDist`` distance matrix — the matrix existed for per-organism HMM
+subsampling, which our fixed prok90/euk90 libraries (3b.3) make unnecessary.
 """
 from __future__ import annotations
 
@@ -20,18 +26,11 @@ from pathlib import Path
 import cobra
 import pandas as pd
 
+from ravengem.reconstruction.kegg.assemble import _DOMAINS, assemble_model_from_ko_genes
 from ravengem.reconstruction.kegg.parse import read_kegg_table
+from ravengem.reconstruction.kegg.taxonomy import organisms_in_domain
 
 _NOTE = "Included by get_kegg_model_for_organism (no HMMs)"
-_DOMAINS = {"eukaryotes", "prokaryotes"}
-
-
-def _flag_set(rxn_flags: pd.DataFrame | None, column: str) -> set[str]:
-    """Reaction ids whose ``column`` flag is truthy (handles bool or TSV strings)."""
-    if rxn_flags is None or column not in rxn_flags:
-        return set()
-    mask = rxn_flags[column].map(lambda v: str(v).strip().lower() in ("true", "1"))
-    return set(rxn_flags.loc[mask, "reaction"])
 
 
 def get_kegg_model_for_organism(
@@ -41,6 +40,7 @@ def get_kegg_model_for_organism(
     organism_gene_ko: pd.DataFrame,
     *,
     rxn_flags: pd.DataFrame | None = None,
+    taxonomy: str | Path | None = None,
     keep_spontaneous: bool = True,
     keep_undefined_stoich: bool = True,
     keep_incomplete: bool = True,
@@ -51,13 +51,16 @@ def get_kegg_model_for_organism(
     Parameters
     ----------
     organism_id
-        Three/four-letter KEGG organism code (e.g. ``"eco"``). Matched
-        case-insensitively against the ``organism`` column.
+        Three/four-letter KEGG organism code (e.g. ``"eco"``), or
+        ``"eukaryotes"``/``"prokaryotes"`` for a whole-domain model (requires
+        ``taxonomy``). Matched case-insensitively.
     reference_model
         The gene-free KEGG reference model (from :func:`build_reference_model`).
     ko_reaction, organism_gene_ko, rxn_flags
         The relational tables from :func:`build_kegg_tables` (or read back with
         :func:`read_kegg_table`).
+    taxonomy
+        Path to the KEGG ``taxonomy`` file; required only for domain mode.
     keep_spontaneous, keep_undefined_stoich, keep_incomplete, keep_general
         Quality filters (RAVEN's ``keep*``). A reaction flagged in ``rxn_flags``
         is dropped unless its keep flag is set; this takes precedence over having
@@ -72,63 +75,47 @@ def get_kegg_model_for_organism(
     """
     org = organism_id.lower()
     if org in _DOMAINS:
-        raise NotImplementedError(
-            "Domain-wide models ('eukaryotes'/'prokaryotes') need the "
-            "phylogenetic-distance table from getPhylDist (step 3b.5); not yet "
-            "implemented. Pass a species code such as 'eco'."
-        )
-    known = set(organism_gene_ko["organism"].str.lower())
-    if org not in known:
-        raise ValueError(
-            f"Organism '{organism_id}' has no genes in organism_gene_ko. "
-            f"Provide a KEGG species code present in the table."
-        )
+        if taxonomy is None:
+            raise ValueError(
+                f"Domain mode ({organism_id!r}) needs the KEGG taxonomy file; "
+                "pass taxonomy=."
+            )
+        members = organisms_in_domain(taxonomy, org)
+        rows = organism_gene_ko[organism_gene_ko["organism"].str.lower().isin(members)]
+    else:
+        known = set(organism_gene_ko["organism"].str.lower())
+        if org not in known:
+            raise ValueError(
+                f"Organism '{organism_id}' has no genes in organism_gene_ko. "
+                f"Provide a KEGG species code present in the table."
+            )
+        rows = organism_gene_ko[organism_gene_ko["organism"].str.lower() == org]
 
-    # reaction -> set of KOs (from the lossless table, not model annotations).
-    rxn_to_kos: dict[str, set[str]] = {}
-    for ko, rid in zip(ko_reaction["ko"], ko_reaction["reaction"], strict=True):
-        rxn_to_kos.setdefault(rid, set()).add(ko)
-
-    # KO -> this organism's genes.
-    sub = organism_gene_ko[organism_gene_ko["organism"].str.lower() == org]
     ko_to_genes: dict[str, list[str]] = {}
-    for ko, gene in zip(sub["ko"], sub["gene"], strict=True):
-        ko_to_genes.setdefault(ko, []).append(gene)
+    for org_code, gene, ko in zip(rows["organism"], rows["gene"], rows["ko"], strict=True):
+        # In domain mode genes from different organisms can share a bare id;
+        # qualify with the organism so they stay distinct.
+        gene_id = gene if org not in _DOMAINS else f"{org_code.lower()}:{gene}"
+        ko_to_genes.setdefault(ko, []).append(gene_id)
 
-    spontaneous = _flag_set(rxn_flags, "spontaneous")
-    drop_if = {
-        "undefined_stoich": (keep_undefined_stoich, _flag_set(rxn_flags, "undefined_stoich")),
-        "incomplete": (keep_incomplete, _flag_set(rxn_flags, "incomplete")),
-        "general": (keep_general, _flag_set(rxn_flags, "general")),
-    }
-
-    gpr_map: dict[str, list[str]] = {}
-    spontaneous_kept: set[str] = set()
-    for rxn in reference_model.reactions:
-        rid = rxn.id
-        # Quality filters first: a filtered-out reaction is dropped even if it
-        # would have genes (matches RAVEN's load-time pruning).
-        if any(not keep_flag and rid in flagged for keep_flag, flagged in drop_if.values()):
-            continue
-        genes = sorted({g for ko in rxn_to_kos.get(rid, ()) for g in ko_to_genes.get(ko, ())})
-        if genes:
-            gpr_map[rid] = genes
-        elif rid in spontaneous and keep_spontaneous:
-            spontaneous_kept.add(rid)
-
-    keep = set(gpr_map) | spontaneous_kept
-    model = reference_model.copy()
-    model.id = organism_id
-    model.name = f"Generated by get_kegg_model_for_organism for {organism_id}"
-    model.remove_reactions(
-        [r for r in model.reactions if r.id not in keep], remove_orphans=True
+    model, _ = assemble_model_from_ko_genes(
+        reference_model,
+        ko_reaction,
+        ko_to_genes,
+        rxn_flags=rxn_flags,
+        keep_spontaneous=keep_spontaneous,
+        keep_undefined_stoich=keep_undefined_stoich,
+        keep_incomplete=keep_incomplete,
+        keep_general=keep_general,
+        model_id=organism_id,
+        model_name=f"Generated by get_kegg_model_for_organism for {organism_id}",
+        note=_NOTE,
     )
-    for rid, genes in gpr_map.items():
-        model.reactions.get_by_id(rid).gene_reaction_rule = " or ".join(genes)
-    for rid in keep:
-        model.reactions.get_by_id(rid).notes["note"] = _NOTE
     for gene in model.genes:
-        gene.annotation["kegg.genes"] = f"{org}:{gene.id}"
+        # Species mode: bare gene id -> organism:gene. Domain mode: already
+        # organism-qualified.
+        value = gene.id if ":" in gene.id else f"{org}:{gene.id}"
+        gene.annotation["kegg.genes"] = value
     return model
 
 

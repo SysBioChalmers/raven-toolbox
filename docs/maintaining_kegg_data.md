@@ -115,3 +115,17 @@ finally concatenates and `hmmpress`-es them into a single `library.hmm` for fast
 skips KOs whose `.hmm` already exists, so it is resumable. The resulting
 libraries are published as version-pinned artefacts alongside the reference model
 and tables.
+
+## End-user paths (3b.4 / 3b.5)
+
+End users do **not** run the steps above — they fetch the published artefacts. Two
+runtime entry points build a draft model from them:
+
+- **3b.4 — species in KEGG** (`get_kegg_model_for_organism_from_artefacts`): no
+  binaries needed; uses the organism's KEGG gene↔KO annotations. Fully
+  cross-platform. `organism_id="prokaryotes"`/`"eukaryotes"` builds a whole-domain
+  model (pass `taxonomy=`).
+- **3b.5 — organism not in KEGG** (`get_kegg_model_from_sequences`): `hmmscan`-es a
+  proteome FASTA against the pressed `library.hmm`, so it needs **HMMER**
+  (`hmmscan`) — Linux/macOS or WSL2 (see the OS matrix). Tune assignment with
+  `cutoff`, `min_score_ratio_ko`, `min_score_ratio_g`.

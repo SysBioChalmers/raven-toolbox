@@ -31,6 +31,13 @@ from ravengem.reconstruction.kegg.parse import (
     read_kegg_table,
     write_kegg_tables,
 )
+from ravengem.reconstruction.kegg.query import (
+    assign_kos,
+    get_kegg_model_from_sequences,
+    get_kegg_model_from_sequences_with_artefacts,
+    parse_hmmscan_tblout,
+    run_hmmscan,
+)
 from ravengem.reconstruction.kegg.taxonomy import (
     organism_domains,
     organisms_in_domain,
@@ -41,6 +48,7 @@ __all__ = [
     "KeggCompound",
     "KeggKO",
     "KeggReaction",
+    "assign_kos",
     "build_hmm_library",
     "build_kegg_tables",
     "build_ko_fastas",
@@ -51,13 +59,17 @@ __all__ = [
     "fetch_kegg_files",
     "get_kegg_model_for_organism",
     "get_kegg_model_for_organism_from_artefacts",
+    "get_kegg_model_from_sequences",
+    "get_kegg_model_from_sequences_with_artefacts",
     "organism_domains",
     "organisms_in_domain",
+    "parse_hmmscan_tblout",
     "parse_kegg_compounds",
     "parse_kegg_dump",
     "parse_kegg_kos",
     "parse_kegg_reactions",
     "parse_taxonomy",
     "read_kegg_table",
+    "run_hmmscan",
     "write_kegg_tables",
 ]

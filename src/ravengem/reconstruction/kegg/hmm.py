@@ -143,8 +143,14 @@ def _mafft_cmd(mafft: str, inp: Path, threads: int) -> list[str]:
     return [mafft, "--auto", "--anysymbol", "--thread", str(threads), str(inp)]
 
 
-def _hmmbuild_cmd(hmmbuild: str, out_hmm: Path, aligned: Path, threads: int) -> list[str]:
-    return [hmmbuild, "--cpu", str(threads), str(out_hmm), str(aligned)]
+def _hmmbuild_cmd(
+    hmmbuild: str, out_hmm: Path, aligned: Path, threads: int, name: str | None = None
+) -> list[str]:
+    cmd = [hmmbuild, "--cpu", str(threads)]
+    if name:  # name the profile after its KO so hmmscan targets are KO ids
+        cmd += ["-n", name]
+    cmd += [str(out_hmm), str(aligned)]
+    return cmd
 
 
 def _run(cmd: list[str], *, stdout_path: Path | None = None) -> str:
@@ -204,7 +210,7 @@ def build_ko_hmm(
                     _mafft_cmd(resolve_binary("mafft", binary=mafft), clustered, threads),
                     stdout_path=aligned,
                 )
-        _run(_hmmbuild_cmd(hmmbuild, out_hmm, aligned, threads))
+        _run(_hmmbuild_cmd(hmmbuild, out_hmm, aligned, threads, name=out_hmm.stem))
     return out_hmm
 
 
