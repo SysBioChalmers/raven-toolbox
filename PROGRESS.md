@@ -163,6 +163,7 @@ Keyed to commits on `main`.
 | `5d4fef2` | Port exportToExcelFormat as `export_to_excel` (export only) |
 | `df315ab` | Port sortIdentifiers + exportForGit (incl. xlsx) |
 | `1b0e4a6` | Port KEGG dump parser (3b.2) → reference model + gzipped-TSV tables |
+| `17f7eb3` | Port KEGG download/arrange (3b.1) as pure-stdlib tooling |
 
 ---
 
