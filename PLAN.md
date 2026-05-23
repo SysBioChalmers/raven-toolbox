@@ -218,23 +218,33 @@ the BLAST wrappers and `get_model_from_homology`.
   bitscore ppos'`), parse tabular output → hits DataFrame. Detect binaries via `shutil.which`,
   clear error if missing.
 - **`run_diamond(...)`** (getDiamond) — same contract via DIAMOND (`diamond makedb`/`blastp`).
-- **`fetch_diamond()`** (new helper) — download DIAMOND's static binary into a cache dir, return
-  its path; used as the auto-resolve fallback so pip-only users need no conda.
+- **`ensure_binary("diamond"/"blastp", version=...)`** (shared `binaries.py`) — registry-driven
+  download of the version-pinned ZIP from ravengem releases into a cache; the auto-resolve fallback
+  used by all wrappers (generic across tools, not DIAMOND-specific).
 - **`blast_from_table(path_or_df, ...)`** (getBlastFromExcel) — accept a precomputed homology
   table (CSV/DataFrame), validate columns → hits DataFrame.
 
-*External tools & binary access (decided):* BLAST+/DIAMOND are compiled binaries — **no official
-pip wheels** (the PyPI names `diamond`/`blast` are *unrelated* packages; never depend on them).
-Strategy:
-- **DIAMOND-first** (single static binary, fast). **`fetch_diamond()`** helper/CLI downloads the
-  right DIAMOND static binary from its GitHub release into a `platformdirs` cache and returns the
-  path — the frictionless path for pip-only users (no conda needed).
-- **Flexible binary resolution** in every wrapper: explicit `binary=` arg → env var
-  (`RAVENGEM_DIAMOND` / `RAVENGEM_BLASTP`) → `shutil.which` (covers conda/apt/brew/system) → an
-  actionable error listing install options. So any install method works.
-- **bioconda** (`conda install -c bioconda diamond blast`) documented as *one* option, **not** the
-  primary install. No auto-fetch for BLAST+ (multi-binary suite) — point to conda/system there.
-No new pip deps (pandas comes via cobra; `platformdirs` is small/optional, only for the cache).
+*External tools & binary access (decided): a generic, version-pinned binary provisioner.*
+BLAST+/DIAMOND are compiled binaries — **no official pip wheels** (the PyPI names `diamond`/`blast`
+are *unrelated* packages; never depend on them). ravengem ships its own **version-pinned binaries as
+ZIPs attached to ravengem GitHub releases**, served through one shared module (not homology-specific —
+reused by KEGG 3b's HMMER, etc.). Lives in a top-level **`ravengem/binaries.py`** (or
+`ravengem/external/`):
+- **`ensure_binary(tool, version=None) -> Path`** — consult a **registry** mapping
+  `(tool, version, os, arch) → {url, sha256}` (urls = ravengem release assets); download the pinned
+  ZIP into a `platformdirs` cache, **verify SHA256**, `chmod +x`, return the path. Actionable error
+  (conda/manual options) if the `(os, arch)` combo isn't hosted.
+- **Resolution order in every wrapper:** explicit `binary=` arg → env var
+  (`RAVENGEM_DIAMOND` / `RAVENGEM_BLASTP` / ...) → `shutil.which` (system/conda/apt/brew) →
+  `ensure_binary` (fetch pinned ZIP) → error. So a pre-installed binary always wins; the bundle is
+  the zero-setup fallback.
+- Pins exact tool versions → **reproducible reconstruction**; uniform across diamond/blast+/future
+  tools. bioconda (`conda install -c bioconda diamond blast`) documented as *one* option, not primary.
+
+*Follow-ups this implies (tracked, not blocking 3a core):* a CI build/release pipeline to produce the
+per-OS/arch ZIPs (coverage = what we build: Linux x86-64 first; macOS/ARM/Windows as built); license
+compliance for redistribution (BLAST+ = US-gov public domain ✓; DIAMOND = GPLv3, ship licence/notice);
+published SHA256s. `platformdirs` becomes a (small) dependency for the cache dir.
 
 *Test strategy:* the **core (`get_model_from_homology` + `make_ortholog_hits` + tabular parsing) is
 tested without any external tool**; `run_blast`/`run_diamond` execution gets a `skipif`-guarded test
