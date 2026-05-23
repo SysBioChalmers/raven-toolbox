@@ -161,6 +161,7 @@ Keyed to commits on `main`.
 | `8879b57` | Plan exportForGit + sortIdentifiers |
 | `5d4fef2` | Port exportToExcelFormat as `export_to_excel` (export only) |
 | `df315ab` | Port sortIdentifiers + exportForGit (incl. xlsx) |
+| `1b0e4a6` | Port KEGG dump parser (3b.2) → reference model + gzipped-TSV tables |
 
 ---
 
