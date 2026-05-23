@@ -271,37 +271,41 @@ sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
 
 | Step | ravengem (proposed) | RAVEN | What it does |
 |---|---|---|---|
-| **3b.1 Download KEGG** | `download_kegg(dest, version=…)` | (REST/dump retrieval inside `getModelFromKEGG`) | Fetch reactions (equations/EC/KO links), compounds (formulas), KO list, and organism gene↔KO into a local `keggdb/` cache. **Decided: use the free KEGG REST API** (`rest.kegg.jp`) — verified to provide all of this (`get/rn:`, `get/cpd:`, `link/reaction/ko`, `list/organism`); **no (paid) FTP needed.** |
+| **3b.1 Obtain KEGG** (maintainer, paid FTP) | `download_kegg(dest, version)` (maintainer script) | bulk FTP dump | **Decided:** a maintainer with a **paid KEGG FTP subscription** pulls the full bulk dump (reactions/compounds/KOs/organism gene↔KO **and** all gene sequences) **once per KEGG release**. This feeds 3b.2 + 3b.3. End users never need a KEGG account/FTP/REST — they fetch the published ravengem artefacts (see Data access). |
 | **3b.2 Parse dump → KEGG reference model** | `parse_kegg_model(keggdb_dir, …) -> (cobra.Model, ko_map)` | `getModelFromKEGG` + `getRxnsFromKEGG`/`getMetsFromKEGG`/`getGenesFromKEGG` | Parse the dump into a reference KEGG `cobra.Model` plus the KO→reaction/gene mapping. Reusable across organisms; cache it. |
-| **3b.3 Construct HMMs** (build our own) | `construct_multi_fasta(...)` → `build_kegg_hmms(...)` | `constructMultiFasta` + align + `hmmbuild`/`hmmpress` | **We build the HMMs ourselves** (no KOfam, no third-party pre-built). Built from **all KEGG organisms** (every gene in each KO across the whole DB), organised as RAVEN does into **prok90 / euk90** libraries — split by domain and dereplicated at ~90 % identity (CD-HIT) — *not* a curated subset. Per KO: gather all member-gene sequences (`get/<org>:<gene>/aaseq`, free REST) → multi-FASTA → CD-HIT dereplicate → MAFFT align → `hmmbuild`/`hmmpress`. |
+| **3b.3 Construct HMMs** (maintainer, build our own) | `construct_multi_fasta(...)` → `build_kegg_hmms(...)` | `constructMultiFasta` + align + `hmmbuild`/`hmmpress` | **We build the HMMs ourselves** (no KOfam, no third-party pre-built), from **all KEGG organisms** (every gene in each KO across the whole DB) using the **paid-FTP bulk sequences** from 3b.1 — organised as RAVEN does into **prok90 / euk90** libraries (domain split, ~90 % CD-HIT dereplication), *not* a curated subset. Per KO: gather member-gene sequences → multi-FASTA → CD-HIT → MAFFT align → `hmmbuild`/`hmmpress`. Maintainer-side, once per KEGG release; output published as a ravengem artefact. |
 | **3b.4 Model for a KEGG species** | `get_kegg_model_for_organism(organism_id, kegg_model, …)` | `getKEGGModelForOrganism(organismID)` | Use KEGG's existing gene↔KO annotation for an organism already in KEGG — **no** homology search. |
 | **3b.5 Model by HMM sequence query** | `get_kegg_model_from_sequences(fasta, kegg_model, hmms, …)` | `getKEGGModelForOrganism(fastaFile)` | `hmmsearch` a proteome FASTA against the KO HMMs → assign KOs (score/phyl-dist cutoffs) → draft model. The de-novo path for organisms not in KEGG. |
 
 - **Inputs:** KEGG dump (3b.1); then either a KEGG `organism_id` (3b.4) or a proteome FASTA (3b.5).
-- **Data access (decided):** **free KEGG REST API** for everything — the model graph *and* the
-  per-KO protein sequences (`aaseq`) used to build our own HMMs. **No paid FTP; no KOfam; no
-  third-party pre-built HMMs.** REST is free for academic use (commercial → KEGG licence),
-  rate-limited (~3 req/s, `get` ≤10 entries/call) → **cache aggressively** in `keggdb/`.
-- **Scale (open — see below):** building from **all of KEGG** means harvesting *all* gene
-  sequences across *all* organisms via REST — millions of sequences, i.e. a long, resumable,
-  cached, rate-limited harvest (the reason bulk FTP/pre-built sets historically existed). Practical
-  model: a **maintainer builds the all-KEGG prok90/euk90 HMM library once** and publishes it as a
-  version-pinned **ravengem** asset (our own HMMs, via the data registry); end users fetch that, or
-  rebuild for reproducibility/newer KEGG. The per-organism `aaseq`/link harvest is cached so a build
-  can resume.
+- **Data access (decided):** a **maintainer** with a **paid KEGG FTP** account builds, **once per
+  KEGG release**, ravengem's own version-pinned artefacts: (i) the parsed KEGG **reference model** +
+  KO map (3b.2) and (ii) the **prok90/euk90 HMM library** built from all KEGG (3b.3). These are
+  published via the data/release registry (same mechanism as binaries). **End users just download
+  the pinned artefacts** — no KEGG account, no FTP, no REST, no per-user harvest. The REST API is
+  *not* used for bulk building (dropped — too slow/rate-limited for all of KEGG).
+- **⚠️ Licensing (open, must resolve before publishing):** KEGG content is copyrighted; a paid FTP
+  subscription grants *access*, not necessarily the right to **redistribute** KEGG-derived artefacts
+  publicly. Building HMMs/reference data is fine privately; *publishing* them as ravengem assets
+  needs confirmation of KEGG's redistribution terms. Options if redistribution isn't permitted:
+  ship only the HMM profiles (more transformative) and have users obtain the reference model from
+  their own KEGG access; or gate the artefacts behind a licence check. **Resolve with KEGG before
+  distributing.**
 - **External tools:** **HMMER** (`hmmbuild`/`hmmpress`/`hmmsearch`), an aligner (**MAFFT**), and
   optionally **CD-HIT** (identity dereplication) — all via the shared `binaries.py` `ensure_binary`
   registry (add `hmmer`/`mafft`/`cd-hit` bundles; same pattern as BLAST/DIAMOND in 3a).
   `getPhylDist` → `phylogenetic_distance` helper for 3b.5 score weighting.
 
 **Improvements to log:** split the overloaded `getKEGGModelForOrganism` (organism-vs-FASTA modes,
-~15 params) into the two clear entry points **3b.4 / 3b.5**; cache the parsed KEGG reference model
-(3b.2) and the REST downloads; HMMER/MAFFT/CD-HIT obtained via the same version-pinned binary
-registry as 3a.
+~15 params) into the two clear entry points **3b.4 / 3b.5**; ship version-pinned ravengem KEGG
+artefacts (reference model + HMMs) so end users need no KEGG access; HMMER/MAFFT/CD-HIT via the
+same version-pinned binary registry as 3a.
 
-*Build order:* 3b.2 (parse — testable against a tiny dump fixture) → 3b.4 (annotation mode, no
-HMM) → 3b.1 (download) → 3b.3 (HMM build/fetch) → 3b.5 (HMM query). Like 3a, the model-building
-core (3b.2/3b.4) is testable without any external tool; HMMER/REST steps sit behind `skipif`.
+*Two audiences:* **3b.1–3b.3 are maintainer build-time tools** (paid FTP, run once per KEGG
+release) producing published artefacts; **3b.4/3b.5 are the end-user runtime API** consuming those
+artefacts. *Build order:* 3b.2 (parse — testable against a tiny dump fixture) → 3b.4 (annotation
+mode, no tools) → 3b.3 (HMM build) → 3b.5 (HMM query). The model-building core (3b.2/3b.4) is
+testable against small fixtures with no external tools; HMMER steps sit behind `skipif`.
 
 #### 2.3c MetaCyc-based — `reconstruction/metacyc/`  *(Phase 3c)*
 Build a draft from **MetaCyc** reactions/pathways, and optionally reconcile it with a
