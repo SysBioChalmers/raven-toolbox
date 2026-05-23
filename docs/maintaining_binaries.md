@@ -207,12 +207,22 @@ Implications:
 
 ---
 
-## 7. Optional: a build helper
+## 7. Emitting the registry entry
 
-A small script (`scripts/build_binary_zip.sh`, to be added) can standardise
-steps 2–7: download upstream, extract only the needed executables, `strip`, add
-`LICENSE`, `zip -9 -j`, and print the SHA256 + a ready-to-paste registry snippet.
-Keeping it in `scripts/` makes version bumps a one-command, reproducible operation.
+After building the per-platform ZIPs (named `<bundle>-<version>-<os>-<arch>.zip`)
+and uploading them to the release, generate the `_REGISTRY` entry — checksums and
+URLs — with [`scripts/make_registry_snippet.py`](../scripts/README.md):
+
+```bash
+python scripts/make_registry_snippet.py binary --bundle blast --version 2.16.0 \
+    --provides blastp makeblastdb --dir zips \
+    --base-url https://github.com/ORG/ravengem/releases/download/blast-2.16.0
+```
+
+It prints the ready-to-paste `_REGISTRY["blast"]` block; its SHA256 helper is the
+same one `ensure_binary` verifies with, so the checksums always match. (Producing
+the minimal ZIPs themselves — download upstream, `strip`, `zip -9 -j`, add
+`LICENSE` per §3–§6 — is still a manual/per-tool step.)
 
 ---
 

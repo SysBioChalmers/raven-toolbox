@@ -117,6 +117,27 @@ skips KOs whose `.hmm` already exists, so it is resumable. The resulting
 libraries are published as version-pinned artefacts alongside the reference model
 and tables.
 
+## Building and publishing in one go
+
+[`scripts/build_kegg_artefacts.py`](../scripts/README.md) runs 3b.2 (+ 3b.3 with
+`--hmms`) and lays the output out as publishable assets (`<domain>.hmm` named for
+`ensure_kegg_hmm_library`):
+
+```bash
+python scripts/build_kegg_artefacts.py --keggdb keggdb --out artefacts --hmms --threads 8
+```
+
+Upload the contents of `artefacts/` to a release, then emit the registry entry for
+`ravengem.data._DATA_REGISTRY` with [`scripts/make_registry_snippet.py`](../scripts/README.md):
+
+```bash
+python scripts/make_registry_snippet.py data --dataset kegg --version kegg116 \
+    --dir artefacts --base-url https://github.com/ORG/ravengem/releases/download/kegg-data-kegg116
+```
+
+Paste the printed block into `_DATA_REGISTRY`; from then on `ensure_data` fetches
+and verifies the artefacts for end users automatically.
+
 ## End-user paths (3b.4 / 3b.5)
 
 End users do **not** run the steps above — the published artefacts are fetched and
