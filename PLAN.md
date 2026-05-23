@@ -218,11 +218,23 @@ the BLAST wrappers and `get_model_from_homology`.
   bitscore ppos'`), parse tabular output → hits DataFrame. Detect binaries via `shutil.which`,
   clear error if missing.
 - **`run_diamond(...)`** (getDiamond) — same contract via DIAMOND (`diamond makedb`/`blastp`).
+- **`fetch_diamond()`** (new helper) — download DIAMOND's static binary into a cache dir, return
+  its path; used as the auto-resolve fallback so pip-only users need no conda.
 - **`blast_from_table(path_or_df, ...)`** (getBlastFromExcel) — accept a precomputed homology
   table (CSV/DataFrame), validate columns → hits DataFrame.
 
-*External tools:* BLAST+/DIAMOND are system binaries (not pip), optional & detected at call time.
-No new pip deps (pandas comes via cobra).
+*External tools & binary access (decided):* BLAST+/DIAMOND are compiled binaries — **no official
+pip wheels** (the PyPI names `diamond`/`blast` are *unrelated* packages; never depend on them).
+Strategy:
+- **DIAMOND-first** (single static binary, fast). **`fetch_diamond()`** helper/CLI downloads the
+  right DIAMOND static binary from its GitHub release into a `platformdirs` cache and returns the
+  path — the frictionless path for pip-only users (no conda needed).
+- **Flexible binary resolution** in every wrapper: explicit `binary=` arg → env var
+  (`RAVENGEM_DIAMOND` / `RAVENGEM_BLASTP`) → `shutil.which` (covers conda/apt/brew/system) → an
+  actionable error listing install options. So any install method works.
+- **bioconda** (`conda install -c bioconda diamond blast`) documented as *one* option, **not** the
+  primary install. No auto-fetch for BLAST+ (multi-binary suite) — point to conda/system there.
+No new pip deps (pandas comes via cobra; `platformdirs` is small/optional, only for the cache).
 
 *Test strategy:* the **core (`get_model_from_homology` + `make_ortholog_hits` + tabular parsing) is
 tested without any external tool**; `run_blast`/`run_diamond` execution gets a `skipif`-guarded test
