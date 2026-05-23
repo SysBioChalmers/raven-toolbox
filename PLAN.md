@@ -272,9 +272,9 @@ sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
 | Step | ravengem (proposed) | RAVEN | What it does |
 |---|---|---|---|
 | **3b.1 Obtain KEGG** (maintainer, paid FTP) | `download_kegg(dest, version)` (maintainer script) | bulk FTP dump | **Decided:** a maintainer with a **paid KEGG FTP subscription** pulls the full bulk dump (reactions/compounds/KOs/organism gene↔KO **and** all gene sequences) **once per KEGG release**. This feeds 3b.2 + 3b.3. End users never need a KEGG account/FTP/REST — they fetch the published ravengem artefacts (see Data access). |
-| **3b.2 Parse dump → KEGG reference model** | `parse_kegg_model(keggdb_dir, …) -> (cobra.Model, ko_map)` | `getModelFromKEGG` + `getRxnsFromKEGG`/`getMetsFromKEGG`/`getGenesFromKEGG` | Parse the dump into a reference KEGG `cobra.Model` plus the KO→reaction/gene mapping. Reusable across organisms; cache it. |
+| **3b.2 Parse dump → reference model + tables** | `parse_kegg_model(keggdb_dir, …)` | `getModelFromKEGG` + `getRxnsFromKEGG`/`getMetsFromKEGG`/`getGenesFromKEGG` | Parse into a **gene-free** reference GEM (reactions + metabolites only) **and** the minimal SQLite tables (`ko_reaction`, `organism_gene_ko`, `phyl_dist`, KO names, reaction flags). Maintainer-side; published as artefacts. |
 | **3b.3 Construct HMMs** (maintainer, build our own) | `construct_multi_fasta(...)` → `build_kegg_hmms(...)` | `constructMultiFasta` + align + `hmmbuild`/`hmmpress` | **We build the HMMs ourselves** (no KOfam, no third-party pre-built), from **all KEGG organisms** (every gene in each KO across the whole DB) using the **paid-FTP bulk sequences** from 3b.1 — organised as RAVEN does into **prok90 / euk90** libraries (domain split, ~90 % CD-HIT dereplication), *not* a curated subset. Per KO: gather member-gene sequences → multi-FASTA → CD-HIT → MAFFT align → `hmmbuild`/`hmmpress`. Maintainer-side, once per KEGG release; output published as a ravengem artefact. |
-| **3b.4 Model for a KEGG species** | `get_kegg_model_for_organism(organism_id, kegg_model, …)` | `getKEGGModelForOrganism(organismID)` | Use KEGG's existing gene↔KO annotation for an organism already in KEGG — **no** homology search. |
+| **3b.4 Model for a KEGG species** | `get_kegg_model_for_organism(organism_id, …)` | `getKEGGModelForOrganism(organismID)` | For an organism already in KEGG: read its gene↔KO from `organism_gene_ko`, map KO→reaction, take those reactions from the gene-free reference GEM and **build the organism's GPRs** (genes added here). No homology search. |
 | **3b.5 Model by HMM sequence query** | `get_kegg_model_from_sequences(fasta, kegg_model, hmms, …)` | `getKEGGModelForOrganism(fastaFile)` | `hmmsearch` a proteome FASTA against the KO HMMs → assign KOs (score/phyl-dist cutoffs) → draft model. The de-novo path for organisms not in KEGG. |
 
 - **Inputs:** KEGG dump (3b.1); then either a KEGG `organism_id` (3b.4) or a proteome FASTA (3b.5).
@@ -284,25 +284,26 @@ sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
   published via the data/release registry (same mechanism as binaries). **End users just download
   the pinned artefacts** — no KEGG account, no FTP, no REST, no per-user harvest. The REST API is
   *not* used for bulk building (dropped — too slow/rate-limited for all of KEGG).
-- **⚠️ Licensing (open, must resolve before publishing):** KEGG content is copyrighted; a paid FTP
-  subscription grants *access*, not necessarily the right to **redistribute** KEGG-derived artefacts
-  publicly. Building HMMs/reference data is fine privately; *publishing* them as ravengem assets
-  needs confirmation of KEGG's redistribution terms. Options if redistribution isn't permitted:
-  ship only the HMM profiles (more transformative) and have users obtain the reference model from
-  their own KEGG access; or gate the artefacts behind a licence check. **Resolve with KEGG before
-  distributing.**
+- **Licensing (resolved ✅):** a KEGG **redistribution licence has been obtained**, so ravengem may
+  publish the KEGG-derived artefacts (reference model, SQLite tables, HMMs) as version-pinned
+  downloads. (Maintainer still uses the paid FTP subscription to build them once per release.)
 - **External tools:** **HMMER** (`hmmbuild`/`hmmpress`/`hmmsearch`), an aligner (**MAFFT**), and
   optionally **CD-HIT** (identity dereplication) — all via the shared `binaries.py` `ensure_binary`
   registry (add `hmmer`/`mafft`/`cd-hit` bundles; same pattern as BLAST/DIAMOND in 3a).
   `getPhylDist` → `phylogenetic_distance` helper for 3b.5 score weighting.
-- **Storage & distribution (decided):** **not** RAVEN's `.mat` structs. The parsed KEGG reference
-  is two artefacts: (i) relational tables (KO defs, KO↔reaction, reaction/compound props,
-  per-organism gene↔KO, phyl-dist) in **one indexed SQLite file** (stdlib, compact, per-organism
-  queryable without loading all) and (ii) the reference **GEM as a cobra file** (YAML/SBML, built
-  from the DB). Both — plus the prok90/euk90 **HMM library** — are **separate, version-pinned
-  downloads**, fetched on first use, SHA256-verified, cached in `platformdirs`, via an
-  **`ensure_data(...)`** registry mirroring `binaries.py`'s `ensure_binary`. **Not bundled in the
-  pip package** (size + KEGG licensing). Keeps the wheel small and license-clean.
+- **Storage & distribution (decided):** **not** RAVEN's `.mat` structs.
+  - **Reference GEM = gene-free** — only reactions + metabolites (the chemistry), **no genes/GPRs**
+    (organism genes number in the millions → would dwarf the model). Stored as a cobra file
+    (YAML/SBML). Per-organism GPRs are built at runtime (3b.4/3b.5) from the KO↔reaction +
+    organism gene↔KO tables.
+  - **SQLite tables = minimal** — store *only* what 3b.4/3b.5/HMM-build consume: `ko_reaction`
+    (KO↔reaction), `organism_gene_ko` (the large one; for 3b.4), `phyl_dist` (for 3b.5 weighting),
+    KO names, and reaction-quality flags (spontaneous/incomplete/general/undefined-stoich, for the
+    `keep*` filters). Nothing the functions don't use.
+  - **Distribution:** the gene-free reference GEM, the SQLite DB, and the prok90/euk90 **HMM
+    library** are **separate, version-pinned downloads** — fetched on first use, SHA256-verified,
+    cached in `platformdirs`, via an **`ensure_data(...)`** registry mirroring `binaries.py`'s
+    `ensure_binary`. **Not bundled in the pip wheel** (size). Redistribution is licensed (above).
 
 **Improvements to log:** split the overloaded `getKEGGModelForOrganism` (organism-vs-FASTA modes,
 ~15 params) into the two clear entry points **3b.4 / 3b.5**; ship version-pinned ravengem KEGG
