@@ -68,7 +68,7 @@ convenience wrappers or documentation mapping the old names.
 | `getIndexes` | `DictList.get_by_any` (mixed id/object/index→objects), `get_by_id`, `query` (name/regex), `index` (position). See §1b note — only the `name[comp]` resolver sliver is kept. |
 | `parseFormulas` | `metabolite.formula` / `elements` |
 | `deleteUnusedGenes` | `cobra.manipulation.prune_unused_metabolites`, `prune_unused_reactions` |
-| `sortIdentifiers`, `permuteModel` | native Python indexing / cobra DictList |
+| `permuteModel` | native Python indexing / cobra DictList (`sortIdentifiers` → planned `sort_identifiers`, §2.2) |
 
 **Verdict:** these collapse into cobrapy calls with no ergonomic loss. Capture them as a "migration
 cheatsheet" in the docs rather than as code. (Functions reclassified out of this list — `addRxns`,
@@ -163,7 +163,9 @@ cheatsheet). See §1b for per-function rationale and verdicts.
 | `readYAMLmodel`, `writeYAMLmodel` | **DONE** ✅ as `read_yaml_model`/`write_yaml_model` ([io/yaml.py](src/ravengem/io/yaml.py)). **Aligned to RAVEN commit `fa281a1`** (`feat/geckopy-compat-yaml`, in `/mnt/c/Work/GitHub/RAVEN`), whose writer emits **cobra's native `!!omap`**. Because the format *is* cobra's, cobra reads/writes the standard content **and the whole `annotation` block** (which holds `smiles`, `ec-code`, MIRIAM). This port adds only what cobra drops: (1) RAVEN-only **top-level per-entry keys** — `inchis`/`deltaG`/`metFrom`/`notes`(metNotes) on mets, `confidence_score`/`references`/`rxnFrom`/`deltaG`/`notes` on rxns, `protein` on genes — stashed in `.notes` on read, lifted to top-level on write; (2) model-level `version`, `metaData` provenance, and GECKO `ec-*`/`gecko_light` sections; (3) legacy files with id/name in `metaData`. Note vs the earlier port: `smiles` is **annotation** (cobra-owned), `inchis` is **top-level**, and the top-level `notes` **string** is handled (no longer crashes). |
 | `importExcelModel`, `SBMLFromExcel` | **DO NOT PORT** (per decision) — Excel *import* is not enabled in ravengem. |
 | `exportToExcelFormat` | Optional Excel *export* (`openpyxl`); export only, lower priority. |
-| `exportToTabDelimited`, `exportForGit` | Plain-text / git-friendly model dumps. |
+| `exportToTabDelimited` | **DO NOT PORT** — served the excluded Excel/tab importer; a generic table is a pandas one-liner (cheatsheet). |
+| `exportForGit` | **PLANNED** → `export_for_git(model, path, prefix, formats=("yml","xml","mat"), sub_dirs=True)`. Orchestrates the standard-GEM repo layout: `model/yml|xml|mat/<prefix>.<ext>` via `write_yaml_model` / `cobra.io.write_sbml_model` / `save_matlab_model`, plus `dependencies.txt` (python/cobra/ravengem versions via `importlib.metadata`). Drops `xlsx` + 5-file tab; optional single-file `.txt` reaction table. Sorts via `sort_identifiers` first. cobra has no repo-layout writer. |
+| `sortIdentifiers` | **PLANNED** (reclassified from cheatsheet) → `sort_identifiers(model)` in `utils/`: alphabetical `DictList.sort` of reactions/metabolites/genes (rebuilds the index); also a `sort_ids` option on `write_yaml_model` for diffable output. cobra has per-list sort but no model-wide call. |
 | `exportModelToSIF` | **DONE** ✅ as `export_model_to_sif` ([io/sif.py](src/ravengem/io/sif.py)) — Cytoscape SIF (`rc`/`rr`/`cc` graphs). cobra has no network export. |
 | `getToolboxVersion`, `getMD5Hash` | Provenance helpers. |
 
