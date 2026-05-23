@@ -273,17 +273,22 @@ sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
 |---|---|---|---|
 | **3b.1 Download KEGG** | `download_kegg(dest, version=…)` | (REST/dump retrieval inside `getModelFromKEGG`) | Fetch reactions (equations/EC/KO links), compounds (formulas), KO list, and organism gene↔KO into a local `keggdb/` cache. **Decided: use the free KEGG REST API** (`rest.kegg.jp`) — verified to provide all of this (`get/rn:`, `get/cpd:`, `link/reaction/ko`, `list/organism`); **no (paid) FTP needed.** |
 | **3b.2 Parse dump → KEGG reference model** | `parse_kegg_model(keggdb_dir, …) -> (cobra.Model, ko_map)` | `getModelFromKEGG` + `getRxnsFromKEGG`/`getMetsFromKEGG`/`getGenesFromKEGG` | Parse the dump into a reference KEGG `cobra.Model` plus the KO→reaction/gene mapping. Reusable across organisms; cache it. |
-| **3b.3 Construct HMMs** (build our own) | `construct_multi_fasta(...)` → `build_kegg_hmms(...)` | `constructMultiFasta` + align + `hmmbuild`/`hmmpress` | **We build the HMMs ourselves** (no KOfam, no pre-built download). For a configurable set of KEGG **reference organisms**: fetch gene↔KO links + protein sequences (`get/<org>:<gene>/aaseq`, free REST) → group into per-KO multi-FASTA → optional identity-dereplication (CD-HIT; the "90" in prok90/euk90) → multiple alignment (MAFFT) → `hmmbuild`/`hmmpress` → the `hmms/` library. Build-once, heavy; bounded by the reference-organism set. |
+| **3b.3 Construct HMMs** (build our own) | `construct_multi_fasta(...)` → `build_kegg_hmms(...)` | `constructMultiFasta` + align + `hmmbuild`/`hmmpress` | **We build the HMMs ourselves** (no KOfam, no third-party pre-built). Built from **all KEGG organisms** (every gene in each KO across the whole DB), organised as RAVEN does into **prok90 / euk90** libraries — split by domain and dereplicated at ~90 % identity (CD-HIT) — *not* a curated subset. Per KO: gather all member-gene sequences (`get/<org>:<gene>/aaseq`, free REST) → multi-FASTA → CD-HIT dereplicate → MAFFT align → `hmmbuild`/`hmmpress`. |
 | **3b.4 Model for a KEGG species** | `get_kegg_model_for_organism(organism_id, kegg_model, …)` | `getKEGGModelForOrganism(organismID)` | Use KEGG's existing gene↔KO annotation for an organism already in KEGG — **no** homology search. |
 | **3b.5 Model by HMM sequence query** | `get_kegg_model_from_sequences(fasta, kegg_model, hmms, …)` | `getKEGGModelForOrganism(fastaFile)` | `hmmsearch` a proteome FASTA against the KO HMMs → assign KOs (score/phyl-dist cutoffs) → draft model. The de-novo path for organisms not in KEGG. |
 
-- **Inputs:** KEGG dump (3b.1); a reference-organism set for HMM building (3b.3); then either a
-  KEGG `organism_id` (3b.4) or a proteome FASTA (3b.5).
+- **Inputs:** KEGG dump (3b.1); then either a KEGG `organism_id` (3b.4) or a proteome FASTA (3b.5).
 - **Data access (decided):** **free KEGG REST API** for everything — the model graph *and* the
   per-KO protein sequences (`aaseq`) used to build our own HMMs. **No paid FTP; no KOfam; no
-  pre-built HMM download.** REST is free for academic use (commercial → KEGG licence), rate-limited
-  (~3 req/s, `get` ≤10 entries/call) → **cache aggressively** in `keggdb/`. Building HMMs from the
-  full KEGG is large; scale is bounded by the chosen reference-organism set.
+  third-party pre-built HMMs.** REST is free for academic use (commercial → KEGG licence),
+  rate-limited (~3 req/s, `get` ≤10 entries/call) → **cache aggressively** in `keggdb/`.
+- **Scale (open — see below):** building from **all of KEGG** means harvesting *all* gene
+  sequences across *all* organisms via REST — millions of sequences, i.e. a long, resumable,
+  cached, rate-limited harvest (the reason bulk FTP/pre-built sets historically existed). Practical
+  model: a **maintainer builds the all-KEGG prok90/euk90 HMM library once** and publishes it as a
+  version-pinned **ravengem** asset (our own HMMs, via the data registry); end users fetch that, or
+  rebuild for reproducibility/newer KEGG. The per-organism `aaseq`/link harvest is cached so a build
+  can resume.
 - **External tools:** **HMMER** (`hmmbuild`/`hmmpress`/`hmmsearch`), an aligner (**MAFFT**), and
   optionally **CD-HIT** (identity dereplication) — all via the shared `binaries.py` `ensure_binary`
   registry (add `hmmer`/`mafft`/`cd-hit` bundles; same pattern as BLAST/DIAMOND in 3a).
