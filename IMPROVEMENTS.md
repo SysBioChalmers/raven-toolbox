@@ -16,6 +16,21 @@ Status legend: 💡 proposed · 🔨 implemented in ravengem · ⬆️ upstreame
 
 ---
 
+## getModelFromHomology (planned — Phase 3a)
+
+Detailed design + rationale in [docs/plan_get_model_from_homology.md](docs/plan_get_model_from_homology.md).
+Proposed *logic* improvements over RAVEN's algorithm (RAVEN's own comments flag several of these spots
+as uncertain).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| H1 | ERGONOMICS | ravengem 💡 + MATLAB RAVEN 💡 | 💡 | Split the overloaded `strictness` 1/2/3 into two orthogonal params: `bidirectional` (reciprocal hits) and `best_hits_only`. RBH = both true. Clearer; exposes all 4 combos. |
+| H2 | EFFICIENCY (robustness) | ravengem 💡 + MATLAB RAVEN 💡 | 💡 | Rewrite GPRs on the **cobra GPR AST**, not `regexprep` string substitution — eliminates partial-match hazards and the `OLD_… or` regex cleanup pass RAVEN needs. |
+| H3 | ERGONOMICS (correctness) | ravengem 💡 | 💡 | Explicit `complex_policy` (`keep`/`drop`/`flag`) for AND-subunits lacking an ortholog, with correct OR/AND AST semantics — replaces RAVEN's implicit, self-distrusted `OLD_`+regex mechanism. |
+| H4 | (correctness) | both 💡 | 💡 | Best-hit selection by **bitscore** (db-size-independent, the RBH standard) instead of E-value only. |
+| H5 | EFFICIENCY | ravengem 💡 | 💡 | DataFrame ortholog map (pandas merge + dict) replaces `allGenes`/`allTo`/`allFrom` sparse-matrix `sub2ind` index juggling. |
+| H6 | NEW | ravengem 💡 | 💡 | Structured provenance: per reaction, supporting template + ortholog pairs; returned `gene_map`. |
+
 ## addRxns
 
 RAVEN `core/addRxns.m` — add reactions from equation strings (or mets+coeffs), auto-creating

@@ -207,12 +207,13 @@ the BLAST wrappers and `get_model_from_homology`.
 - **`make_ortholog_hits(ortholog_pairs, source_model_id, target_id)`** (makeFakeBlastStructure) —
   build a hits DataFrame from a predefined ortholog list, sentinel metrics (e=0, ident=100,
   len=1000) so all pass filters. Pure Python — the testing/seeding entry point.
-- **`get_model_from_homology(models, hits, model_for, *, preferred_order=None, strictness=1,
-  only_genes_in_models=False, max_evalue=1e-30, min_align_len=200, min_identity=40,
-  map_new_to_old=True)`** (getModelFromHomology) — filter hits, resolve the target↔template gene
-  mapping per `strictness`, transfer reactions from the (importance-ordered) template models whose
-  genes have orthologs, remapping GPRs to target genes. Pure Python on `cobra.Model`; reuses the
-  reaction-transfer/merge ideas from §1b. **Fully testable via `make_ortholog_hits`** (no BLAST).
+- **`get_model_from_homology(...)`** (getModelFromHomology) — the core: filter hits, build the
+  ortholog map, rewrite GPRs, transfer reactions, merge templates by name[comp]. **Detailed design +
+  proposed logic improvements in [docs/plan_get_model_from_homology.md](docs/plan_get_model_from_homology.md)**
+  (clearer `bidirectional`/`best_hits_only` params replacing the overloaded `strictness`; **AST-based**
+  GPR rewriting instead of regex; explicit `complex_policy` for unmapped AND-subunits; bitscore-based
+  best hits; DataFrame ortholog map; provenance). Pure Python on `cobra.Model`; reuses §1b
+  reaction-transfer/merge. **Fully testable via `make_ortholog_hits`** (no BLAST).
 - **`run_blast(organism_id, fasta, model_ids, ref_fastas, *, evalue=1e-5)`** (getBlast) — bidirectional
   BLAST+ via `subprocess` (`makeblastdb` + `blastp -outfmt 6 'qseqid sseqid evalue length pident
   bitscore ppos'`), parse tabular output → hits DataFrame. Detect binaries via `shutil.which`,
