@@ -295,6 +295,14 @@ sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
   optionally **CD-HIT** (identity dereplication) — all via the shared `binaries.py` `ensure_binary`
   registry (add `hmmer`/`mafft`/`cd-hit` bundles; same pattern as BLAST/DIAMOND in 3a).
   `getPhylDist` → `phylogenetic_distance` helper for 3b.5 score weighting.
+- **Storage & distribution (decided):** **not** RAVEN's `.mat` structs. The parsed KEGG reference
+  is two artefacts: (i) relational tables (KO defs, KO↔reaction, reaction/compound props,
+  per-organism gene↔KO, phyl-dist) in **one indexed SQLite file** (stdlib, compact, per-organism
+  queryable without loading all) and (ii) the reference **GEM as a cobra file** (YAML/SBML, built
+  from the DB). Both — plus the prok90/euk90 **HMM library** — are **separate, version-pinned
+  downloads**, fetched on first use, SHA256-verified, cached in `platformdirs`, via an
+  **`ensure_data(...)`** registry mirroring `binaries.py`'s `ensure_binary`. **Not bundled in the
+  pip package** (size + KEGG licensing). Keeps the wheel small and license-clean.
 
 **Improvements to log:** split the overloaded `getKEGGModelForOrganism` (organism-vs-FASTA modes,
 ~15 params) into the two clear entry points **3b.4 / 3b.5**; ship version-pinned ravengem KEGG
