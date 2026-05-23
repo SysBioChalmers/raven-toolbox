@@ -172,6 +172,7 @@ Keyed to commits on `main`.
 | `217a367` | Port KEGG HMM-query path (3b.5) + domain mode; Phase 3b complete |
 | `33d13c1` | Stream organism_gene_ko (real-data memory fix); 3b validated end-to-end on real KEGG dump |
 | `16d1ef4` | Reference model as gzipped YAML; implement ensure_data artefact fetch/cache |
+| `44ea6b5` | Add maintainer scripts: build KEGG artefacts + emit registry snippets |
 
 ---
 
