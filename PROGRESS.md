@@ -168,6 +168,7 @@ Keyed to commits on `main`.
 | `17f7eb3` | Port KEGG download/arrange (3b.1) as pure-stdlib tooling |
 | `a61beb7` | Port KEGG model-for-species (3b.4) |
 | `9d6f0af` | Port KEGG HMM-library construction (3b.3) |
+| `217a367` | Port KEGG HMM-query path (3b.5) + domain mode; Phase 3b complete |
 
 ---
 
