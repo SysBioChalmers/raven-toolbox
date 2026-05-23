@@ -296,11 +296,18 @@ sub-folders (`keggdb` / `fasta` / `aligned` / `hmms`).
     (organism genes number in the millions → would dwarf the model). Stored as a cobra file
     (YAML/SBML). Per-organism GPRs are built at runtime (3b.4/3b.5) from the KO↔reaction +
     organism gene↔KO tables.
-  - **SQLite tables = minimal** — store *only* what 3b.4/3b.5/HMM-build consume: `ko_reaction`
-    (KO↔reaction), `organism_gene_ko` (the large one; for 3b.4), `phyl_dist` (for 3b.5 weighting),
-    KO names, and reaction-quality flags (spontaneous/incomplete/general/undefined-stoich, for the
-    `keep*` filters). Nothing the functions don't use.
-  - **Distribution:** the gene-free reference GEM, the SQLite DB, and the prok90/euk90 **HMM
+  - **Relational tables = minimal, stored as gzipped TSV** — store *only* what 3b.4/3b.5/HMM-build
+    consume: `ko_reaction` (KO↔reaction), `organism_gene_ko` (the large one; for 3b.4), `phyl_dist`
+    (for 3b.5 weighting), KO names, and reaction-quality flags (spontaneous/incomplete/general/
+    undefined-stoich, for the `keep*` filters). Nothing the functions don't use. **Format = gzipped
+    TSV** (`.tsv.gz`), partitioned per organism for the large `organism_gene_ko` table. This
+    supersedes the earlier SQLite/Parquet idea: gzipped TSV is the **dependency-free cross-language
+    format** — pandas reads/writes it with **no extra package** (`read_csv`/`to_csv`,
+    `compression="gzip"` built in) and MATLAB reads it natively (`readtable`, no toolbox). SQLite
+    would need MATLAB's Database Toolbox; Parquet would need `pyarrow`/`fastparquet` on the Python
+    side. See [docs/kegg_data_format.md](docs/kegg_data_format.md) for the rationale and the future
+    options (Parquet/SQLite) we may revisit if a table grows large enough to justify the dependency.
+  - **Distribution:** the gene-free reference GEM, the gzipped-TSV tables, and the prok90/euk90 **HMM
     library** are **separate, version-pinned downloads** — fetched on first use, SHA256-verified,
     cached in `platformdirs`, via an **`ensure_data(...)`** registry mirroring `binaries.py`'s
     `ensure_binary`. **Not bundled in the pip wheel** (size). Redistribution is licensed (above).
