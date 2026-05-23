@@ -26,7 +26,7 @@ as uncertain).
 |---|---|---|---|---|
 | H1 | ERGONOMICS | ravengem 💡 + MATLAB RAVEN 💡 | 💡 | Split the overloaded `strictness` 1/2/3 into two orthogonal params: `bidirectional` (reciprocal hits) and `best_hits_only`. RBH = both true. Clearer; exposes all 4 combos. |
 | H2 | EFFICIENCY (robustness) | ravengem 💡 + MATLAB RAVEN 💡 | 💡 | Rewrite GPRs on the **cobra GPR AST**, not `regexprep` string substitution — eliminates partial-match hazards and the `OLD_… or` regex cleanup pass RAVEN needs. |
-| H3 | ERGONOMICS (correctness) | ravengem 💡 | 💡 | Explicit `complex_policy` (`keep`/`drop`/`flag`) for AND-subunits lacking an ortholog, with correct OR/AND AST semantics — replaces RAVEN's implicit, self-distrusted `OLD_`+regex mechanism. |
+| H3 | ERGONOMICS (correctness) | ravengem 💡 | 💡 | Explicit `complex_policy` (default **`flag`** = RAVEN-compatible `OLD_`; plus `keep`/`drop`) for AND-subunits lacking an ortholog, done via correct OR/AND **AST** semantics — replaces RAVEN's implicit `OLD_`+regex mechanism even in flag mode. |
 | H4 | (correctness) | both 💡 | 💡 | Best-hit selection by **bitscore** (db-size-independent, the RBH standard) instead of E-value only. |
 | H5 | EFFICIENCY | ravengem 💡 | 💡 | DataFrame ortholog map (pandas merge + dict) replaces `allGenes`/`allTo`/`allFrom` sparse-matrix `sub2ind` index juggling. |
 | H6 | NEW | ravengem 💡 | 💡 | Structured provenance: per reaction, supporting template + ortholog pairs; returned `gene_map`. |

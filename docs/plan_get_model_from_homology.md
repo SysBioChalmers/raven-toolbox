@@ -57,7 +57,8 @@ def get_model_from_homology(
     best_hits_only=False,       # keep only best-scoring hit per gene first  [improvement A]
     map_direction="new_to_old", # used only when bidirectional=False
     score="bitscore",           # best-hit criterion: "bitscore" | "evalue" [improvement D]
-    complex_policy="keep",      # AND-subunits lacking orthologs: keep|drop|flag [improvement C]
+    complex_policy="flag",      # AND-subunits lacking orthologs: flag|keep|drop [improvement C]
+                                # default "flag" = RAVEN-compatible (OLD_<model>_<gene>)
     only_genes_in_models=False,
     max_evalue=1e-30, min_align_len=200, min_identity=40,
 ) -> HomologyResult            # .model + .gene_map + .reaction_sources  [improvement F]
@@ -99,13 +100,15 @@ testable without BLAST.
 (1/2/3) and default `complex_policy="flag"` *iff* `strictness` is passed, so legacy calls reproduce
 RAVEN behaviour; otherwise use the clearer defaults above.
 
-## 5. Open question for review
+## 5. Resolved: `complex_policy` default
 
-**`complex_policy` default.** Biologically: for an enzyme **complex** (AND) where a subunit has
-no ortholog, is the reaction (a) still transferred assuming the function carries over (`keep`,
-optimistic — common for draft reconstructions), (b) dropped as unsupported (`drop`, conservative),
-or (c) kept-but-flagged (`flag`, RAVEN's `OLD_` behaviour)? Proposed default **`keep`** (cleanest,
-most-permissive draft), with `flag` for RAVEN parity. Worth a maintainer decision.
+**Decided: default `complex_policy="flag"`** (RAVEN-compatible) — for an AND-complex reaction with a
+subunit lacking an ortholog, keep the reaction and mark the missing subunit (`OLD_<model>_<gene>`),
+matching current RAVEN output. `keep` (drop the unmapped subunit) and `drop` (require a fully-mapped
+AND-clause) remain available for users wanting cleaner or higher-confidence drafts. Implementation
+note: even under `flag`, the GPR is rebuilt on the **AST** (improvement H2) — the `OLD_` marking and
+the removal of `OLD_` genes left in `or` branches are done as AST operations, not the regex passes
+RAVEN uses.
 
 ## 6. Test strategy
 
