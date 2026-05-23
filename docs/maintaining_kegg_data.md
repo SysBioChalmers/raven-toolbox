@@ -82,3 +82,32 @@ parse_kegg_dump("keggdb", "artefacts")
 This writes the gene-free reference model (`reference_model.xml`) and the
 relational tables as gzipped TSV. See [kegg_data_format.md](kegg_data_format.md)
 for what those tables contain and why they use gzipped TSV.
+
+## Step 3b.3 — build the HMM libraries
+
+Build the per-domain profile-HMM libraries that the de-novo query path (3b.5)
+searches. This needs **HMMER** (`hmmbuild`, `hmmpress`), **MAFFT**, and
+**CD-HIT** on `PATH` (or set `RAVENGEM_HMMBUILD` / `RAVENGEM_MAFFT` /
+`RAVENGEM_CDHIT`, etc.); install e.g. `conda install -c bioconda hmmer mafft cd-hit`.
+
+```python
+from ravengem.reconstruction.kegg import build_hmm_library, read_kegg_table
+
+organism_gene_ko = read_kegg_table("artefacts/organism_gene_ko.tsv.gz")
+for domain in ("prokaryotes", "eukaryotes"):
+    build_hmm_library(
+        organism_gene_ko,
+        "keggdb/genes.pep",      # proteomes from 3b.1
+        "keggdb/taxonomy",       # domain split, from 3b.1
+        f"hmms/{domain}",
+        domain=domain,
+    )
+```
+
+For each KO in the domain it gathers the member sequences, dereplicates with
+CD-HIT (~90 % identity), aligns with MAFFT, trains a profile with `hmmbuild`, and
+finally concatenates and `hmmpress`-es them into a single `library.hmm` for fast
+`hmmscan` querying. This is the slowest step (hours, once per KEGG release); it
+skips KOs whose `.hmm` already exists, so it is resumable. The resulting
+libraries are published as version-pinned artefacts alongside the reference model
+and tables.

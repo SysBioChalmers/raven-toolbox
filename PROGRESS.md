@@ -20,7 +20,7 @@ _Last updated: 2026-05-23_
 | 1 | Foundation (`utils/`, `manipulation/`) | 🟢 functions done; package pip-installable (own `.venv`); CI remains |
 | 2 | I/O (`io/`) | 🟢 done in scope — YAML/SIF/Excel-export/exportForGit (+sort_ids); Excel import excluded |
 | 3a | Reconstruction — homology (`reconstruction/homology/`) | 🟢 implemented (get_model_from_homology + BLAST/DIAMOND wrappers); binary ZIPs/CI pending |
-| 3b | Reconstruction — KEGG (`reconstruction/kegg/`) — 5-step pipeline: download → parse dump → build HMMs → model-for-species → model-by-HMM-query | 🟡 3b.1 (download/arrange) + 3b.2 (dump parser → reference model + tables) + 3b.4 (model for a KEGG species) done; 3b.3 (HMM build) / 3b.5 (HMM query + phyl-dist) pending |
+| 3b | Reconstruction — KEGG (`reconstruction/kegg/`) — 5-step pipeline: download → parse dump → build HMMs → model-for-species → model-by-HMM-query | 🟡 3b.1 (download) + 3b.2 (dump parser) + 3b.3 (HMM libraries) + 3b.4 (model for a KEGG species) done; 3b.5 (HMM query + phyl-dist) pending |
 | 3c | Reconstruction — MetaCyc (`reconstruction/metacyc/`) | ⬜ not started |
 | 4 | Context-specific & tasks (`tasks/`, `gapfilling/`, `init/`) | ⬜ not started |
 | 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | ⬜ not started |
@@ -61,7 +61,7 @@ Functions that exist as working, tested Python in ravengem.
 | `reconstruction/homology/blast.py` | `run_blast`, `run_diamond`, `blast_from_table` | `getBlast.m`/`getDiamond.m`/`getBlastFromExcel.m` | ✅ `tests/test_reconstruction_blast.py` | Subprocess wrappers → hits DataFrame; `blast_from_table` loads a CSV (no Excel). `run_blast` verified against installed BLAST+. |
 | `binaries.py` | `resolve_binary`, `ensure_binary` | `software/` provisioning | ✅ `tests/test_binaries.py` | Generic binary resolver (arg→env→PATH→bundled ZIP) + version-pinned release-ZIP registry (SHA256-verified cache). Registry empty until ZIPs published. |
 
-**Test status:** 250 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
+**Test status:** 266 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
 
 ---
 
@@ -78,7 +78,8 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | `reconstruction/kegg/download.py` | Download + arrange KEGG FTP dump, pure stdlib (`fetch_keggdb.sh`, step 3b.1) | 🟢 done |
 | `reconstruction/kegg/parse.py` | Parse KEGG dump → gene-free reference model + gzipped-TSV tables (`getRxnsFromKEGG`/`getMetsFromKEGG`/`getGenesFromKEGG`/`getModelFromKEGG`, step 3b.2) | 🟢 done |
 | `reconstruction/kegg/organism.py` | Build draft model for a KEGG species from artefacts (`getKEGGModelForOrganism` no-FASTA branch, step 3b.4) | 🟢 done |
-| `reconstruction/kegg/` (rest) | HMM build (3b.3) / HMM query + phyl-dist (3b.5) | ⬜ stub |
+| `reconstruction/kegg/hmm.py` + `taxonomy.py` | Per-KO multi-FASTA + CD-HIT/MAFFT/hmmbuild → prok90/euk90 pressed HMM libraries (`constructMultiFasta` + train stages, step 3b.3) | 🟢 done |
+| `reconstruction/kegg/` (rest) | HMM query + phyl-dist matrix (3b.5) | ⬜ stub |
 | `reconstruction/metacyc/` | MetaCyc-based draft + KEGG reconciliation (3c) | ⬜ stub |
 | `init/` | tINIT/ftINIT context extraction | ⬜ stub |
 | `tasks/` | metabolic task validation | ⬜ stub |

@@ -1,12 +1,18 @@
 """KEGG-based draft reconstruction (getKEGGModelForOrganism and friends).
 
-Maintainer-side build steps: 3b.1 download (:mod:`.download`) and 3b.2 dump
-parsing (:mod:`.parse`).
+Maintainer build steps: 3b.1 download (:mod:`.download`), 3b.2 dump parsing
+(:mod:`.parse`), 3b.3 HMM libraries (:mod:`.hmm`, :mod:`.taxonomy`). Runtime:
+3b.4 model for a KEGG species (:mod:`.organism`).
 """
 from ravengem.reconstruction.kegg.download import (
     download_kegg_dump,
     extract_kegg_dump,
     fetch_kegg_files,
+)
+from ravengem.reconstruction.kegg.hmm import (
+    build_hmm_library,
+    build_ko_fastas,
+    build_ko_hmm,
 )
 from ravengem.reconstruction.kegg.organism import (
     get_kegg_model_for_organism,
@@ -25,22 +31,33 @@ from ravengem.reconstruction.kegg.parse import (
     read_kegg_table,
     write_kegg_tables,
 )
+from ravengem.reconstruction.kegg.taxonomy import (
+    organism_domains,
+    organisms_in_domain,
+    parse_taxonomy,
+)
 
 __all__ = [
     "KeggCompound",
     "KeggKO",
     "KeggReaction",
+    "build_hmm_library",
     "build_kegg_tables",
+    "build_ko_fastas",
+    "build_ko_hmm",
     "build_reference_model",
     "download_kegg_dump",
     "extract_kegg_dump",
     "fetch_kegg_files",
     "get_kegg_model_for_organism",
     "get_kegg_model_for_organism_from_artefacts",
+    "organism_domains",
+    "organisms_in_domain",
     "parse_kegg_compounds",
     "parse_kegg_dump",
     "parse_kegg_kos",
     "parse_kegg_reactions",
+    "parse_taxonomy",
     "read_kegg_table",
     "write_kegg_tables",
 ]

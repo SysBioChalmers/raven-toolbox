@@ -31,11 +31,13 @@ implemented in `reconstruction/homology/homology.py`. *Logic* improvements over 
 | H5 | EFFICIENCY | ravengem 🔨 | 🔨 | DataFrame ortholog map (pandas merge + dict) replaces `allGenes`/`allTo`/`allFrom` sparse-matrix `sub2ind` index juggling. |
 | H6 | NEW | ravengem 🔨 | 🔨 | Structured provenance: `HomologyResult.gene_map` + per-reaction `notes['homology_source']`. |
 
-## KEGG download + dump parsing (Phase 3b.1 / 3b.2 — implemented)
+## KEGG download / dump parsing / HMM build (Phase 3b.1 / 3b.2 / 3b.3 — implemented)
 
 `fetch_keggdb.sh` → `reconstruction/kegg/download.py` (3b.1); parsing core of
 `getRxnsFromKEGG` / `getMetsFromKEGG` / `getGenesFromKEGG` / `getModelFromKEGG`
-→ `reconstruction/kegg/parse.py` (3b.2). Maintainer-side, build-time tooling (PLAN.md §2.3b).
+→ `reconstruction/kegg/parse.py` (3b.2); `constructMultiFasta` + the
+cluster/align/train stages of `getKEGGModelForOrganism` → `reconstruction/kegg/hmm.py`
+and `taxonomy.py` (3b.3). Maintainer-side, build-time tooling (PLAN.md §2.3b).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -44,6 +46,8 @@ implemented in `reconstruction/homology/homology.py`. *Logic* improvements over 
 | K3 | ERGONOMICS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | Reaction quality labels become a tidy boolean **`rxn_flags` table** (spontaneous/undefined-stoich/incomplete/general) instead of free-text appended to `rxnNotes`, so downstream filters join on a column rather than substring-matching notes. |
 | K4 | EFFICIENCY | ravengem 🔨 | 🔨 | **Gene-free reference model** + separate `organism_gene_ko` table (the big one), instead of RAVEN's giant `rxnGeneMat` baked into the global model. Per-organism GPRs are built only at runtime (3b.4/3b.5), keeping the published artefact small. |
 | K5 | EFFICIENCY (portability) | ravengem 🔨 | 🔨 | **KEGG download in pure Python stdlib** (`urllib`/`tarfile`/`gzip`/`netrc`), porting `fetch_keggdb.sh`. Drops the script's `wget`/`tar`/`gunzip` (and Cygwin-on-Windows) requirement, so it runs unchanged on Linux/macOS/Windows; tar extraction uses the `data` filter (no path traversal); same `~/.netrc` credential hygiene. The arrange step is split out (`extract_kegg_dump`) so it's network-free and unit-tested. |
+| K6 | EFFICIENCY | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Per-KO multi-FASTA via a stdlib offset index** (`_index_fasta` → seek), replacing `constructMultiFasta`'s Java-`Hashtable` byte scan with 5M-element preallocation. One streaming pass, only wanted ids retained; no MATLAB/Java heap tuning. |
+| K7 | EFFICIENCY | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Concatenate per-KO HMMs and `hmmpress` into one pressed library**, so the query path (3b.5) runs a single `hmmscan` against the database instead of RAVEN's thousands of per-KO `hmmsearch` invocations. |
 
 ## addRxns
 

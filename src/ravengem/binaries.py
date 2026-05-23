@@ -32,6 +32,12 @@ _ENV_VARS = {
     "diamond": "RAVENGEM_DIAMOND",
     "blastp": "RAVENGEM_BLASTP",
     "makeblastdb": "RAVENGEM_MAKEBLASTDB",
+    "hmmbuild": "RAVENGEM_HMMBUILD",
+    "hmmpress": "RAVENGEM_HMMPRESS",
+    "hmmsearch": "RAVENGEM_HMMSEARCH",
+    "hmmscan": "RAVENGEM_HMMSCAN",
+    "mafft": "RAVENGEM_MAFFT",
+    "cd-hit": "RAVENGEM_CDHIT",
 }
 
 
