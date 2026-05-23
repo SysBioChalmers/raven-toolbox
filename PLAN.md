@@ -241,6 +241,10 @@ reused by KEGG 3b's HMMER, etc.). Lives in a top-level **`ravengem/binaries.py`*
 - Pins exact tool versions → **reproducible reconstruction**; uniform across diamond/blast+/future
   tools. bioconda (`conda install -c bioconda diamond blast`) documented as *one* option, not primary.
 
+Maintainer workflow for updating versions and building minimal ZIPs is documented in
+[docs/maintaining_binaries.md](docs/maintaining_binaries.md) (registry format, asset naming, the
+exact executables to ship — BLAST+ = only `blastp`+`makeblastdb` — stripping/compression, licensing).
+
 *Follow-ups this implies (tracked, not blocking 3a core):* a CI build/release pipeline to produce the
 per-OS/arch ZIPs (coverage = what we build: Linux x86-64 first; macOS/ARM/Windows as built); license
 compliance for redistribution (BLAST+ = US-gov public domain ✓; DIAMOND = GPLv3, ship licence/notice);
