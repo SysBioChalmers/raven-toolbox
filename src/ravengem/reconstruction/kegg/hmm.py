@@ -266,22 +266,27 @@ def _run(cmd: list[str], *, stdout_path: Path | None = None) -> str:
 
 
 def _staged_run(
-    cmd: list[str], *, label: str, stage: str, verbose: bool, stdout_path: Path | None = None
-) -> str:
-    """Run a stage's command, logging which tool runs for which KO (when verbose).
+    cmd: list[str], *, label: str, stage: str, verbose: bool,
+    stdout_path: Path | None = None, log: bool = True,
+) -> float:
+    """Run a stage's command; log one completion line per stage (when verbose).
 
-    At INFO: ``[KO] stage: tool …`` before, and the elapsed time after. The tool's
-    own stderr (MAFFT/CD-HIT/hmmbuild progress) is logged at DEBUG.
+    At INFO (when ``log``): a single ``[KO] stage: done in X.Xs`` line — the
+    ``stage`` descriptor already names the tool/mode and any seq/res/cost context,
+    so the timing is just appended rather than repeated on a second line. The
+    tool's own stderr (MAFFT/CD-HIT/hmmbuild progress) is logged at DEBUG. Pass
+    ``log=False`` to suppress the line so the caller can fold the timing into its
+    own message. Returns the stage's wall-clock seconds.
     """
-    if verbose:
-        logger.info("[%s] %s: running %s", label, stage, Path(cmd[0]).name)
     start = time.perf_counter()
     stderr = _run(cmd, stdout_path=stdout_path)
+    elapsed = time.perf_counter() - start
     if verbose:
-        logger.info("[%s] %s: done in %.1fs", label, stage, time.perf_counter() - start)
+        if log:
+            logger.info("[%s] %s: done in %.1fs", label, stage, elapsed)
         if stderr.strip():
             logger.debug("[%s] %s output:\n%s", label, stage, stderr.strip())
-    return stderr
+    return elapsed
 
 
 def build_ko_hmm(
@@ -332,18 +337,22 @@ def build_ko_hmm(
             aligned = ko_fasta  # trivially aligned
         else:
             clustered = ko_fasta
+            cdhit_elapsed: float | None = None
             if seq_identity != -1:
                 clustered = tmp / "clustered.fa"
-                _staged_run(
+                cdhit_elapsed = _staged_run(
                     _cdhit_cmd(
                         resolve_binary("cd-hit", binary=cdhit), ko_fasta, clustered,
                         seq_identity, threads,
                     ),
-                    label=label, stage=f"CD-HIT ({seq_identity})", verbose=verbose,
+                    label=label, stage=f"CD-HIT ({seq_identity})", verbose=verbose, log=False,
                 )
             n_clustered, residues = _fasta_stats(clustered)
-            if verbose and seq_identity != -1:
-                logger.info("[%s] CD-HIT: %d -> %d sequences", label, n, n_clustered)
+            if verbose and cdhit_elapsed is not None:
+                logger.info(
+                    "[%s] CD-HIT (%s): %d -> %d sequences in %.1fs",
+                    label, seq_identity, n, n_clustered, cdhit_elapsed,
+                )
             aligned = tmp / "aligned.fa"
             if n_clustered == 1:
                 if verbose:

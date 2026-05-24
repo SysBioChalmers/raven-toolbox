@@ -193,7 +193,9 @@ def test_build_ko_hmm_verbose_logs_each_stage(tmp_path, monkeypatch, caplog):
     assert "[K01194] start: 2 sequences" in text
     assert "[K01194] CD-HIT" in text
     assert "[K01194] MAFFT" in text
-    assert "running hmmbuild" in text
+    assert "[K01194] hmmbuild: done in" in text
+    # Each stage is a single line: the tool/params and the timing together, not split.
+    assert "running" not in text
     assert "[K01194] complete" in text
 
 
