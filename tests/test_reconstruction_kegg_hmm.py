@@ -210,6 +210,49 @@ def test_build_ko_hmm_caps_before_mafft(tmp_path, monkeypatch):
     assert seen["mafft_input_seqs"] == 5  # capped from 20 -> 5 before MAFFT
 
 
+def test_build_ko_hmm_verbose_logs_each_stage(tmp_path, monkeypatch, caplog):
+    fasta = tmp_path / "K01194.fa"
+    fasta.write_text(">a\nMKV\n>b\nMRV\n")
+    monkeypatch.setattr(
+        "ravengem.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
+    )
+
+    def fake_run(cmd, *, stdout_path=None):
+        if stdout_path is not None:
+            Path(stdout_path).write_text(">a\nMKV\n>b\nMRV\n")
+        if Path(cmd[0]).name == "cd-hit":
+            Path(cmd[cmd.index("-o") + 1]).write_text(">a\nMKV\n>b\nMRV\n")
+        if Path(cmd[0]).name == "hmmbuild":
+            Path(cmd[-2]).write_text("HMM\n")
+        return ""
+
+    monkeypatch.setattr("ravengem.reconstruction.kegg.hmm._run", fake_run)
+    with caplog.at_level("INFO", logger="ravengem.reconstruction.kegg.hmm"):
+        build_ko_hmm(fasta, tmp_path / "K01194.hmm", verbose=True)
+    text = caplog.text
+    # Each stage is logged, labelled with the KO id.
+    assert "[K01194] start: 2 sequences" in text
+    assert "[K01194] CD-HIT" in text
+    assert "[K01194] MAFFT" in text
+    assert "running hmmbuild" in text
+    assert "[K01194] complete" in text
+
+
+def test_build_ko_hmm_quiet_by_default(tmp_path, monkeypatch, caplog):
+    fasta = tmp_path / "K9.fa"
+    fasta.write_text(">only\nMKV\n")
+    monkeypatch.setattr(
+        "ravengem.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
+    )
+    monkeypatch.setattr(
+        "ravengem.reconstruction.kegg.hmm._run",
+        lambda cmd, *, stdout_path=None: Path(cmd[-2]).write_text("HMM\n") and "",
+    )
+    with caplog.at_level("INFO", logger="ravengem.reconstruction.kegg.hmm"):
+        build_ko_hmm(fasta, tmp_path / "K9.hmm")  # verbose defaults False
+    assert caplog.text == ""
+
+
 def test_build_ko_hmm_empty_fasta_raises(tmp_path):
     fasta = tmp_path / "empty.fa"
     fasta.write_text("")

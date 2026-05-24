@@ -22,15 +22,19 @@ via :func:`ravengem.binaries.resolve_binary`.
 """
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import pandas as pd
 
 from ravengem.binaries import resolve_binary
 from ravengem.reconstruction.kegg.taxonomy import organisms_in_domain
+
+logger = logging.getLogger(__name__)
 
 
 # --------------------------------------------------------------------------- #
@@ -216,6 +220,25 @@ def _run(cmd: list[str], *, stdout_path: Path | None = None) -> str:
     return stderr
 
 
+def _staged_run(
+    cmd: list[str], *, label: str, stage: str, verbose: bool, stdout_path: Path | None = None
+) -> str:
+    """Run a stage's command, logging which tool runs for which KO (when verbose).
+
+    At INFO: ``[KO] stage: tool …`` before, and the elapsed time after. The tool's
+    own stderr (MAFFT/CD-HIT/hmmbuild progress) is logged at DEBUG.
+    """
+    if verbose:
+        logger.info("[%s] %s: running %s", label, stage, Path(cmd[0]).name)
+    start = time.perf_counter()
+    stderr = _run(cmd, stdout_path=stdout_path)
+    if verbose:
+        logger.info("[%s] %s: done in %.1fs", label, stage, time.perf_counter() - start)
+        if stderr.strip():
+            logger.debug("[%s] %s output:\n%s", label, stage, stderr.strip())
+    return stderr
+
+
 def build_ko_hmm(
     ko_fasta: str | Path,
     out_hmm: str | Path,
@@ -224,6 +247,7 @@ def build_ko_hmm(
     max_sequences: int | None = None,
     threads: int = 1,
     fast: bool = True,
+    verbose: bool = False,
     cdhit: str | Path | None = None,
     mafft: str | Path | None = None,
     hmmbuild: str | Path | None = None,
@@ -235,45 +259,71 @@ def build_ko_hmm(
     (evenly subsampled) to bound MAFFT time/memory on over-represented KOs.
     ``fast`` uses MAFFT FFT-NS-2 (fast progressive) rather than ``--auto``'s slow
     iterative refinement, switching to PartTree above :data:`_PARTTREE_THRESHOLD`
-    sequences. Returns ``out_hmm``.
+    sequences. ``verbose`` logs (via the ``logging`` module, INFO/DEBUG) which
+    tool is running for this KO, sequence counts at each stage, timings, and the
+    tools' own output. Returns ``out_hmm``.
     """
     ko_fasta = Path(ko_fasta)
     out_hmm = Path(out_hmm)
+    label = out_hmm.stem
     out_hmm.parent.mkdir(parents=True, exist_ok=True)
     n = _count_sequences(ko_fasta)
     if n == 0:
         raise ValueError(f"{ko_fasta} contains no sequences.")
+    if verbose:
+        logger.info("[%s] start: %d sequences", label, n)
 
     hmmbuild = resolve_binary("hmmbuild", binary=hmmbuild)
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         if n == 1:
+            if verbose:
+                logger.info("[%s] single sequence: skipping CD-HIT/MAFFT", label)
             aligned = ko_fasta  # trivially aligned
         else:
             clustered = ko_fasta
             if seq_identity != -1:
                 clustered = tmp / "clustered.fa"
-                _run(_cdhit_cmd(
-                    resolve_binary("cd-hit", binary=cdhit), ko_fasta, clustered,
-                    seq_identity, threads,
-                ))
+                _staged_run(
+                    _cdhit_cmd(
+                        resolve_binary("cd-hit", binary=cdhit), ko_fasta, clustered,
+                        seq_identity, threads,
+                    ),
+                    label=label, stage=f"CD-HIT ({seq_identity})", verbose=verbose,
+                )
             n_clustered = _count_sequences(clustered)
+            if verbose and seq_identity != -1:
+                logger.info("[%s] CD-HIT: %d -> %d sequences", label, n, n_clustered)
             if max_sequences and n_clustered > max_sequences:
                 capped = tmp / "capped.fa"
                 _subsample_fasta(clustered, capped, max_sequences)
+                if verbose:
+                    logger.info("[%s] capped %d -> %d sequences", label, n_clustered, max_sequences)
                 clustered, n_clustered = capped, max_sequences
             aligned = tmp / "aligned.fa"
             if n_clustered == 1:
+                if verbose:
+                    logger.info("[%s] one sequence after CD-HIT: skipping MAFFT", label)
                 shutil.copyfile(clustered, aligned)  # MAFFT can't align a single seq
             else:
-                _run(
+                parttree = n_clustered > _PARTTREE_THRESHOLD
+                _staged_run(
                     _mafft_cmd(
                         resolve_binary("mafft", binary=mafft), clustered, threads,
-                        fast=fast, parttree=n_clustered > _PARTTREE_THRESHOLD,
+                        fast=fast, parttree=parttree,
                     ),
+                    label=label,
+                    stage=f"MAFFT {'PartTree' if parttree else 'FFT-NS-2' if fast else 'auto'} "
+                    f"({n_clustered} seqs)",
+                    verbose=verbose,
                     stdout_path=aligned,
                 )
-        _run(_hmmbuild_cmd(hmmbuild, out_hmm, aligned, threads, name=out_hmm.stem))
+        _staged_run(
+            _hmmbuild_cmd(hmmbuild, out_hmm, aligned, threads, name=label),
+            label=label, stage="hmmbuild", verbose=verbose,
+        )
+    if verbose:
+        logger.info("[%s] complete -> %s", label, out_hmm)
     return out_hmm
 
 
@@ -291,6 +341,7 @@ def build_hmm_library(
     max_sequences: int | None = None,
     threads: int = 1,
     fast: bool = True,
+    verbose: bool = False,
     press: bool = True,
     cdhit: str | Path | None = None,
     mafft: str | Path | None = None,
@@ -324,7 +375,8 @@ def build_hmm_library(
         if not out_hmm.exists():
             build_ko_hmm(
                 fasta, out_hmm, seq_identity=seq_identity, max_sequences=max_sequences,
-                threads=threads, fast=fast, cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
+                threads=threads, fast=fast, verbose=verbose,
+                cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
             )
         hmms.append(out_hmm)
 
