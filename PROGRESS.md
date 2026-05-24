@@ -190,6 +190,7 @@ Keyed to commits on `main`.
 | `1f7a30e` | Finish tINIT (Phase 4c): GPR/RNA-seq scoring + get_init_model |
 | `1467cec` | Port Reporter Metabolites (Phase 5): reporter_metabolites |
 | `dcbed73` | Port + redesign FSEOF (Phase 5): fseof (regression, knockout targets, gene aggregation) |
+| `ea858fe` | Make MAFFT PartTree cutover length-aware (DP cost `n_seqs × mean_len²`), not residues-only |
 
 ---
 
