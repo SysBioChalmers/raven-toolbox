@@ -23,7 +23,7 @@ _Last updated: 2026-05-24_
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) — 5-step pipeline: download → parse dump → build HMMs → model-for-species → model-by-HMM-query | 🟢 all 5 steps done (3b.1 download, 3b.2 dump parser, 3b.3 HMM libraries, 3b.4 species model, 3b.5 HMM query). `getPhylDist` distance-matrix deliberately not ported (fixed prok90/euk90 libs make it moot). |
 | 3c | Reconstruction — MetaCyc | ❌ **dropped** (2026-05-24) — BLAST-to-single-representatives is low-precision at every cutoff; also to be removed from MATLAB RAVEN. See IMPROVEMENTS R-MetaCyc. |
 | 4 | Context-specific & tasks (`tasks/`, `init/` — tasks framework + tINIT/ftINIT) | ⬜ not started |
-| 4b | Gap-filling (`gapfilling/` — `fillGaps`) | 🟢 done — `fill_gaps` (connectivity) + `gapfill_to_objective` (targeted); MILP via cobra/optlang |
+| 4b | Gap-filling (`gapfilling/` — `fillGaps`) | 🟢 done — `connect_blocked_reactions` (connectivity, MILP via cobra/optlang); targeted mode → `cobra.gapfill` (cheatsheet) |
 | 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | ⬜ not started |
 | L | Localization (`localization/`) — its own phase (`predictLocalization` + WoLF scores) | ⬜ not started |
 | 6 | Visualization (`plotting/`) | ⬜ not started |
@@ -62,7 +62,7 @@ Functions that exist as working, tested Python in ravengem.
 | `reconstruction/homology/blast.py` | `run_blast`, `run_diamond`, `blast_from_table` | `getBlast.m`/`getDiamond.m`/`getBlastFromExcel.m` | ✅ `tests/test_reconstruction_blast.py` | Subprocess wrappers → hits DataFrame; `blast_from_table` loads a CSV (no Excel). `run_blast` verified against installed BLAST+. |
 | `binaries.py` | `resolve_binary`, `ensure_binary` | `software/` provisioning | ✅ `tests/test_binaries.py` | Generic binary resolver (arg→env→PATH→bundled ZIP) + version-pinned release-ZIP registry (SHA256-verified cache). Registry empty until ZIPs published. |
 
-**Test status:** 303 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
+**Test status:** 301 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
 
 ---
 
@@ -82,7 +82,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | `reconstruction/kegg/hmm.py` + `taxonomy.py` | Per-KO multi-FASTA + CD-HIT/MAFFT/hmmbuild → prok90/euk90 pressed HMM libraries (`constructMultiFasta` + train stages, step 3b.3) | 🟢 done |
 | `reconstruction/kegg/query.py` + `assemble.py` | HMM-query de-novo path: hmmscan → assign_kos (cutoff + score ratios) → shared model assembler (`getKEGGModelForOrganism` FASTA branch, step 3b.5) | 🟢 done |
 | `data.py` | `ensure_data` — fetch/verify/cache published artefacts (KEGG reference model + tables + HMM libs) under `~/.cache/ravengem/data/`, mirroring `ensure_binary`; auto-fetch wired into the `…_from_artefacts` entry points | 🟢 done (registry empty until published) |
-| `gapfilling/fill.py` | `fill_gaps` (connectivity) + `gapfill_to_objective` (targeted) | `fillGaps.m` | ✅ `tests/test_gapfilling.py` | Shared MILP (min penalty-weighted template reactions s.t. a requirement) via cobra/optlang. Connectivity mode has no cobra equivalent; targeted mode is name-matching `cobra.gapfill`. Templates matched by `name[comp]`. |
+| `gapfilling/fill.py` | `connect_blocked_reactions` | `fillGaps.m` (connectivity mode) | ✅ `tests/test_gapfilling.py` | MILP (min penalty-weighted template reactions s.t. blocked reactions carry flux) via cobra/optlang. No cobra equivalent. Templates matched by `name[comp]`. Targeted mode (fill toward objective) → `cobra.gapfill` (cheatsheet, §1). |
 | `init/` | tINIT/ftINIT context extraction | ⬜ stub |
 | `tasks/` | metabolic task validation | ⬜ stub |
 | `omics/` | HPA omics → reaction scores | ⬜ stub |

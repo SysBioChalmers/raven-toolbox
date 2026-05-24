@@ -1,23 +1,21 @@
-"""Template-based gap-filling (port of RAVEN ``fillGaps``).
+"""Connectivity gap-filling (the cobra-absent half of RAVEN ``fillGaps``).
 
-RAVEN's ``fillGaps`` has two modes. The **targeted** mode (``useModelConstraints=true`` —
-add the fewest template reactions so the model's own objective becomes feasible) is
-essentially ``cobra.flux_analysis.gapfill``; the **connectivity** mode
-(``useModelConstraints=false`` — add template reactions so reactions that are
-*blocked* in the draft can carry flux) has no cobra equivalent.
+RAVEN's ``fillGaps`` has two modes. The **targeted** mode
+(``useModelConstraints=true`` — add the fewest template reactions so the model's own
+objective becomes feasible) is ``cobra.flux_analysis.gapfill``; we do **not** wrap it
+(see the migration cheatsheet in PLAN.md — just align the template's metabolite ids to
+the draft first, since cobra matches by id). The **connectivity** mode
+(``useModelConstraints=false`` — add template reactions so reactions that are *blocked*
+in the draft can carry flux) has no cobra equivalent and is ported here as
+:func:`connect_blocked_reactions`.
 
-Both reduce to the same MILP: pick the minimum-penalty subset of template reactions
-such that a *requirement* is satisfiable at steady state. Only the requirement
-differs — forced flux through the blocked reactions (connectivity) vs. a lower bound
-on the objective (targeted). That shared core lives in :func:`_solve_min_templates`.
-
-Unlike ``cobra.gapfill``, template metabolites are matched to the draft by
-``name[compartment]`` (via :func:`add_reactions_from_model`), so templates in a
-different identifier namespace than the model still work — RAVEN matches by name too.
-
-Per-reaction ``scores`` (higher = prefer to include) map to RAVEN's ``rxnScores``;
-internally the MILP minimises the penalty ``-score`` (default penalty ``1.0``, i.e.
-minimise the number of reactions added).
+It solves an MILP: pick the minimum-penalty subset of template reactions such that the
+blocked (irreversible) draft reactions can carry flux at steady state. Template
+metabolites are matched to the draft by ``name[compartment]`` (via
+:func:`add_reactions_from_model`), so templates in a different identifier namespace
+than the model still work. Per-reaction ``scores`` (higher = prefer to include) map to
+RAVEN's ``rxnScores``; the MILP minimises the penalty ``-score`` (default penalty
+``1.0``, i.e. minimise the number of reactions added).
 """
 from __future__ import annotations
 
@@ -32,11 +30,11 @@ from ravengem.manipulation.transfer import add_reactions_from_model
 
 @dataclass
 class GapFillResult:
-    """Outcome of a gap-fill.
+    """Outcome of a connectivity gap-fill.
 
     ``added_reactions`` are the template reaction ids added to ``model``;
-    ``newly_connected`` are draft reactions that were blocked but can now carry flux
-    (connectivity mode); ``cannot_connect`` are blocked reactions left unconnectable.
+    ``newly_connected`` are draft reactions that were blocked but can now carry flux;
+    ``cannot_connect`` are blocked reactions left unconnectable.
     """
 
     added_reactions: list[str]
@@ -73,11 +71,11 @@ def _solve_min_templates(
     penalty: float,
     allow_net_production: bool,
 ) -> set[str] | None:
-    """MILP core: minimum-penalty template reactions making ``working`` feasible.
+    """MILP: minimum-penalty template reactions making ``working`` feasible.
 
-    The requirement (forced fluxes / objective bound) must already be imposed on
-    ``working``. Returns the set of template reaction ids to keep, or ``None`` if the
-    problem is infeasible.
+    The requirement (here, forced flux through the blocked reactions) must already be
+    imposed on ``working``. Returns the template reaction ids to keep, or ``None`` if
+    the problem is infeasible.
     """
     prob = working.problem
     indicators: dict[str, object] = {}
@@ -113,12 +111,12 @@ def _build_filled(model: cobra.Model, templates: list[cobra.Model], chosen: set[
     for template in templates:
         ids = [r for r in remaining if r in template.reactions]
         if ids:
-            add_reactions_from_model(filled, template, ids, genes=False, note="Added by fill_gaps")
+            add_reactions_from_model(filled, template, ids, genes=False, note="Added by connect_blocked_reactions")
             remaining -= set(ids)
     return filled
 
 
-def fill_gaps(
+def connect_blocked_reactions(
     model: cobra.Model,
     templates: cobra.Model | Iterable[cobra.Model],
     *,
@@ -127,13 +125,18 @@ def fill_gaps(
     allow_net_production: bool = False,
     eps: float = 1.0,
 ) -> GapFillResult:
-    """Connectivity gap-fill: add template reactions so blocked draft reactions carry flux.
+    """Add template reactions so blocked draft reactions can carry flux.
 
     Port of RAVEN ``fillGaps(..., useModelConstraints=false)``. Finds reactions that
-    cannot carry flux in ``model``, adds the minimum-penalty set of template reactions
-    that lets the (irreversible) ones carry flux, and returns the filled model. Like
-    RAVEN, only irreversible blocked reactions are forced — reversible ones can carry
-    flux trivially in the split formulation, so forcing them is uninformative.
+    cannot carry flux in ``model``, then adds the minimum-penalty set of template
+    reactions that lets the (irreversible) ones carry flux, and returns the filled
+    model. Like RAVEN, only irreversible blocked reactions are forced — reversible
+    ones can carry flux trivially in the split formulation, so forcing them is
+    uninformative.
+
+    (For the *other* RAVEN mode — adding reactions to make the model's objective
+    feasible — use ``cobra.flux_analysis.gapfill`` after aligning the template's
+    metabolite ids to the draft; see the PLAN.md cheatsheet.)
 
     The draft is expected to have exchange reactions for its nutrients (otherwise most
     reactions are trivially blocked).
@@ -165,40 +168,3 @@ def fill_gaps(
             "even with every template reaction added."
         )
     return GapFillResult(sorted(chosen), sorted(target), cannot, _build_filled(model, templates, chosen))
-
-
-def gapfill_to_objective(
-    model: cobra.Model,
-    templates: cobra.Model | Iterable[cobra.Model],
-    *,
-    lower_bound: float = 0.05,
-    scores: dict[str, float] | None = None,
-    penalty: float = 1.0,
-    allow_net_production: bool = False,
-) -> GapFillResult:
-    """Targeted gap-fill: add the fewest template reactions to meet the objective bound.
-
-    Port of RAVEN ``fillGaps(..., useModelConstraints=true)`` and the name-matching
-    analogue of ``cobra.flux_analysis.gapfill``: add the minimum-penalty set of
-    template reactions so ``model``'s objective can reach ``lower_bound`` (e.g. set the
-    objective to biomass and ``lower_bound>0`` to make biomass producible). Unlike
-    ``cobra.gapfill``, template metabolites are matched by ``name[compartment]``.
-    """
-    templates = _as_models(templates)
-    if model.slim_optimize(error_value=0.0) >= lower_bound:
-        return GapFillResult([], [], [], model.copy())  # already feasible
-
-    working, template_ids = _merge_templates(model, templates)
-    working.add_cons_vars(
-        working.problem.Constraint(working.objective.expression, lb=lower_bound, name="_gf_obj_req")
-    )
-    chosen = _solve_min_templates(
-        working, template_ids, scores=scores, penalty=penalty,
-        allow_net_production=allow_net_production,
-    )
-    if chosen is None:
-        raise RuntimeError(
-            f"Gap-filling is infeasible: the objective cannot reach {lower_bound} "
-            "even with every template reaction added."
-        )
-    return GapFillResult(sorted(chosen), [], [], _build_filled(model, templates, chosen))

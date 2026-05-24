@@ -56,6 +56,7 @@ convenience wrappers or documentation mapping the old names.
 | `addExchangeRxns` | `model.add_boundary(met, type="exchange" / "demand" / "sink")` |
 | `setParam` (`lb`/`ub`/`eq`/`obj`/`unc`) | `rxn.bounds = (lo, hi)` / `rxn.bounds = (v, v)` / `model.objective = {rxn: c}` / `rxn.bounds = cobra.Configuration().bounds`; loop for batch. (`var` band → `set_variance_bounds`.) |
 | `setExchangeBounds`, `getExchangeRxns` | `model.medium = {ex_id: uptake}` (sets uptake, closes others, handles direction); `model.exchanges` / `model.sinks` / `model.demands` |
+| `fillGaps` (`useModelConstraints=true`, fill toward the objective) | `cobra.flux_analysis.gapfill(model, universal, lower_bound=…, penalties=…)` — **align the template's metabolite ids to the draft first** (cobra matches by id; RAVEN matched by name). The *other* `fillGaps` mode (connectivity — unblock blocked reactions) has no cobra equivalent → `gapfilling.connect_blocked_reactions` (§4b). |
 | `simplifyModel` `deleteMinMax` | `model.remove_reactions(cobra.flux_analysis.find_blocked_reactions(model))` |
 | `simplifyModel` `deleteZeroInterval` | `model.remove_reactions([r for r in model.reactions if r.bounds == (0, 0)])` then `cobra.manipulation.prune_unused_metabolites` |
 | `editMiriam`, `extractMiriam` | `met.annotation["kegg.compound"] = "C00031"` / `met.annotation.get(...)` (annotation is a `{namespace: id(s)}` dict) |

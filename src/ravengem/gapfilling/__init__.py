@@ -1,12 +1,11 @@
-"""RAVEN template-based MILP gap-filling (port of ``fillGaps``, Phase 4b).
+"""RAVEN connectivity gap-filling (port of ``fillGaps``, Phase 4b).
 
-* :func:`fill_gaps` — connectivity gap-fill: add template reactions so blocked draft
-  reactions can carry flux (``fillGaps(..., useModelConstraints=false)``). No cobra
-  equivalent.
-* :func:`gapfill_to_objective` — targeted gap-fill to an objective lower bound
-  (``fillGaps(..., useModelConstraints=true)``); name-matching analogue of
-  ``cobra.flux_analysis.gapfill``.
+:func:`connect_blocked_reactions` adds the fewest (lowest-penalty) template reactions
+so reactions that are *blocked* in a draft can carry flux — RAVEN's
+``fillGaps(..., useModelConstraints=false)``, which has no cobra equivalent. The other
+RAVEN mode (fill to make the objective feasible) is ``cobra.flux_analysis.gapfill``
+(see the PLAN.md cheatsheet), so it is not re-wrapped here.
 """
-from ravengem.gapfilling.fill import GapFillResult, fill_gaps, gapfill_to_objective
+from ravengem.gapfilling.fill import GapFillResult, connect_blocked_reactions
 
-__all__ = ["GapFillResult", "fill_gaps", "gapfill_to_objective"]
+__all__ = ["GapFillResult", "connect_blocked_reactions"]

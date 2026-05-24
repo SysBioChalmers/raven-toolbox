@@ -1,8 +1,8 @@
-"""Tests for template-based gap-filling (gapfilling/fill.py, Phase 4b)."""
+"""Tests for connectivity gap-filling (gapfilling/fill.py, Phase 4b)."""
 import cobra
 import pytest
 
-from ravengem.gapfilling import GapFillResult, fill_gaps, gapfill_to_objective
+from ravengem.gapfilling import GapFillResult, connect_blocked_reactions
 
 
 def _met(mid):
@@ -41,7 +41,7 @@ def test_fill_gaps_connects_blocked_reaction(draft_and_template):
     draft, template = draft_and_template
     assert "r1" in cobra.flux_analysis.find_blocked_reactions(draft)  # precondition
 
-    res = fill_gaps(draft, template)
+    res = connect_blocked_reactions(draft, template)
     assert isinstance(res, GapFillResult)
     assert "r1" in res.newly_connected
     assert set(res.added_reactions) == {"r2", "EX_C"}  # both needed to drain B
@@ -50,7 +50,7 @@ def test_fill_gaps_connects_blocked_reaction(draft_and_template):
 
 def test_fill_gaps_returns_working_model_that_unblocks(draft_and_template):
     draft, template = draft_and_template
-    res = fill_gaps(draft, template)
+    res = connect_blocked_reactions(draft, template)
     assert {"r2", "EX_C"} <= {r.id for r in res.model.reactions}
     assert "r1" not in cobra.flux_analysis.find_blocked_reactions(res.model)
     # original draft is untouched
@@ -63,7 +63,7 @@ def test_fill_gaps_nothing_to_do_when_unblocked(draft_and_template):
     drain = cobra.Reaction("EX_B", lower_bound=-1000, upper_bound=1000)
     drain.add_metabolites({draft.metabolites.B_c: -1})
     draft.add_reactions([drain])
-    res = fill_gaps(draft, template)
+    res = connect_blocked_reactions(draft, template)
     assert res.added_reactions == []
     assert res.newly_connected == []
 
@@ -85,55 +85,25 @@ def test_fill_gaps_scores_prefer_higher_scored_reactions():
     template.add_reactions([d1, d2])
     # Scores are penalties (higher = preferred = cheaper to include); only one drain
     # is needed, so the less-penalised drain1 is chosen.
-    res = fill_gaps(draft, template, scores={"drain1": -1.0, "drain2": -5.0})
+    res = connect_blocked_reactions(draft, template, scores={"drain1": -1.0, "drain2": -5.0})
     assert res.added_reactions == ["drain1"]
 
 
-# --------------------------------------------------------------------------- #
-# Targeted (objective) gap-fill
-# --------------------------------------------------------------------------- #
-def test_gapfill_to_objective_adds_missing_reaction():
+def test_unconnectable_reaction_reported_not_added():
+    # A blocked irreversible reaction that no template can connect: reported, no adds.
     A, B = _met("A_c"), _met("B_c")
     draft = cobra.Model("draft")
     exa = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
     exa.add_metabolites({A: 1})
-    bio = cobra.Reaction("BIO", lower_bound=0, upper_bound=1000)
-    bio.add_metabolites({B: -1})
-    draft.add_reactions([exa, bio])
-    draft.objective = "BIO"  # gap: no A -> B
-    assert draft.slim_optimize(error_value=0.0) == 0.0  # infeasible objective
-
-    template = cobra.Model("t")
-    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
-    r1.add_metabolites({_met("A_c"): -1, _met("B_c"): 1})
-    template.add_reactions([r1])
-
-    res = gapfill_to_objective(draft, template, lower_bound=0.1)
-    assert res.added_reactions == ["r1"]
-    assert res.model.slim_optimize() >= 0.1
-
-
-def test_gapfill_to_objective_noop_when_already_feasible():
-    A, B = _met("A_c"), _met("B_c")
-    draft = cobra.Model("draft")
-    exa = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
-    exa.add_metabolites({A: 1})
-    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)  # A -> B, B has no drain
     r1.add_metabolites({A: -1, B: 1})
-    bio = cobra.Reaction("BIO", lower_bound=0, upper_bound=1000)
-    bio.add_metabolites({B: -1})
-    draft.add_reactions([exa, r1, bio])
-    draft.objective = "BIO"
-    res = gapfill_to_objective(draft, cobra.Model("t"), lower_bound=0.1)
+    draft.add_reactions([exa, r1])
+    template = cobra.Model("t")  # offers nothing that can drain B
+    noise = cobra.Reaction("noise", lower_bound=0, upper_bound=1000)
+    noise.add_metabolites({_met("X_c"): -1, _met("Y_c"): 1})
+    template.add_reactions([noise])
+
+    res = connect_blocked_reactions(draft, template)
     assert res.added_reactions == []
-
-
-def test_gapfill_to_objective_infeasible_raises():
-    A = _met("A_c")
-    draft = cobra.Model("draft")
-    bio = cobra.Reaction("BIO", lower_bound=0, upper_bound=1000)
-    bio.add_metabolites({A: -1})
-    draft.add_reactions([bio])
-    draft.objective = "BIO"  # no way to make A
-    with pytest.raises(RuntimeError, match="infeasible"):
-        gapfill_to_objective(draft, cobra.Model("empty"), lower_bound=0.1)
+    assert res.newly_connected == []
+    assert "r1" in res.cannot_connect

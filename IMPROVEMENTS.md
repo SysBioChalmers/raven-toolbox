@@ -101,14 +101,15 @@ and `taxonomy.py` (3b.3). Maintainer-side, build-time tooling (PLAN.md §2.3b).
 
 ## fillGaps (Phase 4b — implemented)
 
-RAVEN `core/fillGaps.m` → `gapfilling/fill.py` (`fill_gaps` connectivity mode +
-`gapfill_to_objective` targeted mode). MILP via cobra/optlang (GLPK).
+RAVEN `core/fillGaps.m`. Only the **connectivity** mode is ported, as
+`connect_blocked_reactions` ([gapfilling/fill.py](src/ravengem/gapfilling/fill.py)) —
+MILP via cobra/optlang (GLPK). RAVEN's other mode (fill to make the objective feasible)
+is `cobra.flux_analysis.gapfill` and is **cheatsheeted, not re-wrapped** (PLAN §1).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
-| GF1 | ERGONOMICS | ravengem 🔨 | 🔨 | **Two clear entry points** instead of `fillGaps`'s `useModelConstraints` boolean that silently flips between "make blocked reactions carry flux" and "satisfy the objective": `fill_gaps` (connectivity) and `gapfill_to_objective` (targeted). |
-| GF2 | NEW (vs cobra) | ravengem 🔨 | 🔨 | **Name-matching gap-fill.** `cobra.flux_analysis.gapfill` matches universal-model metabolites to the draft by **id**, so a template in a different namespace silently contributes nothing. Both entry points here add template reactions via `add_reactions_from_model` (match by `name[comp]`), so cross-namespace templates (e.g. KEGG draft + a BiGG template) work — as RAVEN's name-based merge does. |
-| GF3 | EFFICIENCY | ravengem 🔨 | 🔨 | **Shared MILP core** (`_solve_min_templates`): one formulation (min penalty-weighted template indicators s.t. a requirement) serves both modes; the requirement (forced fluxes vs. objective bound) is the only difference. |
+| GF1 | NEW (vs cobra) | ravengem 🔨 | 🔨 | **Connectivity gap-fill has no cobra equivalent**: add the minimum-penalty set of template reactions so *blocked* draft reactions can carry flux (cobra's `gapfill` only fills toward the objective). Ported as `connect_blocked_reactions` — a name that avoids confusion with `cobra.gapfill` and says what it does, vs RAVEN's overloaded `fillGaps(useModelConstraints=...)` boolean. |
+| GF2 | ERGONOMICS | ravengem 🔨 | 🔨 | **Templates matched by `name[comp]`** (via `add_reactions_from_model`), so a template in a different identifier namespace than the draft still contributes — as RAVEN's name-based merge does. (For the targeted `cobra.gapfill` path, ids must be aligned first, since cobra matches by id — noted in the cheatsheet.) |
 
 ## addRxns
 
