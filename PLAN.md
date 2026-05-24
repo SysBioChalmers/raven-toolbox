@@ -390,7 +390,8 @@ are small follow-ups if needed.
 |---|---|
 | `reporterMetabolites` | ✅ `reporter_metabolites` ([analysis/reporter.py](src/ravengem/analysis/reporter.py)) — exact closed-form background replaces RAVEN's Monte-Carlo (RM1). |
 | `parseHPA`, `parseHPArna`, `scoreModel` | HPA/RNA-seq → gene/reaction scores (feeds INIT). RNA-seq the common path; pending. |
-| `getFluxScanning` (FSEOF), dynamic FBA | Analysis tools; pending. |
+| `FSEOF` | ✅ `fseof` ([analysis/fseof.py](src/ravengem/analysis/fseof.py)) — redesigned output: regression slope+correlation, amplify/knockdown/knockout classes, gene aggregation (FS1–FS4). |
+| dynamic FBA | Analysis tool; pending. |
 
 ### 2.9 `localization/` — subcellular localization  *(Phase 7, self-contained)*
 A self-contained track (depends only on Phase 1, can be done anytime): predict subcellular

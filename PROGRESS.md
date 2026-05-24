@@ -26,7 +26,7 @@ _Last updated: 2026-05-24_
 | 4b | Gap-filling (`gapfilling/`) | 🟢 done — `connect_blocked_reactions` (connectivity, MILP via cobra/optlang); targeted mode → `cobra.gapfill` (cheatsheet) |
 | 4c | tINIT (`init/` — `runINIT` + `scoreComplexModel` + `getINITModel` core) | 🟢 done — `run_init` + `score_reactions_from_genes`/`gene_scores_from_expression` + `get_init_model`. HPA/single-cell ingestion → Phase 5; auto task-essential discovery + task gap-filling → 4d (pass `essential_rxns` for now). |
 | 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | ⬜ not started |
-| 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | 🟡 started — `reporter_metabolites` (`analysis/`) done; omics parsing / FSEOF / comparison pending |
+| 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | 🟡 started — `reporter_metabolites` + `fseof` (`analysis/`) done; omics parsing / dFBA / comparison pending |
 | 6 | Visualization (`plotting/`) | ⬜ not started |
 | 7 | Localization (`localization/`) — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …); self-contained | ⬜ not started |
 
@@ -64,7 +64,7 @@ Functions that exist as working, tested Python in ravengem.
 | `reconstruction/homology/blast.py` | `run_blast`, `run_diamond`, `blast_from_table` | `getBlast.m`/`getDiamond.m`/`getBlastFromExcel.m` | ✅ `tests/test_reconstruction_blast.py` | Subprocess wrappers → hits DataFrame; `blast_from_table` loads a CSV (no Excel). `run_blast` verified against installed BLAST+. |
 | `binaries.py` | `resolve_binary`, `ensure_binary` | `software/` provisioning | ✅ `tests/test_binaries.py` | Generic binary resolver (arg→env→PATH→bundled ZIP) + version-pinned release-ZIP registry (SHA256-verified cache). Registry empty until ZIPs published. |
 
-**Test status:** 336 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
+**Test status:** 341 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
 
 ---
 
@@ -93,7 +93,8 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | `omics/` | HPA omics → reaction scores | ⬜ stub |
 | `localization/` | subcellular localization (Phase 7) — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …) | ⬜ stub |
 | `analysis/reporter.py` | `reporter_metabolites` + `ReporterResult` | `reporterMetabolites.m` | ✅ `tests/test_analysis_reporter.py` | Reporter Metabolites (Patil & Nielsen): gene p-values → Z → per-met `Σz/√n` → background-corrected → p-value. **Exact closed-form background** (`(metZ−√n·μ)/σ`) replaces RAVEN's 100k-sample Monte Carlo (RM1): faster + deterministic. Returns DataFrame(s); up/down via fold changes. |
-| `analysis/` (rest) | FSEOF, dFBA | ⬜ stub |
+| `analysis/fseof.py` | `fseof` + `FSEOFResult` | `FSEOF.m` | ✅ `tests/test_analysis_fseof.py` | FSEOF redesigned: pFBA per step + **regression slope & correlation** (robust, replaces strict monotonicity); explicit **amplify / knockdown / knockout** classification (RAVEN reports only amplification); **gene-level aggregation**; full scan + DataFrames retained (FS1–FS4). |
+| `analysis/` (rest) | dFBA | ⬜ stub |
 | `comparison/` | multi-model comparison | ⬜ stub |
 | `plotting/` | pathway maps / omics overlay | ⬜ stub |
 

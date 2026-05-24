@@ -99,6 +99,18 @@ and `taxonomy.py` (3b.3). Maintainer-side, build-time tooling (PLAN.md §2.3b).
 | K12 | EFFICIENCY | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Fast MAFFT (FFT-NS-2) for HMM training** instead of RAVEN's `--auto`, which selects slow iterative refinement (`dvtditr`) on medium/large KOs — observed ~2.5 min/KO (days for a domain) on real KEGG 118. FFT-NS-2 (`--retree 2 --maxiterate 0`) is seconds/KO and ample for profile-HMM building. **PartTree cutover is residue-based and memory-auto-tuned**: MAFFT memory tracks residues (count × length), not sequence count, so a count threshold let long-protein KOs (K00901: 2,788 seqs, 2.55 M residues) OOM under FFT-NS-2 — measured ~5 GB MAFFT RSS with FFT-NS-2 vs **0.69 GB with PartTree** for the same alignment. The cutover uses residues only, and the budget is **derived from available RAM by inverting an empirically-measured FFT-NS-2 memory model**: peak RSS is super-linear, `RSS_GB ≈ 1.32·R² + 1.84·R` (R = M residues; measured on real KEGG sequences: 0.25/0.5/1.0/1.5 M → 0.67/1.25/3.16/5.73 GB). `_auto_residue_budget` solves that for the residue count fitting in 0.7 × (total − 2.5 GB overhead) — ~1.09 M on a 7.6 GB box, ~2.1 M @ 16 GB, ~5 M @ 64 GB — and **warns on low-memory hosts**. (A naive linear estimate gave 1.9 M here, which would have OOM'd.) Override via `parttree_residues` / `--parttree-residues`. Back-portable to RAVEN. |
 | K13 | EFFICIENCY | ravengem 🗑️ | 🗑️ | ~~Per-KO sequence cap (`max_sequences`)~~ — **removed.** Briefly added as a count-based cap, but the residue-based PartTree cutover (K12) bounds MAFFT memory without dropping any sequences, so the cap was redundant complexity. All deduplicated sequences are kept. |
 
+## FSEOF (Phase 5 — implemented, redesigned)
+
+RAVEN `core/FSEOF.m` → `analysis/fseof.py` (`fseof`). User was unhappy with RAVEN's
+output; redesigned substantially.
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| FS1 | CORRECTNESS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Robust trend via linear regression** (slope + correlation) over the whole scan, instead of RAVEN's strict step-by-step monotonicity that discards a target on a single noisy step (LP alternative optima). |r| is a quality score for filtering. pFBA per step keeps the scan stable. |
+| FS2 | NEW | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Reports knockdown/knockout targets**, not just amplification. RAVEN only flags reactions whose \|flux\| *rises* with the enforced product; reactions driven *toward zero* — the down-regulation/deletion candidates, arguably the most actionable — are classified here (`knockdown`/`knockout`). |
+| FS3 | ERGONOMICS | ravengem 🔨 | 🔨 | **Gene-level aggregation** (`gene_targets`) mapping reaction targets to genes, plus the **full flux scan** retained — all as DataFrames, vs RAVEN's printed TSV + endpoint-only slope. |
+| FS4 | CORRECTNESS | ravengem 🔨 | 🔨 | Slope is the **regression slope** consistent with the selection criterion, not RAVEN's endpoint difference that disagreed with its own monotonicity filter. |
+
 ## reporterMetabolites (Phase 5 — implemented)
 
 RAVEN `core/reporterMetabolites.m` → `analysis/reporter.py` (`reporter_metabolites`).
