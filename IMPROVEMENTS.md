@@ -99,6 +99,15 @@ and `taxonomy.py` (3b.3). Maintainer-side, build-time tooling (PLAN.md §2.3b).
 | K12 | EFFICIENCY | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Fast MAFFT (FFT-NS-2) for HMM training** instead of RAVEN's `--auto`, which selects slow iterative refinement (`dvtditr`) on medium/large KOs — observed ~2.5 min/KO (days for a domain) on real KEGG 118. FFT-NS-2 (`--retree 2 --maxiterate 0`) is seconds/KO and ample for profile-HMM building. **PartTree cutover is residue-based and memory-auto-tuned**: MAFFT memory tracks residues (count × length), not sequence count, so a count threshold let long-protein KOs (K00901: 2,788 seqs, 2.55 M residues) OOM under FFT-NS-2 — measured ~5 GB MAFFT RSS with FFT-NS-2 vs **0.69 GB with PartTree** for the same alignment. The cutover uses residues only, and the budget is **derived from available RAM by inverting an empirically-measured FFT-NS-2 memory model**: peak RSS is super-linear, `RSS_GB ≈ 1.32·R² + 1.84·R` (R = M residues; measured on real KEGG sequences: 0.25/0.5/1.0/1.5 M → 0.67/1.25/3.16/5.73 GB). `_auto_residue_budget` solves that for the residue count fitting in 0.7 × (total − 2.5 GB overhead) — ~1.09 M on a 7.6 GB box, ~2.1 M @ 16 GB, ~5 M @ 64 GB — and **warns on low-memory hosts**. (A naive linear estimate gave 1.9 M here, which would have OOM'd.) Override via `parttree_residues` / `--parttree-residues`. Back-portable to RAVEN. |
 | K13 | EFFICIENCY | ravengem 🗑️ | 🗑️ | ~~Per-KO sequence cap (`max_sequences`)~~ — **removed.** Briefly added as a count-based cap, but the residue-based PartTree cutover (K12) bounds MAFFT memory without dropping any sequences, so the cap was redundant complexity. All deduplicated sequences are kept. |
 
+## reporterMetabolites (Phase 5 — implemented)
+
+RAVEN `core/reporterMetabolites.m` → `analysis/reporter.py` (`reporter_metabolites`).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| RM1 | EFFICIENCY + CORRECTNESS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Exact closed-form background correction** instead of RAVEN's 100 000-random-set Monte Carlo *per neighbour-count*. RAVEN samples with replacement from the scored-gene Z pool, so a random aggregate `Σz/√n` provably has mean `√n·μ` and std `σ` — the corrected score is exactly `(metZ − √n·μ)/σ`. Removes the slow sampling **and** its run-to-run randomness (deterministic results); back-portable to RAVEN. |
+| RM2 | ERGONOMICS | ravengem 🔨 | 🔨 | Returns a sorted **DataFrame** per test (`all`/`up`/`down`) and takes gene→p-value / gene→fold-change **dicts**, vs RAVEN's parallel arrays + struct array + print/file side-effects. Neighbour genes come from cobra's metabolite→reaction→gene graph (no `rxnGeneMat`). |
+
 ## runINIT (Phase 4c — MILP core implemented)
 
 RAVEN `INIT/runINIT.m` → `init/init.py` (`run_init`).

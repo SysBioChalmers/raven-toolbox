@@ -385,10 +385,12 @@ objective-feasibility mode → `cobra.flux_analysis.gapfill` (§1 cheatsheet). R
 production/consumption diagnostics (`canProduce`/`canConsume`/`makeSomething`/`gapReport`)
 are small follow-ups if needed.
 
-### 2.8 `omics/` — data integration  *(Phase 5)*
+### 2.8 `omics/` + `analysis/` — data integration & analysis  *(Phase 5)*
 | RAVEN | Notes |
 |---|---|
-| `parseHPA`, `parseHPArna`, `scoreModel` | Human Protein Atlas → reaction scores (feeds INIT). |
+| `reporterMetabolites` | ✅ `reporter_metabolites` ([analysis/reporter.py](src/ravengem/analysis/reporter.py)) — exact closed-form background replaces RAVEN's Monte-Carlo (RM1). |
+| `parseHPA`, `parseHPArna`, `scoreModel` | HPA/RNA-seq → gene/reaction scores (feeds INIT). RNA-seq the common path; pending. |
+| `getFluxScanning` (FSEOF), dynamic FBA | Analysis tools; pending. |
 
 ### 2.9 `localization/` — subcellular localization  *(Phase 7, self-contained)*
 A self-contained track (depends only on Phase 1, can be done anytime): predict subcellular

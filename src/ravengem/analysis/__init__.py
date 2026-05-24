@@ -1,4 +1,7 @@
-"""RAVEN-specific analyses (reporter metabolites, FSEOF, dynamic FBA).
+"""RAVEN-specific analyses (Phase 5).
 
-See PLAN.md for the RAVEN functions targeted by this subpackage.
+* :func:`reporter_metabolites` — Reporter Metabolites (``reporterMetabolites``).
 """
+from ravengem.analysis.reporter import ReporterResult, reporter_metabolites
+
+__all__ = ["ReporterResult", "reporter_metabolites"]
