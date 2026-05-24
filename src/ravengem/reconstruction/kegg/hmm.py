@@ -22,7 +22,9 @@ via :func:`ravengem.binaries.resolve_binary`.
 """
 from __future__ import annotations
 
+import functools
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -179,14 +181,57 @@ def _cdhit_cmd(cdhit: str, inp: Path, out: Path, seq_identity: float, threads: i
     ]
 
 
-# Switch MAFFT to its memory-light PartTree mode once an alignment is large;
-# otherwise use fast progressive FFT-NS-2. FFT-NS-2 memory grows with the total
-# *residues* (count x length), not just the sequence count — a few thousand long
-# proteins can need >7 GB — so the primary trigger is a residue budget, with a
-# sequence-count trigger as a backstop. PartTree keeps *all* sequences (only the
-# guide tree is approximated), so it never drops data.
-_PARTTREE_THRESHOLD = 3000  # sequences
-_PARTTREE_RESIDUES = 1_000_000  # total residues
+# MAFFT uses fast progressive FFT-NS-2 until an alignment's total *residues*
+# (count x length — what actually drives memory) would push it past the RAM
+# available to MAFFT, then switches to memory-light PartTree (which keeps all
+# sequences; only the guide tree is approximated). The residue budget is derived
+# from system memory (:func:`_auto_residue_budget`), calibrated on real KEGG 118:
+# FFT-NS-2 used ~2 GB of MAFFT RSS per 1 M residues (K00901: 2.55 M residues
+# needed ~5 GB; the same alignment was 0.69 GB under PartTree).
+_FFTNS2_BYTES_PER_RESIDUE = 2000
+# RAM not available to MAFFT (OS + WSL2 + Python); on WSL2 the reported VM total
+# overcounts usable RAM by ~1.7-2.5 GB, so reserve the high end.
+_MAFFT_MEMORY_OVERHEAD = int(2.5 * 1024**3)
+_MEMORY_SAFETY = 0.7  # leave headroom; never budget MAFFT to the brink
+_DEFAULT_RESIDUE_BUDGET = 1_000_000  # fallback when total memory can't be detected
+_LOW_MEMORY_BYTES = 16 * 1024**3  # below this, warn that the budget is conservative
+
+
+def _total_memory_bytes() -> int | None:
+    try:
+        return os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+    except (AttributeError, ValueError, OSError):
+        return None
+
+
+@functools.lru_cache(maxsize=1)
+def _auto_residue_budget() -> int:
+    """Residue budget for the FFT-NS-2 -> PartTree cutover, from available RAM.
+
+    Computed and logged once. Warns when memory is limited: the budget is then
+    conservative, so more KOs use the approximate PartTree alignment.
+    """
+    total = _total_memory_bytes()
+    if total is None:
+        logger.warning(
+            "Could not detect system memory; using default MAFFT residue budget %d. "
+            "Pass parttree_residues to set it explicitly.", _DEFAULT_RESIDUE_BUDGET,
+        )
+        return _DEFAULT_RESIDUE_BUDGET
+    mafft_mem = max(total - _MAFFT_MEMORY_OVERHEAD, 512 * 1024**2)
+    budget = int(_MEMORY_SAFETY * mafft_mem / _FFTNS2_BYTES_PER_RESIDUE)
+    logger.info(
+        "MAFFT residue budget %d auto-set from %.1f GB total RAM (~%.1f GB for MAFFT)",
+        budget, total / 1024**3, mafft_mem / 1024**3,
+    )
+    if total < _LOW_MEMORY_BYTES:
+        logger.warning(
+            "Limited memory (%.1f GB total): MAFFT residue budget set conservatively to "
+            "%d, so more KOs will use the approximate PartTree alignment. On a machine "
+            "with more RAM, raise parttree_residues (or add memory) to keep more KOs on "
+            "the more accurate FFT-NS-2.", total / 1024**3, budget,
+        )
+    return budget
 
 
 def _mafft_cmd(
@@ -274,14 +319,12 @@ def build_ko_hmm(
     (evenly subsampled) to bound MAFFT time/memory on over-represented KOs.
     ``fast`` uses MAFFT FFT-NS-2 (fast progressive) rather than ``--auto``'s slow
     iterative refinement. MAFFT switches to memory-light PartTree once the
-    alignment exceeds ``parttree_residues`` total residues (default
-    :data:`_PARTTREE_RESIDUES` = 1 M, tuned for ~7 GB RAM — raise it on machines
-    with more memory to keep more KOs on FFT-NS-2) or :data:`_PARTTREE_THRESHOLD`
-    sequences. ``verbose`` logs (via the ``logging`` module, INFO/DEBUG) which
-    tool is running for this KO, sequence counts at each stage, timings, and the
-    tools' own output. Returns ``out_hmm``.
+    alignment exceeds ``parttree_residues`` total residues; when that is ``None``
+    the budget is derived from available RAM (:func:`_auto_residue_budget`).
+    ``verbose`` logs (via the ``logging`` module, INFO/DEBUG) which tool is running
+    for this KO, sequence counts at each stage, timings, and the tools' own
+    output. Returns ``out_hmm``.
     """
-    residue_budget = _PARTTREE_RESIDUES if parttree_residues is None else parttree_residues
     ko_fasta = Path(ko_fasta)
     out_hmm = Path(out_hmm)
     label = out_hmm.stem
@@ -326,9 +369,10 @@ def build_ko_hmm(
                     logger.info("[%s] one sequence after CD-HIT: skipping MAFFT", label)
                 shutil.copyfile(clustered, aligned)  # MAFFT can't align a single seq
             else:
-                # Memory tracks residues (count x length), so trigger PartTree on a
-                # residue budget, with the sequence count as a backstop.
-                parttree = residues > residue_budget or n_clustered > _PARTTREE_THRESHOLD
+                # Memory tracks residues (count x length): use PartTree once the
+                # alignment would exceed the residue budget (auto from RAM if unset).
+                budget = _auto_residue_budget() if parttree_residues is None else parttree_residues
+                parttree = residues > budget
                 _staged_run(
                     _mafft_cmd(
                         resolve_binary("mafft", binary=mafft), clustered, threads,

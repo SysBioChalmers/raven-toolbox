@@ -261,36 +261,39 @@ def test_fasta_stats_counts_residues(tmp_path):
     assert _fasta_stats(fa) == (2, 9)
 
 
-def test_parttree_triggered_by_residues_not_count(tmp_path, monkeypatch):
-    # Few sequences but past the residue budget -> PartTree (the K00901 case).
-    fasta = tmp_path / "K00901.fa"
-    fasta.write_text("".join(f">g{i}\n{'M' * 1000}\n" for i in range(5)))  # 5 seqs, 5000 res
-    monkeypatch.setattr(hmm_mod, "_PARTTREE_RESIDUES", 4000)  # below 5000
-    monkeypatch.setattr(hmm_mod, "_PARTTREE_THRESHOLD", 100)  # count would NOT trigger
-    monkeypatch.setattr(hmm_mod, "resolve_binary", lambda exe, binary=None: binary or exe)
-    seen = {}
-
-    def fake_run(cmd, *, stdout_path=None):
-        name = Path(cmd[0]).name
-        if name == "cd-hit":
-            Path(cmd[cmd.index("-o") + 1]).write_text(fasta.read_text())
-        if name == "mafft":
-            seen["parttree"] = "--parttree" in cmd
-            Path(stdout_path).write_text(fasta.read_text())
-        if name == "hmmbuild":
-            Path(cmd[-2]).write_text("HMM\n")
-        return ""
-
-    monkeypatch.setattr(hmm_mod, "_run", fake_run)
-    build_ko_hmm(fasta, tmp_path / "K00901.hmm")
-    assert seen["parttree"] is True  # residue budget engaged PartTree despite low count
+def test_auto_residue_budget_scales_with_memory(monkeypatch):
+    hmm_mod._auto_residue_budget.cache_clear()
+    monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: 64 * 1024**3)
+    big = hmm_mod._auto_residue_budget()
+    hmm_mod._auto_residue_budget.cache_clear()
+    monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: 8 * 1024**3)
+    small = hmm_mod._auto_residue_budget()
+    assert big > small > 0  # more RAM -> larger budget
+    hmm_mod._auto_residue_budget.cache_clear()
 
 
-def test_parttree_residues_param_overrides_default(tmp_path, monkeypatch):
-    # Same input; the parttree_residues argument flips the MAFFT method.
+def test_auto_residue_budget_warns_on_low_memory(monkeypatch, caplog):
+    hmm_mod._auto_residue_budget.cache_clear()
+    monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: 7 * 1024**3)
+    with caplog.at_level("WARNING", logger="ravengem.reconstruction.kegg.hmm"):
+        hmm_mod._auto_residue_budget()
+    assert "Limited memory" in caplog.text
+    hmm_mod._auto_residue_budget.cache_clear()
+
+
+def test_auto_residue_budget_falls_back_without_detection(monkeypatch, caplog):
+    hmm_mod._auto_residue_budget.cache_clear()
+    monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: None)
+    with caplog.at_level("WARNING", logger="ravengem.reconstruction.kegg.hmm"):
+        assert hmm_mod._auto_residue_budget() == hmm_mod._DEFAULT_RESIDUE_BUDGET
+    assert "Could not detect system memory" in caplog.text
+    hmm_mod._auto_residue_budget.cache_clear()
+
+
+def test_parttree_residues_param_overrides_auto(tmp_path, monkeypatch):
+    # The explicit parttree_residues argument decides the MAFFT method (residues only).
     fasta = tmp_path / "K.fa"
     fasta.write_text("".join(f">g{i}\n{'M' * 1000}\n" for i in range(5)))  # 5000 residues
-    monkeypatch.setattr(hmm_mod, "_PARTTREE_THRESHOLD", 100)  # count never triggers
     monkeypatch.setattr(hmm_mod, "resolve_binary", lambda exe, binary=None: binary or exe)
     seen = {}
 
