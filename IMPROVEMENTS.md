@@ -99,6 +99,17 @@ and `taxonomy.py` (3b.3). Maintainer-side, build-time tooling (PLAN.md §2.3b).
 | K12 | EFFICIENCY | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Fast MAFFT (FFT-NS-2) for HMM training** instead of RAVEN's `--auto`, which selects slow iterative refinement (`dvtditr`) on medium/large KOs — observed ~2.5 min/KO (days for a domain) on real KEGG 118. FFT-NS-2 (`--retree 2 --maxiterate 0`) is seconds/KO and ample for profile-HMM building. **PartTree cutover is residue-based and memory-auto-tuned**: MAFFT memory tracks residues (count × length), not sequence count, so a count threshold let long-protein KOs (K00901: 2,788 seqs, 2.55 M residues) OOM under FFT-NS-2 — measured ~5 GB MAFFT RSS with FFT-NS-2 vs **0.69 GB with PartTree** for the same alignment. The cutover uses residues only, and the budget is **derived from available RAM by inverting an empirically-measured FFT-NS-2 memory model**: peak RSS is super-linear, `RSS_GB ≈ 1.32·R² + 1.84·R` (R = M residues; measured on real KEGG sequences: 0.25/0.5/1.0/1.5 M → 0.67/1.25/3.16/5.73 GB). `_auto_residue_budget` solves that for the residue count fitting in 0.7 × (total − 2.5 GB overhead) — ~1.09 M on a 7.6 GB box, ~2.1 M @ 16 GB, ~5 M @ 64 GB — and **warns on low-memory hosts**. (A naive linear estimate gave 1.9 M here, which would have OOM'd.) Override via `parttree_residues` / `--parttree-residues`. Back-portable to RAVEN. |
 | K13 | EFFICIENCY | ravengem 🗑️ | 🗑️ | ~~Per-KO sequence cap (`max_sequences`)~~ — **removed.** Briefly added as a count-based cap, but the residue-based PartTree cutover (K12) bounds MAFFT memory without dropping any sequences, so the cap was redundant complexity. All deduplicated sequences are kept. |
 
+## fillGaps (Phase 4b — implemented)
+
+RAVEN `core/fillGaps.m` → `gapfilling/fill.py` (`fill_gaps` connectivity mode +
+`gapfill_to_objective` targeted mode). MILP via cobra/optlang (GLPK).
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| GF1 | ERGONOMICS | ravengem 🔨 | 🔨 | **Two clear entry points** instead of `fillGaps`'s `useModelConstraints` boolean that silently flips between "make blocked reactions carry flux" and "satisfy the objective": `fill_gaps` (connectivity) and `gapfill_to_objective` (targeted). |
+| GF2 | NEW (vs cobra) | ravengem 🔨 | 🔨 | **Name-matching gap-fill.** `cobra.flux_analysis.gapfill` matches universal-model metabolites to the draft by **id**, so a template in a different namespace silently contributes nothing. Both entry points here add template reactions via `add_reactions_from_model` (match by `name[comp]`), so cross-namespace templates (e.g. KEGG draft + a BiGG template) work — as RAVEN's name-based merge does. |
+| GF3 | EFFICIENCY | ravengem 🔨 | 🔨 | **Shared MILP core** (`_solve_min_templates`): one formulation (min penalty-weighted template indicators s.t. a requirement) serves both modes; the requirement (forced fluxes vs. objective bound) is the only difference. |
+
 ## addRxns
 
 RAVEN `core/addRxns.m` — add reactions from equation strings (or mets+coeffs), auto-creating
