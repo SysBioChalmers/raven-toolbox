@@ -218,33 +218,62 @@ def test_fasta_stats_counts_residues(tmp_path):
     assert _fasta_stats(fa) == (2, 9)
 
 
-def test_auto_residue_budget_scales_with_memory(monkeypatch):
-    hmm_mod._auto_residue_budget.cache_clear()
+def test_auto_cost_budget_scales_with_memory(monkeypatch):
+    hmm_mod._auto_cost_budget.cache_clear()
     monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: 64 * 1024**3)
-    big = hmm_mod._auto_residue_budget()
-    hmm_mod._auto_residue_budget.cache_clear()
+    big = hmm_mod._auto_cost_budget()
+    hmm_mod._auto_cost_budget.cache_clear()
     monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: 8 * 1024**3)
-    small = hmm_mod._auto_residue_budget()
-    assert big > small > 0  # more RAM -> larger budget
-    hmm_mod._auto_residue_budget.cache_clear()
+    small = hmm_mod._auto_cost_budget()
+    assert big > small > 0  # more RAM -> larger DP-cost budget
+    hmm_mod._auto_cost_budget.cache_clear()
 
 
-def test_auto_residue_budget_warns_on_low_memory(monkeypatch, caplog):
-    hmm_mod._auto_residue_budget.cache_clear()
+def test_auto_cost_budget_warns_on_low_memory(monkeypatch, caplog):
+    hmm_mod._auto_cost_budget.cache_clear()
     monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: 7 * 1024**3)
     with caplog.at_level("WARNING", logger="ravengem.reconstruction.kegg.hmm"):
-        hmm_mod._auto_residue_budget()
+        hmm_mod._auto_cost_budget()
     assert "Limited memory" in caplog.text
-    hmm_mod._auto_residue_budget.cache_clear()
+    hmm_mod._auto_cost_budget.cache_clear()
 
 
-def test_auto_residue_budget_falls_back_without_detection(monkeypatch, caplog):
-    hmm_mod._auto_residue_budget.cache_clear()
+def test_auto_cost_budget_falls_back_without_detection(monkeypatch, caplog):
+    hmm_mod._auto_cost_budget.cache_clear()
     monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: None)
     with caplog.at_level("WARNING", logger="ravengem.reconstruction.kegg.hmm"):
-        assert hmm_mod._auto_residue_budget() == hmm_mod._DEFAULT_RESIDUE_BUDGET
+        assert hmm_mod._auto_cost_budget() == hmm_mod._DEFAULT_COST_BUDGET
     assert "Could not detect system memory" in caplog.text
-    hmm_mod._auto_residue_budget.cache_clear()
+    hmm_mod._auto_cost_budget.cache_clear()
+
+
+def test_long_proteins_route_to_parttree(monkeypatch, tmp_path):
+    # Few but very long sequences (K12047-like): low residue count, high DP cost,
+    # so the length-aware budget must pick PartTree (a residue-only rule would not).
+    fasta = tmp_path / "K12047.fa"
+    fasta.write_text("".join(f">g{i}\n{'M' * 2000}\n" for i in range(300)))  # 300 x 2000 aa
+    monkeypatch.setattr(hmm_mod, "resolve_binary", lambda exe, binary=None: binary or exe)
+    hmm_mod._auto_cost_budget.cache_clear()
+    monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: 8 * 1024**3)
+    seen = {}
+
+    def fake_run(cmd, *, stdout_path=None):
+        name = Path(cmd[0]).name
+        if name == "cd-hit":
+            Path(cmd[cmd.index("-o") + 1]).write_text(fasta.read_text())
+        if name == "mafft":
+            seen["parttree"] = "--parttree" in cmd
+            Path(stdout_path).write_text(fasta.read_text())
+        if name == "hmmbuild":
+            Path(cmd[-2]).write_text("HMM\n")
+        return ""
+
+    monkeypatch.setattr(hmm_mod, "_run", fake_run)
+    build_ko_hmm(fasta, tmp_path / "K12047.hmm")
+    hmm_mod._auto_cost_budget.cache_clear()
+    # 300x2000 = 600k residues (a residue rule with a ~1M cutoff would NOT trigger),
+    # but DP cost 1.2e9 exceeds the 8 GB budget -> PartTree.
+    assert seen["parttree"] is True
 
 
 def test_parttree_residues_param_overrides_auto(tmp_path, monkeypatch):

@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import functools
 import logging
-import math
 import os
 import shutil
 import subprocess
@@ -158,23 +157,22 @@ def _cdhit_cmd(cdhit: str, inp: Path, out: Path, seq_identity: float, threads: i
     ]
 
 
-# MAFFT uses fast progressive FFT-NS-2 until an alignment's total *residues*
-# (count x length — what drives memory) would push it past the RAM available to
-# MAFFT, then switches to memory-light PartTree (which keeps all sequences; only
-# the guide tree is approximated).
+# MAFFT uses fast progressive FFT-NS-2 until an alignment is large enough to
+# threaten memory, then switches to memory-light PartTree (which keeps all
+# sequences; only the guide tree is approximated).
 #
-# Peak MAFFT RSS is super-linear in residues (the alignment widens with size).
-# Empirical FFT-NS-2 model fitted to real KEGG sequences (K00901 subsets, 12
-# threads): RSS_GB ~= A*R^2 + B*R with R in *millions* of residues. Measured:
-#   0.25 M -> 0.67 GB, 0.5 M -> 1.25 GB, 1.0 M -> 3.16 GB, 1.5 M -> 5.73 GB.
-_MAFFT_RSS_A_GB = 1.32  # GB per (M residues)^2
-_MAFFT_RSS_B_GB = 1.84  # GB per M residues
-# RAM not available to MAFFT (OS + WSL2 + Python). On WSL2 the detected total is
-# the whole-VM figure, which overcounts usable RAM by ~1.7-2.5 GB; reserve the
-# high end.
-_MAFFT_MEMORY_OVERHEAD_GB = 2.5
-_MEMORY_SAFETY = 0.7  # leave headroom; never budget MAFFT to the brink
-_DEFAULT_RESIDUE_BUDGET = 1_000_000  # fallback when total memory can't be detected
+# Peak FFT-NS-2 RSS is driven by the progressive-alignment DP work, ~ n_seqs ×
+# (mean length)^2  (equivalently residues^2 / n_seqs) — NOT residue count alone:
+# a few hundred long proteins cost far more than the same residues spread over
+# many short ones. Empirical fit (real KEGG sequences, 12 threads):
+#     RSS_GB ≈ _MAFFT_GB_PER_COST × (n_seqs × mean_len^2)
+# Measured (residues, n_seqs, RSS): 250k/266/0.67, 500k/534/1.25, 1.0M/1066/3.16,
+# 1.5M/1624/5.73, and K12047 941k/452 (mean len 2082) which OOM'd >7 GB — its
+# cost 1.96e9 is the largest of all, hence the length-aware metric.
+_MAFFT_GB_PER_COST = 4.2e-9  # GB per unit of (n_seqs × mean_len^2); conservative upper bound
+_MAFFT_MEMORY_OVERHEAD_GB = 2.5  # RAM not for MAFFT (OS + WSL2 + Python); WSL total overcounts
+_MEMORY_SAFETY = 0.65  # leave headroom; never budget MAFFT to the brink
+_DEFAULT_COST_BUDGET = 5e8  # fallback DP-cost budget when total memory can't be detected
 _LOW_MEMORY_BYTES = 16 * 1024**3  # below this, warn that the budget is conservative
 
 
@@ -185,48 +183,39 @@ def _total_memory_bytes() -> int | None:
         return None
 
 
-def _residues_fitting_in(memory_gb: float) -> int:
-    """Largest residue count whose FFT-NS-2 RSS fits in ``memory_gb`` (the fit).
-
-    Solves ``A*R^2 + B*R = memory_gb`` for R (millions of residues).
-    """
-    if memory_gb <= 0:
-        return 0
-    r_millions = (
-        -_MAFFT_RSS_B_GB + math.sqrt(_MAFFT_RSS_B_GB**2 + 4 * _MAFFT_RSS_A_GB * memory_gb)
-    ) / (2 * _MAFFT_RSS_A_GB)
-    return int(r_millions * 1_000_000)
+def _alignment_cost(n_seqs: int, residues: int) -> float:
+    """FFT-NS-2 memory proxy: ``n_seqs × mean_len^2`` = ``residues^2 / n_seqs``."""
+    return residues * residues / n_seqs if n_seqs else 0.0
 
 
 @functools.lru_cache(maxsize=1)
-def _auto_residue_budget() -> int:
-    """Residue budget for the FFT-NS-2 -> PartTree cutover, from available RAM.
+def _auto_cost_budget() -> float:
+    """Max FFT-NS-2 DP-cost (``n_seqs × mean_len^2``) before switching to PartTree.
 
-    Inverts the measured FFT-NS-2 memory model: the budget is the residue count
-    whose predicted peak RSS equals a safe fraction of the RAM left for MAFFT
-    (total − overhead). Computed and logged once; warns when memory is limited
-    (the budget is then conservative, so more KOs use the approximate PartTree).
+    Derived from available RAM via the measured memory model; above it, an
+    alignment is predicted to exceed a safe fraction of the RAM left for MAFFT.
+    Computed and logged once; warns on low-memory hosts (more KOs then use the
+    approximate PartTree).
     """
     total = _total_memory_bytes()
     if total is None:
         logger.warning(
-            "Could not detect system memory; using default MAFFT residue budget %d. "
-            "Pass parttree_residues to set it explicitly.", _DEFAULT_RESIDUE_BUDGET,
+            "Could not detect system memory; using default MAFFT cost budget %.2e. "
+            "Pass parttree_residues to override.", _DEFAULT_COST_BUDGET,
         )
-        return _DEFAULT_RESIDUE_BUDGET
+        return _DEFAULT_COST_BUDGET
     total_gb = total / 1024**3
     mafft_gb = max(total_gb - _MAFFT_MEMORY_OVERHEAD_GB, 0.5)
-    budget = _residues_fitting_in(_MEMORY_SAFETY * mafft_gb)
+    budget = _MEMORY_SAFETY * mafft_gb / _MAFFT_GB_PER_COST
     logger.info(
-        "MAFFT residue budget %d auto-set from %.1f GB RAM (~%.1f GB for MAFFT, FFT-NS-2 fit)",
+        "MAFFT DP-cost budget %.2e auto-set from %.1f GB RAM (~%.1f GB for MAFFT)",
         budget, total_gb, mafft_gb,
     )
     if total < _LOW_MEMORY_BYTES:
         logger.warning(
-            "Limited memory (%.1f GB total): MAFFT residue budget set conservatively to "
-            "%d, so more KOs will use the approximate PartTree alignment. On a machine "
-            "with more RAM, raise parttree_residues (or add memory) to keep more KOs on "
-            "the more accurate FFT-NS-2.", total_gb, budget,
+            "Limited memory (%.1f GB total): MAFFT cost budget set conservatively to "
+            "%.2e, so more (especially long-protein) KOs use the approximate PartTree "
+            "alignment. With more RAM, fewer would.", total_gb, budget,
         )
     return budget
 
@@ -314,10 +303,12 @@ def build_ko_hmm(
     ``seq_identity=-1`` skips CD-HIT. All (deduplicated) sequences are kept —
     memory on large KOs is bounded by switching MAFFT to PartTree, not by
     dropping sequences. ``fast`` uses MAFFT FFT-NS-2 (fast progressive) rather
-    than ``--auto``'s slow
-    iterative refinement. MAFFT switches to memory-light PartTree once the
-    alignment exceeds ``parttree_residues`` total residues; when that is ``None``
-    the budget is derived from available RAM (:func:`_auto_residue_budget`).
+    than ``--auto``'s slow iterative refinement. MAFFT switches to memory-light
+    PartTree once an alignment is predicted to be too memory-heavy: by default from
+    its **DP cost** (``n_seqs × mean_len²`` — long proteins cost far more than the
+    same residue count in short ones) against a RAM-derived budget
+    (:func:`_auto_cost_budget`). Passing ``parttree_residues`` overrides this with a
+    simple residue-count cutoff.
     ``verbose`` logs (via the ``logging`` module, INFO/DEBUG) which tool is running
     for this KO, sequence counts at each stage, timings, and the tools' own
     output. Returns ``out_hmm``.
@@ -359,10 +350,15 @@ def build_ko_hmm(
                     logger.info("[%s] one sequence after CD-HIT: skipping MAFFT", label)
                 shutil.copyfile(clustered, aligned)  # MAFFT can't align a single seq
             else:
-                # Memory tracks residues (count x length): use PartTree once the
-                # alignment would exceed the residue budget (auto from RAM if unset).
-                budget = _auto_residue_budget() if parttree_residues is None else parttree_residues
-                parttree = residues > budget
+                # PartTree once the alignment is too memory-heavy. Default: its DP
+                # cost (n_seqs × mean_len^2) vs a RAM-derived budget — length-aware,
+                # so long-protein KOs (few seqs, huge residues) route correctly.
+                # parttree_residues, if given, overrides with a residue-count cutoff.
+                cost = _alignment_cost(n_clustered, residues)
+                if parttree_residues is None:
+                    parttree = cost > _auto_cost_budget()
+                else:
+                    parttree = residues > parttree_residues
                 _staged_run(
                     _mafft_cmd(
                         resolve_binary("mafft", binary=mafft), clustered, threads,
@@ -370,7 +366,7 @@ def build_ko_hmm(
                     ),
                     label=label,
                     stage=f"MAFFT {'PartTree' if parttree else 'FFT-NS-2' if fast else 'auto'} "
-                    f"({n_clustered} seqs, {residues} residues)",
+                    f"({n_clustered} seqs, {residues} res, cost {cost:.2e})",
                     verbose=verbose,
                     stdout_path=aligned,
                 )
