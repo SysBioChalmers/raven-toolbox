@@ -52,6 +52,7 @@ and `taxonomy.py` (3b.3). Maintainer-side, build-time tooling (PLAN.md §2.3b).
 | K9 | EFFICIENCY (memory) | ravengem 🔨 | 🔨 | **Stream `organism_gene_ko` straight to gzipped TSV** in `parse_kegg_dump` instead of building it in memory. Real KEGG has **9.05M** gene↔KO associations; the in-memory DataFrame build OOMs in a few GB. Streaming runs the full parse in **82 s at 0.9 GB peak**. (Found by validating against a real KEGG FTP dump.) |
 | K10 | EFFICIENCY (size) | ravengem 🔨 | 🔨 | **Reference model as gzipped RAVEN/cobra YAML** (`reference_model.yml.gz`) rather than SBML: RAVEN-native, MATLAB-readable, and ~1.1 MB vs ~30 MB SBML for the real 12k-reaction model. Made `io/yaml.py` gzip-aware on a `.gz` suffix (general-purpose). |
 | K11 | ERGONOMICS | ravengem 🔨 | 🔨 | **`ensure_data`** (`data.py`): version-pinned registry that fetches/verifies/caches the published KEGG artefacts under `~/.cache/ravengem/data/`, mirroring `ensure_binary`. End users get a draft model with no KEGG access and no manual data handling — the `…_from_artefacts` entry points auto-fetch when no local dir is supplied. |
+| K12 | EFFICIENCY | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Fast MAFFT (FFT-NS-2) for HMM training** instead of RAVEN's `--auto`, which selects slow iterative refinement (`dvtditr`) on medium/large KOs — observed ~2.5 min/KO (days for a domain) on real KEGG 118. FFT-NS-2 (`--retree 2 --maxiterate 0`) is seconds/KO and ample for profile-HMM building; PartTree kicks in above 10k sequences for memory safety. Back-portable to RAVEN. |
 
 ## addRxns
 

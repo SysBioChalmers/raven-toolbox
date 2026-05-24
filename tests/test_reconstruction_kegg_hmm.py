@@ -106,9 +106,12 @@ def test_command_builders():
     cd = _cdhit_cmd("cd-hit", Path("in.fa"), Path("out.fa"), 0.9, 4)
     assert cd[:3] == ["cd-hit", "-i", "in.fa"]
     assert "-c" in cd and "0.9" in cd and "-n" in cd and "5" in cd
+    # Default is fast progressive (FFT-NS-2), not --auto.
     assert _mafft_cmd("mafft", Path("in.fa"), 2) == [
-        "mafft", "--auto", "--anysymbol", "--thread", "2", "in.fa"
+        "mafft", "--retree", "2", "--maxiterate", "0", "--anysymbol", "--thread", "2", "in.fa"
     ]
+    assert _mafft_cmd("mafft", Path("in.fa"), 2, fast=False)[:2] == ["mafft", "--auto"]
+    assert "--parttree" in _mafft_cmd("mafft", Path("in.fa"), 2, parttree=True)
     assert _hmmbuild_cmd("hmmbuild", Path("o.hmm"), Path("a.fa"), 3) == [
         "hmmbuild", "--cpu", "3", "o.hmm", "a.fa"
     ]

@@ -139,8 +139,30 @@ def _cdhit_cmd(cdhit: str, inp: Path, out: Path, seq_identity: float, threads: i
     ]
 
 
-def _mafft_cmd(mafft: str, inp: Path, threads: int) -> list[str]:
-    return [mafft, "--auto", "--anysymbol", "--thread", str(threads), str(inp)]
+# Above this many (post-CD-HIT) sequences, switch MAFFT to its memory-light
+# PartTree mode; below it, use fast progressive FFT-NS-2.
+_PARTTREE_THRESHOLD = 10000
+
+
+def _mafft_cmd(
+    mafft: str, inp: Path, threads: int, *, fast: bool = True, parttree: bool = False
+) -> list[str]:
+    """Build the MAFFT command.
+
+    ``fast`` selects FFT-NS-2 (``--retree 2 --maxiterate 0``) — fast progressive
+    alignment, the right trade-off for building profile HMMs — instead of
+    ``--auto`` (which picks slow iterative refinement on medium/large inputs).
+    ``parttree`` adds MAFFT's PartTree approximation for very large inputs.
+    """
+    cmd = [mafft]
+    if parttree:
+        cmd += ["--retree", "2", "--parttree"]
+    elif fast:
+        cmd += ["--retree", "2", "--maxiterate", "0"]
+    else:
+        cmd += ["--auto"]
+    cmd += ["--anysymbol", "--thread", str(threads), str(inp)]
+    return cmd
 
 
 def _hmmbuild_cmd(
@@ -173,6 +195,7 @@ def build_ko_hmm(
     *,
     seq_identity: float = 0.9,
     threads: int = 1,
+    fast: bool = True,
     cdhit: str | Path | None = None,
     mafft: str | Path | None = None,
     hmmbuild: str | Path | None = None,
@@ -180,7 +203,9 @@ def build_ko_hmm(
     """Cluster, align and train a profile HMM for one KO's multi-FASTA.
 
     Single-sequence KOs skip CD-HIT/MAFFT (a lone sequence is its own alignment).
-    ``seq_identity=-1`` skips CD-HIT. Returns the written ``out_hmm`` path.
+    ``seq_identity=-1`` skips CD-HIT. ``fast`` uses MAFFT FFT-NS-2 (fast
+    progressive) rather than ``--auto``'s slow iterative refinement, switching to
+    PartTree above :data:`_PARTTREE_THRESHOLD` sequences. Returns ``out_hmm``.
     """
     ko_fasta = Path(ko_fasta)
     out_hmm = Path(out_hmm)
@@ -203,11 +228,15 @@ def build_ko_hmm(
                     seq_identity, threads,
                 ))
             aligned = tmp / "aligned.fa"
-            if _count_sequences(clustered) == 1:
+            n_clustered = _count_sequences(clustered)
+            if n_clustered == 1:
                 shutil.copyfile(clustered, aligned)  # MAFFT can't align a single seq
             else:
                 _run(
-                    _mafft_cmd(resolve_binary("mafft", binary=mafft), clustered, threads),
+                    _mafft_cmd(
+                        resolve_binary("mafft", binary=mafft), clustered, threads,
+                        fast=fast, parttree=n_clustered > _PARTTREE_THRESHOLD,
+                    ),
                     stdout_path=aligned,
                 )
         _run(_hmmbuild_cmd(hmmbuild, out_hmm, aligned, threads, name=out_hmm.stem))
@@ -226,6 +255,7 @@ def build_hmm_library(
     domain: str,
     seq_identity: float = 0.9,
     threads: int = 1,
+    fast: bool = True,
     press: bool = True,
     cdhit: str | Path | None = None,
     mafft: str | Path | None = None,
@@ -258,7 +288,7 @@ def build_hmm_library(
         out_hmm = hmm_dir / f"{ko}.hmm"
         if not out_hmm.exists():
             build_ko_hmm(
-                fasta, out_hmm, seq_identity=seq_identity, threads=threads,
+                fasta, out_hmm, seq_identity=seq_identity, threads=threads, fast=fast,
                 cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
             )
         hmms.append(out_hmm)
