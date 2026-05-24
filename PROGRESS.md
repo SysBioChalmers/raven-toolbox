@@ -187,6 +187,7 @@ Keyed to commits on `main`.
 | `fdae0f5` | Port metabolic tasks (Phase 4a): parse_task_list + check_tasks |
 | `9452a52` | Port the INIT MILP (Phase 4c core): run_init |
 | `1f7a30e` | Finish tINIT (Phase 4c): GPR/RNA-seq scoring + get_init_model |
+| `1467cec` | Port Reporter Metabolites (Phase 5): reporter_metabolites |
 
 ---
 
