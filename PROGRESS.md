@@ -24,7 +24,7 @@ _Last updated: 2026-05-24_
 | 3c | Reconstruction — MetaCyc | ❌ **dropped** (2026-05-24) — BLAST-to-single-representatives is low-precision at every cutoff; also to be removed from MATLAB RAVEN. See IMPROVEMENTS R-MetaCyc. |
 | 4a | Metabolic tasks (`tasks/` — `parseTaskList`, `checkTasks`) — the task file | 🟢 done — `parse_task_list` + `check_tasks`; `fitTasks` + essential-rxn output deferred to 4c (tINIT consumer) |
 | 4b | Gap-filling (`gapfilling/`) | 🟢 done — `connect_blocked_reactions` (connectivity, MILP via cobra/optlang); targeted mode → `cobra.gapfill` (cheatsheet) |
-| 4c | tINIT (`init/` — original INIT MILP `getINITModel`/`runINIT` + scoring) | ⬜ not started |
+| 4c | tINIT (`init/` — original INIT MILP `getINITModel`/`runINIT` + scoring) | 🟡 in progress — `run_init` (the INIT MILP) done; `getINITModel` (expression scoring + task integration) pending |
 | 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | ⬜ not started |
 | 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | ⬜ not started |
 | 6 | Visualization (`plotting/`) | ⬜ not started |
@@ -64,7 +64,7 @@ Functions that exist as working, tested Python in ravengem.
 | `reconstruction/homology/blast.py` | `run_blast`, `run_diamond`, `blast_from_table` | `getBlast.m`/`getDiamond.m`/`getBlastFromExcel.m` | ✅ `tests/test_reconstruction_blast.py` | Subprocess wrappers → hits DataFrame; `blast_from_table` loads a CSV (no Excel). `run_blast` verified against installed BLAST+. |
 | `binaries.py` | `resolve_binary`, `ensure_binary` | `software/` provisioning | ✅ `tests/test_binaries.py` | Generic binary resolver (arg→env→PATH→bundled ZIP) + version-pinned release-ZIP registry (SHA256-verified cache). Registry empty until ZIPs published. |
 
-**Test status:** 314 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
+**Test status:** 320 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
 
 ---
 
@@ -86,7 +86,8 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | `data.py` | `ensure_data` — fetch/verify/cache published artefacts (KEGG reference model + tables + HMM libs) under `~/.cache/ravengem/data/`, mirroring `ensure_binary`; auto-fetch wired into the `…_from_artefacts` entry points | 🟢 done (registry empty until published) |
 | `gapfilling/fill.py` | `connect_blocked_reactions` | `fillGaps.m` (connectivity mode) | ✅ `tests/test_gapfilling.py` | MILP (min penalty-weighted template reactions s.t. blocked reactions carry flux) via cobra/optlang. No cobra equivalent. Templates matched by `name[comp]`. Targeted mode (fill toward objective) → `cobra.gapfill` (cheatsheet, §1). |
 | `tasks/tasklist.py` + `check.py` | `parse_task_list` + `Task`; `check_tasks` + `TaskResult` | `parseTaskList.m` / `checkTasks.m` | ✅ `tests/test_tasks.py` | Task-list parser (TSV/xlsx; multi-row tasks, `;`-split, defaults, ALLMETS/ALLMETSIN) + feasibility checker that imposes inputs/outputs via relaxed metabolite mass-balance bounds (RAVEN's `b`), adds task equations, changes bounds, closes boundaries. `fitTasks`/essential-rxns deferred to 4c. |
-| `init/` | tINIT (4c) + ftINIT (4d — critical review) context extraction | ⬜ stub |
+| `init/init.py` | `run_init` + `InitResult` | `runINIT.m` | ✅ `tests/test_init.py` | The INIT MILP, clean optlang reformulation (split reversibles; `eps·x ≤ v ≤ ub·x` include-indicators; `x_fwd+x_rev≤1` for `no_rev_loops`; per-met reward sinks for `prod_weight`; LP-relaxation `present_mets` test). `getINITModel` scoring wrapper still pending (4c). |
+| `init/` (rest) | `getINITModel` (4c scoring) + ftINIT (4d — critical review) | ⬜ pending |
 | `omics/` | HPA omics → reaction scores | ⬜ stub |
 | `localization/` | subcellular localization (Phase 7) — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …) | ⬜ stub |
 | `analysis/` | reporterMetabolites, FSEOF, dFBA, … | ⬜ stub |
