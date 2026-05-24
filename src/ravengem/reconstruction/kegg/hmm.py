@@ -135,6 +135,18 @@ def _count_sequences(fasta: Path) -> int:
         return sum(1 for line in fh if line.startswith(b">"))
 
 
+def _fasta_stats(fasta: Path) -> tuple[int, int]:
+    """Return ``(sequence_count, total_residues)`` in one pass."""
+    n = residues = 0
+    with open(fasta, "rb") as fh:
+        for line in fh:
+            if line.startswith(b">"):
+                n += 1
+            else:
+                residues += len(line.strip())
+    return n, residues
+
+
 def _subsample_fasta(src: Path, dst: Path, n: int) -> int:
     """Write ``n`` evenly-spaced records of ``src`` to ``dst`` (caps huge KOs).
 
@@ -167,12 +179,14 @@ def _cdhit_cmd(cdhit: str, inp: Path, out: Path, seq_identity: float, threads: i
     ]
 
 
-# Above this many (post-CD-HIT) sequences, switch MAFFT to its memory-light
-# PartTree mode; below it, use fast progressive FFT-NS-2. FFT-NS-2 memory grows
-# with N (~1 GB per 1000 sequences here), so this is kept low to stay within a
-# few GB of RAM; PartTree keeps *all* sequences (only the guide tree is
-# approximated), so lowering it does not drop data.
-_PARTTREE_THRESHOLD = 3000
+# Switch MAFFT to its memory-light PartTree mode once an alignment is large;
+# otherwise use fast progressive FFT-NS-2. FFT-NS-2 memory grows with the total
+# *residues* (count x length), not just the sequence count — a few thousand long
+# proteins can need >7 GB — so the primary trigger is a residue budget, with a
+# sequence-count trigger as a backstop. PartTree keeps *all* sequences (only the
+# guide tree is approximated), so it never drops data.
+_PARTTREE_THRESHOLD = 3000  # sequences
+_PARTTREE_RESIDUES = 1_000_000  # total residues
 
 
 def _mafft_cmd(
@@ -245,6 +259,7 @@ def build_ko_hmm(
     *,
     seq_identity: float = 0.9,
     max_sequences: int | None = None,
+    parttree_residues: int | None = None,
     threads: int = 1,
     fast: bool = True,
     verbose: bool = False,
@@ -258,11 +273,15 @@ def build_ko_hmm(
     ``seq_identity=-1`` skips CD-HIT. ``max_sequences`` caps the post-CD-HIT set
     (evenly subsampled) to bound MAFFT time/memory on over-represented KOs.
     ``fast`` uses MAFFT FFT-NS-2 (fast progressive) rather than ``--auto``'s slow
-    iterative refinement, switching to PartTree above :data:`_PARTTREE_THRESHOLD`
+    iterative refinement. MAFFT switches to memory-light PartTree once the
+    alignment exceeds ``parttree_residues`` total residues (default
+    :data:`_PARTTREE_RESIDUES` = 1 M, tuned for ~7 GB RAM — raise it on machines
+    with more memory to keep more KOs on FFT-NS-2) or :data:`_PARTTREE_THRESHOLD`
     sequences. ``verbose`` logs (via the ``logging`` module, INFO/DEBUG) which
     tool is running for this KO, sequence counts at each stage, timings, and the
     tools' own output. Returns ``out_hmm``.
     """
+    residue_budget = _PARTTREE_RESIDUES if parttree_residues is None else parttree_residues
     ko_fasta = Path(ko_fasta)
     out_hmm = Path(out_hmm)
     label = out_hmm.stem
@@ -299,14 +318,17 @@ def build_ko_hmm(
                 _subsample_fasta(clustered, capped, max_sequences)
                 if verbose:
                     logger.info("[%s] capped %d -> %d sequences", label, n_clustered, max_sequences)
-                clustered, n_clustered = capped, max_sequences
+                clustered = capped
             aligned = tmp / "aligned.fa"
+            n_clustered, residues = _fasta_stats(clustered)
             if n_clustered == 1:
                 if verbose:
                     logger.info("[%s] one sequence after CD-HIT: skipping MAFFT", label)
                 shutil.copyfile(clustered, aligned)  # MAFFT can't align a single seq
             else:
-                parttree = n_clustered > _PARTTREE_THRESHOLD
+                # Memory tracks residues (count x length), so trigger PartTree on a
+                # residue budget, with the sequence count as a backstop.
+                parttree = residues > residue_budget or n_clustered > _PARTTREE_THRESHOLD
                 _staged_run(
                     _mafft_cmd(
                         resolve_binary("mafft", binary=mafft), clustered, threads,
@@ -314,7 +336,7 @@ def build_ko_hmm(
                     ),
                     label=label,
                     stage=f"MAFFT {'PartTree' if parttree else 'FFT-NS-2' if fast else 'auto'} "
-                    f"({n_clustered} seqs)",
+                    f"({n_clustered} seqs, {residues} residues)",
                     verbose=verbose,
                     stdout_path=aligned,
                 )
@@ -339,6 +361,7 @@ def build_hmm_library(
     domain: str,
     seq_identity: float = 0.9,
     max_sequences: int | None = None,
+    parttree_residues: int | None = None,
     threads: int = 1,
     fast: bool = True,
     verbose: bool = False,
@@ -375,8 +398,8 @@ def build_hmm_library(
         if not out_hmm.exists():
             build_ko_hmm(
                 fasta, out_hmm, seq_identity=seq_identity, max_sequences=max_sequences,
-                threads=threads, fast=fast, verbose=verbose,
-                cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
+                parttree_residues=parttree_residues, threads=threads, fast=fast,
+                verbose=verbose, cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
             )
         hmms.append(out_hmm)
 
