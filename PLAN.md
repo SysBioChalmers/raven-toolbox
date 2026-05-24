@@ -356,13 +356,14 @@ The foundation the INIT phases build on. No cobrapy equivalent.
 | `fitTasks`, essential-reaction output (`getEssential`) | Deferred to **4c** — only tINIT needs them. |
 | `checkProduction`, `getExpressionStructure` | Production checks underpinning tasks (port if needed). |
 
-### 2.5 `init/` — tINIT (original INIT MILP)  *(Phase 4c)*
+### 2.5 `init/` — tINIT (original INIT MILP)  *(Phase 4c — done ✅)*
 RAVEN-unique MILP; no cobrapy equivalent. Needs a MIP solver. Depends on tasks (4a).
 | RAVEN | Notes |
 |---|---|
-| `getINITModel`, `runINIT` | Extract a context model from gene-expression scores by the INIT MILP. |
-| `scoreComplexModel`, `getExprForRxnScore`, `groupRxnScores`, `removeLowScoreGenes` | Reaction scoring from gene expression. |
-| `mergeLinear`, `rescaleModelForINIT`, `reverseRxns` | MILP preprocessing. |
+| `runINIT` | ✅ `run_init` ([init/init.py](src/ravengem/init/init.py)) — clean optlang reformulation of the INIT MILP. ⚠️ RAVEN's scale-dependent magic numbers (`eps`, `prod_weight`) exposed for tuning. |
+| `scoreComplexModel` | ✅ `score_reactions_from_genes` + `gene_scores_from_expression` ([init/score.py](src/ravengem/init/score.py)) — GPR scoring + the common RNA-seq `5·ln(level/ref)` gene scoring. |
+| `getINITModel` | ✅ `get_init_model` ([init/build.py](src/ravengem/init/build.py)) — scores → dead-end removal → `run_init`. **Deferred:** HPA/single-cell data ingestion → Phase 5 omics; automatic task-essential discovery + task gap-filling → 4d (shared with ftINIT). RNA-seq is the common input; single-cell/HPA are alternative upstream sources. |
+| `removeLowScoreGenes`, `mergeLinear`, `rescaleModelForINIT`, `reverseRxns` | RAVEN MILP preprocessing/cleanup — port if profiling shows they matter (clean reformulation makes some moot). |
 
 ### 2.6 `init/` — ftINIT (fast staged INIT)  *(Phase 4d — CRITICAL REVIEW)*
 > ⚠️ **ftINIT needs a lot of special attention.** It is the most complex algorithm in

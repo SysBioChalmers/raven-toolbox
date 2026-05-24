@@ -108,6 +108,8 @@ RAVEN `INIT/runINIT.m` → `init/init.py` (`run_init`).
 | I1 | ERGONOMICS | ravengem 🔨 | 🔨 | **Clean optlang reformulation** of the INIT MILP instead of RAVEN's hand-built sparse `prob.A`/`blc`/`buc`/`vartype` arrays + fake "FAKEFORPM" metabolites. Standard include-indicator form `eps·x ≤ v ≤ ub·x` with objective `max Σ score·x + prod_weight·Σ sink`. Far more readable/reviewable; functional equivalence is the bar (PLAN §0). |
 | I2 | ERGONOMICS | ravengem 🔨 | 🔨 | **`no_rev_loops` as a single `x_fwd + x_rev ≤ 1`** per reversible reaction, replacing RAVEN's auxiliary A/B/C metabolites with int1/int2 reactions and `C ub=-1` construction. Same effect (no spurious forward/back connectivity loop), a fraction of the machinery. |
 | I3 | ERGONOMICS | ravengem 🔨 | 🔨 | **`present_mets` producibility via a small LP feasibility test** (sum of compartment-form drains ≥ 1), instead of mutating the live MILP's RHS one metabolite at a time. |
+| I4 | CORRECTNESS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **MILP big-M is each reaction's own `ub`** (`v ≤ ub·x`), not RAVEN's fixed 1000; and `eps`/`prod_weight` are exposed parameters. RAVEN's hard-coded 1/1000/0.1/0.5 only suit ±1000-bounded models with O(1) scores — flagged as scale-dependent and tunable (don't blindly trust them). |
+| I5 | ERGONOMICS | ravengem 🔨 | 🔨 | **Predictor-agnostic scoring**: `get_init_model` takes gene *or* reaction scores; gene scoring is generic (`gene_scores_from_expression` for the common RNA-seq path), so single-cell/HPA are just alternative upstream sources feeding the same gene→score table — rather than RAVEN's HPA/array-specific structs baked into `getINITModel`. |
 
 ## parseTaskList / checkTasks (Phase 4a — implemented)
 

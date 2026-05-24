@@ -21,6 +21,20 @@ equivalence is the bar — PLAN §0), built directly in optlang:
 * Objective: **maximise** ``Σ score·x + prod_weight·Σ s_m``.
 
 Needs a MILP solver (cobra's configured optlang solver, e.g. GLPK).
+
+⚠️ **Parameter caveat (RAVEN's magic numbers are scale-dependent — tune with care).**
+RAVEN hard-codes a connectivity threshold of 1 flux unit (the "fake metabolite"
+produced ≥1), a big-M of 1000, essential-reaction flux of 0.1, and ``prodWeight``
+0.5 — all sensible only when reaction bounds are ~±1000 and scores are O(1). Two
+things here:
+* The upper gate uses each reaction's **own** ``ub`` as the big-M (``v ≤ ub·x``)
+  rather than a fixed 1000, so it adapts to the model's flux scale — an improvement.
+* ``eps`` (the flux an included reaction must carry, default 1.0) and ``prod_weight``
+  are **exposed parameters**, because the right values depend on the model's flux
+  magnitudes and on the score distribution. If a model's meaningful fluxes are far
+  below 1, ``eps=1`` is too coarse (it can exclude genuinely usable reactions or
+  distort the optimum) — lower it. These defaults match RAVEN for comparability, not
+  because they are universally correct; revisit them when results look off.
 """
 from __future__ import annotations
 
