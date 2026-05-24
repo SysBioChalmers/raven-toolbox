@@ -22,7 +22,7 @@ _Last updated: 2026-05-24_
 | 3a | Reconstruction — homology (`reconstruction/homology/`) | 🟢 implemented (get_model_from_homology + BLAST/DIAMOND wrappers); binary ZIPs/CI pending |
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) — 5-step pipeline: download → parse dump → build HMMs → model-for-species → model-by-HMM-query | 🟢 all 5 steps done (3b.1 download, 3b.2 dump parser, 3b.3 HMM libraries, 3b.4 species model, 3b.5 HMM query). `getPhylDist` distance-matrix deliberately not ported (fixed prok90/euk90 libs make it moot). |
 | 3c | Reconstruction — MetaCyc | ❌ **dropped** (2026-05-24) — BLAST-to-single-representatives is low-precision at every cutoff; also to be removed from MATLAB RAVEN. See IMPROVEMENTS R-MetaCyc. |
-| 4a | Metabolic tasks (`tasks/` — `parseTaskList`, `checkTasks`/`fitTasks`) — the task file | ⬜ not started |
+| 4a | Metabolic tasks (`tasks/` — `parseTaskList`, `checkTasks`) — the task file | 🟢 done — `parse_task_list` + `check_tasks`; `fitTasks` + essential-rxn output deferred to 4c (tINIT consumer) |
 | 4b | Gap-filling (`gapfilling/`) | 🟢 done — `connect_blocked_reactions` (connectivity, MILP via cobra/optlang); targeted mode → `cobra.gapfill` (cheatsheet) |
 | 4c | tINIT (`init/` — original INIT MILP `getINITModel`/`runINIT` + scoring) | ⬜ not started |
 | 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | ⬜ not started |
@@ -64,7 +64,7 @@ Functions that exist as working, tested Python in ravengem.
 | `reconstruction/homology/blast.py` | `run_blast`, `run_diamond`, `blast_from_table` | `getBlast.m`/`getDiamond.m`/`getBlastFromExcel.m` | ✅ `tests/test_reconstruction_blast.py` | Subprocess wrappers → hits DataFrame; `blast_from_table` loads a CSV (no Excel). `run_blast` verified against installed BLAST+. |
 | `binaries.py` | `resolve_binary`, `ensure_binary` | `software/` provisioning | ✅ `tests/test_binaries.py` | Generic binary resolver (arg→env→PATH→bundled ZIP) + version-pinned release-ZIP registry (SHA256-verified cache). Registry empty until ZIPs published. |
 
-**Test status:** 301 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
+**Test status:** 314 tests passing (incl. smoke) under cobra 0.31.1, run via ravengem's own `.venv` (`pip install -e '.[dev,excel]'`).
 
 ---
 
@@ -85,7 +85,7 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | `reconstruction/kegg/query.py` + `assemble.py` | HMM-query de-novo path: hmmscan → assign_kos (cutoff + score ratios) → shared model assembler (`getKEGGModelForOrganism` FASTA branch, step 3b.5) | 🟢 done |
 | `data.py` | `ensure_data` — fetch/verify/cache published artefacts (KEGG reference model + tables + HMM libs) under `~/.cache/ravengem/data/`, mirroring `ensure_binary`; auto-fetch wired into the `…_from_artefacts` entry points | 🟢 done (registry empty until published) |
 | `gapfilling/fill.py` | `connect_blocked_reactions` | `fillGaps.m` (connectivity mode) | ✅ `tests/test_gapfilling.py` | MILP (min penalty-weighted template reactions s.t. blocked reactions carry flux) via cobra/optlang. No cobra equivalent. Templates matched by `name[comp]`. Targeted mode (fill toward objective) → `cobra.gapfill` (cheatsheet, §1). |
-| `tasks/` | metabolic task validation (4a — the task file) | ⬜ stub |
+| `tasks/tasklist.py` + `check.py` | `parse_task_list` + `Task`; `check_tasks` + `TaskResult` | `parseTaskList.m` / `checkTasks.m` | ✅ `tests/test_tasks.py` | Task-list parser (TSV/xlsx; multi-row tasks, `;`-split, defaults, ALLMETS/ALLMETSIN) + feasibility checker that imposes inputs/outputs via relaxed metabolite mass-balance bounds (RAVEN's `b`), adds task equations, changes bounds, closes boundaries. `fitTasks`/essential-rxns deferred to 4c. |
 | `init/` | tINIT (4c) + ftINIT (4d — critical review) context extraction | ⬜ stub |
 | `omics/` | HPA omics → reaction scores | ⬜ stub |
 | `localization/` | subcellular localization (Phase 7) — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …) | ⬜ stub |

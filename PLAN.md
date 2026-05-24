@@ -347,13 +347,14 @@ MetaCyc's database value (extra reactions/pathways) does not justify a separate,
 low-precision, data-heavy track. Its `addSpontaneousRxns`/reconciliation ideas can
 be revisited as small standalone helpers if a concrete need arises.
 
-### 2.4 `tasks/` — metabolic task validation  *(Phase 4a — the task file)*
+### 2.4 `tasks/` — metabolic task validation  *(Phase 4a — done ✅)*
 The foundation the INIT phases build on. No cobrapy equivalent.
 | RAVEN | Notes |
 |---|---|
-| `parseTaskList` | Parse the Excel/text task-definition format → task structures. |
-| `checkTasks`, `fitTasks` | Run a task list (required/forbidden production) against a model via FBA. |
-| `checkProduction`, `getExpressionStructure` | Production checks underpinning tasks. |
+| `parseTaskList` | ✅ `parse_task_list` + `Task` ([tasks/tasklist.py](src/ravengem/tasks/tasklist.py)) — TSV/xlsx, multi-row tasks, `;`-split, defaults, ALLMETS/ALLMETSIN. |
+| `checkTasks` | ✅ `check_tasks` + `TaskResult` ([tasks/check.py](src/ravengem/tasks/check.py)) — inputs/outputs via relaxed metabolite mass-balance bounds (RAVEN's `b`), task equations, bound changes, closed boundaries; feasibility verdict (handles `should_fail`). |
+| `fitTasks`, essential-reaction output (`getEssential`) | Deferred to **4c** — only tINIT needs them. |
+| `checkProduction`, `getExpressionStructure` | Production checks underpinning tasks (port if needed). |
 
 ### 2.5 `init/` — tINIT (original INIT MILP)  *(Phase 4c)*
 RAVEN-unique MILP; no cobrapy equivalent. Needs a MIP solver. Depends on tasks (4a).
