@@ -175,6 +175,7 @@ Keyed to commits on `main`.
 | `44ea6b5` | Add maintainer scripts: build KEGG artefacts + emit registry snippets |
 | `b8d2764` | Calibrate MAFFT budget from measured memory curve; remove max_sequences cap |
 | `4b9cae0` | Drop MetaCyc reconstruction (3c) — low-precision; split gap-filling into Phase 4b |
+| `92deaa8` | Port gap-filling (Phase 4b): fill_gaps (connectivity) + gapfill_to_objective (targeted) |
 
 ---
 
