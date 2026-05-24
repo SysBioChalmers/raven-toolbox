@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import math
 import os
 import shutil
 import subprocess
@@ -149,30 +150,6 @@ def _fasta_stats(fasta: Path) -> tuple[int, int]:
     return n, residues
 
 
-def _subsample_fasta(src: Path, dst: Path, n: int) -> int:
-    """Write ``n`` evenly-spaced records of ``src`` to ``dst`` (caps huge KOs).
-
-    Even spacing (rather than the first ``n``) spreads the kept sequences across
-    the file, which is ordered by organism — a phylogeny-agnostic stand-in for
-    RAVEN's ``nSequences`` most-related subsampling. Returns the count written.
-    """
-    records: list[list[str]] = []
-    with open(src) as fh:
-        for line in fh:
-            if line.startswith(">"):
-                records.append([])
-            if records:
-                records[-1].append(line)
-    if len(records) <= n:
-        shutil.copyfile(src, dst)
-        return len(records)
-    step = len(records) / n
-    with open(dst, "w") as out:
-        for i in range(n):
-            out.write("".join(records[int(i * step)]))
-    return n
-
-
 def _cdhit_cmd(cdhit: str, inp: Path, out: Path, seq_identity: float, threads: int) -> list[str]:
     return [
         cdhit, "-i", str(inp), "-o", str(out),
@@ -182,16 +159,20 @@ def _cdhit_cmd(cdhit: str, inp: Path, out: Path, seq_identity: float, threads: i
 
 
 # MAFFT uses fast progressive FFT-NS-2 until an alignment's total *residues*
-# (count x length — what actually drives memory) would push it past the RAM
-# available to MAFFT, then switches to memory-light PartTree (which keeps all
-# sequences; only the guide tree is approximated). The residue budget is derived
-# from system memory (:func:`_auto_residue_budget`), calibrated on real KEGG 118:
-# FFT-NS-2 used ~2 GB of MAFFT RSS per 1 M residues (K00901: 2.55 M residues
-# needed ~5 GB; the same alignment was 0.69 GB under PartTree).
-_FFTNS2_BYTES_PER_RESIDUE = 2000
-# RAM not available to MAFFT (OS + WSL2 + Python); on WSL2 the reported VM total
-# overcounts usable RAM by ~1.7-2.5 GB, so reserve the high end.
-_MAFFT_MEMORY_OVERHEAD = int(2.5 * 1024**3)
+# (count x length — what drives memory) would push it past the RAM available to
+# MAFFT, then switches to memory-light PartTree (which keeps all sequences; only
+# the guide tree is approximated).
+#
+# Peak MAFFT RSS is super-linear in residues (the alignment widens with size).
+# Empirical FFT-NS-2 model fitted to real KEGG sequences (K00901 subsets, 12
+# threads): RSS_GB ~= A*R^2 + B*R with R in *millions* of residues. Measured:
+#   0.25 M -> 0.67 GB, 0.5 M -> 1.25 GB, 1.0 M -> 3.16 GB, 1.5 M -> 5.73 GB.
+_MAFFT_RSS_A_GB = 1.32  # GB per (M residues)^2
+_MAFFT_RSS_B_GB = 1.84  # GB per M residues
+# RAM not available to MAFFT (OS + WSL2 + Python). On WSL2 the detected total is
+# the whole-VM figure, which overcounts usable RAM by ~1.7-2.5 GB; reserve the
+# high end.
+_MAFFT_MEMORY_OVERHEAD_GB = 2.5
 _MEMORY_SAFETY = 0.7  # leave headroom; never budget MAFFT to the brink
 _DEFAULT_RESIDUE_BUDGET = 1_000_000  # fallback when total memory can't be detected
 _LOW_MEMORY_BYTES = 16 * 1024**3  # below this, warn that the budget is conservative
@@ -204,12 +185,27 @@ def _total_memory_bytes() -> int | None:
         return None
 
 
+def _residues_fitting_in(memory_gb: float) -> int:
+    """Largest residue count whose FFT-NS-2 RSS fits in ``memory_gb`` (the fit).
+
+    Solves ``A*R^2 + B*R = memory_gb`` for R (millions of residues).
+    """
+    if memory_gb <= 0:
+        return 0
+    r_millions = (
+        -_MAFFT_RSS_B_GB + math.sqrt(_MAFFT_RSS_B_GB**2 + 4 * _MAFFT_RSS_A_GB * memory_gb)
+    ) / (2 * _MAFFT_RSS_A_GB)
+    return int(r_millions * 1_000_000)
+
+
 @functools.lru_cache(maxsize=1)
 def _auto_residue_budget() -> int:
     """Residue budget for the FFT-NS-2 -> PartTree cutover, from available RAM.
 
-    Computed and logged once. Warns when memory is limited: the budget is then
-    conservative, so more KOs use the approximate PartTree alignment.
+    Inverts the measured FFT-NS-2 memory model: the budget is the residue count
+    whose predicted peak RSS equals a safe fraction of the RAM left for MAFFT
+    (total − overhead). Computed and logged once; warns when memory is limited
+    (the budget is then conservative, so more KOs use the approximate PartTree).
     """
     total = _total_memory_bytes()
     if total is None:
@@ -218,18 +214,19 @@ def _auto_residue_budget() -> int:
             "Pass parttree_residues to set it explicitly.", _DEFAULT_RESIDUE_BUDGET,
         )
         return _DEFAULT_RESIDUE_BUDGET
-    mafft_mem = max(total - _MAFFT_MEMORY_OVERHEAD, 512 * 1024**2)
-    budget = int(_MEMORY_SAFETY * mafft_mem / _FFTNS2_BYTES_PER_RESIDUE)
+    total_gb = total / 1024**3
+    mafft_gb = max(total_gb - _MAFFT_MEMORY_OVERHEAD_GB, 0.5)
+    budget = _residues_fitting_in(_MEMORY_SAFETY * mafft_gb)
     logger.info(
-        "MAFFT residue budget %d auto-set from %.1f GB total RAM (~%.1f GB for MAFFT)",
-        budget, total / 1024**3, mafft_mem / 1024**3,
+        "MAFFT residue budget %d auto-set from %.1f GB RAM (~%.1f GB for MAFFT, FFT-NS-2 fit)",
+        budget, total_gb, mafft_gb,
     )
     if total < _LOW_MEMORY_BYTES:
         logger.warning(
             "Limited memory (%.1f GB total): MAFFT residue budget set conservatively to "
             "%d, so more KOs will use the approximate PartTree alignment. On a machine "
             "with more RAM, raise parttree_residues (or add memory) to keep more KOs on "
-            "the more accurate FFT-NS-2.", total / 1024**3, budget,
+            "the more accurate FFT-NS-2.", total_gb, budget,
         )
     return budget
 
@@ -303,7 +300,6 @@ def build_ko_hmm(
     out_hmm: str | Path,
     *,
     seq_identity: float = 0.9,
-    max_sequences: int | None = None,
     parttree_residues: int | None = None,
     threads: int = 1,
     fast: bool = True,
@@ -315,9 +311,10 @@ def build_ko_hmm(
     """Cluster, align and train a profile HMM for one KO's multi-FASTA.
 
     Single-sequence KOs skip CD-HIT/MAFFT (a lone sequence is its own alignment).
-    ``seq_identity=-1`` skips CD-HIT. ``max_sequences`` caps the post-CD-HIT set
-    (evenly subsampled) to bound MAFFT time/memory on over-represented KOs.
-    ``fast`` uses MAFFT FFT-NS-2 (fast progressive) rather than ``--auto``'s slow
+    ``seq_identity=-1`` skips CD-HIT. All (deduplicated) sequences are kept —
+    memory on large KOs is bounded by switching MAFFT to PartTree, not by
+    dropping sequences. ``fast`` uses MAFFT FFT-NS-2 (fast progressive) rather
+    than ``--auto``'s slow
     iterative refinement. MAFFT switches to memory-light PartTree once the
     alignment exceeds ``parttree_residues`` total residues; when that is ``None``
     the budget is derived from available RAM (:func:`_auto_residue_budget`).
@@ -353,17 +350,10 @@ def build_ko_hmm(
                     ),
                     label=label, stage=f"CD-HIT ({seq_identity})", verbose=verbose,
                 )
-            n_clustered = _count_sequences(clustered)
+            n_clustered, residues = _fasta_stats(clustered)
             if verbose and seq_identity != -1:
                 logger.info("[%s] CD-HIT: %d -> %d sequences", label, n, n_clustered)
-            if max_sequences and n_clustered > max_sequences:
-                capped = tmp / "capped.fa"
-                _subsample_fasta(clustered, capped, max_sequences)
-                if verbose:
-                    logger.info("[%s] capped %d -> %d sequences", label, n_clustered, max_sequences)
-                clustered = capped
             aligned = tmp / "aligned.fa"
-            n_clustered, residues = _fasta_stats(clustered)
             if n_clustered == 1:
                 if verbose:
                     logger.info("[%s] one sequence after CD-HIT: skipping MAFFT", label)
@@ -404,7 +394,6 @@ def build_hmm_library(
     *,
     domain: str,
     seq_identity: float = 0.9,
-    max_sequences: int | None = None,
     parttree_residues: int | None = None,
     threads: int = 1,
     fast: bool = True,
@@ -441,7 +430,7 @@ def build_hmm_library(
         out_hmm = hmm_dir / f"{ko}.hmm"
         if not out_hmm.exists():
             build_ko_hmm(
-                fasta, out_hmm, seq_identity=seq_identity, max_sequences=max_sequences,
+                fasta, out_hmm, seq_identity=seq_identity,
                 parttree_residues=parttree_residues, threads=threads, fast=fast,
                 verbose=verbose, cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
             )

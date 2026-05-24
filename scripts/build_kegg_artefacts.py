@@ -63,10 +63,6 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--threads", type=int, default=1)
     parser.add_argument("--seq-identity", type=float, default=0.9, help="CD-HIT identity (-1 skips)")
     parser.add_argument(
-        "--max-sequences", type=int, default=None,
-        help="cap sequences per KO after CD-HIT (bounds MAFFT time/memory on huge KOs)",
-    )
-    parser.add_argument(
         "--parttree-residues", type=int, default=None,
         help="total-residue budget above which MAFFT uses PartTree (default 1M, tuned "
              "for ~7 GB RAM; raise on machines with more memory)",
@@ -88,8 +84,7 @@ def main(argv: list[str] | None = None) -> None:
             work = build_hmm_library(
                 ogk, genes_pep, taxonomy, args.out / f"_hmms-{domain}",
                 domain=domain, seq_identity=args.seq_identity,
-                max_sequences=args.max_sequences, parttree_residues=args.parttree_residues,
-                threads=args.threads,
+                parttree_residues=args.parttree_residues, threads=args.threads,
             )
             published = _publish_library(work, args.out, domain)
             print(f"    {domain}: {published} ({len(work['hmms'])} profiles)")
