@@ -185,6 +185,7 @@ Keyed to commits on `main`.
 | `b66da06` | Restructure roadmap: split Phase 4 (4a/4c/4d); number localization as Phase 7 |
 | `fdae0f5` | Port metabolic tasks (Phase 4a): parse_task_list + check_tasks |
 | `9452a52` | Port the INIT MILP (Phase 4c core): run_init |
+| `1f7a30e` | Finish tINIT (Phase 4c): GPR/RNA-seq scoring + get_init_model |
 
 ---
 
