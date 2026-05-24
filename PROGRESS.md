@@ -174,6 +174,8 @@ Keyed to commits on `main`.
 | `33d13c1` | Stream organism_gene_ko (real-data memory fix); 3b validated end-to-end on real KEGG dump |
 | `16d1ef4` | Reference model as gzipped YAML; implement ensure_data artefact fetch/cache |
 | `44ea6b5` | Add maintainer scripts: build KEGG artefacts + emit registry snippets |
+| `b8d2764` | Calibrate MAFFT budget from measured memory curve; remove max_sequences cap |
+| `4b9cae0` | Drop MetaCyc reconstruction (3c) — low-precision; split gap-filling into Phase 4b |
 
 ---
 
