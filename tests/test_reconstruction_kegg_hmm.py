@@ -15,6 +15,7 @@ from ravengem.reconstruction.kegg.hmm import (
     _cdhit_word_size,
     _hmmbuild_cmd,
     _mafft_cmd,
+    _subsample_fasta,
     build_ko_hmm,
 )
 
@@ -165,6 +166,48 @@ def test_build_ko_hmm_single_sequence_skips_align(tmp_path, monkeypatch):
     monkeypatch.setattr("ravengem.reconstruction.kegg.hmm._run", fake_run)
     build_ko_hmm(fasta, tmp_path / "K9.hmm")
     assert calls == ["hmmbuild"]  # no cd-hit / mafft for a lone sequence
+
+
+def test_subsample_fasta_caps_and_spreads(tmp_path):
+    src = tmp_path / "in.fa"
+    src.write_text("".join(f">s{i}\nSEQ{i}\n" for i in range(10)))
+    dst = tmp_path / "out.fa"
+    assert _subsample_fasta(src, dst, 4) == 4
+    kept = [ln[1:].strip() for ln in dst.read_text().splitlines() if ln.startswith(">")]
+    assert kept == ["s0", "s2", "s5", "s7"]  # evenly spaced across the 10
+
+
+def test_subsample_fasta_noop_when_under_cap(tmp_path):
+    src = tmp_path / "in.fa"
+    src.write_text(">a\nMK\n>b\nMR\n")
+    dst = tmp_path / "out.fa"
+    assert _subsample_fasta(src, dst, 5) == 2
+    assert dst.read_text() == src.read_text()
+
+
+def test_build_ko_hmm_caps_before_mafft(tmp_path, monkeypatch):
+    fasta = tmp_path / "K.fa"
+    fasta.write_text("".join(f">g{i}\nMKV\n" for i in range(20)))
+    monkeypatch.setattr(
+        "ravengem.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
+    )
+    seen = {}
+
+    def fake_run(cmd, *, stdout_path=None):
+        name = Path(cmd[0]).name
+        if name == "cd-hit":
+            # CD-HIT "keeps" all 20 here.
+            Path(cmd[cmd.index("-o") + 1]).write_text(fasta.read_text())
+        if name == "mafft":
+            seen["mafft_input_seqs"] = Path(cmd[-1]).read_text().count(">")
+            Path(stdout_path).write_text(fasta.read_text())
+        if name == "hmmbuild":
+            Path(cmd[-2]).write_text("HMM\n")
+        return ""
+
+    monkeypatch.setattr("ravengem.reconstruction.kegg.hmm._run", fake_run)
+    build_ko_hmm(fasta, tmp_path / "K.hmm", max_sequences=5)
+    assert seen["mafft_input_seqs"] == 5  # capped from 20 -> 5 before MAFFT
 
 
 def test_build_ko_hmm_empty_fasta_raises(tmp_path):

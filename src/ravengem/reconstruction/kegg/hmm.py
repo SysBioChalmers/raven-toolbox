@@ -131,6 +131,30 @@ def _count_sequences(fasta: Path) -> int:
         return sum(1 for line in fh if line.startswith(b">"))
 
 
+def _subsample_fasta(src: Path, dst: Path, n: int) -> int:
+    """Write ``n`` evenly-spaced records of ``src`` to ``dst`` (caps huge KOs).
+
+    Even spacing (rather than the first ``n``) spreads the kept sequences across
+    the file, which is ordered by organism — a phylogeny-agnostic stand-in for
+    RAVEN's ``nSequences`` most-related subsampling. Returns the count written.
+    """
+    records: list[list[str]] = []
+    with open(src) as fh:
+        for line in fh:
+            if line.startswith(">"):
+                records.append([])
+            if records:
+                records[-1].append(line)
+    if len(records) <= n:
+        shutil.copyfile(src, dst)
+        return len(records)
+    step = len(records) / n
+    with open(dst, "w") as out:
+        for i in range(n):
+            out.write("".join(records[int(i * step)]))
+    return n
+
+
 def _cdhit_cmd(cdhit: str, inp: Path, out: Path, seq_identity: float, threads: int) -> list[str]:
     return [
         cdhit, "-i", str(inp), "-o", str(out),
@@ -197,6 +221,7 @@ def build_ko_hmm(
     out_hmm: str | Path,
     *,
     seq_identity: float = 0.9,
+    max_sequences: int | None = None,
     threads: int = 1,
     fast: bool = True,
     cdhit: str | Path | None = None,
@@ -206,9 +231,11 @@ def build_ko_hmm(
     """Cluster, align and train a profile HMM for one KO's multi-FASTA.
 
     Single-sequence KOs skip CD-HIT/MAFFT (a lone sequence is its own alignment).
-    ``seq_identity=-1`` skips CD-HIT. ``fast`` uses MAFFT FFT-NS-2 (fast
-    progressive) rather than ``--auto``'s slow iterative refinement, switching to
-    PartTree above :data:`_PARTTREE_THRESHOLD` sequences. Returns ``out_hmm``.
+    ``seq_identity=-1`` skips CD-HIT. ``max_sequences`` caps the post-CD-HIT set
+    (evenly subsampled) to bound MAFFT time/memory on over-represented KOs.
+    ``fast`` uses MAFFT FFT-NS-2 (fast progressive) rather than ``--auto``'s slow
+    iterative refinement, switching to PartTree above :data:`_PARTTREE_THRESHOLD`
+    sequences. Returns ``out_hmm``.
     """
     ko_fasta = Path(ko_fasta)
     out_hmm = Path(out_hmm)
@@ -230,8 +257,12 @@ def build_ko_hmm(
                     resolve_binary("cd-hit", binary=cdhit), ko_fasta, clustered,
                     seq_identity, threads,
                 ))
-            aligned = tmp / "aligned.fa"
             n_clustered = _count_sequences(clustered)
+            if max_sequences and n_clustered > max_sequences:
+                capped = tmp / "capped.fa"
+                _subsample_fasta(clustered, capped, max_sequences)
+                clustered, n_clustered = capped, max_sequences
+            aligned = tmp / "aligned.fa"
             if n_clustered == 1:
                 shutil.copyfile(clustered, aligned)  # MAFFT can't align a single seq
             else:
@@ -257,6 +288,7 @@ def build_hmm_library(
     *,
     domain: str,
     seq_identity: float = 0.9,
+    max_sequences: int | None = None,
     threads: int = 1,
     fast: bool = True,
     press: bool = True,
@@ -291,8 +323,8 @@ def build_hmm_library(
         out_hmm = hmm_dir / f"{ko}.hmm"
         if not out_hmm.exists():
             build_ko_hmm(
-                fasta, out_hmm, seq_identity=seq_identity, threads=threads, fast=fast,
-                cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
+                fasta, out_hmm, seq_identity=seq_identity, max_sequences=max_sequences,
+                threads=threads, fast=fast, cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
             )
         hmms.append(out_hmm)
 

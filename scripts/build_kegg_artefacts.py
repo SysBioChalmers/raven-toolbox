@@ -62,6 +62,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument("--threads", type=int, default=1)
     parser.add_argument("--seq-identity", type=float, default=0.9, help="CD-HIT identity (-1 skips)")
+    parser.add_argument(
+        "--max-sequences", type=int, default=None,
+        help="cap sequences per KO after CD-HIT (bounds MAFFT time/memory on huge KOs)",
+    )
     args = parser.parse_args(argv)
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -78,7 +82,8 @@ def main(argv: list[str] | None = None) -> None:
             print(f">>> Building HMM library for {domain} (3b.3)...")
             work = build_hmm_library(
                 ogk, genes_pep, taxonomy, args.out / f"_hmms-{domain}",
-                domain=domain, seq_identity=args.seq_identity, threads=args.threads,
+                domain=domain, seq_identity=args.seq_identity,
+                max_sequences=args.max_sequences, threads=args.threads,
             )
             published = _publish_library(work, args.out, domain)
             print(f"    {domain}: {published} ({len(work['hmms'])} profiles)")
