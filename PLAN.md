@@ -347,50 +347,63 @@ MetaCyc's database value (extra reactions/pathways) does not justify a separate,
 low-precision, data-heavy track. Its `addSpontaneousRxns`/reconciliation ideas can
 be revisited as small standalone helpers if a concrete need arises.
 
-### 2.4 `init/` — context-specific models (tINIT / ftINIT)  *(Phase 4, flagship)*
-RAVEN-unique MILP algorithm; no cobrapy equivalent. Needs a MIP solver.
+### 2.4 `tasks/` — metabolic task validation  *(Phase 4a — the task file)*
+The foundation the INIT phases build on. No cobrapy equivalent.
 | RAVEN | Notes |
 |---|---|
-| `ftINIT`, `getINITModel`, `runINIT` | Top-level extraction of a context model from omics scores. |
-| `prepINITModel`, `getINITSteps`, `ftINITInternalAlg`, `INITStepDesc` | ftINIT staged algorithm. |
-| `ftINITFillGaps`, `ftINITFillGapsMILP`, `ftINITFillGapsForAllTasks` | Task-aware gap-filling within INIT. |
+| `parseTaskList` | Parse the Excel/text task-definition format → task structures. |
+| `checkTasks`, `fitTasks` | Run a task list (required/forbidden production) against a model via FBA. |
+| `checkProduction`, `getExpressionStructure` | Production checks underpinning tasks. |
+
+### 2.5 `init/` — tINIT (original INIT MILP)  *(Phase 4c)*
+RAVEN-unique MILP; no cobrapy equivalent. Needs a MIP solver. Depends on tasks (4a).
+| RAVEN | Notes |
+|---|---|
+| `getINITModel`, `runINIT` | Extract a context model from gene-expression scores by the INIT MILP. |
 | `scoreComplexModel`, `getExprForRxnScore`, `groupRxnScores`, `removeLowScoreGenes` | Reaction scoring from gene expression. |
 | `mergeLinear`, `rescaleModelForINIT`, `reverseRxns` | MILP preprocessing. |
 
-### 2.5 `tasks/` — metabolic task validation  *(Phase 4, flagship)*
-No cobrapy equivalent.
+### 2.6 `init/` — ftINIT (fast staged INIT)  *(Phase 4d — CRITICAL REVIEW)*
+> ⚠️ **ftINIT needs a lot of special attention.** It is the most complex algorithm in
+> RAVEN — a multi-step MILP with task-aware gap-filling. **Review the MATLAB code very
+> critically before porting**: do not transcribe blindly. Understand each step, question
+> the formulation, check for bugs/edge cases, and validate against RAVEN outputs on real
+> models. Likely the largest single port in the project.
+
 | RAVEN | Notes |
 |---|---|
-| `checkTasks`, `fitTasks` | Run a task list (required/forbidden production) against a model. |
-| `parseTaskList` | Parse the Excel/text task definition format. |
-| `checkProduction`, `getExpressionStructure` | Production checks underpinning tasks. |
+| `ftINIT` | Top-level staged context-model extraction (the newer, faster INIT). |
+| `prepINITModel`, `getINITSteps`, `ftINITInternalAlg`, `INITStepDesc` | The staged algorithm + step descriptors. |
+| `ftINITFillGaps`, `ftINITFillGapsMILP`, `ftINITFillGapsForAllTasks` | Task-aware gap-filling within INIT. |
 
-### 2.6 `gapfilling/` — RAVEN gap-filling  *(Phase 4)*
-RAVEN's template-based MILP gap-filling differs from cobrapy's `gapfilling.GapFiller`.
-| RAVEN | Notes |
-|---|---|
-| `fillGaps` | MILP fill from a reference/template model. |
-| `gapReport` | Connectivity / dead-end / blocked report. |
-| `checkProduction`, `canProduce`, `canConsume`, `makeSomething`, `consumeSomething` | Production/consumption diagnostics. |
-| `removeBadRxns` | Remove reactions enabling erroneous production. |
-| `fitParameters` | Parameter fitting. |
+### 2.7 `gapfilling/` — connectivity gap-filling  *(Phase 4b — done ✅)*
+Implemented as `connect_blocked_reactions` ([gapfilling/fill.py](src/ravengem/gapfilling/fill.py)):
+MILP to add the fewest template reactions so blocked draft reactions carry flux. RAVEN's
+objective-feasibility mode → `cobra.flux_analysis.gapfill` (§1 cheatsheet). Remaining
+production/consumption diagnostics (`canProduce`/`canConsume`/`makeSomething`/`gapReport`)
+are small follow-ups if needed.
 
-### 2.7 `omics/` — data integration  *(Phase 5)*
+### 2.8 `omics/` — data integration  *(Phase 5)*
 | RAVEN | Notes |
 |---|---|
 | `parseHPA`, `parseHPArna`, `scoreModel` | Human Protein Atlas → reaction scores (feeds INIT). |
 
-### 2.7b `localization/` — subcellular localization  *(Phase L, its own phase)*
-A self-contained track: predict subcellular localization of gene products and compartmentalize a
-single-compartment model accordingly. Independent of omics/analysis; no cobra equivalent.
+### 2.9 `localization/` — subcellular localization  *(Phase 7, self-contained)*
+A self-contained track (depends only on Phase 1, can be done anytime): predict subcellular
+localization of gene products and compartmentalize a single-compartment model accordingly. No
+cobra equivalent.
 - **Entry point:** `predict_localization` (`predictLocalization`) — assign reactions to compartments
   from per-gene localization scores, iteratively moving reactions to minimise cross-membrane transport.
-- **Inputs:** a model + a gene→compartment score table (e.g. from WoLF PSORT via `getWoLFScores`).
+- **Pluggable predictors (not just WoLF PSORT):** the algorithm consumes a generic **gene→compartment
+  score table**, so any localization tool can feed it. Provide loaders for **WoLF PSORT**
+  (`getWoLFScores`) and modern predictors such as **DeepLoc** (and leave the table format open for
+  others, e.g. TargetP/LocTree). The compartmentalization algorithm itself is predictor-agnostic.
 
 | RAVEN | Notes |
 |---|---|
-| `predictLocalization` | Compartmentalize a model from localization scores (the algorithm). |
-| `getWoLFScores` | Parse WoLF PSORT output → gene/compartment score table. |
+| `predictLocalization` | Compartmentalize a model from a gene→compartment score table (the algorithm). |
+| `getWoLFScores` | Parse WoLF PSORT output → score table (one backend). |
+| *(new)* DeepLoc loader | Parse DeepLoc output → the same score-table schema (NEW vs RAVEN). |
 | `mapCompartments`, `mergeCompartments`, `copyToComps` | Supporting compartment manipulation (port the RAVEN-specific logic; `getMetsInComp`/`getRxnsInComp` are cobra one-liners — see §1). |
 
 ### 2.8 `analysis/` — RAVEN-specific analyses  *(Phase 5)*
@@ -437,17 +450,22 @@ Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before 
 | **3a** | Reconstruction — homology | `getModelFromHomology` + BLAST/DIAMOND wrappers (§2.3a). Self-contained; build first. | 1, 2 |
 | **3b** | Reconstruction — KEGG | 5-step pipeline (§2.3b): download KEGG → parse dump to reference model → build HMMs → model-for-species (annotation) → model-by-HMM-query (FASTA). | 1, 2 |
 | ~~**3c**~~ | ~~Reconstruction — MetaCyc~~ | **DROPPED** (2026-05-24) — BLAST-to-single-representatives is low-precision at every cutoff (§2.3c, IMPROVEMENTS R-MetaCyc); also to be removed from MATLAB RAVEN. | — |
-| **4** | Context-specific & tasks | metabolic `tasks/`, then tINIT/ftINIT. (Tasks first — INIT depends on them.) | 1, 2, MIP solver |
-| **4b** | Gap-filling | `gapfilling/` (`fillGaps` + task-driven gap-filling). Split out from Phase 4 — distinct concern, reusable on any draft. | 1, 2, 4 (tasks), MIP solver |
+| **4a** | Metabolic tasks (the task file) | `tasks/` — `parseTaskList`, `checkTasks`/`fitTasks`. Foundation for the INIT phases. | 1, 2 |
+| **4b** | Gap-filling | `gapfilling/` — `connect_blocked_reactions` ✅ (done). | 1, 2 |
+| **4c** | tINIT | `init/` — original INIT MILP (`getINITModel`/`runINIT`) + reaction scoring. | 1, 2, 4a, MIP solver |
+| **4d** | ftINIT | `init/` — fast staged INIT (`ftINIT` + task-aware gap-filling). **⚠️ critical review of the MATLAB code required; most complex port.** | 1, 2, 4a, 4c, MIP solver |
 | **5** | Data integration & analysis | HPA/omics scoring, `reporterMetabolites`, FSEOF, dFBA, model comparison. | 1–4 |
-| **L** | Localization | `predictLocalization` + `getWoLFScores` — subcellular localization → compartmentalize a model (its own self-contained phase). | 1 |
 | **6** | Visualization | pathway maps / omics overlay (consider Escher). | 1–2 |
+| **7** | Localization | `localization/` — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …). Self-contained. | 1 |
 
 **Suggested order rationale:** each phase produces something usable on its own. Reconstruction
 (Phase 3) is RAVEN's headline feature and only needs the foundation + I/O. It has two
 **independent** tracks — 3a homology and 3b KEGG (both done). The planned 3c MetaCyc track was
 **dropped** (§2.3c): its homology gene-calling is low-precision and its database value doesn't
-justify the track. tINIT (Phase 4) depends on the task framework, so tasks are built first.
+justify the track. The INIT phases (4c tINIT, 4d ftINIT) depend on the task framework (4a), so
+tasks are built first; ftINIT (4d) is split out as its own phase because it is the most complex
+algorithm in RAVEN and needs a critical, non-transcriptive port. Localization (7) is self-contained
+(only needs Phase 1) and can be slotted in anytime.
 
 ---
 

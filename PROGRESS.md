@@ -22,11 +22,13 @@ _Last updated: 2026-05-24_
 | 3a | Reconstruction — homology (`reconstruction/homology/`) | 🟢 implemented (get_model_from_homology + BLAST/DIAMOND wrappers); binary ZIPs/CI pending |
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) — 5-step pipeline: download → parse dump → build HMMs → model-for-species → model-by-HMM-query | 🟢 all 5 steps done (3b.1 download, 3b.2 dump parser, 3b.3 HMM libraries, 3b.4 species model, 3b.5 HMM query). `getPhylDist` distance-matrix deliberately not ported (fixed prok90/euk90 libs make it moot). |
 | 3c | Reconstruction — MetaCyc | ❌ **dropped** (2026-05-24) — BLAST-to-single-representatives is low-precision at every cutoff; also to be removed from MATLAB RAVEN. See IMPROVEMENTS R-MetaCyc. |
-| 4 | Context-specific & tasks (`tasks/`, `init/` — tasks framework + tINIT/ftINIT) | ⬜ not started |
-| 4b | Gap-filling (`gapfilling/` — `fillGaps`) | 🟢 done — `connect_blocked_reactions` (connectivity, MILP via cobra/optlang); targeted mode → `cobra.gapfill` (cheatsheet) |
+| 4a | Metabolic tasks (`tasks/` — `parseTaskList`, `checkTasks`/`fitTasks`) — the task file | ⬜ not started |
+| 4b | Gap-filling (`gapfilling/`) | 🟢 done — `connect_blocked_reactions` (connectivity, MILP via cobra/optlang); targeted mode → `cobra.gapfill` (cheatsheet) |
+| 4c | tINIT (`init/` — original INIT MILP `getINITModel`/`runINIT` + scoring) | ⬜ not started |
+| 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | ⬜ not started |
 | 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | ⬜ not started |
-| L | Localization (`localization/`) — its own phase (`predictLocalization` + WoLF scores) | ⬜ not started |
 | 6 | Visualization (`plotting/`) | ⬜ not started |
+| 7 | Localization (`localization/`) — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …); self-contained | ⬜ not started |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
 
@@ -83,10 +85,10 @@ All subpackages exist as importable stubs (purpose docstring only) unless noted 
 | `reconstruction/kegg/query.py` + `assemble.py` | HMM-query de-novo path: hmmscan → assign_kos (cutoff + score ratios) → shared model assembler (`getKEGGModelForOrganism` FASTA branch, step 3b.5) | 🟢 done |
 | `data.py` | `ensure_data` — fetch/verify/cache published artefacts (KEGG reference model + tables + HMM libs) under `~/.cache/ravengem/data/`, mirroring `ensure_binary`; auto-fetch wired into the `…_from_artefacts` entry points | 🟢 done (registry empty until published) |
 | `gapfilling/fill.py` | `connect_blocked_reactions` | `fillGaps.m` (connectivity mode) | ✅ `tests/test_gapfilling.py` | MILP (min penalty-weighted template reactions s.t. blocked reactions carry flux) via cobra/optlang. No cobra equivalent. Templates matched by `name[comp]`. Targeted mode (fill toward objective) → `cobra.gapfill` (cheatsheet, §1). |
-| `init/` | tINIT/ftINIT context extraction | ⬜ stub |
-| `tasks/` | metabolic task validation | ⬜ stub |
+| `tasks/` | metabolic task validation (4a — the task file) | ⬜ stub |
+| `init/` | tINIT (4c) + ftINIT (4d — critical review) context extraction | ⬜ stub |
 | `omics/` | HPA omics → reaction scores | ⬜ stub |
-| `localization/` | subcellular localization (`predictLocalization` + WoLF scores) — **its own phase L** | ⬜ stub |
+| `localization/` | subcellular localization (Phase 7) — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …) | ⬜ stub |
 | `analysis/` | reporterMetabolites, FSEOF, dFBA, … | ⬜ stub |
 | `comparison/` | multi-model comparison | ⬜ stub |
 | `plotting/` | pathway maps / omics overlay | ⬜ stub |
@@ -182,12 +184,15 @@ Keyed to commits on `main`.
 
 ## Next up
 
-**Phases 1 (foundation) & 2 (I/O) complete in scope.** Candidate next steps:
+**Done:** Phases 1 (foundation), 2 (I/O), 3a (homology), 3b (KEGG), 4b (gap-filling).
+**Dropped:** 3c (MetaCyc). Candidate next steps:
 
-1. **Reconstruction Phase 3a** — **planned** (PLAN §2.3a): `make_ortholog_hits` →
-   `get_model_from_homology` → `run_blast`/`run_diamond` → `blast_from_table`. Core testable
-   without BLAST. Ready to implement.
-2. **Phase L** — Localization (`predictLocalization` + WoLF scores), its own self-contained phase.
-3. **Phase 4** — metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT (needs a MIP solver).
-4. **Phase 5 / 6** — omics/analysis/comparison; visualization.
-5. **CI** — GitHub Actions running the suite in ravengem's own venv.
+1. **Phase 4a** — metabolic `tasks/` (`parseTaskList`, `checkTasks`/`fitTasks`). The task
+   file; foundation for the INIT phases.
+2. **Phase 4c** — tINIT (original INIT MILP) — depends on 4a; needs a MIP solver.
+3. **Phase 4d** — ftINIT (fast staged INIT). **⚠️ Critical, non-transcriptive review of the
+   MATLAB code required — most complex port.** Depends on 4a, 4c.
+4. **Phase 7** — Localization (`predictLocalization` + pluggable predictors: WoLF PSORT,
+   DeepLoc, …). Self-contained (only needs Phase 1).
+5. **Phase 5 / 6** — omics/analysis/comparison; visualization.
+6. **CI** — GitHub Actions running the suite in ravengem's own venv.
