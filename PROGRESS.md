@@ -179,6 +179,8 @@ Keyed to commits on `main`.
 | `4b9cae0` | Drop MetaCyc reconstruction (3c) — low-precision; split gap-filling into Phase 4b |
 | `92deaa8` | Port gap-filling (Phase 4b): fill_gaps (connectivity) + gapfill_to_objective (targeted) |
 | `c063daf` | Simplify gap-filling: drop targeted wrapper; rename to connect_blocked_reactions |
+| `b66da06` | Restructure roadmap: split Phase 4 (4a/4c/4d); number localization as Phase 7 |
+| `fdae0f5` | Port metabolic tasks (Phase 4a): parse_task_list + check_tasks |
 
 ---
 
