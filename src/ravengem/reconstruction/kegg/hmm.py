@@ -140,8 +140,11 @@ def _cdhit_cmd(cdhit: str, inp: Path, out: Path, seq_identity: float, threads: i
 
 
 # Above this many (post-CD-HIT) sequences, switch MAFFT to its memory-light
-# PartTree mode; below it, use fast progressive FFT-NS-2.
-_PARTTREE_THRESHOLD = 10000
+# PartTree mode; below it, use fast progressive FFT-NS-2. FFT-NS-2 memory grows
+# with N (~1 GB per 1000 sequences here), so this is kept low to stay within a
+# few GB of RAM; PartTree keeps *all* sequences (only the guide tree is
+# approximated), so lowering it does not drop data.
+_PARTTREE_THRESHOLD = 3000
 
 
 def _mafft_cmd(
