@@ -182,6 +182,7 @@ Keyed to commits on `main`.
 | `c063daf` | Simplify gap-filling: drop targeted wrapper; rename to connect_blocked_reactions |
 | `b66da06` | Restructure roadmap: split Phase 4 (4a/4c/4d); number localization as Phase 7 |
 | `fdae0f5` | Port metabolic tasks (Phase 4a): parse_task_list + check_tasks |
+| `9452a52` | Port the INIT MILP (Phase 4c core): run_init |
 
 ---
 
