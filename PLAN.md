@@ -328,19 +328,23 @@ artefacts. *Build order:* 3b.2 (parse — testable against a tiny dump fixture) 
 mode, no tools) → 3b.3 (HMM build) → 3b.5 (HMM query). The model-building core (3b.2/3b.4) is
 testable against small fixtures with no external tools; HMMER steps sit behind `skipif`.
 
-#### 2.3c MetaCyc-based — `reconstruction/metacyc/`  *(Phase 3c)*
-Build a draft from **MetaCyc** reactions/pathways, and optionally reconcile it with a
-KEGG draft (so this track can build on 3b but does not require it).
-- **Entry point:** `getMetaCycModelForOrganism` — draft `cobra.Model` from MetaCyc;
-  `combineMetaCycKEGGModels` merges a MetaCyc and a KEGG draft.
-- **Inputs:** MetaCyc flat-file dumps (license-restricted); optionally a KEGG draft from 3b.
-- **External deps:** MetaCyc data dumps; cross-DB linking to KEGG (`linkMetaCycKEGGRxns`).
+#### 2.3c MetaCyc-based — **DROPPED (not ported)**
+**Decision (2026-05-24): MetaCyc reconstruction will not be ported**, and is slated
+for **removal from MATLAB RAVEN** too. See IMPROVEMENTS.md (R-MetaCyc) for the
+empirical justification and the list of MATLAB functions/data to remove.
 
-| RAVEN | Notes |
-|---|---|
-| `getMetaCycModelForOrganism`, `getModelFromMetaCyc` | MetaCyc-based draft reconstruction. |
-| `getRxnsFromMetaCyc`, `getMetsFromMetaCyc`, `getEnzymesFromMetaCyc` | MetaCyc flat-file parsers. |
-| `linkMetaCycKEGGRxns`, `combineMetaCycKEGGModels`, `addSpontaneousRxns` | Cross-DB reconciliation (with the KEGG track, 3b). |
+Rationale in brief: `getMetaCycModelForOrganism` calls genes by BLASTing the query
+proteome against MetaCyc's **single representative sequence per enzyme** (~11.6k
+seqs), with no profile to discriminate family members. A leave-organism-out
+precision/recall test on real KEGG 118 / MetaCyc data showed this is unreliable at
+**every** cutoff: at RAVEN's default (bitscore 100, ppos 45) only **36 % reaction-level
+precision** (~64 % of assignments wrong) and **59 % even at EC-family level**;
+tightening to bitscore 300 reaches only ~44 %/65 % precision while recall halves.
+No cutoff makes it usable, and real proteomes (with non-enzyme decoys) would fare
+worse. Accurate gene-calling already comes from KEGG HMMs (3b) and homology (3a);
+MetaCyc's database value (extra reactions/pathways) does not justify a separate,
+low-precision, data-heavy track. Its `addSpontaneousRxns`/reconciliation ideas can
+be revisited as small standalone helpers if a concrete need arises.
 
 ### 2.4 `init/` — context-specific models (tINIT / ftINIT)  *(Phase 4, flagship)*
 RAVEN-unique MILP algorithm; no cobrapy equivalent. Needs a MIP solver.
@@ -431,17 +435,18 @@ Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before 
 | **2** | I/O | `readYAMLmodel`/`writeYAMLmodel`, Excel import/export, tab-delimited & SIF export. | 1 |
 | **3a** | Reconstruction — homology | `getModelFromHomology` + BLAST/DIAMOND wrappers (§2.3a). Self-contained; build first. | 1, 2 |
 | **3b** | Reconstruction — KEGG | 5-step pipeline (§2.3b): download KEGG → parse dump to reference model → build HMMs → model-for-species (annotation) → model-by-HMM-query (FASTA). | 1, 2 |
-| **3c** | Reconstruction — MetaCyc | `getMetaCycModelForOrganism` + MetaCyc parsers + KEGG reconciliation (§2.3c). | 1, 2, (3b for combine) |
-| **4** | Context-specific & tasks | metabolic `tasks/`, `gapfilling/`, then tINIT/ftINIT. (Tasks first — INIT depends on them.) | 1, 2, MIP solver |
+| ~~**3c**~~ | ~~Reconstruction — MetaCyc~~ | **DROPPED** (2026-05-24) — BLAST-to-single-representatives is low-precision at every cutoff (§2.3c, IMPROVEMENTS R-MetaCyc); also to be removed from MATLAB RAVEN. | — |
+| **4** | Context-specific & tasks | metabolic `tasks/`, then tINIT/ftINIT. (Tasks first — INIT depends on them.) | 1, 2, MIP solver |
+| **4b** | Gap-filling | `gapfilling/` (`fillGaps` + task-driven gap-filling). Split out from Phase 4 — distinct concern, reusable on any draft. | 1, 2, 4 (tasks), MIP solver |
 | **5** | Data integration & analysis | HPA/omics scoring, `reporterMetabolites`, FSEOF, dFBA, model comparison. | 1–4 |
 | **L** | Localization | `predictLocalization` + `getWoLFScores` — subcellular localization → compartmentalize a model (its own self-contained phase). | 1 |
 | **6** | Visualization | pathway maps / omics overlay (consider Escher). | 1–2 |
 
 **Suggested order rationale:** each phase produces something usable on its own. Reconstruction
-(Phase 3) is RAVEN's headline feature and only needs the foundation + I/O; it splits into three
-**independent** tracks (3a homology, 3b KEGG, 3c MetaCyc), built in that order — homology is most
-self-contained, and MetaCyc can optionally reconcile against a KEGG draft. tINIT (Phase 4)
-depends on the task framework, so tasks are built first within the same phase.
+(Phase 3) is RAVEN's headline feature and only needs the foundation + I/O. It has two
+**independent** tracks — 3a homology and 3b KEGG (both done). The planned 3c MetaCyc track was
+**dropped** (§2.3c): its homology gene-calling is low-precision and its database value doesn't
+justify the track. tINIT (Phase 4) depends on the task framework, so tasks are built first.
 
 ---
 

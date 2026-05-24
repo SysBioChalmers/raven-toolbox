@@ -8,7 +8,7 @@ this file tracks **how far along** the port is. Update it whenever code lands.
 > made smarter/faster or whether RAVEN is missing something that fits — and log those in
 > **[IMPROVEMENTS.md](IMPROVEMENTS.md)** (candidates to also back-port to MATLAB RAVEN).
 
-_Last updated: 2026-05-23_
+_Last updated: 2026-05-24_
 
 ---
 
@@ -21,8 +21,9 @@ _Last updated: 2026-05-23_
 | 2 | I/O (`io/`) | 🟢 done in scope — YAML/SIF/Excel-export/exportForGit (+sort_ids); Excel import excluded |
 | 3a | Reconstruction — homology (`reconstruction/homology/`) | 🟢 implemented (get_model_from_homology + BLAST/DIAMOND wrappers); binary ZIPs/CI pending |
 | 3b | Reconstruction — KEGG (`reconstruction/kegg/`) — 5-step pipeline: download → parse dump → build HMMs → model-for-species → model-by-HMM-query | 🟢 all 5 steps done (3b.1 download, 3b.2 dump parser, 3b.3 HMM libraries, 3b.4 species model, 3b.5 HMM query). `getPhylDist` distance-matrix deliberately not ported (fixed prok90/euk90 libs make it moot). |
-| 3c | Reconstruction — MetaCyc (`reconstruction/metacyc/`) | ⬜ not started |
-| 4 | Context-specific & tasks (`tasks/`, `gapfilling/`, `init/`) | ⬜ not started |
+| 3c | Reconstruction — MetaCyc | ❌ **dropped** (2026-05-24) — BLAST-to-single-representatives is low-precision at every cutoff; also to be removed from MATLAB RAVEN. See IMPROVEMENTS R-MetaCyc. |
+| 4 | Context-specific & tasks (`tasks/`, `init/` — tasks framework + tINIT/ftINIT) | ⬜ not started |
+| 4b | Gap-filling (`gapfilling/` — `fillGaps`/`getModelFromHomology`-fill) | ⬜ not started (split out from Phase 4) |
 | 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | ⬜ not started |
 | L | Localization (`localization/`) — its own phase (`predictLocalization` + WoLF scores) | ⬜ not started |
 | 6 | Visualization (`plotting/`) | ⬜ not started |

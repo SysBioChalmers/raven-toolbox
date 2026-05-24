@@ -11,8 +11,52 @@ Categories:
 - **EFFICIENCY** — same behavior, faster/smarter implementation.
 - **ERGONOMICS** — same job, less friction / fewer foot-guns / clearer contract.
 - **NEW** — functionality RAVEN lacks but that fits naturally alongside what it already has.
+- **REMOVAL** — functionality that should be dropped (here *and* in MATLAB RAVEN) because it does
+  more harm than good.
 
-Status legend: 💡 proposed · 🔨 implemented in ravengem · ⬆️ upstreamed to MATLAB RAVEN
+Status legend: 💡 proposed · 🔨 implemented in ravengem · ⬆️ upstreamed to MATLAB RAVEN ·
+🗑️ dropped (and to remove from MATLAB RAVEN)
+
+---
+
+## R-MetaCyc: drop MetaCyc reconstruction (REMOVAL — also remove from MATLAB RAVEN)
+
+**Decision 2026-05-24:** MetaCyc-based reconstruction is **not ported to ravengem** and should be
+**removed from MATLAB RAVEN**. Status: 🗑️.
+
+**What RAVEN does:** `getMetaCycModelForOrganism` builds a draft by BLAST/DIAMOND of the query
+proteome against `protseq.fsa` — MetaCyc's **single representative protein sequence per enzyme**
+(~11.6k sequences) — keeping each gene's best hit above a bitscore/positives cutoff and assigning
+the linked reaction. With one representative per enzyme there is no profile to tell true family
+members from look-alikes.
+
+**Evidence (this repo, real MetaCyc + KEGG 118 data):** a leave-organism-out precision/recall test
+(query each representative against the others, excluding its own organism; ground truth =
+MetaCyc's own MONOMER→reaction):
+
+| bitscore (ppos≥45) | reaction precision | EC-family precision | EC recall |
+|---|---|---|---|
+| 50 | 0.34 | 0.55 | 0.33 |
+| 100 *(RAVEN default)* | 0.36 | 0.59 | 0.32 |
+| 200 | 0.40 | 0.62 | 0.26 |
+| 300 | 0.44 | 0.65 | 0.22 |
+
+At the default cutoff **~64 % of reaction assignments are wrong** (~41 % wrong even at EC-family
+level); **no cutoff rescues precision** — tightening to bitscore 300 reaches only ~44 %/65 % while
+recall halves. Real proteomes (with non-enzyme decoys, not in this test) would be worse. Test
+scripts/artifacts: `/home/eduardk/metacyc_test/` (not committed).
+
+**Why drop rather than fix:** the low precision is intrinsic to MetaCyc's one-representative-per-
+enzyme data (can't build KEGG-quality HMMs from it). Accurate gene-calling already exists via KEGG
+HMMs (3b) and homology-to-template-models (3a). MetaCyc's genuine value (extra reactions/pathways/
+compound structures) does not justify a separate, data-heavy, low-precision track.
+
+**MATLAB RAVEN removal list** (`external/metacyc/`): `getMetaCycModelForOrganism.m`,
+`getModelFromMetaCyc.m`, `getRxnsFromMetaCyc.m`, `getMetsFromMetaCyc.m`, `getEnzymesFromMetaCyc.m`,
+`linkMetaCycKEGGRxns.m`, `addSpontaneousRxns.m`, and data `metaCycEnzymes.mat` / `metaCycMets.mat`
+/ `metaCycRxns.mat` / `protseq.fsa`; plus any `combineMetaCycKEGGModels` and MetaCyc references in
+tutorials/tests/docs. (`addSpontaneousRxns` could be kept as a small standalone helper if wanted —
+it is only incidentally in the MetaCyc folder.)
 
 ---
 

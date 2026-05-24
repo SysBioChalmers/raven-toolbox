@@ -18,7 +18,6 @@ def test_subpackages_importable():
         "io",
         "reconstruction",
         "reconstruction.kegg",
-        "reconstruction.metacyc",
         "reconstruction.homology",
         "init",
         "tasks",
