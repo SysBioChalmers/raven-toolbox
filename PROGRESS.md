@@ -197,7 +197,7 @@ Keyed to commits on `main`.
 | `1bd0a10` | Document HMM cut-off calibration numbers + `analyze_hmm_cutoffs.py` |
 | `d200b36` | Port random-objective sampling (Phase 5): `random_sampling` + `find_good_reactions` |
 | `4186133` | ftINIT (4d) critical review + phased plan |
-| `pending` | ftINIT 4d.0 oracles + 4d.1 essential-reaction discovery (`find_task_essential_reactions`) |
+| `a631ac7` | ftINIT 4d.0 oracles + 4d.1 essential-reaction discovery (`find_task_essential_reactions`) |
 
 ---
 
