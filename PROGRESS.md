@@ -25,7 +25,7 @@ _Last updated: 2026-05-24_
 | 4a | Metabolic tasks (`tasks/` — `parseTaskList`, `checkTasks`) — the task file | 🟢 done — `parse_task_list` + `check_tasks`; `fitTasks` + essential-rxn output deferred to 4c (tINIT consumer) |
 | 4b | Gap-filling (`gapfilling/`) | 🟢 done — `connect_blocked_reactions` (connectivity, MILP via cobra/optlang); targeted mode → `cobra.gapfill` (cheatsheet) |
 | 4c | tINIT (`init/` — `runINIT` + `scoreComplexModel` + `getINITModel` core) | 🟢 done — `run_init` + `score_reactions_from_genes`/`gene_scores_from_expression` + `get_init_model`. HPA/single-cell ingestion → Phase 5; auto task-essential discovery + task gap-filling → 4d (pass `essential_rxns` for now). |
-| 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | ⬜ not started |
+| 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | 🟡 reviewed + planned ([docs/ftinit_review_and_plan.md](docs/ftinit_review_and_plan.md)); 8 sub-phases, decisions locked; implementation not started |
 | 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | 🟡 started — `reporter_metabolites` + `fseof` (`analysis/`) done; omics parsing / dFBA / comparison pending |
 | 6 | Visualization (`plotting/`) | ⬜ not started |
 | 7 | Localization (`localization/`) — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …); self-contained | ⬜ not started |
