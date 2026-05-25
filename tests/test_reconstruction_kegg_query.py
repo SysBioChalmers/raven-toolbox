@@ -48,7 +48,7 @@ def test_parse_tblout_empty():
 # --------------------------------------------------------------------------- #
 def test_cutoff_excludes_weak_hits():
     hits = parse_hmmscan_tblout(TBLOUT)
-    # gene1->K00002 has evalue 1e-10, above the default cutoff 1e-50: dropped.
+    # gene1->K00002 has evalue 1e-10, above the default cutoff 1e-30: dropped.
     assigned = assign_kos(hits)
     assert "K00002" not in assigned
     assert set(assigned["K01194"]) == {"gene1", "gene2"}

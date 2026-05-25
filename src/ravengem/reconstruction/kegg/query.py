@@ -72,9 +72,9 @@ def parse_hmmscan_tblout(text: str) -> pd.DataFrame:
 def assign_kos(
     hits: pd.DataFrame,
     *,
-    cutoff: float = 1e-50,
+    cutoff: float = 1e-30,
     min_score_ratio_ko: float = 0.3,
-    min_score_ratio_g: float = 0.8,
+    min_score_ratio_g: float = 0.9,
 ) -> dict[str, list[str]]:
     """Assign genes to KOs from HMM hits, applying the cut-off and ratio filters.
 
@@ -91,6 +91,22 @@ def assign_kos(
     Smaller E-value = better; since all kept values are ``< 1`` their logs are
     negative, so the best (smallest) hit gives ratio 1 and weaker hits give a
     smaller positive ratio.
+
+    Default calibration (see IMPROVEMENTS K15). Cross-validated against the true
+    KEGG gene→KO annotation of four organisms spanning the prok/euk libraries and
+    the well-/lesser-studied axis (*S. cerevisiae*, *Cyanidioschyzon merolae*,
+    *E. coli*, *Mycoplasma genitalium*): real annotations score
+    overwhelmingly (median E ≈ 1e-100…1e-155) while spurious hits pile up at
+    ≈1e-8, so the two are separated by ~20 orders of magnitude. RAVEN's
+    ``1e-50`` sits inside the *true* tail and silently drops real but divergent
+    hits — costing 16% gene→KO recall on the divergent minimal genome
+    (*M. genitalium*) for no noise-rejection benefit (noise is far weaker). The
+    default is therefore loosened to **1e-30** (recovers that tail; still ~22
+    orders above the noise floor), with the precision work moved to
+    **min_score_ratio_g = 0.9** — the *effective* precision lever (it resolves
+    multi-KO genes). ``min_score_ratio_ko`` proved empirically inert across all
+    four organisms (identical output at 0.0/0.3/0.5) and is kept only for RAVEN
+    parity.
     """
     # Best (smallest) E-value per (ko, gene), filtered at the cut-off.
     mat: dict[str, dict[str, float]] = {}
@@ -137,9 +153,9 @@ def get_kegg_model_from_sequences(
     *,
     rxn_flags: pd.DataFrame | None = None,
     model_id: str | None = None,
-    cutoff: float = 1e-50,
+    cutoff: float = 1e-30,
     min_score_ratio_ko: float = 0.3,
-    min_score_ratio_g: float = 0.8,
+    min_score_ratio_g: float = 0.9,
     keep_spontaneous: bool = True,
     keep_undefined_stoich: bool = True,
     keep_incomplete: bool = True,
