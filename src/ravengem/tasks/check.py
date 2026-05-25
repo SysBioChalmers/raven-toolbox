@@ -19,7 +19,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 import cobra
-from cobra.flux_analysis import flux_variability_analysis
+from cobra.exceptions import OptimizationError
+from cobra.flux_analysis import flux_variability_analysis, pfba
 from optlang.symbolics import Zero
 
 from ravengem.manipulation.add import add_reactions_from_equations
@@ -204,22 +205,24 @@ class EssentialReactionsResult:
 
 
 def _task_essential_reactions(
-    task_model: cobra.Model, original_ids: set[str], tol: float
+    task_model: cobra.Model, candidates: list[str], tol: float
 ) -> dict[str, int]:
-    """Reactions in ``task_model`` forced to carry flux, with direction, via FVA.
+    """Reactions in ``candidates`` forced to carry flux, with direction, via FVA.
 
     A reaction is *essential* for the task iff zero is not attainable in any feasible
     solution — i.e. its FVA range excludes 0. This is exactly RAVEN's
-    "constrain to 0 → infeasible" definition, found in one optimised FVA pass instead
-    of a per-reaction knockout loop. The nonzero side gives the forced direction.
-    Only reactions of the original model are returned (task-equation temporaries are
-    dropped, as RAVEN does).
+    "constrain to 0 → infeasible" definition, but obtained from FVA ranges (no
+    per-reaction knockout loop). The nonzero side of the range gives the forced
+    direction. FVA is restricted to ``candidates`` — the reactions carrying flux in a
+    minimal feasible solution, the only ones that *can* be essential (an essential
+    reaction is nonzero in every feasible solution, so also in that one) — which keeps
+    this cheap on genome-scale templates instead of ranging all reactions.
     """
-    fva = flux_variability_analysis(task_model, fraction_of_optimum=0.0)
+    if not candidates:
+        return {}
+    fva = flux_variability_analysis(task_model, reaction_list=candidates, fraction_of_optimum=0.0)
     essential: dict[str, int] = {}
     for rxn_id, lo, hi in zip(fva.index, fva["minimum"], fva["maximum"], strict=True):
-        if rxn_id not in original_ids:
-            continue
         if lo > tol:
             essential[rxn_id] = 1
         elif hi < -tol:
@@ -256,12 +259,19 @@ def find_task_essential_reactions(
         if task.should_fail:
             continue  # a task meant to fail defines no essential reactions
         task_model, task_mets, error = _build_task_model(base, task, name_to_id, comp_to_ids)
-        if error is not None or task_model.slim_optimize() is None \
-                or task_model.solver.status != "optimal":
+        if error is not None:
             failed.append(task.id)
             continue
+        # One min-flux solve both proves feasibility and yields the essential-reaction
+        # candidates (the original reactions carrying flux in a sparse solution).
+        try:
+            fluxes = pfba(task_model).fluxes
+        except OptimizationError:
+            failed.append(task.id)
+            continue
+        candidates = [rid for rid in original_ids if abs(fluxes.get(rid, 0.0)) > tol]
         task_metabolites |= task_mets
-        essential = _task_essential_reactions(task_model, original_ids, tol)
+        essential = _task_essential_reactions(task_model, candidates, tol)
         per_task[task.id] = essential
         for rxn_id, direction in essential.items():
             direction_votes[rxn_id] = direction_votes.get(rxn_id, 0) + direction

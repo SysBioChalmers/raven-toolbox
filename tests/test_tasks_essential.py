@@ -45,6 +45,21 @@ def test_no_task_no_essentials():
     assert res.reactions == {} and res.per_task == {}
 
 
+def test_equation_metabolites_are_protected():
+    """A task equation's metabolites count as task metabolites (protected from removal)."""
+    m = make_test_model()
+    task = Task(
+        id="equ",
+        inputs=[("a[s]", 0.0, 1000.0)],
+        outputs=[("e[c]", 1.0, 1.0)],
+        equations=[("a[c] => e[c]", 0.0, 1000.0)],  # references a[c], which is not an I/O met
+    )
+    res = find_task_essential_reactions(m, [task])
+    names = {f"{m.metabolites.get_by_id(i).name}[{m.metabolites.get_by_id(i).compartment}]"
+             for i in res.task_metabolites}
+    assert {"a[c]", "e[c]"} <= names and "equ" not in res.failed_tasks
+
+
 def test_infeasible_task_is_reported_failed():
     """A task requiring an impossible output is dropped, not crashed."""
     impossible = Task(id="bad", outputs=[("z[s]", 1.0, 1.0)])
