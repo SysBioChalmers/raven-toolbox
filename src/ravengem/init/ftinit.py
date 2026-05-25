@@ -86,8 +86,7 @@ def run_ftinit(
 
     variables: list = []
     constraints: list = []
-    net_flux: dict[str, object] = {}                  # rxn id -> optlang expr (for S·v)
-    flux_terms: dict[str, list[tuple[object, float]]] = {}  # rxn id -> [(var, sign)] for values
+    flux_terms: dict[str, list[tuple[object, float]]] = {}  # rxn id -> [(var, sign)]
     indicators: dict[str, tuple[object, float]] = {}  # rxn id -> (indicator var, score)
     free_or_essential: set[str] = set()               # kept regardless of an indicator
 
@@ -102,17 +101,18 @@ def run_ftinit(
             score = 0.0  # staging step 1: positive reversibles dropped from the problem
 
         if rid in essential:
-            # Forced on, oriented forward (prepINITModel makes essentials irreversible).
-            v = prob.Variable(f"v_{rid}", lb=max(force_on_ess, max(lb, 0.0)), ub=ub)
+            # Forced on, oriented forward (prepINITModel makes essentials irreversible);
+            # respect a stricter native lower bound if the model already forces more flux.
+            v = prob.Variable(f"v_{rid}", lb=max(force_on_ess, lb), ub=ub)
             variables.append(v)
-            net_flux[rid], flux_terms[rid] = v, [(v, 1.0)]
+            flux_terms[rid] = [(v, 1.0)]
             free_or_essential.add(rid)
             continue
 
         if score == 0.0:  # free: carries flux for connectivity, not scored/removable
             v = prob.Variable(f"v_{rid}", lb=lb, ub=ub)
             variables.append(v)
-            net_flux[rid], flux_terms[rid] = v, [(v, 1.0)]
+            flux_terms[rid] = [(v, 1.0)]
             free_or_essential.add(rid)
             continue
 
@@ -121,12 +121,12 @@ def run_ftinit(
             vp = prob.Variable(f"vp_{rid}", lb=0.0, ub=ub)
             vn = prob.Variable(f"vn_{rid}", lb=0.0, ub=-lb)
             variables += [vp, vn]
-            net_flux[rid], flux_terms[rid] = vp - vn, [(vp, 1.0), (vn, -1.0)]
-            total = vp + vn  # |flux|, used by the on/off gates
-        else:
-            v = prob.Variable(f"v_{rid}", lb=min(lb, 0.0), ub=max(ub, 0.0))
+            flux_terms[rid] = [(vp, 1.0), (vn, -1.0)]
+            total = vp + vn  # |flux| (one of vp/vn pinned to 0 below), used by the gates
+        else:  # single-direction: keep the model's own [lb, ub] (incl. any forced lb>0)
+            v = prob.Variable(f"v_{rid}", lb=lb, ub=ub)
             variables.append(v)
-            net_flux[rid], flux_terms[rid] = v, [(v, 1.0)]
+            flux_terms[rid] = [(v, 1.0)]
             total = v if ub > 0 else -v  # magnitude for a single-direction reaction
 
         if score > 0:
@@ -146,9 +146,12 @@ def run_ftinit(
             cap = (ub - lb) if reversible else (ub if ub > 0 else -lb)
             add_constraint(total - cap * x, ub=0.0, name=f"off_{rid}")  # flux>0 ⇒ x=1
 
+    def net(rid):  # net flux expression vp - vn (or v), the single source of truth
+        return sum(sign * var for var, sign in flux_terms[rid])
+
     # Steady state S·v {== 0 | >= 0}.
     for met in model.metabolites:
-        expr = sum(coeff * net_flux[r.id] for r in met.reactions if (coeff := r.metabolites[met]))
+        expr = sum(coeff * net(r.id) for r in met.reactions if (coeff := r.metabolites[met]))
         if expr != 0:
             add_constraint(expr, lb=0.0, ub=None if allow_excretion else 0.0)
 
@@ -160,7 +163,9 @@ def run_ftinit(
     if opt.status != "optimal":
         raise RuntimeError(f"ftINIT MILP did not solve to optimality (status: {opt.status}).")
 
-    on = {rid for rid, (ind, _) in indicators.items() if (ind.primal or 0.0) > 0.5}
+    # RAVEN: a reaction is "on" iff its indicator ≥ 0.5 (positive indicators are
+    # continuous and can land fractionally when a reaction can carry only tiny flux).
+    on = {rid for rid, (ind, _) in indicators.items() if (ind.primal or 0.0) >= 0.5}
     kept = free_or_essential | on
     deleted = [r.id for r in model.reactions if r.id not in kept]
     fluxes = {

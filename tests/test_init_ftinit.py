@@ -96,3 +96,18 @@ def test_unscored_reactions_are_kept_free():
     scores["R3"] = 0.0  # make R3 unscored -> must not be deleted
     res = run_ftinit(model, scores)
     assert "R3" not in res.deleted_reactions
+
+
+def test_forced_flux_lower_bound_is_respected():
+    """A scored, non-reversible reaction with lb>0 must keep carrying >= lb flux.
+
+    Guards the bound handling: the single-direction branch must use the model's own
+    [lb, ub], not zero out a positive lower bound.
+    """
+    model = make_test_model()
+    scores = _scores(model)
+    # R6 (2 d[c] => e[c]) is forward-irreversible; force >=2 flux through it.
+    model.reactions.get_by_id("R6").lower_bound = 2.0
+    res = run_ftinit(model, scores)
+    assert res.fluxes["R6"] >= 2.0 - 1e-6
+    assert "R6" not in res.deleted_reactions
