@@ -48,7 +48,7 @@ convenience wrappers or documentation mapping the old names.
 | `getMinNrFluxes` (parsimonious) | `cobra.flux_analysis.pfba` |
 | `findGeneDeletions` | `single_gene_deletion`, `double_gene_deletion`, `single/double_reaction_deletion` |
 | `getEssentialRxns` | `cobra.flux_analysis.find_essential_reactions` / `find_essential_genes` |
-| `randomSampling`, `analyzeSampling` | `cobra.sampling` (OptGP, ACHR) |
+| `analyzeSampling` (post-hoc stats on a sample set) | pandas on the sample matrix (mean/std/quantiles) |
 | `runProductionEnvelope`, `runPhenotypePhasePlane` | `cobra.flux_analysis.production_envelope` |
 | `getExchangeRxns`, `getTransportRxns` | `model.exchanges`, `model.boundary`, custom filters |
 | `buildEquation`, `parseRxnEqu`, `constructEquations` | `reaction.reaction`, `reaction.build_reaction_string(use_metabolite_names=...)`, `reaction.build_reaction_from_string` |

@@ -194,6 +194,8 @@ Keyed to commits on `main`.
 | `1969e72` | Tidy KEGG HMM verbose logging: one completion line per stage |
 | `3c04a4b` | Shrink `organism_gene_ko` 78→27 MB: sort by (organism, gene) + xz, external merge sort |
 | `ad29fa1` | Recalibrate HMM-query defaults (cutoff 1e-50→1e-30, ratio_g 0.8→0.9) from 4-organism cross-validation |
+| `1bd0a10` | Document HMM cut-off calibration numbers + `analyze_hmm_cutoffs.py` |
+| `pending` | Port random-objective sampling (Phase 5): `random_sampling` + `find_good_reactions` |
 
 ---
 

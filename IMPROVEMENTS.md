@@ -113,6 +113,22 @@ output; redesigned substantially.
 | FS3 | ERGONOMICS | ravengem 🔨 | 🔨 | **Gene-level aggregation** (`gene_targets`) mapping reaction targets to genes, plus the **full flux scan** retained — all as DataFrames, vs RAVEN's printed TSV + endpoint-only slope. |
 | FS4 | CORRECTNESS | ravengem 🔨 | 🔨 | Slope is the **regression slope** consistent with the selection criterion, not RAVEN's endpoint difference that disagreed with its own monotonicity filter. |
 
+## randomSampling (Phase 5 — implemented)
+
+RAVEN `core/randomSampling.m` → `analysis/sampling.py` (`random_sampling`). The
+random-objective / extreme-point method of Bordel et al. (2010) — **not** what
+`cobra.sampling` (OptGP/ACHR) does (those draw a near-uniform MCMC sample of the
+polytope interior), so it is a genuine addition, and it was wrongly listed as
+cobra-covered in the PLAN cheatsheet. Each sample maximises a small random linear
+combination of reactions.
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| SAMP1 | EFFICIENCY | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **`good_reactions` (loop-free, flux-carrying objective candidates) via one `cobra` FVA pass** rather than RAVEN's hand-rolled per-reaction `parfor` that solves a separate LP maximising and minimising every reaction. FVA computes the same min/max ranges, optimised and optionally `loopless` (`cycleFreeFlux`), in far less code. |
+| SAMP2 | ERGONOMICS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Reproducible** (`seed`) and **`n_objectives` is a parameter** — RAVEN has no seed and hard-codes 2 objective reactions (its docstring even claims 3, a transcription bug worth fixing upstream). |
+| SAMP3 | ERGONOMICS | ravengem 🔨 | 🔨 | **Output is a samples × reactions DataFrame** (the `cobra.sampling` layout, directly usable with pandas/`analyzeSampling`-style stats) plus the reusable `good_reactions` list — instead of a reactions × samples matrix and a parallel `goodRxns` index vector that the caller must re-thread. |
+| SAMP4 | CORRECTNESS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **`replace_max_bound` (RAVEN's `replaceBoundsWithInf`) defaults off and is scoped to sampling only.** It applies *after* `good_reactions` is found (FVA cannot evaluate `inf` bounds — it errors as 'unbounded'), and it can open unbounded loop directions; documented to pair with `min_flux`. RAVEN ran goodRxns detection on the inf-replaced model, conflating "loop reaction" with "unbounded objective". |
+
 ## reporterMetabolites (Phase 5 — implemented)
 
 RAVEN `core/reporterMetabolites.m` → `analysis/reporter.py` (`reporter_metabolites`).
