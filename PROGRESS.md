@@ -25,7 +25,7 @@ _Last updated: 2026-05-24_
 | 4a | Metabolic tasks (`tasks/` — `parseTaskList`, `checkTasks`) — the task file | 🟢 done — `parse_task_list` + `check_tasks`; `fitTasks` + essential-rxn output deferred to 4c (tINIT consumer) |
 | 4b | Gap-filling (`gapfilling/`) | 🟢 done — `connect_blocked_reactions` (connectivity, MILP via cobra/optlang); targeted mode → `cobra.gapfill` (cheatsheet) |
 | 4c | tINIT (`init/` — `runINIT` + `scoreComplexModel` + `getINITModel` core) | 🟢 done — `run_init` + `score_reactions_from_genes`/`gene_scores_from_expression` + `get_init_model`. HPA/single-cell ingestion → Phase 5; auto task-essential discovery + task gap-filling → 4d (pass `essential_rxns` for now). |
-| 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | 🟡 in progress ([docs/ftinit_review_and_plan.md](docs/ftinit_review_and_plan.md)). 4d.0 oracles ✅, 4d.1 essential-reaction discovery ✅, 4d.3 single-step `'full'` MILP ✅ (`run_ftinit`, 6-category), 4d.2 linear merge ✅ (`merge_linear` + `group_rxn_scores`, matches T0004 exactly). Next: 4d.3b staging (`'1+1'`). |
+| 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | 🟡 in progress ([docs/ftinit_review_and_plan.md](docs/ftinit_review_and_plan.md)). 4d.0 oracles ✅, 4d.1 essential-reaction discovery ✅, 4d.3 single-step `'full'` MILP ✅ (`run_ftinit`, 6-category), 4d.2 linear merge ✅, 4d.3b staging ✅ (`classify_reactions` + `prep_init_model`/`PrepData` + `get_init_steps` + `ftinit`; matches T0001 **and** T0002). Next: 4d.4 task gap-fill → 4d.5 `remove_low_score_genes` + polish → 4d.6 metabolomics → 4d.7 Human-GEM. |
 | 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | 🟡 started — `reporter_metabolites` + `fseof` (`analysis/`) done; omics parsing / dFBA / comparison pending |
 | 6 | Visualization (`plotting/`) | ⬜ not started |
 | 7 | Localization (`localization/`) — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …); self-contained | ⬜ not started |
@@ -201,6 +201,8 @@ Keyed to commits on `main`.
 | `6de436c` | ftINIT 4d.3: single-step 6-category MILP (`run_ftinit`) |
 | `2fa7149` | Review fix 4d.3: preserve positive lower bounds; RAVEN-parity on-threshold |
 | `e802823` | ftINIT 4d.2: linear merge (`merge_linear` + `group_rxn_scores`), matches T0004 |
+| `0d83318` | Review polish 4d.2: confluence/multi-pass doc + cleanups |
+| `pending` | ftINIT 4d.3b: classification + prepData + staged pipeline (`ftinit`), matches T0001/T0002 |
 
 ---
 

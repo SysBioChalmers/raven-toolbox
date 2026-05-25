@@ -43,7 +43,7 @@ score-optimal. A loopless option could be layered on later if needed.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import cobra
 
@@ -59,6 +59,7 @@ class FtInitResult:
     deleted_reactions: list[str]
     fluxes: dict[str, float]
     objective: float
+    on_reactions: set[str] = field(default_factory=set)  # scored reactions turned on (indicator)
 
 
 def run_ftinit(
@@ -66,8 +67,10 @@ def run_ftinit(
     rxn_scores: Mapping[str, float] | None = None,
     *,
     essential_rxns: Iterable[str] | None = None,
+    essential_directions: Mapping[str, int] | None = None,
     allow_excretion: bool = False,
     rem_pos_rev: bool = False,
+    ignore_mets: Iterable[str] = (),
     force_on: float = _FORCE_ON,
     force_on_ess: float = _FORCE_ON,
 ) -> FtInitResult:
@@ -75,12 +78,17 @@ def run_ftinit(
 
     ``rxn_scores`` maps reaction id → score (default 0 → reaction left free in the
     model, not scored or removable). ``essential_rxns`` are forced to carry flux
-    (≥ ``force_on_ess``) and should already be oriented irreversibly. See the module
-    docstring for the formulation. This is the ``'full'`` (single-step) variant;
-    linear merging and the staged ``'1+1'`` schedule are layered on later (4d.2/4d.3b).
+    (≥ ``force_on_ess``); ``essential_directions`` maps an essential reaction id to
+    ``+1`` (forward) or ``-1`` (reverse) for the forced direction (default forward).
+    ``ignore_mets`` are metabolite **names** whose mass balance is dropped (RAVEN's
+    per-step "simple metabolite" removal, e.g. H2O/H+). See the module docstring for
+    the formulation. This is the single-step variant; the staged schedule
+    (:func:`ravengem.init.ftinit`) calls it per step.
     """
     scores = dict(rxn_scores or {})
     essential = set(essential_rxns or [])
+    directions = dict(essential_directions or {})
+    ignore_met_names = set(ignore_mets)
     prob = model.problem
     opt = prob.Model()
 
@@ -101,9 +109,12 @@ def run_ftinit(
             score = 0.0  # staging step 1: positive reversibles dropped from the problem
 
         if rid in essential:
-            # Forced on, oriented forward (prepINITModel makes essentials irreversible);
-            # respect a stricter native lower bound if the model already forces more flux.
-            v = prob.Variable(f"v_{rid}", lb=max(force_on_ess, lb), ub=ub)
+            # Forced to carry flux in its forced direction (default forward); respect a
+            # stricter native bound if the model already forces more flux.
+            if directions.get(rid, 1) >= 0:
+                v = prob.Variable(f"v_{rid}", lb=max(force_on_ess, lb), ub=ub)
+            else:  # reverse: flux ≤ -force_on_ess
+                v = prob.Variable(f"v_{rid}", lb=lb, ub=min(-force_on_ess, ub))
             variables.append(v)
             flux_terms[rid] = [(v, 1.0)]
             free_or_essential.add(rid)
@@ -149,8 +160,10 @@ def run_ftinit(
     def net(rid):  # net flux expression vp - vn (or v), the single source of truth
         return sum(sign * var for var, sign in flux_terms[rid])
 
-    # Steady state S·v {== 0 | >= 0}.
+    # Steady state S·v {== 0 | >= 0}; ignored metabolites are left unbalanced.
     for met in model.metabolites:
+        if met.name in ignore_met_names:
+            continue
         expr = sum(coeff * net(r.id) for r in met.reactions if (coeff := r.metabolites[met]))
         if expr != 0:
             add_constraint(expr, lb=0.0, ub=None if allow_excretion else 0.0)
@@ -175,4 +188,67 @@ def run_ftinit(
 
     out = model.copy()
     out.remove_reactions(deleted, remove_orphans=True)
-    return FtInitResult(out, sorted(kept), sorted(deleted), fluxes, float(opt.objective.value))
+    return FtInitResult(out, sorted(kept), sorted(deleted), fluxes,
+                        float(opt.objective.value), on_reactions=on)
+
+
+def ftinit(
+    prep,
+    rxn_scores: Mapping[str, float],
+    *,
+    series: str = "1+1",
+    steps=None,
+    force_on: float = _FORCE_ON,
+) -> cobra.Model:
+    """Run the staged ftINIT pipeline on prepData and return the extracted model.
+
+    ``prep`` is a :class:`ravengem.init.PrepData`. ``rxn_scores`` maps **original**
+    reaction id → score (e.g. from :func:`score_reactions_from_genes` on the template).
+    Each step (:func:`ravengem.init.get_init_steps`) regroups scores under its
+    ``ignore_mask``, fixes the reactions turned on by earlier steps as essential (in
+    their flux direction), and solves :func:`run_ftinit` on the merged model. Reactions
+    never turned on (and not essential or left-in) are removed from the reference model;
+    exchange reactions are always kept (RAVEN re-adds them).
+    """
+    from ravengem.init.merge import group_rxn_scores
+    from ravengem.init.steps import get_init_steps
+
+    steps = steps if steps is not None else get_init_steps(series)
+    min_model, group_of = prep.min_model, prep.group_of
+
+    turned_on: dict[str, float] = {}   # merged reaction id -> flux (accumulated)
+    left_in: set[str] = set()          # merged reactions with score 0 in the last step
+    for step in steps:
+        to_zero = prep.masks.ignored(step.ignore_mask)
+        scores = group_rxn_scores(min_model, rxn_scores, prep.orig_rxn_ids,
+                                  prep.group_ids, to_zero)
+        essential = set(prep.essential_rxns)
+        directions = dict(prep.essential_directions)
+        if step.how_to_use_prev == "essential":
+            for rid, flux in turned_on.items():
+                essential.add(rid)
+                directions[rid] = 1 if flux >= 0 else -1
+        res = run_ftinit(
+            min_model, scores, essential_rxns=essential, essential_directions=directions,
+            allow_excretion=step.allow_met_secr, rem_pos_rev=step.pos_rev_off,
+            ignore_mets=step.mets_to_ignore, force_on=force_on, force_on_ess=force_on,
+        )
+        for rid in res.on_reactions:
+            turned_on[rid] = res.fluxes[rid]
+        left_in = {rid for rid, s in scores.items() if s == 0.0}
+
+    # Merged reactions to keep: turned on + permanently essential + left-in (score 0).
+    kept_min = set(turned_on) | set(prep.essential_rxns) | left_in
+    deleted_min = [r.id for r in min_model.reactions if r.id not in kept_min]
+
+    # Map deleted merged reactions back to all originals in their groups.
+    removed_groups = {group_of[rid] for rid in deleted_min if group_of[rid] != 0}
+    to_remove = {o for o in prep.orig_rxn_ids if group_of[o] and group_of[o] in removed_groups}
+    to_remove |= {rid for rid in deleted_min if group_of[rid] == 0}  # unmerged
+    # Keep the surviving originals plus all exchange reactions (always re-added).
+    final_kept = (set(prep.orig_rxn_ids) - to_remove) | prep.masks.exchange
+
+    out = prep.ref_model.copy()
+    out.remove_reactions([r.id for r in out.reactions if r.id not in final_kept],
+                         remove_orphans=True)
+    return out

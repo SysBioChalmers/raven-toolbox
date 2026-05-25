@@ -11,19 +11,28 @@ ftINIT (Phase 4d):
   continuous indicators for positive-score reactions (the speedup over ``run_init``).
 """
 from ravengem.init.build import InitModelResult, get_init_model
-from ravengem.init.ftinit import FtInitResult, run_ftinit
+from ravengem.init.ftinit import FtInitResult, ftinit, run_ftinit
 from ravengem.init.init import InitResult, run_init
 from ravengem.init.merge import group_rxn_scores, merge_linear
+from ravengem.init.prep import PrepData, ReactionMasks, classify_reactions, prep_init_model
 from ravengem.init.score import gene_scores_from_expression, score_reactions_from_genes
+from ravengem.init.steps import InitStep, get_init_steps
 
 __all__ = [
     "FtInitResult",
     "InitModelResult",
     "InitResult",
+    "InitStep",
+    "PrepData",
+    "ReactionMasks",
+    "classify_reactions",
+    "ftinit",
     "gene_scores_from_expression",
     "get_init_model",
+    "get_init_steps",
     "group_rxn_scores",
     "merge_linear",
+    "prep_init_model",
     "run_ftinit",
     "run_init",
     "score_reactions_from_genes",
