@@ -200,7 +200,7 @@ Keyed to commits on `main`.
 | `a631ac7` | ftINIT 4d.0 oracles + 4d.1 essential-reaction discovery (`find_task_essential_reactions`) |
 | `6de436c` | ftINIT 4d.3: single-step 6-category MILP (`run_ftinit`) |
 | `2fa7149` | Review fix 4d.3: preserve positive lower bounds; RAVEN-parity on-threshold |
-| `pending` | ftINIT 4d.2: linear merge (`merge_linear` + `group_rxn_scores`), matches T0004 |
+| `e802823` | ftINIT 4d.2: linear merge (`merge_linear` + `group_rxn_scores`), matches T0004 |
 
 ---
 
