@@ -53,6 +53,14 @@ def merge_linear(
     ``no_merge`` reaction ids are never merged. The reduced model carries no genes
     (merging makes GPRs meaningless); scores are remapped with
     :func:`group_rxn_scores`.
+
+    Each pass recomputes the metabolite→reaction incidence fresh, then merges over the
+    degree-2 metabolites found at the start of the pass. A metabolite that only
+    *becomes* degree-2 mid-pass (because one of its reactions was just merged into a
+    survivor) is therefore picked up on the next pass rather than immediately — linear
+    merging is confluent, so the final grouping is the same regardless, it just takes a
+    few extra passes on long chains. (RAVEN re-finds incidence per metabolite and so
+    finishes a chain in one pass; the end result is equivalent.)
     """
     banned = set(no_merge)
     orig_ids = [r.id for r in model.reactions]
@@ -163,11 +171,9 @@ def _build_model(template: cobra.Model, rxns: list[_Rxn]) -> cobra.Model:
     """Assemble the reduced cobra model (gene-free) from the merged working reactions."""
     reduced = cobra.Model(template.id)
     used = {m for rx in rxns for m in rx.coeffs}
-    by_id = {m.id: m for m in template.metabolites}
     reduced.add_metabolites([
-        cobra.Metabolite(mid, name=by_id[mid].name, compartment=by_id[mid].compartment,
-                         formula=by_id[mid].formula)
-        for mid in (m.id for m in template.metabolites) if mid in used
+        cobra.Metabolite(m.id, name=m.name, compartment=m.compartment, formula=m.formula)
+        for m in template.metabolites if m.id in used  # template order preserved
     ])
     new_rxns = []
     for rx in rxns:
@@ -203,12 +209,13 @@ def group_rxn_scores(
         adj[rid] = 0.0 if rid in zero else s
     members: dict[int, list[str]] = defaultdict(list)
     for rid in orig_rxn_ids:
-        members[group_of[rid]].append(rid)
+        if group_of[rid] != 0:  # only merged groups need member lists
+            members[group_of[rid]].append(rid)
 
     scores: dict[str, float] = {}
     for r in reduced_model.reactions:
         grp = group_of[r.id]
-        if grp == 0:  # unmerged
+        if grp == 0:  # unmerged: keep the reaction's own (adjusted) score
             scores[r.id] = adj[r.id]
         else:
             group = members[grp]

@@ -74,6 +74,30 @@ def test_no_merge_blocks_merging():
     assert g["R1"] == 0
 
 
+def test_multipass_chain_collapses_to_one_group():
+    """A 3-reaction chain A→X→Y→Z collapses to one reaction (exercises multi-pass).
+
+    X is degree-2 (r1,r2), Y degree-2 (r2,r3); A and Z are degree-1 (retained). Merging
+    X makes Y newly degree-2 with the survivor, caught on a later pass. Confluence: all
+    three reactions end in one group, leaving the net A→Z reaction.
+    """
+    import cobra
+
+    m = cobra.Model("chain")
+    A, X, Y, Z = (cobra.Metabolite(i, name=i, compartment="c") for i in "AXYZ")
+    m.add_metabolites([A, X, Y, Z])
+    for rid, stoich in [("r1", {A: -1, X: 1}), ("r2", {X: -1, Y: 1}), ("r3", {Y: -1, Z: 1})]:
+        r = cobra.Reaction(rid, lower_bound=0, upper_bound=1000)
+        r.add_metabolites(stoich)
+        m.add_reactions([r])
+
+    reduced, orig_ids, group_ids, _ = merge_linear(m)
+    assert len(reduced.reactions) == 1                      # collapsed to net A -> Z
+    assert len(set(group_ids)) == 1 and group_ids[0] != 0   # all three in one group
+    only = reduced.reactions[0]
+    assert {mt.id: c for mt, c in only.metabolites.items()} == {"A": -1.0, "Z": 1.0}
+
+
 def test_group_scores_zero_handling():
     """Genuine-zero score → 0.01; a group cancelling to zero with nonzero members → 0.01."""
     reduced, orig_ids, group_ids, _ = merge_linear(make_test_model())
