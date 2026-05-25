@@ -6,17 +6,22 @@ Phase 4c (tINIT):
   reaction scoring (``scoreComplexModel`` core; RNA-seq is the common upstream).
 * :func:`get_init_model` — the tINIT pipeline (``getINITModel`` core).
 
-ftINIT (Phase 4d) follows.
+ftINIT (Phase 4d):
+* :func:`run_ftinit` — the single-step ftINIT MILP (``ftINITInternalAlg``), with
+  continuous indicators for positive-score reactions (the speedup over ``run_init``).
 """
 from ravengem.init.build import InitModelResult, get_init_model
+from ravengem.init.ftinit import FtInitResult, run_ftinit
 from ravengem.init.init import InitResult, run_init
 from ravengem.init.score import gene_scores_from_expression, score_reactions_from_genes
 
 __all__ = [
+    "FtInitResult",
     "InitModelResult",
     "InitResult",
     "gene_scores_from_expression",
     "get_init_model",
+    "run_ftinit",
     "run_init",
     "score_reactions_from_genes",
 ]

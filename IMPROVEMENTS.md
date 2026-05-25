@@ -150,6 +150,18 @@ RAVEN `INIT/runINIT.m` → `init/init.py` (`run_init`).
 | I4 | CORRECTNESS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **MILP big-M is each reaction's own `ub`** (`v ≤ ub·x`), not RAVEN's fixed 1000; and `eps`/`prod_weight` are exposed parameters. RAVEN's hard-coded 1/1000/0.1/0.5 only suit ±1000-bounded models with O(1) scores — flagged as scale-dependent and tunable (don't blindly trust them). |
 | I5 | ERGONOMICS | ravengem 🔨 | 🔨 | **Predictor-agnostic scoring**: `get_init_model` takes gene *or* reaction scores; gene scoring is generic (`gene_scores_from_expression` for the common RNA-seq path), so single-cell/HPA are just alternative upstream sources feeding the same gene→score table — rather than RAVEN's HPA/array-specific structs baked into `getINITModel`. |
 
+## ftINIT (Phase 4d — in progress)
+
+RAVEN `INIT/ftINITInternalAlg.m` (+ orchestration) → `init/ftinit.py` (`run_ftinit`),
+`tasks/check.py` (`find_task_essential_reactions`). See docs/ftinit_review_and_plan.md.
+
+| # | Cat | Target | Status | Improvement |
+|---|---|---|---|---|
+| FT1 | EFFICIENCY | ravengem 🔨 | 🔨 | **Essential-reaction discovery via one FVA pass** (`find_task_essential_reactions`) — a reaction is essential for a task iff its FVA range excludes 0 (= RAVEN's constrain-to-0→infeasible), restricted to the flux-carrying candidates of a `pfba` solution. Replaces `getEssentialRxns`' per-reaction knockout loop. |
+| FT2 | ERGONOMICS | ravengem 🔨 | 🔨 | **Clean optlang reformulation** of the 6-category MILP instead of RAVEN's hand-built block `prob.a` with the `pi/ni/ei/vprb/vnrvm…` figure. Positive-score reactions keep the continuous-indicator trick (no binary — the ftINIT speedup), encoded as `net_flux ≥ force_on·y`; only negative scores and reversible-direction get binaries. |
+| FT3 | CORRECTNESS | ravengem 🔨 + MATLAB RAVEN 💡 | 🔨 | **Big-M is each reaction's own bound**, not RAVEN's fixed 100/1000; `force_on`/`force_on_ess` exposed. Scale-dependent, calibrated in 4d.7 (cf. I4). |
+| FT4 | (caveat) | RAVEN parity | — | **No loopless constraint** (matches RAVEN): the bare MILP can "include" an internal thermodynamically-infeasible cycle if it carries positive net score. Loop-free models rely on the staged pipeline + exchange handling and, at genome scale, real exchanges making cycles non-optimal. A loopless option could be added later. |
+
 ## parseTaskList / checkTasks (Phase 4a — implemented)
 
 RAVEN `core/parseTaskList.m` + `core/checkTasks.m` → `tasks/tasklist.py` + `tasks/check.py`.
