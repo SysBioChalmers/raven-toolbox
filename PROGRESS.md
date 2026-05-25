@@ -198,7 +198,7 @@ Keyed to commits on `main`.
 | `d200b36` | Port random-objective sampling (Phase 5): `random_sampling` + `find_good_reactions` |
 | `4186133` | ftINIT (4d) critical review + phased plan |
 | `a631ac7` | ftINIT 4d.0 oracles + 4d.1 essential-reaction discovery (`find_task_essential_reactions`) |
-| `pending` | ftINIT 4d.3: single-step 6-category MILP (`run_ftinit`) |
+| `6de436c` | ftINIT 4d.3: single-step 6-category MILP (`run_ftinit`) |
 
 ---
 
