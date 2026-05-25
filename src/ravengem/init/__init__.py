@@ -13,6 +13,7 @@ ftINIT (Phase 4d):
 from ravengem.init.build import InitModelResult, get_init_model
 from ravengem.init.ftinit import FtInitResult, run_ftinit
 from ravengem.init.init import InitResult, run_init
+from ravengem.init.merge import group_rxn_scores, merge_linear
 from ravengem.init.score import gene_scores_from_expression, score_reactions_from_genes
 
 __all__ = [
@@ -21,6 +22,8 @@ __all__ = [
     "InitResult",
     "gene_scores_from_expression",
     "get_init_model",
+    "group_rxn_scores",
+    "merge_linear",
     "run_ftinit",
     "run_init",
     "score_reactions_from_genes",
