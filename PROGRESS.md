@@ -202,7 +202,7 @@ Keyed to commits on `main`.
 | `2fa7149` | Review fix 4d.3: preserve positive lower bounds; RAVEN-parity on-threshold |
 | `e802823` | ftINIT 4d.2: linear merge (`merge_linear` + `group_rxn_scores`), matches T0004 |
 | `0d83318` | Review polish 4d.2: confluence/multi-pass doc + cleanups |
-| `pending` | ftINIT 4d.3b: classification + prepData + staged pipeline (`ftinit`), matches T0001/T0002 |
+| `e3c55e6` | ftINIT 4d.3b: classification + prepData + staged pipeline (`ftinit`), matches T0001/T0002 |
 
 ---
 
