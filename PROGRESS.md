@@ -192,7 +192,7 @@ Keyed to commits on `main`.
 | `dcbed73` | Port + redesign FSEOF (Phase 5): fseof (regression, knockout targets, gene aggregation) |
 | `ea858fe` | Make MAFFT PartTree cutover length-aware (DP cost `n_seqs × mean_len²`), not residues-only |
 | `1969e72` | Tidy KEGG HMM verbose logging: one completion line per stage |
-| `pending` | Shrink `organism_gene_ko` 78→27 MB: sort by (organism, gene) + xz, external merge sort |
+| `3c04a4b` | Shrink `organism_gene_ko` 78→27 MB: sort by (organism, gene) + xz, external merge sort |
 
 ---
 
