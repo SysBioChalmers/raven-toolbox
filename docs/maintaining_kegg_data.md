@@ -98,7 +98,7 @@ searches. This needs **HMMER** (`hmmbuild`, `hmmpress`), **MAFFT**, and
 ```python
 from ravengem.reconstruction.kegg import build_hmm_library, read_kegg_table
 
-organism_gene_ko = read_kegg_table("artefacts/organism_gene_ko.tsv.gz")
+organism_gene_ko = read_kegg_table("artefacts/organism_gene_ko.tsv.xz")
 for domain in ("prokaryotes", "eukaryotes"):
     build_hmm_library(
         organism_gene_ko,

@@ -16,19 +16,33 @@ under `~/.cache/ravengem/data/kegg-<version>/` by `ensure_data` (see
 
 ## Decision (current)
 
-**Gzipped TSV (`.tsv.gz`)**, partitioned per organism for the large
-`organism_gene_ko` table.
+- **Small tables** (`ko_reaction`, `ko_names`, `rxn_flags`): **gzipped TSV
+  (`.tsv.gz`)**. Each is well under 1 MB, so compression choice is irrelevant;
+  gzip keeps them MATLAB-native and dependency-free.
+- **The large `organism_gene_ko` table**: **xz-compressed TSV
+  (`organism_gene_ko.tsv.xz`), with rows sorted by `(organism, gene)`**.
 
-- **pandas reads/writes it with zero extra dependencies** — `pd.read_csv` /
-  `DataFrame.to_csv` with `sep="\t", compression="gzip"` are built in.
-- **MATLAB reads it natively** — `readtable` handles TSV with no toolbox.
-- This makes it the genuinely *dependency-free, cross-language* format, which is
-  exactly the requirement: the **same files** must serve both the Python
-  (ravengem) and MATLAB (RAVEN) sides.
+Why the large table differs. It carries KEGG's ~9M gene↔KO associations and
+dominates the artefact set (≈78 MB as unsorted gzipped TSV). Two cheap,
+stdlib-only changes cut that to ≈27 MB (2.9×):
 
-The tables are small by design (minimal columns, gene-free reference GEM) and are
-read once per reconstruction, so TSV's parsing/size overhead is not a practical
-concern at our current scale.
+1. **Sort by `(organism, gene)`** before writing. Gene IDs from one organism
+   share long common prefixes (locus tags, numeric runs); sorting makes them
+   adjacent so the compressor can fold them. This alone takes 78 → 48 MB and
+   happens to match the by-organism query pattern in
+   `get_kegg_model_for_organism`. The sort is an external merge sort bounded to
+   `chunk_rows` in memory (see `stream_organism_gene_ko`), so it stays scalable.
+2. **xz instead of gzip** (Python stdlib `lzma`). Its larger dictionary captures
+   cross-row redundancy gzip's 32 KB window misses: sorted + xz reaches ≈27 MB.
+
+- **pandas reads/writes both with zero extra dependencies** — compression is
+  inferred from the `.gz`/`.xz` suffix; `lzma` and `gzip` are both stdlib, so
+  this works natively on Windows, macOS, and Linux with no external binary.
+- **MATLAB caveat:** `readtable` reads gzipped TSV after a `gunzip`, but MATLAB
+  has no built-in xz decompressor. The small tables stay MATLAB-native; the
+  large table needs an external `unxz` (or Java/`7-Zip`) before `readtable` on
+  the MATLAB side. The xz file is ravengem's (Python) primary artefact; this
+  trades a little MATLAB convenience on the one big file for a ~3× size cut.
 
 ## Options considered
 
@@ -42,8 +56,11 @@ concern at our current scale.
 
 Reconsider Parquet (or SQLite) if any of these become true:
 
-- The `organism_gene_ko` table grows large enough that gzipped-TSV load time or
-  on-disk size becomes a real bottleneck in reconstruction.
+- The `organism_gene_ko` table grows large enough that load *time* (not just
+  size — the sort+xz change above already addresses on-disk size) becomes a real
+  bottleneck. The remaining inefficiency is that building one species' model
+  still loads all ~9M rows; sorted order makes a `searchsorted`/row-group
+  by-organism read the natural next step before reaching for Parquet.
 - We start doing repeated random-access / columnar reads rather than a single
   load-once-per-run pattern.
 - A typed, self-describing schema becomes valuable (TSV loses dtypes; they are

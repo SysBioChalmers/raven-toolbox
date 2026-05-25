@@ -23,7 +23,7 @@ def served(tmp_path, monkeypatch):
         "reference_model.yml.gz": b"!!omap model bytes",
         "ko_reaction.tsv.gz": b"ko\treaction\n",
         "ko_names.tsv.gz": b"ko\tname\n",
-        "organism_gene_ko.tsv.gz": b"organism\tgene\tko\n",
+        "organism_gene_ko.tsv.xz": b"organism\tgene\tko\n",
         "rxn_flags.tsv.gz": b"reaction\tspontaneous\n",
     }
     files = {}

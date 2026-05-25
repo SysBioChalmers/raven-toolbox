@@ -141,7 +141,7 @@ def get_kegg_model_for_organism_from_artefacts(
     artefact_dir = Path(artefact_dir)
     reference_model = read_yaml_model(artefact_dir / "reference_model.yml.gz")
     ko_reaction = read_kegg_table(artefact_dir / "ko_reaction.tsv.gz")
-    organism_gene_ko = read_kegg_table(artefact_dir / "organism_gene_ko.tsv.gz")
+    organism_gene_ko = read_kegg_table(artefact_dir / "organism_gene_ko.tsv.xz")
     rxn_flags = read_kegg_table(artefact_dir / "rxn_flags.tsv.gz")
     return get_kegg_model_for_organism(
         organism_id,

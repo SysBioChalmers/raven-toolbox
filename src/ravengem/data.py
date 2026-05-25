@@ -35,7 +35,7 @@ CORE_KEGG_FILES = (
     "reference_model.yml.gz",
     "ko_reaction.tsv.gz",
     "ko_names.tsv.gz",
-    "organism_gene_ko.tsv.gz",
+    "organism_gene_ko.tsv.xz",
     "rxn_flags.tsv.gz",
 )
 

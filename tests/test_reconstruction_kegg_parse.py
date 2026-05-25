@@ -186,7 +186,26 @@ def test_parse_kegg_dump_writes_artefacts(tmp_path):
         "ko_reaction", "ko_names", "organism_gene_ko", "rxn_flags", "reference_model"
     }
     assert (tmp_path / "reference_model.yml.gz").is_file()
-    # organism_gene_ko is streamed straight to gzipped TSV.
+    # organism_gene_ko is streamed to a sorted, xz-compressed TSV.
+    assert paths["organism_gene_ko"].name == "organism_gene_ko.tsv.xz"
     ogk = read_kegg_table(paths["organism_gene_ko"])
     assert set(ogk.columns) == {"organism", "gene", "ko"}
     assert ("eco", "b0001", "K00002") in set(map(tuple, ogk.to_numpy()))
+    # Rows are sorted by (organism, gene) — the property that makes them compress.
+    keys = list(zip(ogk["organism"], ogk["gene"], strict=True))
+    assert keys == sorted(keys)
+
+
+def test_stream_organism_gene_ko_external_merge(tmp_path):
+    """A tiny chunk_rows forces multiple sorted runs to be merged; output stays sorted."""
+    from ravengem.reconstruction.kegg.parse import stream_organism_gene_ko
+
+    out = tmp_path / "organism_gene_ko.tsv.xz"
+    keep = {ko.id for ko in parse_kegg_kos(DUMP)}
+    names = stream_organism_gene_ko(DUMP, keep, out, chunk_rows=1)
+    assert out.is_file() and not list(tmp_path.glob("ogk_sort_*"))  # temp dir cleaned up
+    ogk = read_kegg_table(out)
+    keys = list(zip(ogk["organism"], ogk["gene"], strict=True))
+    assert keys == sorted(keys)
+    assert ("eco", "b0001", "K00002") in set(map(tuple, ogk.to_numpy()))
+    assert set(names.columns) == {"ko", "name"}

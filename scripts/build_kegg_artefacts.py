@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"    {name}: {path}")
 
     if args.hmms:
-        ogk = read_kegg_table(args.out / "organism_gene_ko.tsv.gz")
+        ogk = read_kegg_table(paths["organism_gene_ko"])
         genes_pep = args.keggdb / "genes.pep"
         taxonomy = args.keggdb / "taxonomy"
         for domain in args.domains:
