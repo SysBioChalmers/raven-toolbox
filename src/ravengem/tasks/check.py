@@ -19,6 +19,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 import cobra
+from cobra.flux_analysis import flux_variability_analysis
 from optlang.symbolics import Zero
 
 from ravengem.manipulation.add import add_reactions_from_equations
@@ -101,30 +102,49 @@ def _metabolite_bounds(
     return bounds, missing
 
 
-def _run_task(base: cobra.Model, task: Task, name_to_id, comp_to_ids) -> TaskResult:
+def _build_task_model(
+    base: cobra.Model, task: Task, name_to_id, comp_to_ids
+) -> tuple[cobra.Model | None, set[str], str | None]:
+    """Apply a task's constraints to a copy of ``base`` (feasibility objective set).
+
+    Returns ``(model, task_metabolite_ids, error)``. ``task_metabolite_ids`` are the
+    model metabolites the task references (inputs/outputs + equation mets present in
+    the model) — RAVEN's ``essentialMetsForTasks``, to be protected from removal.
+    ``model``/``error`` are mutually exclusive.
+    """
     model = base.copy()
     bounds, missing = _metabolite_bounds(task, name_to_id, comp_to_ids)
     if missing:
-        return TaskResult(task.id, task.description, False, False,
-                          f"unknown metabolite(s): {sorted(set(missing))}")
+        return None, set(), f"unknown metabolite(s): {sorted(set(missing))}"
+    task_mets = {mid for mid in bounds}
     for mid, (lb, ub) in bounds.items():
         if (lb, ub) != (0.0, 0.0):
             _set_constraint_bounds(model.constraints[mid], lb, ub)
 
     if task.equations:
+        existing = {m.id for m in model.metabolites}
         specs = [
             {"id": f"TASK_TMP_{i}", "equation": equ, "bounds": (lb, ub)}
             for i, (equ, lb, ub) in enumerate(task.equations)
         ]
         add_reactions_from_equations(model, specs, mets_by="name", allow_new_mets=True)
+        for i in range(len(specs)):
+            tmp = model.reactions.get_by_id(f"TASK_TMP_{i}")
+            task_mets |= {m.id for m in tmp.metabolites if m.id in existing}
 
     for rxn_id, lb, ub in task.changed:
         if rxn_id not in model.reactions:
-            return TaskResult(task.id, task.description, False, False,
-                              f"CHANGED RXN not in model: {rxn_id!r}")
+            return None, set(), f"CHANGED RXN not in model: {rxn_id!r}"
         model.reactions.get_by_id(rxn_id).bounds = (lb, ub)
 
     model.objective = model.problem.Objective(Zero, direction="max")  # feasibility only
+    return model, task_mets, None
+
+
+def _run_task(base: cobra.Model, task: Task, name_to_id, comp_to_ids) -> TaskResult:
+    model, _, error = _build_task_model(base, task, name_to_id, comp_to_ids)
+    if error is not None:
+        return TaskResult(task.id, task.description, False, False, error)
     model.slim_optimize()
     feasible = model.solver.status == "optimal"
     return TaskResult(task.id, task.description, feasible != task.should_fail, feasible)
@@ -142,11 +162,18 @@ def check_tasks(
     ``close_boundaries`` (default), existing exchange/sink/demand reactions are
     closed so inputs/outputs are defined purely by the tasks (as RAVEN assumes).
     """
-    if isinstance(tasks, (str, bytes)) or hasattr(tasks, "__fspath__"):
-        tasks = parse_task_list(tasks)
-    else:
-        tasks = list(tasks)
+    tasks = _as_tasks(tasks)
+    base, name_to_id, comp_to_ids = _prepare_base(model, close_boundaries)
+    return [_run_task(base, task, name_to_id, comp_to_ids) for task in tasks]
 
+
+def _as_tasks(tasks: str | Iterable[Task]) -> list[Task]:
+    if isinstance(tasks, (str, bytes)) or hasattr(tasks, "__fspath__"):
+        return parse_task_list(tasks)
+    return list(tasks)
+
+
+def _prepare_base(model: cobra.Model, close_boundaries: bool):
     base = model.copy()
     if close_boundaries:
         for rxn in base.boundary:
@@ -155,5 +182,90 @@ def check_tasks(
     comp_to_ids: dict[str, list[str]] = {}
     for m in base.metabolites:
         comp_to_ids.setdefault((m.compartment or "").upper(), []).append(m.id)
+    return base, name_to_id, comp_to_ids
 
-    return [_run_task(base, task, name_to_id, comp_to_ids) for task in tasks]
+
+@dataclass
+class EssentialReactionsResult:
+    """Reactions a model *must* use to perform a task list (RAVEN ``essentialRxns``).
+
+    ``reactions`` maps reaction id → forced flux direction (``+1`` forward, ``-1``
+    reverse): the reaction must carry flux of that sign in every feasible solution of
+    at least one task. ``per_task`` is the same, split by task id. ``task_metabolites``
+    are the model metabolites the tasks reference (RAVEN ``essentialMetsForTasks``,
+    protected from removal). ``failed_tasks`` are tasks that were infeasible or
+    malformed and thus skipped (RAVEN drops these from the task list).
+    """
+
+    reactions: dict[str, int]
+    per_task: dict[str, dict[str, int]]
+    task_metabolites: set[str]
+    failed_tasks: list[str]
+
+
+def _task_essential_reactions(
+    task_model: cobra.Model, original_ids: set[str], tol: float
+) -> dict[str, int]:
+    """Reactions in ``task_model`` forced to carry flux, with direction, via FVA.
+
+    A reaction is *essential* for the task iff zero is not attainable in any feasible
+    solution — i.e. its FVA range excludes 0. This is exactly RAVEN's
+    "constrain to 0 → infeasible" definition, found in one optimised FVA pass instead
+    of a per-reaction knockout loop. The nonzero side gives the forced direction.
+    Only reactions of the original model are returned (task-equation temporaries are
+    dropped, as RAVEN does).
+    """
+    fva = flux_variability_analysis(task_model, fraction_of_optimum=0.0)
+    essential: dict[str, int] = {}
+    for rxn_id, lo, hi in zip(fva.index, fva["minimum"], fva["maximum"], strict=True):
+        if rxn_id not in original_ids:
+            continue
+        if lo > tol:
+            essential[rxn_id] = 1
+        elif hi < -tol:
+            essential[rxn_id] = -1
+    return essential
+
+
+def find_task_essential_reactions(
+    model: cobra.Model,
+    tasks: str | Iterable[Task],
+    *,
+    close_boundaries: bool = True,
+    tol: float = 1e-8,
+) -> EssentialReactionsResult:
+    """Find the reactions a model must use to satisfy a task list.
+
+    For each task the model is constrained as in :func:`check_tasks`, then FVA
+    identifies reactions whose flux can never be zero (essential) and their forced
+    direction. This is the ``prepINITModel`` step that feeds (ft)INIT: essential
+    reactions are kept regardless of expression score and made irreversible in their
+    forced direction. When a reaction is essential in several tasks with conflicting
+    directions, the majority wins (ties → forward), matching RAVEN's ``pos < neg``.
+    """
+    tasks = _as_tasks(tasks)
+    base, name_to_id, comp_to_ids = _prepare_base(model, close_boundaries)
+    original_ids = {r.id for r in base.reactions}
+
+    per_task: dict[str, dict[str, int]] = {}
+    task_metabolites: set[str] = set()
+    failed: list[str] = []
+    direction_votes: dict[str, int] = {}
+
+    for task in tasks:
+        if task.should_fail:
+            continue  # a task meant to fail defines no essential reactions
+        task_model, task_mets, error = _build_task_model(base, task, name_to_id, comp_to_ids)
+        if error is not None or task_model.slim_optimize() is None \
+                or task_model.solver.status != "optimal":
+            failed.append(task.id)
+            continue
+        task_metabolites |= task_mets
+        essential = _task_essential_reactions(task_model, original_ids, tol)
+        per_task[task.id] = essential
+        for rxn_id, direction in essential.items():
+            direction_votes[rxn_id] = direction_votes.get(rxn_id, 0) + direction
+
+    # Majority direction; tie (sum == 0) → forward, as RAVEN's `pos < neg`.
+    reactions = {rid: (-1 if votes < 0 else 1) for rid, votes in direction_votes.items()}
+    return EssentialReactionsResult(reactions, per_task, task_metabolites, failed)
