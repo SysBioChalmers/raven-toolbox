@@ -47,6 +47,9 @@ from dataclasses import dataclass, field
 
 import cobra
 
+from ravengem.init.merge import group_rxn_scores
+from ravengem.init.steps import get_init_steps
+
 _FORCE_ON = 0.1  # min flux for a reaction to count as "on" (RAVEN forceOnLim)
 
 
@@ -209,10 +212,13 @@ def ftinit(
     their flux direction), and solves :func:`run_ftinit` on the merged model. Reactions
     never turned on (and not essential or left-in) are removed from the reference model;
     exchange reactions are always kept (RAVEN re-adds them).
-    """
-    from ravengem.init.merge import group_rxn_scores
-    from ravengem.init.steps import get_init_steps
 
+    Simplification vs RAVEN: essential reactions are forced to carry ``force_on``
+    (0.1), whereas RAVEN uses a per-reaction ``min(0.99·|previous flux|, 0.1)`` so a
+    reaction is never forced above the flux it carried before. On genome-scale models
+    this matters (forcing 0.1 through a reaction that can only carry less is
+    infeasible); revisit in calibration (4d.7).
+    """
     steps = steps if steps is not None else get_init_steps(series)
     min_model, group_of = prep.min_model, prep.group_of
 
@@ -222,8 +228,8 @@ def ftinit(
         to_zero = prep.masks.ignored(step.ignore_mask)
         scores = group_rxn_scores(min_model, rxn_scores, prep.orig_rxn_ids,
                                   prep.group_ids, to_zero)
-        essential = set(prep.essential_rxns)
-        directions = dict(prep.essential_directions)
+        essential = set(prep.essential_rxns)  # pre-oriented forward (default direction)
+        directions: dict[str, int] = {}
         if step.how_to_use_prev == "essential":
             for rid, flux in turned_on.items():
                 essential.add(rid)

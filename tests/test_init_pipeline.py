@@ -91,3 +91,56 @@ def test_full_series_runs():
     prep = prep_init_model(model, ext_comp="s")
     out = ftinit(prep, _scores(model), series="full")
     assert len(out.reactions) >= 1
+
+
+def test_orient_forward_reverses_a_reversible_reaction():
+    """_orient_forward(rxn, -1) flips stoichiometry and makes it irreversible forward."""
+    import cobra
+
+    from ravengem.init.prep import _orient_forward
+
+    m = cobra.Model("o")
+    a, b = (cobra.Metabolite(x, compartment="s") for x in "ab")
+    m.add_metabolites([a, b])
+    r = cobra.Reaction("R", lower_bound=-800, upper_bound=1000)
+    r.add_metabolites({a: -1, b: 2})  # a <=> 2 b
+    m.add_reactions([r])
+
+    _orient_forward(r, -1)  # forced reverse → becomes forward
+    assert r.bounds == (0, 800)  # [-800,1000] → flip [-1000,800] → lb→0
+    assert {mt.id: c for mt, c in r.metabolites.items()} == {"a": 1, "b": -2}  # 2 b => a
+
+    fwd = cobra.Reaction("F", lower_bound=-500, upper_bound=900)
+    fwd.add_metabolites({a: -1})
+    m.add_reactions([fwd])
+    _orient_forward(fwd, 1)  # forced forward → just made irreversible
+    assert fwd.bounds == (0, 900)
+
+
+def test_essential_merged_away_is_skipped():
+    """An essential reaction whose merge group collapses away imposes no constraint.
+
+    REV sits between two exchanges, so it merges with them into a trivial source→sink
+    that is removed; its group has no survivor. prep_init_model must skip it, not crash.
+    """
+    import cobra
+
+    from ravengem.tasks import Task
+
+    m = cobra.Model("collapse")
+    a, b = (cobra.Metabolite(x, name=x, compartment="s") for x in "ab")
+    m.add_metabolites([a, b])
+    r = cobra.Reaction("REV", lower_bound=-1000, upper_bound=1000)
+    r.add_metabolites({a: -1, b: 1})
+    r.gene_reaction_rule = "g1"
+    exchanges = []
+    for met in (a, b):
+        ex = cobra.Reaction(f"EX_{met.id}", lower_bound=-1000, upper_bound=1000)
+        ex.add_metabolites({met: -1})
+        exchanges.append(ex)
+    m.add_reactions([r, *exchanges])
+    m.objective = "REV"
+    task = Task(id="mk_a", inputs=[("b[s]", 0.0, 1000.0)], outputs=[("a[s]", 1.0, 1.0)])
+
+    prep = prep_init_model(m, [task], ext_comp="s")  # must not raise
+    assert "REV" not in prep.essential_rxns  # merged into a collapsed group

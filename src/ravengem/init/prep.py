@@ -113,9 +113,9 @@ class PrepData:
 
     Built once per template, reused across samples. ``min_model`` is the merged model
     the MILP runs on; ``orig_rxn_ids``/``group_ids`` map its reactions back to the
-    ``ref_model`` (the simplified, pre-merge reference). ``essential_rxns`` /
-    ``essential_directions`` are in **merged** ids and pre-oriented (so forced flux is
-    forward). ``masks`` is on ``ref_model`` (= original) ids.
+    ``ref_model`` (the simplified, pre-merge reference). ``essential_rxns`` are in
+    **merged** ids and pre-oriented irreversibly (so the MILP forces flux *forward*).
+    ``masks`` is on ``ref_model`` (= original) ids.
     """
 
     ref_model: cobra.Model
@@ -125,7 +125,6 @@ class PrepData:
     reversed_rxns: list[bool]
     masks: ReactionMasks
     essential_rxns: set[str] = field(default_factory=set)
-    essential_directions: dict[str, int] = field(default_factory=dict)
     essential_mets_for_tasks: set[str] = field(default_factory=set)
     tasks: list[Task] = field(default_factory=list)
 
@@ -183,11 +182,16 @@ def prep_init_model(
 
     # Map essentials to the merged model: the survivor of each group containing an
     # essential (or the reaction itself if unmerged). All are forward after orientation.
+    # An essential that merged into a group which collapsed away (e.g. a trivial
+    # source→sink chain) has no survivor and imposes no constraint — skip it.
     survivor_by_group = {group_of[r.id]: r.id for r in min_model.reactions if group_of[r.id]}
     essential_merged: set[str] = set()
     for rid in essential_pre:
         gid = group_of[rid]
-        essential_merged.add(rid if gid == 0 else survivor_by_group[gid])
+        if gid == 0:
+            essential_merged.add(rid)
+        elif gid in survivor_by_group:
+            essential_merged.add(survivor_by_group[gid])
 
     return PrepData(
         ref_model=ref_model,
@@ -197,7 +201,6 @@ def prep_init_model(
         reversed_rxns=reversed_rxns,
         masks=masks,
         essential_rxns=essential_merged,
-        essential_directions=dict.fromkeys(essential_merged, 1),
         essential_mets_for_tasks=task_mets,
         tasks=kept_tasks,
     )
