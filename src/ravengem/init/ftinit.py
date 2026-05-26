@@ -47,8 +47,10 @@ from dataclasses import dataclass, field
 
 import cobra
 
+from ravengem.init.genes import remove_low_score_genes
 from ravengem.init.merge import group_rxn_scores
 from ravengem.init.steps import get_init_steps
+from ravengem.init.taskfill import fill_tasks
 
 _FORCE_ON = 0.1  # min flux for a reaction to count as "on" (RAVEN forceOnLim)
 
@@ -199,11 +201,13 @@ def ftinit(
     prep,
     rxn_scores: Mapping[str, float],
     *,
+    gene_scores: Mapping[str, float] | None = None,
     series: str = "1+1",
     steps=None,
+    fill_gaps: bool = True,
     force_on: float = _FORCE_ON,
 ) -> cobra.Model:
-    """Run the staged ftINIT pipeline on prepData and return the extracted model.
+    """Run the full ftINIT pipeline on prepData and return the context-specific model.
 
     ``prep`` is a :class:`ravengem.init.PrepData`. ``rxn_scores`` maps **original**
     reaction id → score (e.g. from :func:`score_reactions_from_genes` on the template).
@@ -212,6 +216,11 @@ def ftinit(
     their flux direction), and solves :func:`run_ftinit` on the merged model. Reactions
     never turned on (and not essential or left-in) are removed from the reference model;
     exchange reactions are always kept (RAVEN re-adds them).
+
+    If ``fill_gaps`` and ``prep`` carries tasks, reactions are added back so every task
+    is feasible (:func:`ravengem.init.fill_tasks`). If ``gene_scores`` is given,
+    negative-scoring genes are pruned from the GPRs at the end
+    (:func:`ravengem.init.remove_low_score_genes`).
 
     Simplification vs RAVEN: essential reactions are forced to carry ``force_on``
     (0.1), whereas RAVEN uses a per-reaction ``min(0.99·|previous flux|, 0.1)`` so a
@@ -257,4 +266,9 @@ def ftinit(
     out = prep.ref_model.copy()
     out.remove_reactions([r.id for r in out.reactions if r.id not in final_kept],
                          remove_orphans=True)
+
+    if fill_gaps and prep.tasks:  # add reactions back so every task is feasible
+        out = fill_tasks(out, prep.ref_model, prep.tasks, rxn_scores=rxn_scores).model
+    if gene_scores is not None:   # prune negative-scoring genes from the GPRs
+        out, _ = remove_low_score_genes(out, gene_scores)
     return out

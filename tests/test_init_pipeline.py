@@ -93,6 +93,21 @@ def test_full_series_runs():
     assert len(out.reactions) >= 1
 
 
+def test_pipeline_with_gene_scores_and_tasks_wires_up():
+    """ftinit accepts gene_scores (gene pruning) + tasks (gap-fill) without breaking T0002.
+
+    The toy's GPRs are single-gene (nothing to prune) and the task is feasible in the
+    extracted model (nothing to gap-fill), so the reaction set is unchanged — this
+    confirms the integration wiring (the pruning/gap-fill logic is unit-tested
+    separately in test_init_genes / test_init_taskfill).
+    """
+    model = make_test_model()
+    gene_scores = gene_scores_from_expression(expr_for_rxn_score(TEST_MODEL_SCORES), 1.0)
+    prep = prep_init_model(model, [make_test_task()], ext_comp="s")
+    out = ftinit(prep, _scores(model), gene_scores=gene_scores)
+    assert {r.id for r in out.reactions} == set(TEST_MODEL_FTINIT_WITH_TASK)
+
+
 def test_orient_forward_reverses_a_reversible_reaction():
     """_orient_forward(rxn, -1) flips stoichiometry and makes it irreversible forward."""
     import cobra
