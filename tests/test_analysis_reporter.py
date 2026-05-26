@@ -79,3 +79,11 @@ def test_filters_unknown_and_nan_genes(model):
     )
     assert "gX" not in set(model.genes.list_attr("id"))  # sanity
     assert len(res.table) == 3  # A, B, C scored from the three real genes
+
+
+def test_out_of_range_pvalue_dropped_not_poisoning(model):
+    """A p-value outside [0,1] is dropped, not propagated as NaN through all scores."""
+    (res,) = reporter_metabolites(model, {"g1": 0.01, "g2": 0.01, "g3": 1.7})  # g3 invalid
+    import numpy as np
+
+    assert not np.isnan(res.table["z_score"].to_numpy()).any()  # no NaN poisoning

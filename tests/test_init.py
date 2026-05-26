@@ -79,3 +79,32 @@ def test_present_mets_reports_producibility(model):
 def test_objective_returned(model):
     res = run_init(model, {"r1": 1.0, "r2": 1.0, "r3": -1.0}, prod_weight=0.0, allow_excretion=True)
     assert res.objective == pytest.approx(2.0)  # kept r1(+1) + r2(+1), dropped r3
+
+
+def test_reversible_essential_keeps_productive_path():
+    """A reversible essential reaction must not be forced into a phantom fwd+rev loop.
+
+    SRC -> a, R: a <=> b (reversible, essential), SNK: b ->. Forcing R essential
+    should keep the productive path SRC->R->SNK, not delete SRC/SNK and leave R
+    self-looping (the bug from forcing eps flux through both split directions).
+    """
+    import cobra
+
+    m = cobra.Model("revess")
+    a, b = (cobra.Metabolite(x, compartment="c") for x in "ab")
+    m.add_metabolites([a, b])
+    src = cobra.Reaction("SRC", lower_bound=0, upper_bound=1000)
+    src.add_metabolites({a: 1})
+    r = cobra.Reaction("R", lower_bound=-1000, upper_bound=1000)
+    r.add_metabolites({a: -1, b: 1})
+    snk = cobra.Reaction("SNK", lower_bound=0, upper_bound=1000)
+    snk.add_metabolites({b: -1})
+    m.add_reactions([src, r, snk])
+    m.objective = "SNK"
+
+    res = run_init(m, {"SRC": -1.0, "SNK": -1.0}, essential_rxns=["R"], prod_weight=0.0)
+    kept = {rxn.id for rxn in res.model.reactions}
+    assert "R" in kept
+    # The productive path must be kept (SRC feeds R, SNK drains it); R can't self-loop.
+    assert {"SRC", "SNK"} <= kept
+    assert res.model.slim_optimize() > 1e-6  # the kept model actually carries flux

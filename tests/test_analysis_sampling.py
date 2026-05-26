@@ -109,3 +109,25 @@ def test_rejects_bad_n_samples(model):
 def test_too_few_good_reactions(model):
     with pytest.raises(ValueError, match="usable reactions"):
         random_sampling(model, n_samples=5, good_reactions=["sup"], n_objectives=2)
+
+
+def test_good_reactions_keeps_reactions_at_default_bound():
+    """A legitimate reaction reaching the model's 1000 bound is not dropped as a loop.
+
+    Regression: the old loop_bound>=1000 test wrongly excluded any reaction that
+    reaches the default bound. Loopless FVA keeps it (real flux) and still drops a
+    closed loop.
+    """
+    m = cobra.Model("b")
+    a, b = (cobra.Metabolite(x, compartment="c") for x in "ab")
+    m.add_metabolites([a, b])
+    sup = cobra.Reaction("sup", lower_bound=0, upper_bound=1000)  # uptake to the 1000 cap
+    sup.add_metabolites({a: 1})
+    conv = cobra.Reaction("conv", lower_bound=0, upper_bound=1000)
+    conv.add_metabolites({a: -1, b: 1})
+    ex = cobra.Reaction("EX_b", lower_bound=0, upper_bound=1000)
+    ex.add_metabolites({b: -1})
+    m.add_reactions([sup, conv, ex])
+    m.objective = "EX_b"
+    good = find_good_reactions(m)
+    assert {"sup", "conv", "EX_b"} <= set(good)  # all reach 1000 but are real, not loops

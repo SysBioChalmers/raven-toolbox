@@ -74,14 +74,24 @@ def _split_reactions(
     directed: list[_Directed] = []
     for rxn in model.reactions:
         score = float(scores.get(rxn.id, 0.0))
-        ess = rxn.id in essential
         coeffs = {m.id: c for m, c in rxn.metabolites.items()}
+        rev_coeffs = {m: -c for m, c in coeffs.items()}
+        if rxn.id in essential:
+            # Force flux in a *single* direction (forward if it can run forward, else
+            # reverse) — like an irreversible essential reaction. Emitting both halves
+            # as essential would force fwd ≥ eps AND rev ≥ eps, i.e. a phantom
+            # eps-magnitude self-loop that can starve out the real pathway.
+            if rxn.upper_bound > 0:
+                directed.append(_Directed(rxn.id, rxn.id, coeffs, rxn.upper_bound, score, True))
+            else:
+                directed.append(_Directed(f"{rxn.id}__rev", rxn.id, rev_coeffs,
+                                          -rxn.lower_bound, score, True))
+            continue
         if rxn.upper_bound > 0:
-            directed.append(_Directed(rxn.id, rxn.id, coeffs, rxn.upper_bound, score, ess))
+            directed.append(_Directed(rxn.id, rxn.id, coeffs, rxn.upper_bound, score, False))
         if rxn.lower_bound < 0:  # reverse direction as its own non-negative flux
             directed.append(
-                _Directed(f"{rxn.id}__rev", rxn.id, {m: -c for m, c in coeffs.items()},
-                          -rxn.lower_bound, score, ess)
+                _Directed(f"{rxn.id}__rev", rxn.id, rev_coeffs, -rxn.lower_bound, score, False)
             )
     return directed
 

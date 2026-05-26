@@ -77,3 +77,11 @@ def test_unproducible_target_raises(model):
     model.add_reactions([dead])
     with pytest.raises(ValueError, match="cannot carry positive flux"):
         fseof(model, "dead")
+
+
+def test_infeasible_model_raises_clear_error(model):
+    """An infeasible model (slim_optimize -> NaN) raises the clear guard, not a NaN scan."""
+    model.reactions.sup.bounds = (5, 5)  # force uptake while EX_P demands more -> infeasible
+    model.reactions.EX_P.bounds = (1000, 1000)
+    with pytest.raises(ValueError, match="cannot carry positive flux"):
+        fseof(model, "EX_P", n_steps=4)

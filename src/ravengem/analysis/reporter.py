@@ -87,16 +87,17 @@ def reporter_metabolites(
 ) -> list[ReporterResult]:
     """Compute Reporter Metabolites from per-gene differential-expression p-values.
 
-    ``gene_pvalues`` maps gene id → p-value (genes not in the model or with NaN
-    p-values are dropped). If ``gene_fold_changes`` (gene id → log fold change) is
-    given, two extra results are returned for the up- (fc ≥ 0) and down- (fc < 0)
+    ``gene_pvalues`` maps gene id → p-value (genes not in the model, or with a NaN or
+    out-of-``[0, 1]`` p-value, are dropped — a stray invalid p-value would otherwise
+    turn the whole result NaN). If ``gene_fold_changes`` (gene id → log fold change)
+    is given, two extra results are returned for the up- (fc ≥ 0) and down- (fc < 0)
     regulated gene subsets, in addition to ``"all"``.
     """
     model_genes = {g.id for g in model.genes}
     scored = {
         g: float(p)
         for g, p in gene_pvalues.items()
-        if g in model_genes and p is not None and not math.isnan(p)
+        if g in model_genes and p is not None and not math.isnan(p) and 0.0 <= p <= 1.0
     }
     gene_z = _gene_z(scored)
     results = [_reporter_one(model, gene_z, "all")]

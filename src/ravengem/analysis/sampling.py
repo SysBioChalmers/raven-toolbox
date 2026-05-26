@@ -58,39 +58,30 @@ class RandomSamplingResult:
 def find_good_reactions(
     model: cobra.Model,
     *,
-    loop_bound: float = 1000.0,
     flux_tol: float = 1e-9,
-    loopless: bool = False,
+    loopless: bool = True,
     exclude_reactions: Iterable[str] | None = None,
 ) -> list[str]:
-    """Reactions usable as random objectives: carry flux and are not loop-bound.
+    """Reactions usable as random objectives: carry real (non-loop) flux.
 
-    Via a single FVA pass over the *whole* feasible space
-    (``fraction_of_optimum=0``). A reaction is dropped if its attainable flux is
-    ~0 everywhere (``< flux_tol``) or if either bound of its range reaches the
-    arbitrary large ``loop_bound`` / infinity — the signature of a reaction that
-    can be driven arbitrarily high through an infeasible loop (or is an
-    effectively unbounded exchange — either way a poor random objective).
-
-    Run this on the model with its *finite* bounds; FVA cannot evaluate ``inf``
-    bounds (it reports them as 'unbounded' and errors).
+    A reaction is kept if its FVA range spans more than ``flux_tol``. With
+    ``loopless`` (default) the FVA is loopless (``cycleFreeFlux``), so reactions
+    that can carry flux *only* through a thermodynamically-infeasible cycle have a
+    ~0 loopless range and are dropped — the right test for "loopy", unlike a fixed
+    bound threshold which wrongly drops legitimate reactions that simply reach the
+    model's default (e.g. 1000) bound. Pass ``loopless=False`` for a faster, looser
+    pass that keeps any flux-carrying reaction (loops included).
     """
     fva = flux_variability_analysis(
         model, fraction_of_optimum=0.0,
         loopless="cycleFreeFlux" if loopless else None,
     )
     excluded = set(exclude_reactions or ())
-    good = []
-    for rxn_id, lo, hi in zip(fva.index, fva["minimum"], fva["maximum"], strict=True):
-        if rxn_id in excluded:
-            continue
-        span = max(abs(lo), abs(hi))
-        if span < flux_tol:
-            continue  # cannot carry flux
-        if not (np.isfinite(lo) and np.isfinite(hi)) or abs(lo) >= loop_bound or abs(hi) >= loop_bound:
-            continue  # loop-bound / unbounded
-        good.append(rxn_id)
-    return good
+    return [
+        rxn_id
+        for rxn_id, lo, hi in zip(fva.index, fva["minimum"], fva["maximum"], strict=True)
+        if rxn_id not in excluded and max(abs(lo), abs(hi)) > flux_tol
+    ]
 
 
 def random_sampling(
@@ -101,8 +92,7 @@ def random_sampling(
     good_reactions: Iterable[str] | None = None,
     replace_max_bound: bool = False,
     min_flux: bool = False,
-    loop_bound: float = 1000.0,
-    loopless_good_reactions: bool = False,
+    loopless_good_reactions: bool = True,
     exclude_reactions: Iterable[str] | None = None,
     max_attempts: int = 100,
     suppress_errors: bool = False,
@@ -111,9 +101,8 @@ def random_sampling(
     """Random-objective sampling of ``model``'s flux space (Bordel et al. 2010).
 
     Each sample maximises ``sum(w_i * v_i)`` over ``n_objectives`` reactions drawn at
-    random from ``good_reactions``, with weights ``w_i = U(0,1) * (±1)`` (the sign is
-    random for reversible reactions, forced positive for forward-only ones). The
-    resulting flux vector is one sample.
+    random from ``good_reactions``, with weights ``w_i = U(0,1) * (±1)`` (a random
+    sign per reaction, as in RAVEN). The resulting flux vector is one sample.
 
     Parameters
     ----------
@@ -137,8 +126,9 @@ def random_sampling(
         After maximising the random objective, re-solve parsimoniously
         (:func:`cobra.flux_analysis.pfba`) to minimise total flux at that optimum —
         squeezes residual loops out of each individual sample.
-    loop_bound, loopless_good_reactions, exclude_reactions
-        Forwarded to :func:`find_good_reactions` when it is invoked.
+    loopless_good_reactions, exclude_reactions
+        Forwarded to :func:`find_good_reactions` when it is invoked (loopless loop
+        detection is on by default).
     max_attempts, suppress_errors
         A sample is retried if the random objective is degenerate (zero flux). After
         ``max_attempts`` failures this raises, unless ``suppress_errors`` (then the
@@ -164,7 +154,7 @@ def random_sampling(
     # before any bound replacement.
     if good_reactions is None:
         good_reactions = find_good_reactions(
-            model, loop_bound=loop_bound, loopless=loopless_good_reactions,
+            model, loopless=loopless_good_reactions,
             exclude_reactions=exclude_reactions,
         )
     good_reactions = list(good_reactions)
@@ -193,12 +183,8 @@ def random_sampling(
             chosen = rng.choice(len(good_rxn_objs), size=n_objectives, replace=False)
             signs = rng.choice((-1.0, 1.0), size=n_objectives)
             weights = rng.random(n_objectives) * signs
-            terms = []
-            for j, w in zip(chosen, weights, strict=True):
-                rxn = good_rxn_objs[j]
-                if rxn.upper_bound < 0:  # reverse-only: a negative weight is degenerate
-                    w = abs(w)
-                terms.append(w * rxn.flux_expression)
+            terms = [w * good_rxn_objs[j].flux_expression
+                     for j, w in zip(chosen, weights, strict=True)]
             model.objective = model.problem.Objective(sum(terms), direction="max")
             sol = model.optimize()
             if sol.status == "optimal" and abs(sol.objective_value) > 1e-8:
