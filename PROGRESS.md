@@ -207,6 +207,9 @@ Keyed to commits on `main`.
 | `425d004` | ftINIT 4d.4: task gap-filling (`fill_tasks`), matches T0003 |
 | `b25e54e` | Review fix 4d.4: close boundaries during gap-filling |
 | `cdfdaea` | ftINIT 4d.5: `remove_low_score_genes` + full `ftinit` pipeline (gap-fill + gene prune) |
+| `38a99f9` | ftINIT 4d.7: genome-scale validation (iMM904); ftINIT complete |
+| `db5a1fa` | Full-codebase review fixes 1/2: run_init reversible essential, sampling/reporter/fseof |
+| `2b85830` | Full-codebase review fixes 2/2: yaml notes, task dup-names, blast dtype, expand objective |
 
 ---
 
