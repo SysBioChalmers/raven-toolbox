@@ -35,8 +35,16 @@ class TaskFillResult:
     failed_tasks: list[str]
 
 
+def _closed_copy(model: cobra.Model) -> cobra.Model:
+    """A copy with boundary reactions closed: task I/O comes only from the task's b."""
+    out = model.copy()
+    for rxn in out.boundary:
+        rxn.bounds = (0.0, 0.0)
+    return out
+
+
 def _feasible(model: cobra.Model, task: Task, name_to_id, comp_to_ids) -> bool:
-    test = model.copy()
+    test = _closed_copy(model)
     _, error = apply_task_constraints(test, task, name_to_id, comp_to_ids)
     if error is not None:
         return False
@@ -49,7 +57,7 @@ def _fill_one_task(
     costs: dict[str, float],
 ) -> list[str]:
     """Min-cost set of ``candidates`` to make ``task`` feasible in ``model`` (the MILP)."""
-    combined = model.copy()
+    combined = _closed_copy(model)  # task I/O via the task's b, not the model's exchanges
     combined.add_reactions([r.copy() for r in candidates])
     name_to_id, comp_to_ids = task_name_maps(combined)
     _, error = apply_task_constraints(combined, task, name_to_id, comp_to_ids)
@@ -95,6 +103,10 @@ def fill_tasks(
     −0.1)`` (missing → cost 1). Tasks already feasible are skipped; ``should_fail``
     tasks are ignored. The model is carried forward, so later tasks see earlier
     additions. Returns the gap-filled model and the reactions added.
+
+    Boundary reactions are closed while testing/solving each task, so task inputs and
+    outputs come solely from the task's ranged metabolite bounds (RAVEN gap-fills the
+    exchange-free model). The returned model keeps its boundary reactions.
     """
     scores = dict(rxn_scores or {})
     tasks = list(tasks)

@@ -45,6 +45,24 @@ def test_should_fail_tasks_ignored():
     assert res.added_reactions == []  # should_fail task drives no gap-filling
 
 
+def test_open_exchange_does_not_short_circuit_gapfill():
+    """Boundaries are closed during gap-filling, so an open exchange can't fake feasibility.
+
+    Give the gapped model an open exchange on e[s]; without closing boundaries the task
+    'produce e[s]' would look feasible (free secretion) and R7 would never be added.
+    """
+    import cobra
+
+    ref = _reference_without_exchanges()
+    gapped = ref.copy()
+    gapped.remove_reactions(["R7"], remove_orphans=False)
+    ex_es = cobra.Reaction("EX_es", lower_bound=-1000, upper_bound=1000)
+    ex_es.add_metabolites({gapped.metabolites.es: -1})
+    gapped.add_reactions([ex_es])  # open exchange that must be ignored
+    res = fill_tasks(gapped, ref, [make_test_task()])
+    assert "R7" in res.added_reactions  # gap still detected and filled
+
+
 def test_prefers_cheaper_reactions_by_score():
     """When two candidates can fill a gap, the higher-scored (cheaper) one is chosen.
 
