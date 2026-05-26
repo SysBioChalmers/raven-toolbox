@@ -30,8 +30,11 @@ essential reactions. ``allow_excretion`` relaxes ``S·v = 0`` to ``≥ 0``; ``re
 drops positive reversible reactions from the problem (used in staging, 4d.3b).
 
 Needs a MILP solver (cobra's configured optlang solver). Magic numbers
-(``force_on``/``force_on_ess`` = 0.1, big-M = each reaction's own bound) are exposed;
-they are scale-dependent and calibrated in 4d.7 (see docs/ftinit_review_and_plan.md).
+(``force_on``/``force_on_ess`` = 0.1, ``big_m`` = 100, RAVEN's fixed indicator cap) are
+exposed; they are scale-dependent and calibrated in 4d.7 (see docs/ftinit_review_and_plan.md).
+``big_m`` caps a *scored* reaction's flux in its on/off (direction) constraint: using a
+fixed 100 rather than the reaction's ±1000 bound keeps the LP relaxation tight, which is
+what makes the genome-scale MILP tractable. Free/essential reactions keep their real bounds.
 
 ⚠️ **Loops.** Like RAVEN's MILP, this has *no* loopless constraint: an internal
 thermodynamically-infeasible cycle is flux-consistent (``S·v = 0``), so if its
@@ -46,6 +49,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 import cobra
+from optlang.symbolics import Real, add, mul
 
 from ravengem.init.genes import remove_low_score_genes
 from ravengem.init.merge import group_rxn_scores
@@ -53,6 +57,7 @@ from ravengem.init.steps import get_init_steps
 from ravengem.init.taskfill import fill_tasks
 
 _FORCE_ON = 0.1  # min flux for a reaction to count as "on" (RAVEN forceOnLim)
+_BIG_M = 100.0   # indicator/direction big-M cap on a *scored* reaction's flux (RAVEN's 100)
 
 
 @dataclass
@@ -79,6 +84,7 @@ def run_ftinit(
     ignore_mets: Iterable[str] = (),
     force_on: float = _FORCE_ON,
     force_on_ess: float = _FORCE_ON,
+    big_m: float = _BIG_M,
     mip_gap: float | None = None,
     time_limit: float | None = None,
 ) -> FtInitResult:
@@ -162,29 +168,35 @@ def run_ftinit(
             if reversible:  # one direction binary stops a fwd/back loop faking "on"
                 b = prob.Variable(f"b_{rid}", type="binary")
                 variables.append(b)
-                add_constraint(vp - ub * b, ub=0.0, name=f"dirp_{rid}")        # vp ≤ ub·b
-                add_constraint(vn - lb * b, ub=-lb, name=f"dirn_{rid}")        # vn ≤ -lb·(1-b)
+                add_constraint(vp - big_m * b, ub=0.0, name=f"dirp_{rid}")          # vp ≤ M·b
+                add_constraint(vn + big_m * b, ub=big_m, name=f"dirn_{rid}")        # vn ≤ M·(1-b)
         else:  # score < 0
             x = prob.Variable(f"x_{rid}", type="binary")
             variables.append(x)
             indicators[rid] = (x, score)
-            cap = (ub - lb) if reversible else (ub if ub > 0 else -lb)
-            add_constraint(total - cap * x, ub=0.0, name=f"off_{rid}")  # flux>0 ⇒ x=1
-
-    def net(rid):  # net flux expression vp - vn (or v), the single source of truth
-        return sum(sign * var for var, sign in flux_terms[rid])
+            add_constraint(total - big_m * x, ub=0.0, name=f"off_{rid}")  # flux>0 ⇒ x=1
 
     # Steady state S·v {== 0 | >= 0}; ignored metabolites are left unbalanced.
-    for met in model.metabolites:
-        if met.name in ignore_met_names:
-            continue
-        expr = sum(coeff * net(r.id) for r in met.reactions if (coeff := r.metabolites[met]))
-        if expr != 0:
-            add_constraint(expr, lb=0.0, ub=None if allow_excretion else 0.0)
+    # Build each metabolite's balance as a *flat* list of (coeff·sign)·var terms and sum
+    # it with optlang.symbolics.add. Python's builtin sum re-canonicalises a growing
+    # sympy expression at every step (O(n²)); for hub metabolites that appear in ~10³
+    # reactions that is minutes per constraint. add() builds the sum in one pass.
+    met_terms: dict = {m: [] for m in model.metabolites if m.name not in ignore_met_names}
+    for rxn in model.reactions:
+        terms = flux_terms[rxn.id]
+        for met, coeff in rxn.metabolites.items():
+            bucket = met_terms.get(met)
+            if bucket is None:
+                continue
+            for var, sign in terms:
+                bucket.append(mul([Real(coeff * sign), var]))
+    for termlist in met_terms.values():
+        if termlist:
+            add_constraint(add(termlist), lb=0.0, ub=None if allow_excretion else 0.0)
 
     opt.add(variables + constraints)
     opt.objective = prob.Objective(
-        sum(score * ind for ind, score in indicators.values()), direction="max"
+        add([mul([Real(score), ind]) for ind, score in indicators.values()]), direction="max"
     )
     if time_limit is not None:
         opt.configuration.timeout = int(time_limit)
@@ -224,6 +236,7 @@ def ftinit(
     fill_gaps: bool = True,
     metabolomics: Iterable[str] | None = None,
     force_on: float = _FORCE_ON,
+    big_m: float = _BIG_M,
     mip_gap: float | None = None,
     time_limit: float | None = None,
 ) -> cobra.Model:
@@ -286,7 +299,7 @@ def ftinit(
             min_model, scores, essential_rxns=essential, essential_directions=directions,
             essential_force=ess_force, allow_excretion=step.allow_met_secr,
             rem_pos_rev=step.pos_rev_off, ignore_mets=step.mets_to_ignore,
-            force_on=force_on, force_on_ess=force_on,
+            force_on=force_on, force_on_ess=force_on, big_m=big_m,
             mip_gap=mip_gap, time_limit=time_limit,
         )
         for rid in res.on_reactions:
