@@ -15,6 +15,7 @@ loopless constraint (neither does RAVEN's); loop-free models come from the stage
 pipeline + exchange handling and, at genome scale, from models having real exchanges
 so such cycles are not score-optimal. This faithfully matches RAVEN's MILP.
 """
+import cobra
 import pytest
 from tinit_oracles import TEST_MODEL_SCORES, expr_for_rxn_score, make_test_model
 
@@ -60,6 +61,31 @@ def test_agrees_with_run_init():
     init = run_init(model, scores, prod_weight=0.0, eps=0.1, no_rev_loops=True)
     assert set(ft.kept_reactions) == {r.id for r in init.model.reactions}
     assert ft.objective == pytest.approx(init.objective, abs=1e-6)
+
+
+def test_essential_force_clamps_to_capacity():
+    """Forcing an essential reaction is clamped to its capacity (no lb>ub crash).
+
+    A reaction capped at 0.05 forced with the default 0.1 must not error; it is forced
+    to its capacity (0.05) and the model stays feasible. A per-reaction force of 0.04
+    forces exactly that.
+    """
+    m = cobra.Model("cap")
+    a, b = (cobra.Metabolite(x, compartment="s") for x in "ab")
+    m.add_metabolites([a, b])
+    r = cobra.Reaction("LOW", lower_bound=0, upper_bound=0.05)  # tiny capacity
+    r.add_metabolites({a: -1, b: 1})
+    for mid, st in [("EX_a", {a: -1}), ("EX_b", {b: -1})]:
+        ex = cobra.Reaction(mid, lower_bound=-1000, upper_bound=1000)
+        ex.add_metabolites(st)
+        m.add_reactions([ex])
+    m.add_reactions([r])
+    m.objective = "LOW"
+
+    res = run_ftinit(m, {}, essential_rxns=["LOW"], force_on_ess=0.1)  # clamped to 0.05
+    assert res.fluxes["LOW"] >= 0.05 - 1e-9
+    res2 = run_ftinit(m, {}, essential_rxns=["LOW"], essential_force={"LOW": 0.04})
+    assert res2.fluxes["LOW"] >= 0.04 - 1e-9
 
 
 def test_essential_reaction_forced_on():

@@ -73,6 +73,7 @@ def run_ftinit(
     *,
     essential_rxns: Iterable[str] | None = None,
     essential_directions: Mapping[str, int] | None = None,
+    essential_force: Mapping[str, float] | None = None,
     allow_excretion: bool = False,
     rem_pos_rev: bool = False,
     ignore_mets: Iterable[str] = (),
@@ -93,6 +94,7 @@ def run_ftinit(
     scores = dict(rxn_scores or {})
     essential = set(essential_rxns or [])
     directions = dict(essential_directions or {})
+    essential_force = dict(essential_force or {})
     ignore_met_names = set(ignore_mets)
     prob = model.problem
     opt = prob.Model()
@@ -115,11 +117,16 @@ def run_ftinit(
 
         if rid in essential:
             # Forced to carry flux in its forced direction (default forward); respect a
-            # stricter native bound if the model already forces more flux.
+            # stricter native bound if the model already forces more flux. The forced
+            # magnitude may be set per reaction (RAVEN's min(0.99·|prev flux|, 0.1), so
+            # a reaction is never forced above what it carried before).
+            force = essential_force.get(rid, force_on_ess) if essential_force else force_on_ess
             if directions.get(rid, 1) >= 0:
-                v = prob.Variable(f"v_{rid}", lb=max(force_on_ess, lb), ub=ub)
-            else:  # reverse: flux ≤ -force_on_ess
-                v = prob.Variable(f"v_{rid}", lb=lb, ub=min(-force_on_ess, ub))
+                forced = min(force, ub)  # clamp to capacity so we never make lb > ub
+                v = prob.Variable(f"v_{rid}", lb=max(forced, lb, 0.0), ub=ub)
+            else:  # reverse: flux ≤ -force
+                forced = min(force, -lb)
+                v = prob.Variable(f"v_{rid}", lb=lb, ub=min(-forced, ub))
             variables.append(v)
             flux_terms[rid] = [(v, 1.0)]
             free_or_essential.add(rid)
@@ -205,6 +212,7 @@ def ftinit(
     series: str = "1+1",
     steps=None,
     fill_gaps: bool = True,
+    metabolomics: Iterable[str] | None = None,
     force_on: float = _FORCE_ON,
 ) -> cobra.Model:
     """Run the full ftINIT pipeline on prepData and return the context-specific model.
@@ -227,7 +235,18 @@ def ftinit(
     reaction is never forced above the flux it carried before. On genome-scale models
     this matters (forcing 0.1 through a reaction that can only carry less is
     infeasible); revisit in calibration (4d.7).
+
+    ``metabolomics`` (a list of detected metabolite names to reward producing) is
+    **not yet implemented** (4d.6, deferred): the linear merge eliminates degree-2
+    detected metabolites, so it needs RAVEN's producer-group-mapping + negative-
+    producer force-flux block — the most intricate MILP in ftINIT, for its least-used
+    input. Passing a non-empty value raises ``NotImplementedError``.
     """
+    if metabolomics:
+        raise NotImplementedError(
+            "metabolomics production-bonus is not yet implemented (ftINIT 4d.6, deferred); "
+            "see docs/ftinit_review_and_plan.md."
+        )
     steps = steps if steps is not None else get_init_steps(series)
     min_model, group_of = prep.min_model, prep.group_of
 
@@ -239,14 +258,18 @@ def ftinit(
                                   prep.group_ids, to_zero)
         essential = set(prep.essential_rxns)  # pre-oriented forward (default direction)
         directions: dict[str, int] = {}
+        ess_force: dict[str, float] = {}
         if step.how_to_use_prev == "essential":
             for rid, flux in turned_on.items():
                 essential.add(rid)
                 directions[rid] = 1 if flux >= 0 else -1
+                # never force more flux than the reaction carried before (RAVEN)
+                ess_force[rid] = min(abs(flux) * 0.99, force_on)
         res = run_ftinit(
             min_model, scores, essential_rxns=essential, essential_directions=directions,
-            allow_excretion=step.allow_met_secr, rem_pos_rev=step.pos_rev_off,
-            ignore_mets=step.mets_to_ignore, force_on=force_on, force_on_ess=force_on,
+            essential_force=ess_force, allow_excretion=step.allow_met_secr,
+            rem_pos_rev=step.pos_rev_off, ignore_mets=step.mets_to_ignore,
+            force_on=force_on, force_on_ess=force_on,
         )
         for rid in res.on_reactions:
             turned_on[rid] = res.fluxes[rid]
