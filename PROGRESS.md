@@ -206,7 +206,7 @@ Keyed to commits on `main`.
 | `677a21e` | Review fixes 4d.3b: handle essential merged-away; drop redundant directions |
 | `425d004` | ftINIT 4d.4: task gap-filling (`fill_tasks`), matches T0003 |
 | `b25e54e` | Review fix 4d.4: close boundaries during gap-filling |
-| `pending` | ftINIT 4d.5: `remove_low_score_genes` + full `ftinit` pipeline (gap-fill + gene prune) |
+| `cdfdaea` | ftINIT 4d.5: `remove_low_score_genes` + full `ftinit` pipeline (gap-fill + gene prune) |
 
 ---
 
