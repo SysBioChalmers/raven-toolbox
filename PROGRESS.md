@@ -215,6 +215,10 @@ Keyed to commits on `main`.
 
 ## Next up
 
+**Review backlog:** low-priority issues from the full-codebase review (edge cases,
+robustness, efficiency, dead code) are catalogued in
+[docs/known_issues.md](docs/known_issues.md).
+
 **Done:** Phases 1 (foundation), 2 (I/O), 3a (homology), 3b (KEGG), 4b (gap-filling).
 **Dropped:** 3c (MetaCyc). Candidate next steps:
 
