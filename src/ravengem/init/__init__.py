@@ -17,6 +17,7 @@ from ravengem.init.merge import group_rxn_scores, merge_linear
 from ravengem.init.prep import PrepData, ReactionMasks, classify_reactions, prep_init_model
 from ravengem.init.score import gene_scores_from_expression, score_reactions_from_genes
 from ravengem.init.steps import InitStep, get_init_steps
+from ravengem.init.taskfill import TaskFillResult, fill_tasks
 
 __all__ = [
     "FtInitResult",
@@ -25,7 +26,9 @@ __all__ = [
     "InitStep",
     "PrepData",
     "ReactionMasks",
+    "TaskFillResult",
     "classify_reactions",
+    "fill_tasks",
     "ftinit",
     "gene_scores_from_expression",
     "get_init_model",

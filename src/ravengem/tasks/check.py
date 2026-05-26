@@ -103,20 +103,27 @@ def _metabolite_bounds(
     return bounds, missing
 
 
-def _build_task_model(
-    base: cobra.Model, task: Task, name_to_id, comp_to_ids
-) -> tuple[cobra.Model | None, set[str], str | None]:
-    """Apply a task's constraints to a copy of ``base`` (feasibility objective set).
+def task_name_maps(model: cobra.Model) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Build ``name[comp]→id`` and ``comp→[ids]`` lookups for a model's metabolites."""
+    name_to_id = {f"{m.name}[{m.compartment}]".upper(): m.id for m in model.metabolites}
+    comp_to_ids: dict[str, list[str]] = {}
+    for m in model.metabolites:
+        comp_to_ids.setdefault((m.compartment or "").upper(), []).append(m.id)
+    return name_to_id, comp_to_ids
 
-    Returns ``(model, task_metabolite_ids, error)``. ``task_metabolite_ids`` are the
-    model metabolites the task references (inputs/outputs + equation mets present in
-    the model) — RAVEN's ``essentialMetsForTasks``, to be protected from removal.
-    ``model``/``error`` are mutually exclusive.
+
+def apply_task_constraints(
+    model: cobra.Model, task: Task, name_to_id, comp_to_ids
+) -> tuple[set[str], str | None]:
+    """Apply a task's inputs/outputs/equations/bound-changes to ``model`` in place.
+
+    Sets a feasibility (zero) objective. Returns ``(task_metabolite_ids, error)``;
+    ``task_metabolite_ids`` are the model metabolites the task references (RAVEN's
+    ``essentialMetsForTasks``). On error the model may be partially modified.
     """
-    model = base.copy()
     bounds, missing = _metabolite_bounds(task, name_to_id, comp_to_ids)
     if missing:
-        return None, set(), f"unknown metabolite(s): {sorted(set(missing))}"
+        return set(), f"unknown metabolite(s): {sorted(set(missing))}"
     task_mets = {mid for mid in bounds}
     for mid, (lb, ub) in bounds.items():
         if (lb, ub) != (0.0, 0.0):
@@ -135,11 +142,20 @@ def _build_task_model(
 
     for rxn_id, lb, ub in task.changed:
         if rxn_id not in model.reactions:
-            return None, set(), f"CHANGED RXN not in model: {rxn_id!r}"
+            return set(), f"CHANGED RXN not in model: {rxn_id!r}"
         model.reactions.get_by_id(rxn_id).bounds = (lb, ub)
 
     model.objective = model.problem.Objective(Zero, direction="max")  # feasibility only
-    return model, task_mets, None
+    return task_mets, None
+
+
+def _build_task_model(
+    base: cobra.Model, task: Task, name_to_id, comp_to_ids
+) -> tuple[cobra.Model | None, set[str], str | None]:
+    """Copy ``base`` and apply a task's constraints (``model``/``error`` exclusive)."""
+    model = base.copy()
+    task_mets, error = apply_task_constraints(model, task, name_to_id, comp_to_ids)
+    return (None if error else model), task_mets, error
 
 
 def _run_task(base: cobra.Model, task: Task, name_to_id, comp_to_ids) -> TaskResult:
@@ -179,10 +195,7 @@ def _prepare_base(model: cobra.Model, close_boundaries: bool):
     if close_boundaries:
         for rxn in base.boundary:
             rxn.bounds = (0.0, 0.0)
-    name_to_id = {f"{m.name}[{m.compartment}]".upper(): m.id for m in base.metabolites}
-    comp_to_ids: dict[str, list[str]] = {}
-    for m in base.metabolites:
-        comp_to_ids.setdefault((m.compartment or "").upper(), []).append(m.id)
+    name_to_id, comp_to_ids = task_name_maps(base)
     return base, name_to_id, comp_to_ids
 
 
