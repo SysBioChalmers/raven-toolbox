@@ -148,6 +148,7 @@ def prep_init_model(
     ext_comp: str = "e",
     spontaneous: Iterable[str] = (),
     custom: Iterable[str] = (),
+    essential_cache_path=None,
 ) -> PrepData:
     """Build :class:`PrepData` from a template model (port of ``prepINITModel``).
 
@@ -156,6 +157,9 @@ def prep_init_model(
     infeasible. Then classifies reactions into the ``toIgnore`` categories and linearly
     merges. (Dead-end simplification and numerical scaling are deferred to 4d.7; on
     genome-scale templates they should be applied here.)
+
+    ``essential_cache_path`` makes the (slow, genome-scale) essential-reaction discovery
+    **resumable** across interruptions — see :func:`find_task_essential_reactions`.
     """
     ref_model = template.copy()
 
@@ -164,7 +168,7 @@ def prep_init_model(
     kept_tasks: list[Task] = []
     if tasks is not None:
         tasks = list(tasks)
-        ess = find_task_essential_reactions(ref_model, tasks)
+        ess = find_task_essential_reactions(ref_model, tasks, cache_path=essential_cache_path)
         essential_pre = ess.reactions
         task_mets = ess.task_metabolites
         kept_tasks = [t for t in tasks if t.id not in ess.failed_tasks]

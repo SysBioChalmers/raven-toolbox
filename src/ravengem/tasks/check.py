@@ -15,8 +15,10 @@ by the task (RAVEN's closed-model assumption).
 """
 from __future__ import annotations
 
+import pickle
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 
 import cobra
 from cobra.exceptions import OptimizationError
@@ -254,6 +256,7 @@ def find_task_essential_reactions(
     *,
     close_boundaries: bool = True,
     tol: float = 1e-8,
+    cache_path: str | Path | None = None,
 ) -> EssentialReactionsResult:
     """Find the reactions a model must use to satisfy a task list.
 
@@ -263,6 +266,11 @@ def find_task_essential_reactions(
     reactions are kept regardless of expression score and made irreversible in their
     forced direction. When a reaction is essential in several tasks with conflicting
     directions, the majority wins (ties → forward), matching RAVEN's ``pos < neg``.
+
+    On a genome-scale model this is slow (an FVA per task). Pass ``cache_path`` to make
+    it **resumable**: each task's result is written there as it completes (atomically),
+    and a re-run skips tasks already cached — so it survives interruptions and finishes
+    across several sessions.
     """
     tasks = _as_tasks(tasks)
     base, name_to_id, comp_to_ids = _prepare_base(model, close_boundaries)
@@ -271,29 +279,37 @@ def find_task_essential_reactions(
     per_task: dict[str, dict[str, int]] = {}
     task_metabolites: set[str] = set()
     failed: list[str] = []
-    direction_votes: dict[str, int] = {}
+    if cache_path is not None and Path(cache_path).exists():
+        cached = pickle.load(open(cache_path, "rb"))
+        per_task, task_metabolites, failed = cached["per_task"], set(cached["mets"]), list(cached["failed"])
 
+    done = set(per_task) | set(failed)
     for task in tasks:
-        if task.should_fail:
-            continue  # a task meant to fail defines no essential reactions
+        if task.should_fail or task.id in done:
+            continue  # a should-fail task defines no essentials; cached ones are skipped
         task_model, task_mets, error = _build_task_model(base, task, name_to_id, comp_to_ids)
         if error is not None:
             failed.append(task.id)
-            continue
-        # One min-flux solve both proves feasibility and yields the essential-reaction
-        # candidates (the original reactions carrying flux in a sparse solution).
-        try:
-            fluxes = pfba(task_model).fluxes
-        except OptimizationError:
-            failed.append(task.id)
-            continue
-        candidates = [rid for rid in original_ids if abs(fluxes.get(rid, 0.0)) > tol]
-        task_metabolites |= task_mets
-        essential = _task_essential_reactions(task_model, candidates, tol)
-        per_task[task.id] = essential
-        for rxn_id, direction in essential.items():
-            direction_votes[rxn_id] = direction_votes.get(rxn_id, 0) + direction
+        else:
+            # One min-flux solve both proves feasibility and yields the essential-reaction
+            # candidates (the original reactions carrying flux in a sparse solution).
+            try:
+                fluxes = pfba(task_model).fluxes
+                candidates = [rid for rid in original_ids if abs(fluxes.get(rid, 0.0)) > tol]
+                task_metabolites |= task_mets
+                per_task[task.id] = _task_essential_reactions(task_model, candidates, tol)
+            except OptimizationError:
+                failed.append(task.id)
+        if cache_path is not None:  # atomic checkpoint after each task
+            tmp = Path(f"{cache_path}.part")
+            pickle.dump({"per_task": per_task, "mets": task_metabolites, "failed": failed},
+                        open(tmp, "wb"))
+            tmp.replace(cache_path)
 
     # Majority direction; tie (sum == 0) → forward, as RAVEN's `pos < neg`.
+    direction_votes: dict[str, int] = {}
+    for essential in per_task.values():
+        for rxn_id, direction in essential.items():
+            direction_votes[rxn_id] = direction_votes.get(rxn_id, 0) + direction
     reactions = {rid: (-1 if votes < 0 else 1) for rid, votes in direction_votes.items()}
     return EssentialReactionsResult(reactions, per_task, task_metabolites, failed)

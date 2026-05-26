@@ -87,9 +87,11 @@ def test_direction_majority_across_tasks():
     m.objective = "REV"
     # Task forcing net production of b from a -> REV forward (+1).
     fwd = Task(id="fwd", inputs=[("a[s]", 0.0, 1000.0)], outputs=[("b[s]", 1.0, 1.0)])
-    # Task forcing net production of a from b -> REV reverse (-1).
-    rev = Task(id="rev", inputs=[("b[s]", 0.0, 1000.0)], outputs=[("a[s]", 1.0, 1.0)])
-    res = find_task_essential_reactions(m, [rev, rev, fwd])
+    # Two tasks forcing net production of a from b -> REV reverse (-1). Distinct ids
+    # (task lists have unique ids; essential discovery de-duplicates by id).
+    rev1 = Task(id="rev1", inputs=[("b[s]", 0.0, 1000.0)], outputs=[("a[s]", 1.0, 1.0)])
+    rev2 = Task(id="rev2", inputs=[("b[s]", 0.0, 1000.0)], outputs=[("a[s]", 1.0, 1.0)])
+    res = find_task_essential_reactions(m, [rev1, rev2, fwd])
     assert res.reactions["REV"] == -1  # two reverse votes beat one forward
 
 
