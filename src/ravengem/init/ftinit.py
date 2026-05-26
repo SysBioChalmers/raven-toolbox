@@ -79,6 +79,8 @@ def run_ftinit(
     ignore_mets: Iterable[str] = (),
     force_on: float = _FORCE_ON,
     force_on_ess: float = _FORCE_ON,
+    mip_gap: float | None = None,
+    time_limit: float | None = None,
 ) -> FtInitResult:
     """Run the single-step ftINIT MILP and return the extracted model.
 
@@ -184,9 +186,17 @@ def run_ftinit(
     opt.objective = prob.Objective(
         sum(score * ind for ind, score in indicators.values()), direction="max"
     )
+    if time_limit is not None:
+        opt.configuration.timeout = int(time_limit)
+    if mip_gap is not None:
+        try:  # Gurobi-specific; harmless if the backend differs
+            opt.problem.Params.MIPGap = mip_gap
+        except Exception:  # noqa: BLE001
+            pass
     opt.optimize()
-    if opt.status != "optimal":
-        raise RuntimeError(f"ftINIT MILP did not solve to optimality (status: {opt.status}).")
+    # Accept a near-optimal incumbent (when a MIP gap / time limit is set), as RAVEN does.
+    if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
+        raise RuntimeError(f"ftINIT MILP did not solve (status: {opt.status}).")
 
     # RAVEN: a reaction is "on" iff its indicator ≥ 0.5 (positive indicators are
     # continuous and can land fractionally when a reaction can carry only tiny flux).
@@ -214,6 +224,8 @@ def ftinit(
     fill_gaps: bool = True,
     metabolomics: Iterable[str] | None = None,
     force_on: float = _FORCE_ON,
+    mip_gap: float | None = None,
+    time_limit: float | None = None,
 ) -> cobra.Model:
     """Run the full ftINIT pipeline on prepData and return the context-specific model.
 
@@ -241,6 +253,11 @@ def ftinit(
     detected metabolites, so it needs RAVEN's producer-group-mapping + negative-
     producer force-flux block — the most intricate MILP in ftINIT, for its least-used
     input. Passing a non-empty value raises ``NotImplementedError``.
+
+    ``mip_gap``/``time_limit`` are forwarded to each :func:`run_ftinit` solve. On
+    genome-scale models they are essential for tractability: RAVEN deliberately runs
+    with a loose MIP gap (≈0.0004–0.003) and a wall-clock ``TimeLimit``, accepting a
+    near-optimal incumbent rather than grinding to proven optimality.
     """
     if metabolomics:
         raise NotImplementedError(
@@ -270,6 +287,7 @@ def ftinit(
             essential_force=ess_force, allow_excretion=step.allow_met_secr,
             rem_pos_rev=step.pos_rev_off, ignore_mets=step.mets_to_ignore,
             force_on=force_on, force_on_ess=force_on,
+            mip_gap=mip_gap, time_limit=time_limit,
         )
         for rid in res.on_reactions:
             turned_on[rid] = res.fluxes[rid]
