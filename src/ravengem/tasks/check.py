@@ -56,13 +56,13 @@ def _classify(token: str) -> tuple[str, str | None]:
     upper = token.upper()
     if upper == _ALLMETS:
         return "all", None
-    if upper.startswith(_ALLMETSIN + "["):
-        return "comp", upper[len(_ALLMETSIN) + 1: upper.rfind("]")]
-    return "met", upper
+    if upper.startswith(_ALLMETSIN + "[") and upper.endswith("]"):
+        return "comp", upper[len(_ALLMETSIN) + 1: -1]
+    return "met", upper  # incl. malformed ALLMETSIN[... → treated as a (missing) metabolite
 
 
 def _metabolite_bounds(
-    task: Task, name_to_id: dict[str, str], comp_to_ids: dict[str, list[str]]
+    task: Task, name_to_ids: dict[str, list[str]], comp_to_ids: dict[str, list[str]]
 ) -> tuple[dict[str, list[float]], list[str]]:
     """Compute ``{met_id: [lb, ub]}`` from a task's inputs/outputs (RAVEN ``b``).
 
@@ -81,15 +81,14 @@ def _metabolite_bounds(
         for token, lb, ub in bulk + specific:
             kind, arg = _classify(token)
             if kind == "all":
-                ids = list(name_to_id.values())
+                ids = [mid for group in comp_to_ids.values() for mid in group]
             elif kind == "comp":
                 ids = comp_to_ids.get(arg, [])
             else:
-                mid = name_to_id.get(arg)
-                if mid is None:
+                ids = name_to_ids.get(arg, [])
+                if not ids:
                     missing.append(token)
                     continue
-                ids = [mid]
             for mid in ids:
                 b = touch(mid)
                 if is_input:
@@ -103,13 +102,19 @@ def _metabolite_bounds(
     return bounds, missing
 
 
-def task_name_maps(model: cobra.Model) -> tuple[dict[str, str], dict[str, list[str]]]:
-    """Build ``name[comp]→id`` and ``comp→[ids]`` lookups for a model's metabolites."""
-    name_to_id = {f"{m.name}[{m.compartment}]".upper(): m.id for m in model.metabolites}
+def task_name_maps(model: cobra.Model) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Build ``name[comp]→[ids]`` and ``comp→[ids]`` lookups for a model's metabolites.
+
+    ``name[comp]`` maps to a *list* because a model can carry several metabolites with
+    the same name and compartment; a task referencing it constrains all of them (as
+    RAVEN does), rather than an arbitrary one.
+    """
+    name_to_ids: dict[str, list[str]] = {}
     comp_to_ids: dict[str, list[str]] = {}
     for m in model.metabolites:
+        name_to_ids.setdefault(f"{m.name}[{m.compartment}]".upper(), []).append(m.id)
         comp_to_ids.setdefault((m.compartment or "").upper(), []).append(m.id)
-    return name_to_id, comp_to_ids
+    return name_to_ids, comp_to_ids
 
 
 def apply_task_constraints(

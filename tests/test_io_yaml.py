@@ -126,6 +126,18 @@ def test_round_trip(yaml_file, tmp_path):
     assert reloaded.notes["_yaml_sections"]["ec-rxns"][0]["id"] == "R1"
 
 
+def test_extra_notes_not_dropped_when_free_text_note_present(yaml_file, tmp_path):
+    """An entry with both a RAVEN free-text note and an extra note keeps both on write."""
+    model = read_yaml_model(yaml_file)
+    a = model.metabolites.get_by_id("s_0001")
+    a.notes["note"] = "free text"
+    a.notes["custom"] = "extra value"  # a non-RAVEN note that must not be silently lost
+    out = tmp_path / "out.yml"
+    write_yaml_model(model, out)
+    text = out.read_text()
+    assert "extra value" in text  # the leftover note survives serialization
+
+
 def test_gzipped_round_trip(yaml_file, tmp_path):
     # A .yml.gz path is transparently gzipped on write and read.
     model = read_yaml_model(yaml_file)

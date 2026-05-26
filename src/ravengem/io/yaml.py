@@ -135,8 +135,13 @@ def _emit_entry_fields(entries, fields):
         for yaml_key, notes_key in fields:
             if notes_key in notes:
                 entry[yaml_key] = notes.pop(notes_key)
-        if notes:  # any non-RAVEN notes survive as a notes block (unless 'notes' taken)
-            entry.setdefault("notes", notes)
+        # Preserve any remaining (non-RAVEN) notes. The RAVEN free-text note is lifted
+        # to the YAML key "notes"; if leftovers also exist, merge them with it under
+        # that key (rather than silently dropping the leftovers).
+        if notes:
+            if "notes" in entry:
+                notes["note"] = entry["notes"]
+            entry["notes"] = notes
 
 
 def write_yaml_model(

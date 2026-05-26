@@ -118,8 +118,12 @@ def expand_model(model: cobra.Model) -> list[str]:
             new_rxn.notes = copy.deepcopy(original_rxn.notes)
             new_rxns.append(new_rxn)
 
+        obj_coeff = original_rxn.objective_coefficient
         model.remove_reactions([original_rxn])
         model.add_reactions(new_rxns)
+        if obj_coeff:  # keep the original in the objective — sum over its isozyme copies
+            for new_rxn in new_rxns:
+                new_rxn.objective_coefficient = obj_coeff
         added_ids.extend(r.id for r in new_rxns)
 
     return sorted(added_ids)

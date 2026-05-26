@@ -270,3 +270,19 @@ def test_expanded_reaction_annotation_is_independent_of_parent():
     r1_2 = model.reactions.get_by_id("r1_EXP_2")
     r1_1.annotation["ec-code"].append("9.9.9.9")
     assert r1_2.annotation["ec-code"] == ["1.2.3.4"]
+
+
+def test_objective_coefficient_preserved_on_expansion():
+    """An expanded reaction's isozyme copies retain the original objective coefficient."""
+    m = cobra.Model("o")
+    a, b = (cobra.Metabolite(x, compartment="c") for x in "ab")
+    m.add_metabolites([a, b])
+    r = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r.add_metabolites({a: -1, b: 1})
+    r.gene_reaction_rule = "g1 or g2"
+    m.add_reactions([r])
+    m.objective = "r1"  # objective on the soon-to-be-expanded reaction
+
+    expand_model(m)
+    coeffs = {rx.id: rx.objective_coefficient for rx in m.reactions}
+    assert coeffs == {"r1_EXP_1": 1.0, "r1_EXP_2": 1.0}  # objective survives on both copies

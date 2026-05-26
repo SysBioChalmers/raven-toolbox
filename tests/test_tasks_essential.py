@@ -91,3 +91,22 @@ def test_direction_majority_across_tasks():
     rev = Task(id="rev", inputs=[("b[s]", 0.0, 1000.0)], outputs=[("a[s]", 1.0, 1.0)])
     res = find_task_essential_reactions(m, [rev, rev, fwd])
     assert res.reactions["REV"] == -1  # two reverse votes beat one forward
+
+
+def test_duplicate_name_comp_metabolites_both_constrained():
+    """A task referencing a name[comp] shared by two metabolites resolves (not 'missing')."""
+    m = cobra.Model("dup")
+    # Two distinct metabolites with the SAME name and compartment.
+    a1 = cobra.Metabolite("a1", name="a", compartment="s")
+    a2 = cobra.Metabolite("a2", name="a", compartment="s")
+    b = cobra.Metabolite("b", name="b", compartment="s")
+    m.add_metabolites([a1, a2, b])
+    r1 = cobra.Reaction("R1", lower_bound=0, upper_bound=1000)
+    r1.add_metabolites({a1: -1, b: 1})  # only a1 feeds b
+    m.add_reactions([r1])
+    m.objective = "R1"
+    # Output b from input a -> 'a[s]' matches both a1 and a2; must not be reported missing.
+    task = Task(id="t", inputs=[("a[s]", 0.0, 1000.0)], outputs=[("b[s]", 1.0, 1.0)])
+    res = find_task_essential_reactions(m, [task])
+    assert res.failed_tasks == []  # 'a[s]' resolved (to both a1 and a2), task feasible
+    assert "R1" in res.reactions

@@ -139,6 +139,9 @@ def blast_from_table(source: str | Path | pd.DataFrame) -> pd.DataFrame:
     Port of RAVEN ``getBlastFromExcel`` — but a plain CSV/DataFrame, not Excel.
     Must contain the ``HIT_COLUMNS`` columns.
     """
-    df = source if isinstance(source, pd.DataFrame) else pd.read_csv(source)
+    # Force gene-id columns to str: an all-numeric gene-id column (e.g. Entrez ids)
+    # would otherwise be read as int64 and never match the string gene ids in a model.
+    df = (source if isinstance(source, pd.DataFrame)
+          else pd.read_csv(source, dtype={"from_gene": str, "to_gene": str}))
     validate_hits(df)
     return df[HIT_COLUMNS].copy()

@@ -49,6 +49,16 @@ def test_blast_from_table_missing_columns():
         blast_from_table(pd.DataFrame({"from_id": ["x"]}))
 
 
+def test_blast_from_table_csv_numeric_gene_ids_stay_str(tmp_path):
+    """All-numeric gene ids (e.g. Entrez) read as str, so they match model gene ids."""
+    p = tmp_path / "hits.csv"
+    pd.DataFrame(
+        [["templ", "org", 125, 4790, 0.0, 100.0, 100, 200.0, 100.0]], columns=HIT_COLUMNS
+    ).to_csv(p, index=False)
+    out = blast_from_table(p)
+    assert out.iloc[0].from_gene == "125" and out.iloc[0].to_gene == "4790"
+
+
 @pytest.mark.skipif(
     not (shutil.which("blastp") and shutil.which("makeblastdb")), reason="BLAST+ not installed"
 )
