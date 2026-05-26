@@ -204,7 +204,7 @@ Keyed to commits on `main`.
 | `0d83318` | Review polish 4d.2: confluence/multi-pass doc + cleanups |
 | `e3c55e6` | ftINIT 4d.3b: classification + prepData + staged pipeline (`ftinit`), matches T0001/T0002 |
 | `677a21e` | Review fixes 4d.3b: handle essential merged-away; drop redundant directions |
-| `pending` | ftINIT 4d.4: task gap-filling (`fill_tasks`), matches T0003 |
+| `425d004` | ftINIT 4d.4: task gap-filling (`fill_tasks`), matches T0003 |
 
 ---
 
