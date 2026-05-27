@@ -166,11 +166,30 @@ def _build_task_model(
 
 
 def _run_task(base: cobra.Model, task: Task, name_to_id, comp_to_ids) -> TaskResult:
-    model, _, error = _build_task_model(base, task, name_to_id, comp_to_ids)
-    if error is not None:
-        return TaskResult(task.id, task.description, False, False, error)
-    model.slim_optimize()
-    feasible = model.solver.status == "optimal"
+    """Test one task by applying its constraints to ``base`` in place, then reverting.
+
+    Avoids copying the (genome-scale) model per task — the copy dominates ``check_tasks``
+    runtime. ``with base:`` reverts everything ``apply_task_constraints`` does through
+    cobra's API (temp reactions/metabolites for equations, reaction bounds, objective);
+    the one untracked change — direct metabolite mass-balance (``model.constraints[mid]``)
+    bound edits — is snapshotted and restored explicitly. Net result is identical to the
+    copy-based version but reuses a single model across all tasks.
+    """
+    bounds, missing = _metabolite_bounds(task, name_to_id, comp_to_ids)
+    if missing:
+        return TaskResult(task.id, task.description, False, False,
+                          f"unknown metabolite(s): {sorted(set(missing))}")
+    saved = {mid: (base.constraints[mid].lb, base.constraints[mid].ub) for mid in bounds}
+    try:
+        with base:  # reverts temp reactions/mets, reaction bounds, objective on exit
+            _, error = apply_task_constraints(base, task, name_to_id, comp_to_ids)
+            if error is not None:
+                return TaskResult(task.id, task.description, False, False, error)
+            base.slim_optimize()
+            feasible = base.solver.status == "optimal"
+    finally:  # restore the untracked metabolite-constraint bound edits
+        for mid, (lb, ub) in saved.items():
+            _set_constraint_bounds(base.constraints[mid], lb, ub)
     return TaskResult(task.id, task.description, feasible != task.should_fail, feasible)
 
 
