@@ -18,6 +18,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 import cobra
+from optlang.symbolics import Real, add, mul
 
 from ravengem.tasks import Task
 from ravengem.tasks.check import apply_task_constraints, task_name_maps
@@ -78,9 +79,11 @@ def _fill_one_task(
             prob.Constraint(rxn.flux_expression - rxn.lower_bound * y, lb=0.0,
                             name=f"_filllb_{cand.id}"),
         ]
-        objective_terms.append(costs[cand.id] * y)
+        objective_terms.append(mul([Real(costs[cand.id]), y]))
     combined.add_cons_vars(extras)
-    combined.objective = prob.Objective(sum(objective_terms), direction="min")
+    # add() over a flat list, not Python sum() — the latter is O(n²) in sympy and with
+    # thousands of candidates dominates gap-fill runtime (see ftINIT/tINIT, same fix).
+    combined.objective = prob.Objective(add(objective_terms), direction="min")
     combined.slim_optimize()
     if combined.solver.status != "optimal":
         raise RuntimeError(f"gap-filling found no way to make task {task.id!r} feasible.")
