@@ -61,13 +61,13 @@ from ravengem.tasks import check_tasks, parse_task_list
 
 # Degradation grid (severity per kind). A mild and a severe point per kind.
 GRADIENT = {
-    "dropout": (0.5, 0.9),
-    "noise": (1.0, 2.0),
-    "downsample": (0.6, 0.85),
+    "dropout": (0.5, 0.9),   # mild + severe (shows the trend)
+    "noise": (2.0,),         # severe only (each check_tasks run is ~20 min at genome scale)
+    "downsample": (0.85,),   # severe only
 }
 LEVER_KIND, LEVER_LEVEL = "dropout", 0.9      # severe point at which to test the levers
 NO_GENE_SCORES = (-1.0, -0.5)                 # vs the default -2 (the gradient row)
-FORCE_ONS = (0.2, 0.05)                       # vs the default 0.1
+FORCE_ONS = (0.2,)                            # vs the default 0.1
 PROD_WEIGHTS = (0.0, 1.0, 2.0)                # tINIT only (default 0.5)
 EPS_VALS = (0.5, 0.1)                         # tINIT only (default 1.0)
 
