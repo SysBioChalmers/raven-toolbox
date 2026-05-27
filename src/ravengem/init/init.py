@@ -42,6 +42,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 import cobra
+from optlang.symbolics import Real, add, mul
 
 _EPS = 1.0  # flux an included reaction must carry (RAVEN's fake-met unit)
 
@@ -106,6 +107,8 @@ def run_init(
     allow_excretion: bool = False,
     no_rev_loops: bool = False,
     eps: float = _EPS,
+    mip_gap: float | None = None,
+    time_limit: float | None = None,
 ) -> InitResult:
     """Run the INIT MILP and return the extracted model.
 
@@ -148,34 +151,51 @@ def run_init(
                 gates.append(prob.Constraint(sum(xs), ub=1.0, name=f"onedir_{keys[0]}"))
 
     # Steady-state constraints S·v (- sink) {==0 | >=0}, plus prod_weight sinks.
+    # Accumulate each metabolite's terms by iterating reactions once (avoids the
+    # O(mets·rxns) per-metabolite filter) and sum with optlang.symbolics.add — Python
+    # sum() re-canonicalises a growing sympy expression each step (O(n²)), which is
+    # minutes per hub metabolite at genome scale.
+    met_terms: dict[str, list] = {met.id: [] for met in model.metabolites}
+    for d in directed:
+        v = flux[d.key]
+        for mid, coeff in d.coeffs.items():
+            met_terms[mid].append(mul([Real(coeff), v]))
+
     sinks: dict[str, object] = {}
     met_constraints: dict[str, object] = {}
+    ub = None if allow_excretion else 0.0
     for met in model.metabolites:
-        expr = sum(d_coeff * flux[d.key] for d in directed if (d_coeff := d.coeffs.get(met.id)))
-        ub = None if allow_excretion else 0.0
+        terms = met_terms[met.id]
         if prod_weight != 0:
             s = prob.Variable(f"s_{met.id}", lb=0.0, ub=1.0)
             sinks[met.id] = s
-            expr = expr - s  # net production drained into the rewarded sink
-        con = prob.Constraint(expr, lb=0.0, ub=ub) if expr != 0 else None
-        if con is not None:
-            met_constraints[met.id] = con
+            terms = [*terms, mul([Real(-1.0), s])]  # net production drained into rewarded sink
+        if terms:
+            met_constraints[met.id] = prob.Constraint(add(terms), lb=0.0, ub=ub)
 
     opt.add(list(flux.values()) + list(keep.values()) + list(sinks.values())
             + gates + list(met_constraints.values()))
 
     objective = prob.Objective(
-        sum(d.score * keep[d.key] for d in directed if d.key in keep)
-        + sum(prod_weight * s for s in sinks.values()),
+        add([mul([Real(d.score), keep[d.key]]) for d in directed if d.key in keep]
+            + [mul([Real(prod_weight), s]) for s in sinks.values()]),
         direction="max",
     )
     opt.objective = objective
 
     met_production = _check_present_mets(prob, present, model, directed, allow_excretion)
 
+    if time_limit is not None:
+        opt.configuration.timeout = int(time_limit)
+    if mip_gap is not None:
+        try:  # Gurobi-specific; harmless if the backend differs
+            opt.problem.Params.MIPGap = mip_gap
+        except Exception:  # noqa: BLE001
+            pass
     opt.optimize()
-    if opt.status != "optimal":
-        raise RuntimeError(f"INIT MILP did not solve to optimality (status: {opt.status}).")
+    # With a MIP gap / time limit set, accept a near-optimal incumbent (as RAVEN does).
+    if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
+        raise RuntimeError(f"INIT MILP did not solve (status: {opt.status}).")
 
     # A reaction is kept if any of its directed parts is essential or has x≈1.
     kept_origins = {d.origin for d in directed if d.essential}
@@ -209,14 +229,16 @@ def _check_present_mets(prob, present, model, directed, allow_excretion) -> dict
         lp = prob.Model()
         flux = {d.key: prob.Variable(f"v_{d.key}", lb=0.0, ub=d.ub) for d in directed}
         drains = {mid: prob.Variable(f"drain_{mid}", lb=0.0, ub=1e6) for mid in ids}
-        cons = []
-        for met in model.metabolites:
-            expr = sum(c * flux[d.key] for d in directed if (c := d.coeffs.get(met.id)))
-            if met.id in drains:
-                expr = expr - drains[met.id]
-            if expr != 0:
-                cons.append(prob.Constraint(expr, lb=0.0, ub=None if allow_excretion else 0.0))
-        require = prob.Constraint(sum(drains.values()), lb=1.0, name="_require_production")
+        terms: dict[str, list] = {met.id: [] for met in model.metabolites}
+        for d in directed:
+            v = flux[d.key]
+            for mid, c in d.coeffs.items():
+                terms[mid].append(mul([Real(c), v]))
+        for mid in drains:
+            terms[mid].append(mul([Real(-1.0), drains[mid]]))
+        cons = [prob.Constraint(add(t), lb=0.0, ub=None if allow_excretion else 0.0)
+                for t in terms.values() if t]
+        require = prob.Constraint(add(list(drains.values())), lb=1.0, name="_require_production")
         lp.add(list(flux.values()) + list(drains.values()) + cons + [require])
         lp.objective = prob.Objective(prob.Variable("_zero", lb=0, ub=0), direction="max")
         lp.optimize()

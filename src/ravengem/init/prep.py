@@ -133,6 +133,33 @@ class PrepData:
         return dict(zip(self.orig_rxn_ids, self.group_ids, strict=True))
 
 
+def rescale_for_init(model: cobra.Model, max_stoich_diff: float = 25.0) -> None:
+    """Compress each reaction's stoichiometric dynamic range (port of ``rescaleModelForINIT``).
+
+    Large spreads in stoichiometric coefficients (e.g. a biomass/pool reaction with
+    coefficients from 1e-3 to 1e2) force correspondingly extreme flux magnitudes, so no
+    single MILP big-M fits all reactions. RAVEN, per reaction: caps every ``|coeff|`` at
+    ``max_stoich_diff × min|coeff|`` (keeping signs), then scales the whole reaction so its
+    mean ``|coeff|`` is 1. Bounds are reset to ``±1000`` afterwards. Modifies ``model`` in
+    place; only the merged MILP model is scaled (the final output maps back to the
+    unscaled ``ref_model`` by reaction id, so reaction *selection* is unaffected).
+    """
+    for rxn in model.reactions:
+        items = list(rxn.metabolites.items())
+        if not items:
+            continue
+        cap = max_stoich_diff * min(abs(c) for _, c in items)
+        capped = {m: ((cap if c > 0 else -cap) if abs(c) > cap else c) for m, c in items}
+        total = sum(abs(c) for c in capped.values())
+        scale = (len(capped) / total) if total else 1.0
+        rxn.add_metabolites({m: c * scale for m, c in capped.items()}, combine=False)
+    for rxn in model.reactions:  # RAVEN resets bounds to the standard ±1000 after scaling
+        if rxn.upper_bound > 0:
+            rxn.upper_bound = 1000.0
+        if rxn.lower_bound < 0:
+            rxn.lower_bound = -1000.0
+
+
 def _orient_forward(rxn: cobra.Reaction, direction: int) -> None:
     """Make ``rxn`` carry flux only in its forced direction (irreversible forward)."""
     if direction < 0:  # flip so the forced (reverse) direction becomes forward
@@ -149,14 +176,17 @@ def prep_init_model(
     spontaneous: Iterable[str] = (),
     custom: Iterable[str] = (),
     essential_cache_path=None,
+    scale: bool = True,
 ) -> PrepData:
     """Build :class:`PrepData` from a template model (port of ``prepINITModel``).
 
     With ``tasks``, discovers the task-essential reactions (kept regardless of score),
     orients them irreversibly in their required direction, and drops tasks that are
-    infeasible. Then classifies reactions into the ``toIgnore`` categories and linearly
-    merges. (Dead-end simplification and numerical scaling are deferred to 4d.7; on
-    genome-scale templates they should be applied here.)
+    infeasible. Then classifies reactions into the ``toIgnore`` categories, linearly
+    merges, and (unless ``scale=False``) rescales the merged model's stoichiometry
+    (:func:`rescale_for_init`) so a single MILP big-M is valid across all reactions —
+    without this, genome-scale ftINIT is infeasible/intractable. (Dead-end
+    simplification is still deferred.)
 
     ``essential_cache_path`` makes the (slow, genome-scale) essential-reaction discovery
     **resumable** across interruptions — see :func:`find_task_essential_reactions`.
@@ -182,6 +212,8 @@ def prep_init_model(
                                spontaneous=spontaneous, custom=custom)
 
     min_model, orig_ids, group_ids, reversed_rxns = merge_linear(ref_model)
+    if scale:  # compress stoichiometric dynamic range so the MILP big-M fits all reactions
+        rescale_for_init(min_model)
     group_of = dict(zip(orig_ids, group_ids, strict=True))
 
     # Map essentials to the merged model: the survivor of each group containing an
