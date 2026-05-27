@@ -59,18 +59,20 @@ from ravengem.tasks import check_tasks, parse_task_list
 
 # Degradation grid (severity per kind). 0.0 is the shared clean baseline.
 GRADIENT = {
-    "dropout": (0.25, 0.5, 0.75, 0.9),
-    "noise": (0.5, 1.0, 2.0),
-    "downsample": (0.3, 0.6, 0.8),
+    "dropout": (0.5, 0.9),
+    "noise": (2.0,),
+    "downsample": (0.85,),
 }
-RESCUE_KIND, RESCUE_LEVEL = "dropout", 0.75   # a severe-but-not-degenerate point
-NO_GENE_SCORES = (-2.0, -1.0, -0.5, -4.0)     # default first
-FORCE_ONS = (0.1, 0.02, 0.05, 0.2)
-PROD_WEIGHTS = (0.5, 0.0, 1.0, 2.0)           # tINIT only
-EPS_VALS = (1.0, 0.5, 0.1)                    # tINIT only
+RESCUE_KIND, RESCUE_LEVEL = "dropout", 0.9    # severest dropout point (shared with gradient)
+NO_GENE_SCORES = (-1.0, -0.5)                 # non-default levers (default -2 is the gradient row)
+FORCE_ONS = (0.2,)
+PROD_WEIGHTS = (0.0, 1.0, 2.0)                # tINIT only (default 0.5 is the gradient row)
+EPS_VALS = (0.5, 0.1)                         # tINIT only
 
-# Loose solver tolerances for the robustness grid (speed; functionality is the metric).
-MIP_GAP, TIME_LIMIT = 0.01, 300.0
+# Loose solver tolerances for the robustness grid (speed; functionality, not the exact
+# optimum, is the metric — a rough incumbent that keeps essentials + gap-fills still
+# reveals the task pass-rate).
+MIP_GAP, TIME_LIMIT = 0.02, 200.0
 
 
 @dataclass
@@ -237,8 +239,12 @@ def main() -> None:
                 e = degrade(expr, kind, lvl, args.seed)
                 rows.append(cached((f"grad_{kind}", f"no-task {kind}={lvl}"), lambda e=e, lvl=lvl, kind=kind:
                             _measure(f"no-task {kind}={lvl}", build(prep_nt, e), tasks, clean_set_nt)))
-                rows.append(cached((f"grad_{kind}", f"task {kind}={lvl}"), lambda e=e, lvl=lvl, kind=kind:
-                            _measure(f"task {kind}={lvl}", build(prep_tk, e), tasks, clean_set_tk)))
+                # The task pipeline gap-fills every essential task feasible by construction, so
+                # it is the expensive run that mostly confirms frac≈1.0 — do it only at the
+                # severest level of each kind rather than the whole gradient.
+                if lvl == max(levels):
+                    rows.append(cached((f"grad_{kind}", f"task {kind}={lvl}"), lambda e=e, lvl=lvl, kind=kind:
+                                _measure(f"task {kind}={lvl}", build(prep_tk, e), tasks, clean_set_tk)))
             doc += _table(f"Gradient: {kind} (no-task vs task pipeline)", rows,
                           "Higher severity = noisier/sparser input. Watch frac (functional "
                           "task pass-rate): the gap between no-task and task rows is what the "
@@ -264,11 +270,10 @@ def main() -> None:
             for ev in EPS_VALS:
                 rows.append(cached(("rescue", f"tinit eps={ev}"), lambda ev=ev:
                             _measure(f"eps={ev}", build(ref, e, eps=ev), tasks)))
-        rows.append(cached(("rescue", "task pipeline"), lambda:
-                    _measure("task pipeline (gap-fill)", build(prep_tk, e), tasks, clean_set_tk)))
-        doc += _table(f"Rescue at {tag}: which lever restores functionality?", rows,
-                      "Baseline no-task at this severity is the first row of the matching gradient "
-                      "table; the task pipeline (last row) is the reference 'robust' result.")
+        doc += _table(f"Rescue at {tag}: which no-task lever restores functionality?", rows,
+                      "Compare against the no-task default at this severity (no_gene_score=-2, "
+                      "force_on=0.1) in the gradient table above, and the task pipeline (frac≈1.0) "
+                      "as the robust reference.")
 
     if args.doc:
         args.doc.write_text("\n".join(doc) + "\n")
