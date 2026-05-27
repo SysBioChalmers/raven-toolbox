@@ -51,6 +51,7 @@ def get_init_model(
     no_rev_loops: bool = False,
     remove_dead_ends: bool = True,
     eps: float = 1.0,
+    big_m: float | None = None,
     mip_gap: float | None = None,
     time_limit: float | None = None,
 ) -> InitModelResult:
@@ -99,6 +100,7 @@ def get_init_model(
         allow_excretion=allow_excretion,
         no_rev_loops=no_rev_loops,
         eps=eps,
+        big_m=big_m,
         mip_gap=mip_gap,
         time_limit=time_limit,
     )

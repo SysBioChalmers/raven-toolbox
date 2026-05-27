@@ -29,6 +29,8 @@ produced ≥1), a big-M of 1000, essential-reaction flux of 0.1, and ``prodWeigh
 things here:
 * The upper gate uses each reaction's **own** ``ub`` as the big-M (``v ≤ ub·x``)
   rather than a fixed 1000, so it adapts to the model's flux scale — an improvement.
+  Pass ``big_m`` to override with a fixed cap (tighter relaxation; see
+  ``scripts/analyze_init_params.py`` / docs/init_param_calibration.md).
 * ``eps`` (the flux an included reaction must carry, default 1.0) and ``prod_weight``
   are **exposed parameters**, because the right values depend on the model's flux
   magnitudes and on the score distribution. If a model's meaningful fluxes are far
@@ -107,6 +109,7 @@ def run_init(
     allow_excretion: bool = False,
     no_rev_loops: bool = False,
     eps: float = _EPS,
+    big_m: float | None = None,
     mip_gap: float | None = None,
     time_limit: float | None = None,
 ) -> InitResult:
@@ -137,7 +140,8 @@ def run_init(
             continue
         x = prob.Variable(f"x_{d.key}", type="binary")
         keep[d.key] = x
-        gates.append(prob.Constraint(flux[d.key] - d.ub * x, ub=0.0, name=f"ub_{d.key}"))
+        cap = d.ub if big_m is None else big_m  # big-M: per-reaction bound (default) or fixed
+        gates.append(prob.Constraint(flux[d.key] - cap * x, ub=0.0, name=f"ub_{d.key}"))
         gates.append(prob.Constraint(flux[d.key] - eps * x, lb=0.0, name=f"lb_{d.key}"))
 
     # no_rev_loops: at most one direction of a reversible reaction is included.
