@@ -52,14 +52,15 @@ comparable to RAVEN.
 
 | cell line | RAVEN ftINIT | ravengem ftINIT (no-task) | ravengem ftINIT (task) |
 |-----------|-------------:|--------------------------:|-----------------------:|
-| DLD1      | 7782 | 7744 | TBD |
-| GBM       | 7668 | 7667 | TBD |
-| HCT116    | 7780 | 7752 | TBD |
-| HELA      | 7832 | 7789 | TBD |
-| RPE1      | 7569 | 7564 | TBD |
+| DLD1      | 7782 | 7744 | 7774 |
+| GBM       | 7668 | 7667 | 7680 |
+| HCT116    | 7780 | 7752 | 7776 |
+| HELA      | 7832 | 7789 | 7816 |
+| RPE1      | 7569 | 7564 | 7570 |
 
-Counts agree within ~0.5 % (GBM: 7667 vs 7668). ravengem tINIT (HCT116) gives 6024
-reactions — a smaller model, as expected from the different (classic INIT) objective.
+Counts agree within ~0.5 % everywhere; the task-constrained run is closest (e.g. RPE1
+7570 vs 7569, HCT116 7776 vs 7780). ravengem tINIT (HCT116) gives 6024 reactions — a
+smaller model, as expected from the different (classic INIT) objective.
 
 ### Agreement — ravengem (no-task) ftINIT vs RAVEN ftINIT
 
@@ -72,22 +73,45 @@ reactions — a smaller model, as expected from the different (classic INIT) obj
 | RPE1   | 7470 |  94 |  99 | 0.975 |
 
 **~97.5 % of reactions are identical** between the two independent implementations, even
-though this ravengem run is *expression-only* while RAVEN's reference is
-task-constrained. The residual disagreement (≈80–125 reactions each way out of ~7700) is
-within the range expected from MIP-gap tolerance (both accept near-optimal incumbents),
-alternate optima, and the missing task constraints — the "only RAVEN" reactions are
-expected to include task-essential reactions that the task-constrained run (below) keeps.
+though this run is *expression-only* while RAVEN's reference is task-constrained. The
+"only RAVEN" surplus (≈99–125) is expected to include task-essential reactions that the
+task-constrained run (below) recovers.
+
+### Agreement — ravengem (task-constrained) ftINIT vs RAVEN ftINIT
+
+| cell line | shared | only ravengem | only RAVEN | Jaccard |
+|-----------|-------:|--------------:|-----------:|--------:|
+| DLD1   | 7699 | 75 | 83 | 0.980 |
+| GBM    | 7588 | 92 | 80 | 0.978 |
+| HCT116 | 7696 | 80 | 84 | 0.979 |
+| HELA   | 7735 | 81 | 97 | 0.978 |
+| RPE1   | 7493 | 77 | 76 | 0.980 |
+
+Adding the essential metabolic tasks (same task list RAVEN uses) raises agreement to
+**Jaccard 0.978–0.980** and makes the disagreement symmetric (only-ravengem ≈ only-RAVEN
+≈ 80), confirming the prediction: the task constraints recover RAVEN's task-essential
+reactions. The residual ≈80 reactions each way out of ~7700 is at the level expected from
+MIP-gap tolerance (both accept near-optimal incumbents) and alternate optima.
 
 ### ravengem tINIT vs ftINIT (HCT116)
 
 tINIT 6024 rxns vs ftINIT 7752; shared 5957, Jaccard 0.762. tINIT is nearly a subset
 (only 67 reactions unique to it) — the two methods agree on a common core, with ftINIT
 keeping more (its staged formulation and task handling are less aggressive at removal).
+This matches the expected tINIT/ftINIT relationship rather than indicating a defect.
 
 ## Conclusions
 
-ravengem reproduces RAVEN's ftINIT reaction selection on a genome-scale human model to
-~97.5 % set identity from identical inputs — strong evidence of functional equivalence.
-Reaching this required porting RAVEN's numerical-conditioning choices (fixed big-M,
-`rescaleModelForINIT`) and an `optlang`-specific fast constraint build; see *Engineering
-findings*. The task-constrained comparison is reported above once complete.
+From identical inputs on a genome-scale human reconstruction, ravengem reproduces RAVEN's
+ftINIT reaction selection to **97.5 % (no-task) and 98 % (task-constrained) set identity**
+across five cell lines — strong evidence of functional equivalence between the two
+independent implementations. Agreement is symmetric and the residual (~80 reactions each
+way) is consistent with MIP near-optimality and alternate optima rather than any
+systematic divergence.
+
+Reaching genome-scale tractability required matching RAVEN's numerical-conditioning
+choices and fixing optlang-specific construction costs (see *Engineering findings*):
+fixed big-M = 100, `rescaleModelForINIT`, `optlang.symbolics.add` instead of Python
+`sum()` in every MILP build (ftINIT, tINIT, and the gap-fill). With these, a
+task-constrained cell-line model builds in ~15–25 min (dominated by the
+essential-forced staged MILP) and a no-task one in ~3 min, comparable to RAVEN.
