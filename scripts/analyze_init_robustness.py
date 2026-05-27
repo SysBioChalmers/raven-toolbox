@@ -61,18 +61,18 @@ from ravengem.tasks import check_tasks, parse_task_list
 
 # Degradation grid (severity per kind). A mild and a severe point per kind.
 GRADIENT = {
-    "dropout": (0.5, 0.9),   # mild + severe (shows the trend)
-    "noise": (2.0,),         # severe only (each check_tasks run is ~20 min at genome scale)
-    "downsample": (0.85,),   # severe only
+    "dropout": (0.5, 0.7),    # moderate + severe-but-realistic (single-cell dropout ~50-70%);
+    "noise": (1.0, 2.0),      # 90%+ dropout breaks ~all tasks so gap-fill rebuilds the model
+    "downsample": (0.5, 0.7),  # (a per-task MILP each) — pathologically slow and unrealistic.
 }
-LEVER_KIND, LEVER_LEVEL = "dropout", 0.9      # severe point at which to test the levers
+LEVER_KIND, LEVER_LEVEL = "dropout", 0.7      # severe-but-tractable point for the levers
 NO_GENE_SCORES = (-1.0, -0.5)                 # vs the default -2 (the gradient row)
 FORCE_ONS = (0.2,)                            # vs the default 0.1
 PROD_WEIGHTS = (0.0, 1.0, 2.0)                # tINIT only (default 0.5)
 EPS_VALS = (0.5, 0.1)                         # tINIT only (default 1.0)
 
 # Loose solver tolerances (speed; functionality + set overlap, not the exact optimum).
-MIP_GAP, TIME_LIMIT = 0.02, 200.0
+MIP_GAP, TIME_LIMIT = 0.02, 120.0
 
 
 @dataclass
