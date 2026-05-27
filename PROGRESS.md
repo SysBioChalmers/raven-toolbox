@@ -25,7 +25,7 @@ _Last updated: 2026-05-24_
 | 4a | Metabolic tasks (`tasks/` — `parseTaskList`, `checkTasks`) — the task file | 🟢 done — `parse_task_list` + `check_tasks`; `fitTasks` + essential-rxn output deferred to 4c (tINIT consumer) |
 | 4b | Gap-filling (`gapfilling/`) | 🟢 done — `connect_blocked_reactions` (connectivity, MILP via cobra/optlang); targeted mode → `cobra.gapfill` (cheatsheet) |
 | 4c | tINIT (`init/` — `runINIT` + `scoreComplexModel` + `getINITModel` core) | 🟢 done — `run_init` + `score_reactions_from_genes`/`gene_scores_from_expression` + `get_init_model`. HPA/single-cell ingestion → Phase 5; auto task-essential discovery + task gap-filling → 4d (pass `essential_rxns` for now). |
-| 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | 🟢 functionally complete ([docs/ftinit_review_and_plan.md](docs/ftinit_review_and_plan.md)). 4d.0 oracles ✅, 4d.1 essential-reaction discovery ✅, 4d.3 single-step `'full'` MILP ✅ (`run_ftinit`, 6-category), 4d.2 linear merge ✅, 4d.3b staging ✅ (matches T0001/T0002), 4d.4 task gap-fill ✅, 4d.5 `remove_low_score_genes` + full `ftinit` pipeline ✅ (matches all RAVEN toy oracles T0001–T0004 + the 3 gene-prune examples). 4d.6 metabolomics **deferred** (documented; raises). 4d.7 calibration ✅ (per-reaction `essential_force`, capacity-clamped) + genome-scale validation ✅ (iMM904: 1577→1110 merged, `'1+1'` 16 s → feasible 491-rxn model). **ftINIT functionally complete** (Human-GEM proper pending its model + tissue dataset). |
+| 4d | ftINIT (`init/` — fast staged INIT) — **⚠️ critical review of MATLAB code; most complex port** | 🟢 functionally complete ([docs/ftinit_review_and_plan.md](docs/ftinit_review_and_plan.md)). 4d.0 oracles ✅, 4d.1 essential-reaction discovery ✅, 4d.3 single-step `'full'` MILP ✅ (`run_ftinit`, 6-category), 4d.2 linear merge ✅, 4d.3b staging ✅ (matches T0001/T0002), 4d.4 task gap-fill ✅, 4d.5 `remove_low_score_genes` + full `ftinit` pipeline ✅ (matches all RAVEN toy oracles T0001–T0004 + the 3 gene-prune examples). 4d.6 metabolomics **deferred** (documented; raises). 4d.7 calibration ✅ (per-reaction `essential_force`, capacity-clamped) + genome-scale validation ✅ (iMM904: 1577→1110 merged, `'1+1'` 16 s → feasible 491-rxn model). **ftINIT functionally complete + validated on Human-GEM**: 5 Hart2015 cell lines vs MATLAB RAVEN — Jaccard 0.975 (no-task) / 0.978–0.980 (task-constrained); required big-M=100 + `rescaleModelForINIT` + `optlang.symbolics.add` builds for tractability ([docs/humangem_validation.md](docs/humangem_validation.md)). |
 | 5 | Data integration & analysis (`omics/`, `analysis/`, `comparison/`) | 🟡 started — `reporter_metabolites` + `fseof` (`analysis/`) done; omics parsing / dFBA / comparison pending |
 | 6 | Visualization (`plotting/`) | ⬜ not started |
 | 7 | Localization (`localization/`) — `predictLocalization` + pluggable predictors (WoLF PSORT, DeepLoc, …); self-contained | ⬜ not started |
@@ -210,6 +210,10 @@ Keyed to commits on `main`.
 | `38a99f9` | ftINIT 4d.7: genome-scale validation (iMM904); ftINIT complete |
 | `db5a1fa` | Full-codebase review fixes 1/2: run_init reversible essential, sampling/reporter/fseof |
 | `2b85830` | Full-codebase review fixes 2/2: yaml notes, task dup-names, blast dtype, expand objective |
+| `2b81347` | Resumable task-essential discovery (`cache_path`) for genome-scale prep |
+| `e5d0966`+`14b4ca2`+`7394120` | Genome-scale tractability: `mip_gap`/`time_limit`, big-M=100, `optlang.symbolics.add` builds, port `rescaleModelForINIT` |
+| `b540283` | ftINIT gap-fill objective via `add()` not `sum()` (O(n²) fix) |
+| `bd46811`+`3cb535b` | **Human-GEM validation**: ravengem ftINIT vs RAVEN on 5 Hart2015 cell lines — Jaccard 0.975 (no-task) / 0.978–0.980 (task) ([docs/humangem_validation.md](docs/humangem_validation.md)) |
 
 ---
 
