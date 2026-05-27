@@ -1,42 +1,44 @@
 #!/usr/bin/env python3
-"""Robustness of (f)tINIT to degraded expression input (Phase 4d.7).
+"""Robustness of (f)tINIT to degraded transcriptomics input (Phase 4d.7).
 
-The clean-data calibration (``analyze_init_params.py``) asks "which parameter value is
-best on good data". This asks the complementary question: **as the input expression data
-gets noisier or sparser, does the pipeline still produce a *functional* model, and which
-parameters keep it functional?** "Functional" is measured rigorously — the fraction of the
-essential metabolic tasks (``metabolicTasks_Essential.txt``) the extracted model can still
-perform, via :func:`ravengem.tasks.check_tasks`.
+The metabolic-task layer is *always part of the pipeline* — it is what makes the output a
+functional model. The experimental variable here is therefore the **transcriptomics
+input**, not whether tasks are used. This script holds the task + gap-fill layer fixed and
+asks: as the expression data gets noisier or sparser, (a) does the model stay functional,
+and (b) how much does the *reaction content* drift from what clean data would give — and
+which parameters keep it stable?
+
+Metrics, per run (tasks always on):
+
+* ``frac``    — fraction of essential metabolic tasks the model performs (``check_tasks``).
+                The task+gap-fill layer should hold this at 1.0; a drop is a real failure.
+* ``Jaccard`` — reaction-set overlap with the **clean-data** model. This is the real cost
+                of bad input: even when all tasks still pass, degraded data changes *which*
+                reactions are kept. The primary robustness signal.
+* ``n_rxns``  — model size (does degraded data bloat or shrink it).
 
 Three independent degradations of the gene-expression vector (severity = higher is worse):
 
 * ``dropout``    — set a random fraction of genes to 0 (→ gene score -5, a strong *remove*
                    signal). Simulates shallow sequencing / single-cell dropout.
 * ``noise``      — multiply each level by ``exp(N(0, sigma))`` (sigma = severity).
-                   Simulates measurement noise.
-* ``downsample`` — drop a random fraction of genes from the dataset entirely (→ their
-                   reactions fall back to ``no_gene_score``). Simulates a smaller panel.
+* ``downsample`` — drop a random fraction of genes entirely (→ ``no_gene_score``).
 
 Two phases:
 
-* **gradient** — for each (degradation, severity) run ftINIT *with* and *without* the task
-  layer (task-prep vs no-task prep) and record the functional-task pass-rate, reaction
-  count, and reaction-set Jaccard vs the clean-data model. Shows where expression-only
-  ftINIT loses functionality and whether tasks+gap-fill protect it.
-* **rescue** — at a fixed severe degradation, sweep the robustness levers on the *no-task*
-  pipeline (``no_gene_score``, ``force_on``) and contrast with the task pipeline, to show
-  what restores functionality.
+* **gradient** — task pipeline across degradation levels; shows functional integrity and
+  reaction-set drift vs the clean-data model.
+* **levers**   — at a fixed severe degradation, vary the robustness parameters
+  (``no_gene_score``, ``force_on``; ``prod_weight``/``eps`` for tINIT) to see which keeps
+  the model closest to the clean-data result / most functional.
 
-``--algo ftinit`` (default) or ``tinit`` (then ``prod_weight``/``eps`` are the extra
-levers). Resumable: each config is pickled and a re-run skips finished ones. Reuses the
-cached preps from the Human-GEM validation run (``rg_prep.pkl`` no-task, ``rg_prep_tasks.pkl``
-task). Robustness runs use a loose ``mip_gap``/``time_limit`` (functionality, not the exact
-optimum, is what matters) so the grid is affordable.
+``--algo ftinit`` (default) or ``tinit``. Resumable; reuses the cached Human-GEM task prep
+(``rg_prep_tasks.pkl``). Loose MIP gap for speed (functionality + set overlap, not the
+exact optimum, are the metrics).
 
 Usage
 -----
-    python scripts/analyze_init_robustness.py --algo ftinit --phase gradient,rescue \
-        --work ~/hgem_compare --cell HCT116
+    python scripts/analyze_init_robustness.py --algo ftinit --cell HCT116
 """
 from __future__ import annotations
 
@@ -57,21 +59,19 @@ from ravengem.init import (
 )
 from ravengem.tasks import check_tasks, parse_task_list
 
-# Degradation grid (severity per kind). 0.0 is the shared clean baseline.
+# Degradation grid (severity per kind). A mild and a severe point per kind.
 GRADIENT = {
     "dropout": (0.5, 0.9),
-    "noise": (2.0,),
-    "downsample": (0.85,),
+    "noise": (1.0, 2.0),
+    "downsample": (0.6, 0.85),
 }
-RESCUE_KIND, RESCUE_LEVEL = "dropout", 0.9    # severest dropout point (shared with gradient)
-NO_GENE_SCORES = (-1.0, -0.5)                 # non-default levers (default -2 is the gradient row)
-FORCE_ONS = (0.2,)
-PROD_WEIGHTS = (0.0, 1.0, 2.0)                # tINIT only (default 0.5 is the gradient row)
-EPS_VALS = (0.5, 0.1)                         # tINIT only
+LEVER_KIND, LEVER_LEVEL = "dropout", 0.9      # severe point at which to test the levers
+NO_GENE_SCORES = (-1.0, -0.5)                 # vs the default -2 (the gradient row)
+FORCE_ONS = (0.2, 0.05)                       # vs the default 0.1
+PROD_WEIGHTS = (0.0, 1.0, 2.0)                # tINIT only (default 0.5)
+EPS_VALS = (0.5, 0.1)                         # tINIT only (default 1.0)
 
-# Loose solver tolerances for the robustness grid (speed; functionality, not the exact
-# optimum, is the metric — a rough incumbent that keeps essentials + gap-fills still
-# reveals the task pass-rate).
+# Loose solver tolerances (speed; functionality + set overlap, not the exact optimum).
 MIP_GAP, TIME_LIMIT = 0.02, 200.0
 
 
@@ -117,20 +117,6 @@ def functionality(model: cobra.Model, tasks) -> tuple[int, int]:
     return sum(t.passed for t in results), len(results)
 
 
-def _build_ftinit(prep, ref, expr, *, no_gene_score, force_on):
-    g = gene_scores_from_expression(expr, 1.0)
-    r = score_reactions_from_genes(ref, g, no_gene_score=no_gene_score)
-    return ftinit(prep, r, gene_scores=g, series="1+1", force_on=force_on,
-                  mip_gap=MIP_GAP, time_limit=TIME_LIMIT)
-
-
-def _build_tinit(ref, expr, essential, *, no_gene_score, prod_weight, eps):
-    g = gene_scores_from_expression(expr, 1.0)
-    r = score_reactions_from_genes(ref, g, no_gene_score=no_gene_score)
-    return get_init_model(ref, rxn_scores=r, essential_rxns=essential, prod_weight=prod_weight,
-                          eps=eps, mip_gap=MIP_GAP, time_limit=TIME_LIMIT).model
-
-
 def _measure(label, builder, tasks, clean_set=None) -> Result:
     t = time.time()
     try:
@@ -141,7 +127,7 @@ def _measure(label, builder, tasks, clean_set=None) -> Result:
                    n_pass / n_tasks if n_tasks else 0.0, rset)
         if clean_set is not None:
             r.jaccard_clean = _jaccard(set(rset), clean_set)
-    except Exception as ex:  # noqa: BLE001  (infeasible/failed build is the headline finding)
+    except Exception as ex:  # noqa: BLE001  (infeasible/failed build is itself a finding)
         r = Result(label, time.time() - t, f"FAIL:{type(ex).__name__}", 0, 0, len(tasks), 0.0)
     return r
 
@@ -153,7 +139,7 @@ def _table(title, results, note="") -> list[str]:
     lines.append("| config | time (s) | status | n_rxns | tasks passed | frac | Jaccard vs clean |")
     lines.append("|---|--:|---|--:|--:|--:|--:|")
     for r in results:
-        jac = f"{r.jaccard_clean:.3f}" if r.jaccard_clean is not None else "-"
+        jac = f"{r.jaccard_clean:.3f}" if r.jaccard_clean is not None else "ref"
         lines.append(f"| {r.label} | {r.seconds:.0f} | {r.status} | {r.n_rxns} | "
                      f"{r.n_pass}/{r.n_tasks} | {r.frac_pass:.3f} | {jac} |")
     lines.append("")
@@ -169,7 +155,7 @@ def main() -> None:
     ap.add_argument("--human-gem", type=Path, default=Path.home() / "github" / "Human-GEM")
     ap.add_argument("--cell", default="HCT116")
     ap.add_argument("--algo", choices=("ftinit", "tinit"), default="ftinit")
-    ap.add_argument("--phase", default="gradient,rescue", help="gradient,rescue")
+    ap.add_argument("--phase", default="gradient,levers")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--doc", type=Path, default=None)
@@ -202,78 +188,68 @@ def main() -> None:
             expr[p[0]] = float(p[c])
     tasks = parse_task_list(str(args.human_gem / "data" / "metabolicTasks" /
                                 "metabolicTasks_Essential.txt"))
-    prep_nt = pickle.load(open(args.work / "rg_prep.pkl", "rb"))
-    prep_tk = pickle.load(open(args.work / "rg_prep_tasks.pkl", "rb"))
-    essential = list(prep_nt.essential_rxns)
+    prep = pickle.load(open(args.work / "rg_prep_tasks.pkl", "rb"))  # task layer is ALWAYS on
+    essential = list(prep.essential_rxns)
     print(f"[{time.time()-t0:.0f}s] ref {len(ref.reactions)} rxns, {len(tasks)} tasks, "
-          f"cell={args.cell}, algo={args.algo}", flush=True)
+          f"cell={args.cell}, algo={args.algo} (task layer always on)", flush=True)
 
-    def build(prep, e, **kw):
+    def model_for(e, **kw):
+        g = gene_scores_from_expression(e, 1.0)
+        r = score_reactions_from_genes(ref, g, no_gene_score=kw.get("no_gene_score", -2.0))
         if args.algo == "ftinit":
-            return lambda: _build_ftinit(prep, ref, e, no_gene_score=kw.get("no_gene_score", -2.0),
-                                         force_on=kw.get("force_on", 0.1))
-        # tINIT ignores prep; its analogue of the task layer is forcing task-essential
-        # reactions kept. The task pipeline (prep_tk) → pass essential; no-task → none.
-        ess = essential if prep is prep_tk else []
-        return lambda: _build_tinit(ref, e, ess, no_gene_score=kw.get("no_gene_score", -2.0),
-                                    prod_weight=kw.get("prod_weight", 0.5), eps=kw.get("eps", 1.0))
+            return ftinit(prep, r, gene_scores=g, series="1+1",
+                          force_on=kw.get("force_on", 0.1), mip_gap=MIP_GAP, time_limit=TIME_LIMIT)
+        return get_init_model(ref, rxn_scores=r, essential_rxns=essential,
+                              prod_weight=kw.get("prod_weight", 0.5), eps=kw.get("eps", 1.0),
+                              mip_gap=MIP_GAP, time_limit=TIME_LIMIT).model
 
     phases = set(args.phase.split(","))
-    doc = [f"# (f)tINIT robustness to degraded input — Human-GEM / {args.cell} / {args.algo}", "",
-           "Functional = fraction of essential metabolic tasks the extracted model can perform "
-           "(check_tasks). Configs use a loose MIP gap (speed). Generated by "
+    doc = [f"# (f)tINIT robustness to degraded transcriptomics — Human-GEM / {args.cell} / {args.algo}",
+           "", "Task + gap-fill layer is always on (it is part of the pipeline); the variable is the "
+           "expression input. Functional = fraction of essential tasks performed (check_tasks); "
+           "Jaccard is reaction-set overlap with the clean-data model. Generated by "
            "`scripts/analyze_init_robustness.py`.", ""]
 
-    # Clean baselines (level 0) per pipeline, for the Jaccard reference.
-    clean_nt = cached(("clean", "no-task clean"), lambda: _measure(
-        "clean (no-task)", build(prep_nt, expr), tasks))
-    clean_tk = cached(("clean", "task clean"), lambda: _measure(
-        "clean (task)", build(prep_tk, expr), tasks))
-    clean_set_nt, clean_set_tk = set(clean_nt.reactions), set(clean_tk.reactions)
-    doc += _table("Clean-data baseline (no degradation)", [clean_nt, clean_tk])
+    clean = cached(("clean", "clean"), lambda: _measure("clean", lambda: model_for(expr), tasks))
+    clean_set = set(clean.reactions)
+    clean.jaccard_clean = None  # it is the reference
+    doc += _table("Clean-data baseline", [clean])
 
     if "gradient" in phases:
         for kind, levels in GRADIENT.items():
-            rows = [clean_nt, clean_tk]
+            rows = [clean]
             for lvl in levels:
                 e = degrade(expr, kind, lvl, args.seed)
-                rows.append(cached((f"grad_{kind}", f"no-task {kind}={lvl}"), lambda e=e, lvl=lvl, kind=kind:
-                            _measure(f"no-task {kind}={lvl}", build(prep_nt, e), tasks, clean_set_nt)))
-                # The task pipeline gap-fills every essential task feasible by construction, so
-                # it is the expensive run that mostly confirms frac≈1.0 — do it only at the
-                # severest level of each kind rather than the whole gradient.
-                if lvl == max(levels):
-                    rows.append(cached((f"grad_{kind}", f"task {kind}={lvl}"), lambda e=e, lvl=lvl, kind=kind:
-                                _measure(f"task {kind}={lvl}", build(prep_tk, e), tasks, clean_set_tk)))
-            doc += _table(f"Gradient: {kind} (no-task vs task pipeline)", rows,
-                          "Higher severity = noisier/sparser input. Watch frac (functional "
-                          "task pass-rate): the gap between no-task and task rows is what the "
-                          "task+gap-fill layer buys.")
+                rows.append(cached((f"grad_{kind}", f"{kind}={lvl}"), lambda e=e, lvl=lvl, kind=kind:
+                            _measure(f"{kind}={lvl}", lambda: model_for(e), tasks, clean_set)))
+            doc += _table(f"Gradient: {kind} (task pipeline always on)", rows,
+                          "Higher severity = noisier/sparser input. frac should stay ~1.0 (the task "
+                          "layer's job); the Jaccard drop is how much degraded data changes the model.")
 
-    if "rescue" in phases:
-        e = degrade(expr, RESCUE_KIND, RESCUE_LEVEL, args.seed)
+    if "levers" in phases:
+        e = degrade(expr, LEVER_KIND, LEVER_LEVEL, args.seed)
+        tag = f"{LEVER_KIND}={LEVER_LEVEL}"
         rows = []
-        tag = f"{RESCUE_KIND}={RESCUE_LEVEL}"
         if args.algo == "ftinit":
             for ngs in NO_GENE_SCORES:
-                rows.append(cached(("rescue", f"no-task no_gene_score={ngs}"), lambda ngs=ngs:
-                            _measure(f"no-task no_gene_score={ngs}", build(prep_nt, e, no_gene_score=ngs),
-                                     tasks, clean_set_nt)))
+                rows.append(cached(("lever", f"no_gene_score={ngs}"), lambda ngs=ngs:
+                            _measure(f"no_gene_score={ngs}", lambda: model_for(e, no_gene_score=ngs),
+                                     tasks, clean_set)))
             for fo in FORCE_ONS:
-                rows.append(cached(("rescue", f"no-task force_on={fo}"), lambda fo=fo:
-                            _measure(f"no-task force_on={fo}", build(prep_nt, e, force_on=fo),
-                                     tasks, clean_set_nt)))
+                rows.append(cached(("lever", f"force_on={fo}"), lambda fo=fo:
+                            _measure(f"force_on={fo}", lambda: model_for(e, force_on=fo),
+                                     tasks, clean_set)))
         else:
             for pw in PROD_WEIGHTS:
-                rows.append(cached(("rescue", f"tinit prod_weight={pw}"), lambda pw=pw:
-                            _measure(f"prod_weight={pw}", build(ref, e, prod_weight=pw), tasks)))
+                rows.append(cached(("lever", f"prod_weight={pw}"), lambda pw=pw:
+                            _measure(f"prod_weight={pw}", lambda: model_for(e, prod_weight=pw),
+                                     tasks, clean_set)))
             for ev in EPS_VALS:
-                rows.append(cached(("rescue", f"tinit eps={ev}"), lambda ev=ev:
-                            _measure(f"eps={ev}", build(ref, e, eps=ev), tasks)))
-        doc += _table(f"Rescue at {tag}: which no-task lever restores functionality?", rows,
-                      "Compare against the no-task default at this severity (no_gene_score=-2, "
-                      "force_on=0.1) in the gradient table above, and the task pipeline (frac≈1.0) "
-                      "as the robust reference.")
+                rows.append(cached(("lever", f"eps={ev}"), lambda ev=ev:
+                            _measure(f"eps={ev}", lambda: model_for(e, eps=ev), tasks, clean_set)))
+        doc += _table(f"Levers at {tag}: which parameter keeps the model closest to clean?", rows,
+                      "Compare against the default-parameter row for this severity in the gradient "
+                      "table above (no_gene_score=-2, force_on=0.1 / prod_weight=0.5, eps=1.0).")
 
     if args.doc:
         args.doc.write_text("\n".join(doc) + "\n")
