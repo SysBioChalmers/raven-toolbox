@@ -21,7 +21,12 @@ import cobra
 from optlang.symbolics import Real, add, mul
 
 from ravengem.tasks import Task
-from ravengem.tasks.check import apply_task_constraints, task_name_maps
+from ravengem.tasks.check import (
+    _metabolite_bounds,
+    _set_constraint_bounds,
+    apply_task_constraints,
+    task_name_maps,
+)
 
 _DEFAULT_SCORE = -1.0   # RAVEN: missing scores default to -1 (cost 1)
 _MAX_SCORE = -0.1       # RAVEN min(score, -0.1): every added reaction costs ≥ 0.1
@@ -45,12 +50,29 @@ def _closed_copy(model: cobra.Model) -> cobra.Model:
 
 
 def _feasible(model: cobra.Model, task: Task, name_to_id, comp_to_ids) -> bool:
-    test = _closed_copy(model)
-    _, error = apply_task_constraints(test, task, name_to_id, comp_to_ids)
-    if error is not None:
+    """Is ``task`` feasible in ``model`` (boundaries closed)? Tested in place, then reverted.
+
+    Avoids copying the (genome-scale) model for each of the task list's feasibility checks
+    — the copy dominated gap-fill runtime. ``with model:`` reverts the closed boundaries and
+    everything ``apply_task_constraints`` does through cobra's API; the untracked direct
+    metabolite mass-balance bound edits are snapshotted and restored (as in check_tasks).
+    """
+    bounds, missing = _metabolite_bounds(task, name_to_id, comp_to_ids)
+    if missing:
         return False
-    test.slim_optimize()
-    return test.solver.status == "optimal"
+    saved = {mid: (model.constraints[mid].lb, model.constraints[mid].ub) for mid in bounds}
+    try:
+        with model:
+            for rxn in model.boundary:
+                rxn.bounds = (0.0, 0.0)
+            _, error = apply_task_constraints(model, task, name_to_id, comp_to_ids)
+            if error is not None:
+                return False
+            model.slim_optimize()
+            return model.solver.status == "optimal"
+    finally:
+        for mid, (lb, ub) in saved.items():
+            _set_constraint_bounds(model.constraints[mid], lb, ub)
 
 
 def _fill_one_task(
