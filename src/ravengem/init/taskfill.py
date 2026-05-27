@@ -77,9 +77,17 @@ def _feasible(model: cobra.Model, task: Task, name_to_id, comp_to_ids) -> bool:
 
 def _fill_one_task(
     model: cobra.Model, candidates: list[cobra.Reaction], task: Task,
-    costs: dict[str, float],
+    costs: dict[str, float], *, mip_gap: float | None = None, time_limit: float | None = None,
 ) -> list[str]:
-    """Min-cost set of ``candidates`` to make ``task`` feasible in ``model`` (the MILP)."""
+    """Min-cost set of ``candidates`` to make ``task`` feasible in ``model`` (the MILP).
+
+    ``mip_gap``/``time_limit`` bound this MILP (it has a binary per candidate reaction —
+    thousands). Unbounded, proving min-cost optimality is intractable when degraded input
+    has broken many tasks at once; a near-optimal fill (slightly more reactions) is the
+    right trade for tractability, exactly as for the main ftINIT MILP.
+    """
+    if not candidates:  # nothing left to add → task cannot be made feasible
+        raise RuntimeError(f"gap-filling found no candidates for task {task.id!r}.")
     combined = _closed_copy(model)  # task I/O via the task's b, not the model's exchanges
     combined.add_reactions([r.copy() for r in candidates])
     name_to_id, comp_to_ids = task_name_maps(combined)
@@ -106,8 +114,18 @@ def _fill_one_task(
     # add() over a flat list, not Python sum() — the latter is O(n²) in sympy and with
     # thousands of candidates dominates gap-fill runtime (see ftINIT/tINIT, same fix).
     combined.objective = prob.Objective(add(objective_terms), direction="min")
+    if time_limit is not None:
+        combined.solver.configuration.timeout = int(time_limit)
+    if mip_gap is not None:
+        try:  # Gurobi-specific; harmless if the backend differs
+            combined.solver.problem.Params.MIPGap = mip_gap
+        except Exception:  # noqa: BLE001
+            pass
     combined.slim_optimize()
-    if combined.solver.status != "optimal":
+    # Accept a near-optimal incumbent (mip_gap/time_limit); only a truly infeasible fill
+    # (no incumbent) means the task cannot be satisfied from the reference.
+    if combined.solver.status not in ("optimal", "feasible", "suboptimal", "time_limit") or \
+            combined.variables[f"_fill_{candidates[0].id}"].primal is None:
         raise RuntimeError(f"gap-filling found no way to make task {task.id!r} feasible.")
     return [c.id for c in candidates
             if (combined.variables[f"_fill_{c.id}"].primal or 0.0) > 0.5]
@@ -119,6 +137,8 @@ def fill_tasks(
     tasks: Iterable[Task],
     *,
     rxn_scores: Mapping[str, float] | None = None,
+    mip_gap: float | None = None,
+    time_limit: float | None = None,
 ) -> TaskFillResult:
     """Add minimum-cost reference reactions so every task is feasible in ``model``.
 
@@ -153,7 +173,7 @@ def fill_tasks(
         present = {r.id for r in out.reactions}
         avail = [r for r in candidates if r.id not in present]
         try:
-            chosen = _fill_one_task(out, avail, task, costs)
+            chosen = _fill_one_task(out, avail, task, costs, mip_gap=mip_gap, time_limit=time_limit)
         except RuntimeError:
             failed.append(task.id)
             continue

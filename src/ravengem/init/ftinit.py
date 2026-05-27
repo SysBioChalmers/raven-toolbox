@@ -322,7 +322,8 @@ def ftinit(
                          remove_orphans=True)
 
     if fill_gaps and prep.tasks:  # add reactions back so every task is feasible
-        out = fill_tasks(out, prep.ref_model, prep.tasks, rxn_scores=rxn_scores).model
+        out = fill_tasks(out, prep.ref_model, prep.tasks, rxn_scores=rxn_scores,
+                         mip_gap=mip_gap, time_limit=time_limit).model
     if gene_scores is not None:   # prune negative-scoring genes from the GPRs
         out, _ = remove_low_score_genes(out, gene_scores)
     return out
