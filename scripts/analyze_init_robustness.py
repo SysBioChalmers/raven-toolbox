@@ -69,7 +69,7 @@ LEVER_KIND, LEVER_LEVEL = "dropout", 0.7      # severe-but-tractable point for t
 NO_GENE_SCORES = (-1.0, -0.5)                 # vs the default -2 (the gradient row)
 FORCE_ONS = (0.2,)                            # vs the default 0.1
 PROD_WEIGHTS = (0.0, 1.0, 2.0)                # tINIT only (default 0.5)
-EPS_VALS = (0.5, 0.1)                         # tINIT only (default 1.0)
+EPS_VALS = (0.5, 1.0)                         # tINIT only (gradient default 0.1; test higher)
 
 # Loose solver tolerances (speed; functionality + set overlap, not the exact optimum).
 MIP_GAP, TIME_LIMIT = 0.02, 120.0
@@ -128,7 +128,9 @@ def _measure(label, builder, tasks, clean_set=None) -> Result:
         if clean_set is not None:
             r.jaccard_clean = _jaccard(set(rset), clean_set)
     except Exception as ex:  # noqa: BLE001  (infeasible/failed build is itself a finding)
-        r = Result(label, time.time() - t, f"FAIL:{type(ex).__name__}", 0, 0, len(tasks), 0.0)
+        msg = str(ex)[:80].replace("\n", " ") or type(ex).__name__
+        print(f"  FAIL {label}: {type(ex).__name__}: {ex}", flush=True)
+        r = Result(label, time.time() - t, f"FAIL:{msg}", 0, 0, len(tasks), 0.0)
     return r
 
 
@@ -199,8 +201,10 @@ def main() -> None:
         if args.algo == "ftinit":
             return ftinit(prep, r, gene_scores=g, series="1+1",
                           force_on=kw.get("force_on", 0.1), mip_gap=MIP_GAP, time_limit=TIME_LIMIT)
+        # eps default 0.1 (not RAVEN's 1.0): with many task-essentials, eps=1.0 forces
+        # every essential to carry ≥1 flux at steady state — infeasible at genome scale.
         return get_init_model(ref, rxn_scores=r, essential_rxns=essential,
-                              prod_weight=kw.get("prod_weight", 0.5), eps=kw.get("eps", 1.0),
+                              prod_weight=kw.get("prod_weight", 0.5), eps=kw.get("eps", 0.1),
                               mip_gap=MIP_GAP, time_limit=TIME_LIMIT).model
 
     phases = set(args.phase.split(","))
