@@ -1,4 +1,7 @@
-"""Structural comparison across multiple models.
+"""Structural and functional comparison across multiple models (Phase 5).
 
-See PLAN.md for the RAVEN functions targeted by this subpackage.
+See :func:`ravengem.comparison.compare.compare_models`.
 """
+from ravengem.comparison.compare import ModelComparison, compare_models
+
+__all__ = ["ModelComparison", "compare_models"]
