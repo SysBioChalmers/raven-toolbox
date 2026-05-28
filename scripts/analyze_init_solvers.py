@@ -80,7 +80,8 @@ def main() -> None:
         for line in f:
             p = line.rstrip("\n").split("\t")
             expr[p[0]] = float(p[c])
-    prep = pickle.load(open(args.work / "rg_prep.pkl", "rb"))  # no-task; simpler comparison
+    if not (args.work / "rg_prep.pkl").exists():
+        raise SystemExit(f"missing prep at {args.work / 'rg_prep.pkl'} — run the validation first")
 
     solvers = _available_solvers()
     print(f"available MILP solvers: {solvers}", flush=True)
@@ -90,17 +91,17 @@ def main() -> None:
             print(f"[{solver}] cached, skip", flush=True)
             return store[solver]
         print(f"[{solver}] running ...", flush=True)
-        # Fresh ref+scores per solver so the model's solver attribute is independent.
-        ref = cobra.io.read_sbml_model(str(args.work / "raven_refModel.xml"))
-        ref.solver = solver
-        # The merged min_model (in prep) also needs its solver set, since run_ftinit builds
-        # its problem on it.
-        prep.min_model.solver = solver
-        g = gene_scores_from_expression(expr, 1.0)
-        r = score_reactions_from_genes(ref, g)
         t = time.time()
         try:
-            model = ftinit(prep, r, gene_scores=g, series="1+1",
+            # Fresh ref + prep load per solver so a broken interface (e.g. the optlang
+            # hybrid_interface clone bug at .solver=) doesn't pollute the next solver's state.
+            ref = cobra.io.read_sbml_model(str(args.work / "raven_refModel.xml"))
+            ref.solver = solver
+            local_prep = pickle.load(open(args.work / "rg_prep.pkl", "rb"))
+            local_prep.min_model.solver = solver
+            g = gene_scores_from_expression(expr, 1.0)
+            r = score_reactions_from_genes(ref, g)
+            model = ftinit(local_prep, r, gene_scores=g, series="1+1",
                            mip_gap=args.mip_gap, time_limit=args.time_limit)
             rset = sorted(x.id for x in model.reactions)
             res = Result(solver, time.time() - t, "ok", len(rset), rset)
