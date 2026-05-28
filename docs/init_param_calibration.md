@@ -133,8 +133,30 @@ The metabolic-task + gap-fill layer is held fixed; only the expression input is 
 
 ### Levers at dropout 70% — which parameter best stabilises the model?
 
-_pending (sweep finishing); compare against the dropout-70% default row above
-(no_gene_score=−2, force_on=0.1)._
+| config | n_rxns | frac | Jaccard vs clean |
+|--------|-------:|-----:|-----------------:|
+| default (no_gene_score=−2, force_on=0.1) | 5113 | 0.986 | 0.594 |
+| no_gene_score=−1.0 | 5110 | 0.986 | 0.593 |
+| no_gene_score=−0.5 | 5128 | 0.986 | 0.593 |
+| force_on=0.2 | 5159 | 0.986 | 0.600 |
+
+**No lever recovers the drift** — Jaccard stays ~0.59 across all settings. Two reasons,
+both informative:
+
+* The information dropout destroys is simply gone; no scoring/connectivity knob reconstructs
+  the missing expression evidence. You cannot tune your way out of sparse input.
+* `no_gene_score` is the wrong knob *for dropout specifically*: dropout leaves genes
+  *present but zero* (scored −5), whereas `no_gene_score` only governs reactions whose genes
+  are **absent** from the data — i.e. the *downsampling* failure mode. So `no_gene_score` is
+  a meaningful lever for missing-data sparsity (a less-negative value keeps more
+  unmeasured reactions, growing the model back toward clean), but it has nothing to act on
+  under dropout.
+
+**Practical takeaway.** The robustness levers that matter are *structural*, not numeric: the
+task + gap-fill layer (keeps the model functional regardless of input quality) and a bounded
+gap-fill MILP (keeps it tractable). For *missing*-gene sparsity specifically, `no_gene_score`
+trades model size against confidence. For noise, defaults are already robust. No parameter
+restores fidelity lost to dropout — that is a property of the data, not the pipeline.
 
 ---
 
