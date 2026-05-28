@@ -4,16 +4,19 @@ Assigns reactions to compartments by maximising per-gene localisation evidence m
 inter-compartment transport cost. **Critical differences from RAVEN's function**
 (see [docs/localization_design.md](../../docs/localization_design.md)):
 
-* Existing compartmentalisation is **respected by default** — only reactions explicitly
-  flagged (``reactions.notes['localization']='uncertain'``) or passed in
-  ``reactions_to_relocate`` are placed; everything else is pinned.
+* The caller passes the set of reactions to (re-)place (``reactions_to_relocate``);
+  everything else is pinned. Boundary reactions and existing inter-compartment
+  transports are always pinned even if listed.
 * Incomplete models are tolerated — no silent reaction removal for "metabolite not
   produced". Reactions with no scored genes are reported in ``unplaced_reactions``.
-* Boundary reactions and existing inter-compartment transports are auto-pinned.
 * A deterministic MILP (Gurobi / HiGHS / GLPK) replaces simulated annealing.
 * ``apply=False`` returns a :class:`LocalizationProposal` (a diff) without mutating.
-* Gene mono-localisation by default; ``multi_compartment_genes=True`` allows multiple
-  compartments with a configurable per-extra-compartment penalty.
+* **Multi-compartment by default**: a gene can land in several compartments — its
+  highest-scoring compartment is "free", every additional compartment costs
+  ``multi_compartment_penalty``. Secondary compartments naturally have lower predictor
+  scores (an implicit penalty), and only get picked when their score still exceeds the
+  explicit penalty. Set ``multi_compartment_penalty`` very high for effectively
+  mono-localised genes.
 
 Limitations vs RAVEN to be aware of:
 
@@ -32,8 +35,6 @@ import pandas as pd
 from optlang.symbolics import Real, add, mul
 
 from ravengem.localization.scores import LocalizationScores
-
-_UNCERTAIN = "uncertain"
 
 
 @dataclass
@@ -69,21 +70,6 @@ def _reaction_compartment(rxn: cobra.Reaction) -> str | None:
     return next(iter(comps)) if len(comps) == 1 else None
 
 
-def _auto_relocate_set(model: cobra.Model) -> set[str]:
-    """Default scope when the user passes no explicit list:
-
-    a reaction is relocated iff ``notes['localization'] == 'uncertain'``. (Boundary
-    reactions and reactions that already span multiple compartments are always pinned.)
-    """
-    out: set[str] = set()
-    for r in model.reactions:
-        if r.boundary or _reaction_compartment(r) is None:
-            continue  # boundary / existing transport → pinned
-        if (r.notes or {}).get("localization") == _UNCERTAIN:
-            out.add(r.id)
-    return out
-
-
 def _reaction_genes(rxn: cobra.Reaction) -> list[str]:
     """Genes on the reaction's GPR (flat list; no AND/OR distinction in this v1)."""
     return [g.id for g in rxn.genes]
@@ -94,41 +80,43 @@ def _reaction_genes(rxn: cobra.Reaction) -> list[str]:
 def predict_localization(
     model: cobra.Model,
     scores: LocalizationScores,
+    reactions_to_relocate: Iterable[str],
     *,
-    reactions_to_relocate: Iterable[str] | None = None,
     default_compartment: str = "c",
     transport_cost: float | Mapping[str, float] = 0.5,
-    multi_compartment_genes: bool = False,
     multi_compartment_penalty: float = 0.5,
     apply: bool = True,
     mip_gap: float | None = None,
     time_limit: float | None = None,
 ) -> LocalizationResult | LocalizationProposal:
-    """Place reactions in compartments via MILP. Returns a :class:`LocalizationProposal`
-    (when ``apply=False``) or a :class:`LocalizationResult` (when ``apply=True``).
+    """Place a caller-specified set of reactions in compartments via MILP.
 
-    ``reactions_to_relocate``: subset of reaction ids to (re-)place. When ``None``,
-    reactions flagged ``notes['localization']='uncertain'`` are relocated and everything
-    else is pinned. Boundary reactions and existing multi-compartment transports are
-    always pinned.
+    Returns a :class:`LocalizationProposal` (when ``apply=False``) or a
+    :class:`LocalizationResult` (when ``apply=True``).
+
+    ``reactions_to_relocate``: the reaction ids to (re-)place. Everything else stays
+    where it is. Boundary reactions and existing multi-compartment transports passed
+    in this set are silently filtered out (always pinned). Pass an empty set or a list
+    of zero non-boundary reactions to no-op.
 
     ``transport_cost``: either a scalar (same cost per added transport) or a mapping
     ``{metabolite_id_base: cost}`` (where the base id strips the compartment suffix,
     e.g. ``"glc__D"`` matches ``"glc__D_c"``/``"glc__D_e"``). Negative costs *favour*
     adding the transport.
 
-    With ``multi_compartment_genes=True`` a gene can land in several compartments at
-    once (e.g. mitochondrial/cytosolic isoforms); each extra compartment beyond the
-    first costs ``multi_compartment_penalty`` in the objective.
+    **Multi-compartment gene scoring (default behaviour):** a gene contributes its
+    predictor score in each compartment it lands in; the highest-scoring compartment
+    is "free", each additional compartment costs ``multi_compartment_penalty``. A
+    secondary compartment is only worth picking when its score (typically lower than
+    the primary) still exceeds the penalty — no hard cutoff, just an explicit
+    score-vs-penalty trade-off. Set ``multi_compartment_penalty`` very large for
+    effectively mono-localised genes.
     """
     # ---- 1. Scope: which reactions move, which are pinned. -----------------
-    if reactions_to_relocate is None:
-        to_relocate = _auto_relocate_set(model)
-    else:
-        to_relocate = set(reactions_to_relocate)
-        # Filter out boundaries / transports that we always pin.
-        to_relocate -= {r.id for r in model.reactions
-                        if r.boundary or _reaction_compartment(r) is None}
+    to_relocate = set(reactions_to_relocate)
+    # Boundaries / transports always pin (even if listed).
+    to_relocate -= {r.id for r in model.reactions
+                    if r.boundary or _reaction_compartment(r) is None}
     if not to_relocate:
         return _empty_result(model, apply)
 
@@ -213,15 +201,11 @@ def predict_localization(
                 # x[r,c] − y[g,c] ≤ 0
                 cons.append(prob.Constraint(x[r.id, c] - y[g, c], ub=0.0,
                                              name=f"gene_{r.id}_{g}_{c}"))
-    # 5c. Gene assignment.
+    # 5c. Gene assignment: each gene in scope lands in ≥1 compartment. Multi is allowed;
+    # the multi_compartment_penalty in the objective keeps extras from coming for free.
     for g in genes_in_scope:
         s = add([mul([Real(1.0), y[g, c]]) for c in compartments])
-        if multi_compartment_genes:
-            # ≥1 (gene must land somewhere if any of its reactions is placed); penalty handled
-            # in the objective.
-            cons.append(prob.Constraint(s, lb=1.0, name=f"gene_one_{g}"))
-        else:
-            cons.append(prob.Constraint(s, lb=1.0, ub=1.0, name=f"gene_one_{g}"))
+        cons.append(prob.Constraint(s, lb=1.0, name=f"gene_one_{g}"))
     # 5d. Transport requirement: t[m,c] ≥ x[r,c] whenever r touches m and c ≠ default.
     for r in placeable:
         for m in r.metabolites:
@@ -248,12 +232,15 @@ def predict_localization(
         cost = _met_cost(m_id)
         if cost:
             obj_terms.append(mul([Real(-cost), tvar]))
-    # − multi-compartment penalty per extra compartment (linearised: see design §2.3)
-    if multi_compartment_genes and multi_compartment_penalty:
+    # − multi-compartment penalty per *extra* compartment (the primary is free).
+    # Per gene: penalty * (Σ_c y[g,c] - 1) = penalty * Σ_c y[g,c] - penalty (constant). The
+    # constant doesn't affect optimisation but is added back to the reported objective so
+    # the value matches the "primary free" intent the user reads off the proposal.
+    constant_offset = 0.0
+    if multi_compartment_penalty:
         for yvar in y.values():
             obj_terms.append(mul([Real(-multi_compartment_penalty), yvar]))
-        # Net effect: penalty * (Σ_c y[g,c] − 0) — constant offset matters only if scores ≤ penalty;
-        # design §2.3 explains the absorbed constant.
+        constant_offset = multi_compartment_penalty * len(genes_in_scope)
 
     opt.objective = prob.Objective(add(obj_terms) if obj_terms else Real(0.0), direction="max")
     if time_limit is not None:
@@ -295,7 +282,8 @@ def predict_localization(
 
     proposal = LocalizationProposal(
         moved=moved, added_transports=added_transports, gene_compartments=gene_comps,
-        unplaced_reactions=unplaced, objective=float(opt.objective.value or 0.0))
+        unplaced_reactions=unplaced,
+        objective=float((opt.objective.value or 0.0) + constant_offset))
 
     if not apply:
         return proposal

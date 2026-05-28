@@ -44,6 +44,23 @@ shape that we should not transcribe blindly:
 Items 1–3 and 8–9 are exactly what the user flagged. Items 5–7 are also worth
 reconsidering on a modern stack.
 
+> **Final API (post-implementation):** the proposal below was refined during
+> implementation. The shipped API:
+>
+> * `reactions_to_relocate` is a **required** caller-passed set of IDs (no
+>   `notes['localization']='uncertain'` auto-detect — one mechanism is clearer).
+> * **Multi-compartment is the default scoring model.** No `multi_compartment_genes`
+>   boolean. The highest-scoring compartment a gene lands in is "free"; every
+>   additional compartment costs `multi_compartment_penalty` *plus* its (typically
+>   lower) predictor score is its own implicit penalty. Pick a large penalty for
+>   effectively mono-localised genes.
+> * `mergeCompartments` and `copyToComps` are ported separately as
+>   `ravengem.manipulation.merge_compartments` / `copy_to_compartment` (they're useful
+>   independently of `predict_localization` — for flattening for analysis or building
+>   dual-localised pathways).
+> * `mapCompartments` is **not** ported — its main use case overlaps with
+>   `compare_models`.
+
 ## 2. Proposed `predict_localization` for ravengem
 
 Decompose the function into independent concerns:
