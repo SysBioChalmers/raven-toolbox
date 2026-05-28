@@ -1,4 +1,23 @@
-"""Omics integration (Human Protein Atlas parsing, reaction scoring).
+"""Omics integration — HPA proteomics + RNA-seq parsing and gene-scoring adapters.
 
-See PLAN.md for the RAVEN functions targeted by this subpackage.
+Phase 5 entry point for tissue-specific (f)tINIT runs. See :mod:`ravengem.omics.hpa`.
 """
+from ravengem.omics.hpa import (
+    HPA_LEVEL_SCORES,
+    HPAData,
+    HPARnaData,
+    hpa_gene_scores,
+    parse_hpa,
+    parse_hpa_rna,
+    rna_gene_scores,
+)
+
+__all__ = [
+    "HPA_LEVEL_SCORES",
+    "HPAData",
+    "HPARnaData",
+    "hpa_gene_scores",
+    "parse_hpa",
+    "parse_hpa_rna",
+    "rna_gene_scores",
+]
