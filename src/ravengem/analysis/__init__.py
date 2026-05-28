@@ -1,8 +1,8 @@
-"""RAVEN-specific analyses (Phase 5).
+"""Analyses not in cobrapy's core.
 
-* :func:`reporter_metabolites` — Reporter Metabolites (``reporterMetabolites``).
-* :func:`fseof` — Flux Scanning based on Enforced Objective Flux (``FSEOF``).
-* :func:`random_sampling` — random-objective flux sampling (``randomSampling``).
+* :func:`reporter_metabolites` — Reporter Metabolites (around-metabolite gene-score test).
+* :func:`fseof` — Flux Scanning based on Enforced Objective Flux.
+* :func:`random_sampling` — random-objective flux sampling.
 """
 from ravengem.analysis.fseof import FSEOFResult, fseof
 from ravengem.analysis.reporter import ReporterResult, reporter_metabolites

@@ -1,9 +1,9 @@
-"""Metabolic task definition, parsing, and checking (Phase 4a).
+"""Metabolic task definition, parsing, and checking.
 
-* :class:`Task` + :func:`parse_task_list` — the task-list file format (``parseTaskList``).
-* :func:`check_tasks` + :class:`TaskResult` — run tasks against a model (``checkTasks``).
+* :class:`Task` + :func:`parse_task_list` — the task-list file format.
+* :func:`check_tasks` + :class:`TaskResult` — run tasks against a model.
 * :func:`find_task_essential_reactions` + :class:`EssentialReactionsResult` — reactions
-  a model must use to satisfy a task list (the ``prepINITModel`` input for (ft)INIT).
+  a model must use to satisfy a task list (the input for (f)tINIT's task layer).
 """
 from ravengem.tasks.check import (
     EssentialReactionsResult,

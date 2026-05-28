@@ -1,9 +1,9 @@
 """Merge several models into one.
 
-Port of RAVEN ``mergeModels.m``. cobra's ``Model.merge`` is pairwise and matches
-everything strictly by ID; this merges **N** models and unifies metabolites by
-**name[compartment]** (so the same compound under different IDs in two models
-becomes one), while — like RAVEN — adding **all** reactions without de-duplication
+cobra's ``Model.merge`` is pairwise and matches everything strictly by id; this
+merges **N** models and unifies metabolites by **name[compartment]** (so the same
+compound under different ids in two models becomes one), while adding **all**
+reactions without de-duplication
 (a reaction whose ID already exists is renamed ``id_<sourceid>``). Genes are
 unified by ID. Provenance (which source model each object came from) is recorded
 in ``notes['origin']``.
@@ -39,9 +39,6 @@ def merge_models(
     track_origin: bool = True,
 ) -> cobra.Model:
     """Merge models into a single new model.
-
-    Port of RAVEN ``mergeModels.m``.
-
     Parameters
     ----------
     models

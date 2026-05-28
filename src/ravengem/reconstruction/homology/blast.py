@@ -1,7 +1,6 @@
-"""Run BLAST+/DIAMOND (or load precomputed hits) into a homology hits table.
+"""Run BLAST+ / DIAMOND (or load precomputed hits) into a homology hits table.
 
-Ports RAVEN ``getBlast`` / ``getDiamond`` / ``getBlastFromExcel``. Each produces
-the bidirectional hits DataFrame (``HIT_COLUMNS``) consumed by
+Each producer returns the bidirectional hits DataFrame (``HIT_COLUMNS``) consumed by
 :func:`~ravengem.reconstruction.homology.get_model_from_homology`. Binaries are
 located via :func:`ravengem.binaries.resolve_binary` (arg → env → PATH → bundled).
 """
@@ -61,7 +60,7 @@ def run_blast(
 ) -> pd.DataFrame:
     """Bidirectional BLAST+ between an organism and template organisms.
 
-    Port of RAVEN ``getBlast``. Returns the hits DataFrame (filtered at
+    Returns the hits DataFrame (filtered at
     ``evalue``). Requires BLAST+ (`blastp`, `makeblastdb`).
     """
     model_ids = list(model_ids)
@@ -105,7 +104,7 @@ def run_diamond(
 ) -> pd.DataFrame:
     """Bidirectional DIAMOND between an organism and template organisms.
 
-    Port of RAVEN ``getDiamond``. Returns the hits DataFrame. Requires DIAMOND.
+    Returns the hits DataFrame. Requires DIAMOND.
     """
     model_ids = list(model_ids)
     ref_fastas = _as_list(ref_fastas)
@@ -136,7 +135,7 @@ def run_diamond(
 def blast_from_table(source: str | Path | pd.DataFrame) -> pd.DataFrame:
     """Load a precomputed homology hits table (CSV path or DataFrame).
 
-    Port of RAVEN ``getBlastFromExcel`` — but a plain CSV/DataFrame, not Excel.
+    a plain CSV/DataFrame, not Excel.
     Must contain the ``HIT_COLUMNS`` columns.
     """
     # Force gene-id columns to str: an all-numeric gene-id column (e.g. Entrez ids)

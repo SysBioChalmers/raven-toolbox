@@ -1,4 +1,4 @@
-"""Parse a metabolic task list (port of RAVEN ``parseTaskList``).
+"""Parse a metabolic task list.
 
 A task list defines, per task, allowed inputs/outputs, optional extra reactions
 (equations), reaction-bound changes, and whether the task *should fail*. Tasks

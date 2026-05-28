@@ -1,12 +1,10 @@
-"""Check the elemental balance of reactions.
+"""Check the elemental balance of reactions, distinguishing *unbalanced* from
+*unknown* (missing formula).
 
-Port of RAVEN ``getElementalBalance.m``.
-
-cobra has ``reaction.check_mass_balance()``, but it **silently treats a missing
-formula as empty** — a metabolite with no formula contributes nothing, so a
-reaction can look "unbalanced" (or even balanced) when the truth is that the
-data is incomplete. RAVEN distinguishes that case. This port keeps that
-distinction by checking for missing formulas first, returning a graded status
+cobra's ``reaction.check_mass_balance()`` silently treats a missing formula as
+empty, so a reaction can look "unbalanced" — or even balanced — when the truth is
+that the data is incomplete. This module checks for missing formulas first and
+returns a graded status
 per reaction (``balanced`` / ``unbalanced`` / ``unknown``) plus the element
 imbalance — over a batch, as structured data.
 """
@@ -44,9 +42,6 @@ def get_elemental_balance(
     model: cobra.Model, reactions=None
 ) -> list[ElementalBalance]:
     """Check whether reactions are elementally balanced.
-
-    Port of RAVEN ``getElementalBalance.m``.
-
     Parameters
     ----------
     reactions

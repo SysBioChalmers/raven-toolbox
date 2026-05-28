@@ -1,29 +1,28 @@
-"""Subcellular localisation by MILP (port of RAVEN ``predictLocalization``).
+"""Sub-cellular localisation by MILP.
 
 Assigns reactions to compartments by maximising per-gene localisation evidence minus
-inter-compartment transport cost. **Critical differences from RAVEN's function**
-(see [docs/localization_design.md](../../docs/localization_design.md)):
+inter-compartment transport cost. Key behaviour:
 
 * The caller passes the set of reactions to (re-)place (``reactions_to_relocate``);
   everything else is pinned. Boundary reactions and existing inter-compartment
   transports are always pinned even if listed.
 * Incomplete models are tolerated — no silent reaction removal for "metabolite not
   produced". Reactions with no scored genes are reported in ``unplaced_reactions``.
-* A deterministic MILP (Gurobi / HiGHS / GLPK) replaces simulated annealing.
+* Deterministic MILP solve (Gurobi / HiGHS / GLPK).
 * ``apply=False`` returns a :class:`LocalizationProposal` (a diff) without mutating.
-* **Multi-compartment by default**: a gene can land in several compartments — its
+* **Multi-compartment by default.** A gene can land in several compartments — its
   highest-scoring compartment is "free", every additional compartment costs
   ``multi_compartment_penalty``. Secondary compartments naturally have lower predictor
-  scores (an implicit penalty), and only get picked when their score still exceeds the
+  scores (an implicit penalty) and are only picked when their score still exceeds the
   explicit penalty. Set ``multi_compartment_penalty`` very high for effectively
   mono-localised genes.
 
-Limitations vs RAVEN to be aware of:
+Limitations to be aware of:
 
-* Isozyme separation (RAVEN's ``expandModel`` step) is *not* applied — a reaction with
-  isozymes is treated as "all listed genes must share its compartment". To get
-  per-isozyme placement, call :func:`ravengem.manipulation.expand_model` first.
-* Transports are routed through ``default_compartment`` (RAVEN's simplification).
+* Isozyme separation is *not* applied internally — a reaction with isozymes is treated
+  as "all listed genes must share its compartment". For per-isozyme placement, call
+  :func:`ravengem.manipulation.expand_model` first.
+* Transports are routed through ``default_compartment``.
 """
 from __future__ import annotations
 

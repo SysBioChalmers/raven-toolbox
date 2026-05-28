@@ -1,13 +1,9 @@
-"""Connectivity gap-filling (the cobra-absent half of RAVEN ``fillGaps``).
+"""Connectivity gap-filling: add the fewest template reactions so reactions that are
+*blocked* in a draft can carry flux.
 
-RAVEN's ``fillGaps`` has two modes. The **targeted** mode
-(``useModelConstraints=true`` — add the fewest template reactions so the model's own
-objective becomes feasible) is ``cobra.flux_analysis.gapfill``; we do **not** wrap it
-(see the migration cheatsheet in PLAN.md — just align the template's metabolite ids to
-the draft first, since cobra matches by id). The **connectivity** mode
-(``useModelConstraints=false`` — add template reactions so reactions that are *blocked*
-in the draft can carry flux) has no cobra equivalent and is ported here as
-:func:`connect_blocked_reactions`.
+For the other gap-filling flavour (add the fewest template reactions until the model's
+own objective becomes feasible) use ``cobra.flux_analysis.gapfill`` — just align the
+template's metabolite ids to the draft first, since cobra matches by id.
 
 It solves an MILP: pick the minimum-penalty subset of template reactions such that the
 blocked (irreversible) draft reactions can carry flux at steady state. Template
@@ -127,16 +123,16 @@ def connect_blocked_reactions(
 ) -> GapFillResult:
     """Add template reactions so blocked draft reactions can carry flux.
 
-    Port of RAVEN ``fillGaps(..., useModelConstraints=false)``. Finds reactions that
+    Finds reactions that
     cannot carry flux in ``model``, then adds the minimum-penalty set of template
     reactions that lets the (irreversible) ones carry flux, and returns the filled
     model. Like RAVEN, only irreversible blocked reactions are forced — reversible
     ones can carry flux trivially in the split formulation, so forcing them is
     uninformative.
 
-    (For the *other* RAVEN mode — adding reactions to make the model's objective
-    feasible — use ``cobra.flux_analysis.gapfill`` after aligning the template's
-    metabolite ids to the draft; see the PLAN.md cheatsheet.)
+    For the *other* gap-filling flavour — adding reactions to make the model's
+    objective feasible — use ``cobra.flux_analysis.gapfill`` after aligning the
+    template's metabolite ids to the draft.
 
     The draft is expected to have exchange reactions for its nutrients (otherwise most
     reactions are trivially blocked).

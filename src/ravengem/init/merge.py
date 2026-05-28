@@ -1,4 +1,4 @@
-"""Linear reaction merging for ftINIT (port of RAVEN ``mergeLinear`` + ``groupRxnScores``).
+"""Linear reaction merging for ftINIT.
 
 ftINIT shrinks the MILP losslessly by **contracting linear reaction chains**: a
 metabolite that appears in exactly two reactions (one net producer, one net consumer)

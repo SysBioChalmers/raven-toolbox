@@ -1,9 +1,6 @@
-"""Generic cobra.Model structural transforms that cobrapy does not cover cleanly.
-
-Hosts RAVEN structural operations such as ``convertToIrrev``
-(:func:`convert_to_irreversible`) and ``expandModel`` (:func:`expand_model`),
-adopted from geckopy. See PLAN.md sections 2.1b and 7.
-"""
+"""Generic cobra.Model structural transforms that cobrapy does not cover cleanly:
+reaction building from equations, batch GPR / bound changes, irreversibility splitting,
+isozyme expansion, compartment merge / copy, and model merging by name."""
 from .add import add_reactions_from_equations
 from .change import change_gene_reaction_rules, change_reaction_equations
 from .expand import expand_model

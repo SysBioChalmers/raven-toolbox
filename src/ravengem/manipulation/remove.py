@@ -1,14 +1,9 @@
 """Remove metabolites or genes from a model.
 
-Partial port of RAVEN ``removeMets.m`` / ``removeGenes.m``.
+For removing *reactions*, use cobra directly:
+``cobra.Model.remove_reactions(reactions, remove_orphans=...)``.
 
-``removeReactions`` is **not** ported: once orphan-metabolite and orphan-gene
-cleanup are kept coupled (as decided — they are not separated), it is exactly
-``cobra.Model.remove_reactions(reactions, remove_orphans=...)`` with nothing to
-add. Use cobra's method directly.
-
-The two functions kept here delegate the core to cobra and add only the
-cobra-absent behaviour:
+The two functions here delegate the core to cobra and add the cobra-absent behaviour:
 
 * ``remove_metabolites`` — cobra matches metabolites by ID; RAVEN's ``isNames``
   deletes a metabolite in **every compartment at once** by name. That name
@@ -43,8 +38,6 @@ def remove_metabolites(
 ) -> None:
     """Remove metabolites, optionally matching by name across all compartments.
 
-    Partial port of RAVEN ``removeMets.m``.
-
     Parameters
     ----------
     by_name
@@ -57,10 +50,8 @@ def remove_metabolites(
 
     Note
     ----
-    With ``by_name=False`` this is just ``model.remove_metabolites`` — so the
-    ``by_name`` cross-compartment deletion is the only thing this adds over
-    cobra. It is likely a rare need (one usually knows the compartment-specific
-    IDs); if it proves unused, drop this wrapper and call cobra directly.
+    With ``by_name=False`` this is just ``model.remove_metabolites`` — the
+    ``by_name`` cross-compartment deletion is the only thing this adds over cobra.
     """
     if by_name:
         wanted = set(_as_list(metabolites))
@@ -80,12 +71,11 @@ def remove_genes(
 ) -> list[str]:
     """Remove genes and handle reactions left unable to carry flux.
 
-    Port of RAVEN ``removeGenes.m``. GPR rewriting (with correct AND/OR
-    semantics) and gene deletion are done by cobra; this adds RAVEN's choice of
-    what to do with reactions whose GPR becomes empty (no enzyme left):
+    GPR rewriting (with correct AND/OR semantics) and gene deletion are done by cobra;
+    this adds a policy for reactions whose GPR becomes empty (no enzyme left):
 
-    * ``"remove"`` — delete them (cobra's default; RAVEN ``removeBlockedRxns=true``).
-    * ``"constrain"`` — keep them but set bounds to ``(0, 0)`` (RAVEN default).
+    * ``"remove"`` — delete them (cobra's default).
+    * ``"constrain"`` — keep them but set bounds to ``(0, 0)``.
     * ``"keep"`` — leave them with an empty GPR and unchanged bounds.
 
     ``remove_orphans`` (only meaningful with ``blocked_reactions="remove"``)

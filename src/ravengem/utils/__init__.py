@@ -1,7 +1,4 @@
-"""Shared helpers.
-
-See PLAN.md for the RAVEN functions targeted by this subpackage.
-"""
+"""Shared helpers — GPR linting, elemental balance, model curation checks, id sorting."""
 from ravengem.utils.balance import ElementalBalance, get_elemental_balance
 from ravengem.utils.gpr import GPRIssue, find_non_dnf_grrules, is_dnf
 from ravengem.utils.sort import sort_identifiers

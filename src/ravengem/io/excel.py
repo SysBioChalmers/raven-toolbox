@@ -1,10 +1,8 @@
 """Export a model to the RAVEN Microsoft Excel format.
 
-Port of RAVEN ``exportToExcelFormat.m`` (export only — Excel *import* is
-intentionally not provided in ravengem). cobra has no Excel I/O at all, so this
-is genuinely cobra-absent. Writes the five RAVEN sheets — RXNS, METS, COMPS,
-GENES, MODEL — with RAVEN's column layout, pulling RAVEN-specific values back
-out of cobra ``annotation``/``notes`` (where the YAML reader stashes them).
+Writes the five-sheet RAVEN xlsx layout — RXNS, METS, COMPS, GENES, MODEL — pulling
+RAVEN-specific values back out of cobra's ``annotation`` / ``notes`` (where the
+ravengem YAML reader stashes them). Excel *import* is intentionally not provided.
 
 Requires the optional ``openpyxl`` dependency (``pip install ravengem[excel]``).
 """
@@ -53,8 +51,6 @@ def export_to_excel(
     model: cobra.Model, path: str | Path, *, sort_ids: bool = False
 ) -> None:
     """Write ``model`` to a RAVEN-format ``.xlsx`` file.
-
-    Port of RAVEN ``exportToExcelFormat.m`` (export only).
 
     Parameters
     ----------

@@ -1,6 +1,6 @@
-"""Prune low-scoring genes from a model (port of RAVEN ``removeLowScoreGenes``).
+"""Prune low-scoring genes from a model — the last ftINIT step.
 
-The last ftINIT step: drop negative-scoring genes from each reaction's GPR, while
+Drop negative-scoring genes from each reaction's GPR, while
 respecting enzyme structure — genes joined by **OR** (isozymes) are candidates for
 removal, but at least one must remain (the least-negative if all are negative);
 genes joined by **AND** (complex subunits) are *not* removed individually, though a

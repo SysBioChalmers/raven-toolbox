@@ -1,4 +1,4 @@
-"""Structural and functional comparison across multiple models (Phase 5).
+"""Structural and functional comparison across multiple models.
 
 See :func:`ravengem.comparison.compare.compare_models`.
 """

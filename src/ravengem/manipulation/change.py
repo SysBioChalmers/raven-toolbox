@@ -1,12 +1,7 @@
 """Change the stoichiometry of existing reactions from equation strings.
 
-Port of RAVEN ``changeRxns.m``.
-
-RAVEN changes a reaction by copying all its other fields, removing it, re-adding
-it via ``addRxns``, then re-sorting the model back to the original order — a
-dance forced by its struct-of-parallel-arrays layout. In cobra none of that is
-needed: editing the same ``Reaction`` object changes only its stoichiometry and
-preserves its ID, name, bounds, GPR, subsystem, and position automatically.
+Editing the same ``Reaction`` object changes only its stoichiometry — its id, name,
+bounds, GPR, subsystem, and position are preserved automatically by cobra.
 
 So this port simply re-parses the equation (reusing the same metabolite
 matching as :func:`~ravengem.manipulation.add.add_reactions_from_equations`,
@@ -38,9 +33,6 @@ def change_reaction_equations(
     new_met_prefix: str = "m",
 ) -> list[Reaction]:
     """Replace the stoichiometry of existing reactions.
-
-    Port of RAVEN ``changeRxns.m``.
-
     Parameters
     ----------
     model
@@ -95,9 +87,6 @@ def change_gene_reaction_rules(
     replace: bool = True,
 ) -> list[Reaction]:
     """Set or append gene-reaction rules on existing reactions.
-
-    Port of RAVEN ``changeGrRules.m``.
-
     cobra already does the heavy lifting on assignment to
     ``reaction.gene_reaction_rule``: it auto-creates any new ``Gene`` objects and
     normalises the rule. So the value here is batching plus RAVEN's ``replace``

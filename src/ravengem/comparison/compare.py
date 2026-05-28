@@ -1,17 +1,13 @@
-"""N-model structural and functional comparison (port of RAVEN ``compareMultipleModels``).
+"""N-model structural and functional comparison.
 
 Compare two or more models — typically context-specific models extracted from the same
-template — on their reactions, metabolites, genes, subsystems and (optionally) which
-metabolic tasks they perform. Returns tidy :class:`pandas.DataFrame`\\ s; the MATLAB
-original embeds plotting (heatmaps, tSNE/MDS) and a Statistics-Toolbox dependency, both
-of which are deliberately *not* ported — they are one-liners in seaborn / scikit-learn on
-the DataFrames returned here, and keeping plotting out of the core function keeps it
-useful in pipelines.
+template — on their reactions, metabolites, genes, subsystems, and (optionally) which
+metabolic tasks they perform. Returns tidy :class:`pandas.DataFrame`\\ s suitable for
+downstream plotting (heatmaps, tSNE/MDS, …) in seaborn / scikit-learn; plotting is
+intentionally not in this function so it stays usable inside pipelines.
 
-Designed for the typical (f)tINIT output cohort (the 5 Hart2015 cell-line models in
-:doc:`humangem_validation`, the RAVEN vs ravengem comparison, etc.). All matrices use
-the union of ids across the input models as the row index, so missing entries are
-unambiguously 0/False rather than NaN.
+All matrices use the union of ids across the input models as the row index, so missing
+entries are unambiguously ``0`` / ``False`` rather than ``NaN``.
 """
 from __future__ import annotations
 

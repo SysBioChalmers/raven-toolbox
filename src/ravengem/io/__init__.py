@@ -1,6 +1,5 @@
-"""RAVEN-specific I/O: YAML (Metabolic Atlas/Human-GEM schema), Excel, tab-delimited, SIF.
-
-See PLAN.md for the RAVEN functions targeted by this subpackage.
+"""RAVEN-specific I/O: YAML (cobra + Metabolic Atlas / Human-GEM extensions), SIF,
+Excel export, and the Standard-GEM ``model/<fmt>/…`` git layout.
 """
 from ravengem.io.excel import export_to_excel
 from ravengem.io.git import export_for_git

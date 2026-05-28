@@ -1,8 +1,8 @@
-"""Sort a model's identifiers alphabetically.
+"""Sort a model's identifiers alphabetically — useful for deterministic,
+diff-friendly output.
 
-Port of RAVEN ``sortIdentifiers.m``. cobra's ``DictList.sort`` reorders one list
-(and rebuilds its lookup index), but there is no single "sort the whole model"
-call; this provides it. Useful for deterministic, diff-friendly output.
+cobra's ``DictList.sort`` reorders one list (and rebuilds its lookup index), but
+there is no single "sort the whole model" call; this provides it.
 """
 from __future__ import annotations
 

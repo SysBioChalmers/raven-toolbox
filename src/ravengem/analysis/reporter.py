@@ -1,17 +1,14 @@
-"""Reporter Metabolites (port of RAVEN ``reporterMetabolites``).
+"""Reporter Metabolites — metabolites around which transcriptional change concentrates.
 
-Identifies metabolites around which transcriptional change concentrates (Patil &
-Nielsen, PNAS 2005). Each gene's differential-expression p-value becomes a Z-score
-``z = -Φ⁻¹(p)``; for every metabolite the Z-scores of the genes on its neighbouring
-reactions are aggregated (``Σz / √n``), background-corrected, and turned back into a
-p-value. No cobrapy equivalent.
+Patil & Nielsen, PNAS 2005. Each gene's differential-expression p-value becomes a
+Z-score ``z = -Φ⁻¹(p)``; for every metabolite the Z-scores of the genes on its
+neighbouring reactions are aggregated (``Σz / √n``), background-corrected, and turned
+back into a p-value.
 
-**Improvement over RAVEN (logged as RM1):** RAVEN background-corrects by Monte-Carlo
-sampling 100 000 random gene sets *per neighbour-count* (slow, non-reproducible).
-Because it samples *with replacement* from the scored-gene pool, the background has
-an exact closed form — a random aggregate ``Σz/√n`` has mean ``√n·μ`` and standard
-deviation ``σ`` (μ, σ = mean/std of the scored genes' Z-scores). So the corrected
-score is simply ``(metZ − √n·μ) / σ`` — exact, fast, and deterministic.
+The background correction has an exact closed form (sampling with replacement from the
+scored-gene pool: a random ``Σz/√n`` has mean ``√n·μ`` and standard deviation ``σ``
+with μ, σ the mean/std of the scored Z-scores), so the corrected score is just
+``(metZ − √n·μ) / σ`` — no Monte-Carlo sampling needed.
 """
 from __future__ import annotations
 

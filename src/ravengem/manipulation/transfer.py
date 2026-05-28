@@ -1,12 +1,10 @@
 """Copy reactions (with their metabolites and genes) from another model.
 
-Port of RAVEN ``addRxnsGenesMets.m``.
-
-cobra's ``Model.merge`` / ``add_reactions`` match metabolites strictly by **ID**.
-This transfers a chosen set of reactions from a *source* model into a draft,
-matching metabolites by **name[compartment]** instead — so a compound that is
-present in both models under different IDs is reused rather than duplicated, and
-only genuinely new metabolites are created (copying the source's id, formula,
+cobra's ``Model.merge`` / ``add_reactions`` match metabolites strictly by id. This
+transfers a chosen set of reactions from a *source* model into a draft, matching
+metabolites by **name[compartment]** instead — so a compound present in both models
+under different ids is reused rather than duplicated, and only genuinely new
+metabolites are created (copying the source's id, formula,
 charge, and annotation). New genes are auto-created by cobra when the GPR is set.
 This is the post-``getModelFromHomology`` "copy a few more reactions across"
 workflow.
@@ -36,9 +34,6 @@ def add_reactions_from_model(
     confidence: int | None = None,
 ) -> list[Reaction]:
     """Copy reactions from ``source_model`` into ``model``.
-
-    Port of RAVEN ``addRxnsGenesMets.m``.
-
     Parameters
     ----------
     model

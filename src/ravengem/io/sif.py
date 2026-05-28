@@ -1,7 +1,6 @@
 """Export a model to Cytoscape SIF (Simple Interaction Format).
 
-Port of RAVEN ``exportModelToSIF.m``. cobra has no SIF / network-graph export, so
-this is genuinely cobra-absent. Three graph types are supported:
+Three graph types are supported:
 
 * ``"rc"`` reaction–compound: each reaction linked to its metabolites;
 * ``"rr"`` reaction–reaction: reactions linked when they share a metabolite;
@@ -53,8 +52,6 @@ def export_model_to_sif(
     metabolite_labels: Mapping[str, str] | None = None,
 ) -> None:
     """Write ``model`` to a Cytoscape SIF file.
-
-    Port of RAVEN ``exportModelToSIF.m``.
 
     Parameters
     ----------

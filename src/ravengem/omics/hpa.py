@@ -1,12 +1,12 @@
-"""Human Protein Atlas (HPA) parsers + gene-scoring adapters (port of `parseHPA*`/`scoreModel`).
+"""Human Protein Atlas (HPA) parsers + gene-scoring adapters.
 
-HPA publishes two datasets per release: a **proteomics** table (`normal_tissue.tsv`) with
-per-tissue / per-cell-type *categorical* expression levels (High/Medium/Low/Not detected)
-plus reliability flags, and an **RNA-seq** table (`rna_tissue_consensus.tsv` /
-`rna_tissue_gtex.tsv`) with per-tissue *TPM* values. RAVEN stores both as sparse matrices
-+ cell arrays and re-implements the GPR walk in ``scoreModel``; ravengem keeps them as
-tidy :class:`pandas.DataFrame` and reuses :func:`ravengem.init.score.score_reactions_from_genes`
-for the GPR walk, so there is one source of truth for reaction scoring.
+HPA publishes two datasets per release: a **proteomics** table (``normal_tissue.tsv``)
+with per-tissue / per-cell-type *categorical* expression levels (High/Medium/Low/Not
+detected) plus reliability flags, and an **RNA-seq** table (``rna_tissue_consensus.tsv``
+/ ``rna_tissue_gtex.tsv``) with per-tissue *TPM* values. Both are returned as tidy
+:class:`pandas.DataFrame`\\ s; the scoring adapters delegate the GPR walk to
+:func:`ravengem.init.score.score_reactions_from_genes` so there is one source of truth
+for reaction scoring.
 
 Pipeline (typical (f)tINIT entry):
 

@@ -1,15 +1,8 @@
 """Curation checks for a model.
 
-Port of the parts of RAVEN ``checkModelStruct.m`` that still mean something for a
-``cobra.Model``. RAVEN spends most of that function validating its struct (field
-types, parallel-array lengths, duplicate IDs, ``lb>ub``, ``rev`` consistency) —
-all of which cobra's object model enforces or makes impossible: ``DictList``
-forbids duplicate IDs, ``Reaction`` rejects ``lb>ub``, there is no ``rev`` field.
-
-What remains is a curation/QC bundle cobra has no single call for: orphaned
-objects, empty reactions, duplicated metabolite name+compartment, empty names,
-and objective sanity. :func:`check_model` returns these as structured
-:class:`ModelIssue` records rather than printing warnings (RAVEN's behaviour).
+A QC bundle cobra has no single call for: orphaned objects, empty reactions,
+duplicated metabolite ``name + compartment``, empty names, and objective sanity.
+:func:`check_model` returns these as structured :class:`ModelIssue` records.
 """
 from __future__ import annotations
 
@@ -42,7 +35,7 @@ class ModelIssue:
 def check_model(model: cobra.Model) -> list[ModelIssue]:
     """Run curation checks on a model and return the issues found.
 
-    Port of the still-meaningful checks in RAVEN ``checkModelStruct.m``. Does not
+    Does not
     raise; returns a (possibly empty) list of :class:`ModelIssue`.
     """
     issues: list[ModelIssue] = []

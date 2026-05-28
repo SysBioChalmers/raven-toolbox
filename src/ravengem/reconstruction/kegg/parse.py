@@ -1,9 +1,6 @@
 """Parse a local KEGG flat-file dump into a reference model + relational tables.
 
-Maintainer-side, build-time tooling (PLAN.md §2.3b, step 3b.2). Ports the parsing
-core of RAVEN's ``getRxnsFromKEGG`` / ``getMetsFromKEGG`` / ``getGenesFromKEGG`` /
-``getModelFromKEGG``, but produces ravengem's published artefacts instead of
-``.mat`` structs:
+Maintainer-side, build-time tooling. Produces the published ravengem KEGG artefacts:
 
 * a **gene-free reference GEM** (reactions + metabolites only) as a ``cobra.Model``;
 * minimal **relational tables** (``pandas.DataFrame``) written as gzipped TSV —

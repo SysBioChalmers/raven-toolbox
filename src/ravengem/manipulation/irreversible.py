@@ -1,7 +1,7 @@
 """Convert reversible reactions to an irreversible (forward + reverse) form.
 
-Port of RAVEN ``convertToIrrev.m``. cobrapy's own ``convert_to_irreversible``
-was removed, so this is a genuine reimplementation rather than a wrapper.
+cobrapy's own ``convert_to_irreversible`` was removed, so this is a genuine
+implementation rather than a wrapper.
 
 Provenance: first written for geckopy
 (``geckopy/ec_model/pipeline/preprocess.py``, makeEcModel stage 4, tagged
@@ -15,9 +15,6 @@ import cobra
 
 def convert_to_irreversible(model: cobra.Model) -> list[str]:
     """Split non-exchange reversible reactions into a forward + reverse pair.
-
-    Port of RAVEN ``convertToIrrev.m``.
-
     For each non-exchange reaction with ``lb < 0``:
 
     - The original reaction is kept as the forward direction. Its

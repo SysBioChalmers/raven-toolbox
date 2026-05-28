@@ -1,9 +1,7 @@
 """Add reactions to a model from equation strings.
 
-Port of RAVEN ``addRxns.m``, reworked for cobrapy.
-
-Most of RAVEN's 700 lines are struct-of-arrays bookkeeping (padding parallel
-``rxnNames``/``lb``/``ub``/``grRules``/... fields) that simply does not exist in
+Most of the equivalent MATLAB code is struct-of-arrays bookkeeping (padding parallel
+``rxnNames`` / ``lb`` / ``ub`` / ``grRules`` / ... fields) that does not exist in
 cobra, where each ``Reaction`` carries its own attributes. cobra also already
 covers a large part of the *behaviour*:
 
@@ -179,9 +177,6 @@ def add_reactions_from_equations(
     new_met_prefix: str = "m",
 ) -> list[Reaction]:
     """Add reactions defined by equation strings, matching mets by ID or name.
-
-    Port of RAVEN ``addRxns.m``.
-
     Parameters
     ----------
     model

@@ -1,14 +1,16 @@
 """Context-specific model extraction (tINIT / ftINIT).
 
-Phase 4c (tINIT):
-* :func:`run_init` — the INIT MILP (``runINIT``).
-* :func:`score_reactions_from_genes` / :func:`gene_scores_from_expression` — gene →
-  reaction scoring (``scoreComplexModel`` core; RNA-seq is the common upstream).
-* :func:`get_init_model` — the tINIT pipeline (``getINITModel`` core).
+tINIT:
+* :func:`run_init` — the classic INIT MILP.
+* :func:`score_reactions_from_genes` / :func:`gene_scores_from_expression` —
+  gene → reaction scoring (RNA-seq is the common upstream).
+* :func:`get_init_model` — the tINIT pipeline (dead-end removal + ``run_init``).
 
-ftINIT (Phase 4d):
-* :func:`run_ftinit` — the single-step ftINIT MILP (``ftINITInternalAlg``), with
-  continuous indicators for positive-score reactions (the speedup over ``run_init``).
+ftINIT (faster, staged):
+* :func:`run_ftinit` — the single-step ftINIT MILP (continuous indicators for
+  positive-score reactions; binaries only on negatives — the speedup over ``run_init``).
+* :func:`ftinit` — the full pipeline (``prep_init_model`` → staged ``run_ftinit`` →
+  ``fill_tasks`` → ``remove_low_score_genes``).
 """
 from ravengem.init.build import InitModelResult, get_init_model
 from ravengem.init.ftinit import FtInitResult, ftinit, run_ftinit

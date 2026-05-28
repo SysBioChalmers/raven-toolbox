@@ -1,6 +1,6 @@
 """Omics integration — HPA proteomics + RNA-seq parsing and gene-scoring adapters.
 
-Phase 5 entry point for tissue-specific (f)tINIT runs. See :mod:`ravengem.omics.hpa`.
+Entry point for tissue-specific (f)tINIT runs. See :mod:`ravengem.omics.hpa`.
 """
 from ravengem.omics.hpa import (
     HPA_LEVEL_SCORES,

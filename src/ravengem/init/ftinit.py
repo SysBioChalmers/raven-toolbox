@@ -1,4 +1,4 @@
-"""The ftINIT MILP (port of RAVEN ``ftINITInternalAlg``) — Phase 4d.3.
+"""The ftINIT MILP — the faster staged variant of INIT.
 
 ftINIT keeps tINIT's objective — pick the reaction subset best matching expression
 scores while staying flux-consistent — but with a cheaper MILP encoding that is the
@@ -22,21 +22,23 @@ Reaction categories (RAVEN's six), by score sign × reversibility:
 * **essential** — forced on (``v ≥ force_on_ess``); no indicator. Assumed already
   oriented irreversible in its forced direction (``prepINITModel`` does this).
 
-Objective: **maximise** ``Σ score·indicator``. Unlike classic INIT (our
-:func:`ravengem.init.run_init`), ftINIT does **not** reward production of every
-metabolite — ``prodWeight`` applies only to metabolomics-detected metabolites, which
-are deferred to 4d.6; here connectivity comes solely from the flux gates plus any
+Objective: **maximise** ``Σ score·indicator``. Unlike classic INIT
+(:func:`ravengem.init.run_init`), ftINIT does **not** reward production of every
+metabolite — ``prod_weight`` applies only to metabolomics-detected metabolites (not
+yet implemented; passing a non-empty ``metabolomics`` argument raises
+``NotImplementedError``). Connectivity comes solely from the flux gates plus any
 essential reactions. ``allow_excretion`` relaxes ``S·v = 0`` to ``≥ 0``; ``rem_pos_rev``
-drops positive reversible reactions from the problem (used in staging, 4d.3b).
+drops positive reversible reactions from the problem (used in the staging schedule).
 
-Needs a MILP solver (cobra's configured optlang solver). Magic numbers
-(``force_on``/``force_on_ess`` = 0.1, ``big_m`` = 100, RAVEN's fixed indicator cap) are
-exposed; they are scale-dependent and calibrated in 4d.7 (see docs/ftinit_review_and_plan.md).
-``big_m`` caps a *scored* reaction's flux in its on/off (direction) constraint: using a
-fixed 100 rather than the reaction's ±1000 bound keeps the LP relaxation tight, which is
-what makes the genome-scale MILP tractable. Free/essential reactions keep their real bounds.
+Needs a MILP solver (cobra's configured optlang solver; only Gurobi is fully viable at
+genome scale — see ``docs/init_solver_benchmark.md``). Magic numbers
+(``force_on``/``force_on_ess`` = 0.1, ``big_m`` = 100) are exposed and scale-dependent;
+calibration tables are in ``docs/init_param_calibration.md``. ``big_m`` caps a *scored*
+reaction's flux in its on/off (direction) constraint — using a fixed 100 rather than
+the reaction's ±1000 bound keeps the LP relaxation tight (what makes the genome-scale
+MILP tractable). Free / essential reactions keep their real bounds.
 
-⚠️ **Loops.** Like RAVEN's MILP, this has *no* loopless constraint: an internal
+⚠️ **Loops.** The MILP has *no* loopless constraint: an internal
 thermodynamically-infeasible cycle is flux-consistent (``S·v = 0``), so if its
 reactions carry positive net score the optimiser will "include" them with no real
 exchange flux. RAVEN tolerates this — loop-free models come from the staged pipeline
@@ -255,27 +257,24 @@ def ftinit(
     negative-scoring genes are pruned from the GPRs at the end
     (:func:`ravengem.init.remove_low_score_genes`).
 
-    Simplification vs RAVEN: essential reactions are forced to carry ``force_on``
-    (0.1), whereas RAVEN uses a per-reaction ``min(0.99·|previous flux|, 0.1)`` so a
-    reaction is never forced above the flux it carried before. On genome-scale models
-    this matters (forcing 0.1 through a reaction that can only carry less is
-    infeasible); revisit in calibration (4d.7).
+    Essential reactions are forced to carry ``force_on`` (default 0.1) of flux in the
+    forced direction. On genome-scale models a stricter regime is needed (the previous
+    step's actual carried flux instead of a flat 0.1) — exposed via per-reaction
+    ``essential_force`` on :func:`run_ftinit`.
 
     ``metabolomics`` (a list of detected metabolite names to reward producing) is
-    **not yet implemented** (4d.6, deferred): the linear merge eliminates degree-2
-    detected metabolites, so it needs RAVEN's producer-group-mapping + negative-
-    producer force-flux block — the most intricate MILP in ftINIT, for its least-used
-    input. Passing a non-empty value raises ``NotImplementedError``.
+    **not yet implemented**: the linear merge eliminates degree-2 detected metabolites,
+    so it needs a producer-group-mapping + negative-producer force-flux block — the
+    most intricate MILP piece, for the least-used input. Passing a non-empty value
+    raises ``NotImplementedError``.
 
     ``mip_gap``/``time_limit`` are forwarded to each :func:`run_ftinit` solve. On
-    genome-scale models they are essential for tractability: RAVEN deliberately runs
-    with a loose MIP gap (≈0.0004–0.003) and a wall-clock ``TimeLimit``, accepting a
-    near-optimal incumbent rather than grinding to proven optimality.
+    genome-scale models they are essential for tractability — see
+    ``docs/init_param_calibration.md`` for the calibration table.
     """
     if metabolomics:
         raise NotImplementedError(
-            "metabolomics production-bonus is not yet implemented (ftINIT 4d.6, deferred); "
-            "see docs/ftinit_review_and_plan.md."
+            "metabolomics production-bonus is not yet implemented."
         )
     steps = steps if steps is not None else get_init_steps(series)
     min_model, group_of = prep.min_model, prep.group_of

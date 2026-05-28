@@ -1,16 +1,12 @@
-"""tINIT model building (port of the core of RAVEN ``getINITModel``, Phase 4c).
+"""tINIT model building — high-level pipeline.
 
-The high-level tINIT pipeline: turn expression-derived scores into reaction scores
-(via the GPR), drop reactions that cannot carry flux, then run the INIT MILP to
-extract a context-specific model.
+Turn expression-derived scores into reaction scores (via the GPR), drop reactions that
+cannot carry flux, then run the INIT MILP to extract a context-specific model. Pass
+gene scores (typically from :func:`gene_scores_from_expression` or one of the omics
+loaders) or reaction scores directly. ``essential_rxns`` are forced kept.
 
-Scope: this ports the algorithmic core. The HPA/array/single-cell *data ingestion*
-of ``getINITModel`` (parsing expression files, thresholding, the single-cell
-beta-fit) is upstream and belongs in Phase 5 ``omics`` — here you pass gene scores
-(see :func:`gene_scores_from_expression`, the common RNA-seq path) or reaction
-scores directly. Automatic task-essential-reaction discovery and gap-filling to make
-tasks feasible are shared with ftINIT (4d) and deferred: pass ``essential_rxns``
-explicitly if you have them.
+For task-aware gap-filling on top of the resulting model, use ftINIT
+(:func:`ravengem.init.ftinit`); ``get_init_model`` itself does not run the task layer.
 """
 from __future__ import annotations
 

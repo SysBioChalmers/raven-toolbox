@@ -1,20 +1,16 @@
-"""ftINIT step schedule (port of ``INITStepDesc`` + ``getINITSteps``).
+"""ftINIT step schedule.
 
 ftINIT runs as a short sequence of MILP steps instead of one big MILP. Each step
 (:class:`InitStep`) chooses which reaction categories to hold out of the problem
 (``ignore_mask``, an 8-bit pattern over :class:`ravengem.init.ReactionMasks`), whether
 to drop positive reversibles and allow metabolite secretion, and how to treat the
-reactions turned on by previous steps (``'ignore'`` first step, ``'essential'`` =
-fix them on). :func:`get_init_steps` builds the standard schedules.
+reactions turned on by previous steps (``'ignore'`` for the first step, ``'essential'``
+to fix them on). :func:`get_init_steps` builds the standard schedules.
 
 The default ``'1+1'`` is two steps: step 1 decides only the GPR-associated reactions
-(everything GPR-less is held out); step 2 brings the GPR-less transport/extracellular
+(everything GPR-less is held out); step 2 brings the GPR-less transport / extracellular
 reactions in with step-1 reactions fixed as essential. ``'full'`` is the single-MILP
 classic-tINIT variant (nothing held out).
-
-RAVEN's per-step MILP retry schedule (relaxing ``MIPGap``/``TimeLimit``) is Gurobi
-tuning; with the solver-agnostic optlang path it is deferred to calibration (4d.7),
-so a step here solves once.
 """
 from __future__ import annotations
 

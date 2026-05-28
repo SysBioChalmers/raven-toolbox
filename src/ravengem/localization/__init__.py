@@ -1,7 +1,8 @@
-"""Subcellular localisation (Phase 7) — predictor-agnostic, partial-update-friendly.
+"""Sub-cellular localisation — predictor-agnostic, partial-update friendly.
 
-See [docs/localization_design.md](../../docs/localization_design.md) for the design
-rationale (critical review of RAVEN's ``predictLocalization`` + the redesign).
+:func:`predict_localization` is the MILP entry point;
+:func:`load_wolfpsort` / :func:`load_deeploc` parse predictor outputs into the
+``gene × compartment`` :class:`LocalizationScores` DataFrame the algorithm consumes.
 """
 from ravengem.localization.predict import (
     LocalizationProposal,

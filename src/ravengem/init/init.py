@@ -1,42 +1,37 @@
-"""The INIT MILP (port of RAVEN ``runINIT``) — tINIT core, Phase 4c.
+"""The INIT MILP — tINIT core.
 
-INIT (Agren et al., PLoS Comput Biol 2012) extracts a context-specific model: keep
-a flux-consistent subnetwork that maximises the summed score of *included* reactions
+INIT (Agren et al., PLoS Comput Biol 2012) extracts a context-specific model: keep a
+flux-consistent subnetwork that maximises the summed score of *included* reactions
 (positive score = evidence to keep, negative = evidence to remove), optionally
 rewarding net production of metabolites.
 
-This is a **clean reformulation** of RAVEN's sparse-matrix construction (functional
-equivalence is the bar — PLAN §0), built directly in optlang:
+Formulation:
 
-* Reversible reactions are split into forward/reverse directed reactions (flux ≥ 0).
+* Reversible reactions are split into forward / reverse directed reactions (flux ≥ 0).
 * Each non-essential directed reaction gets a binary ``x`` (included ⇔ ``x=1``) with
   ``eps·x ≤ v ≤ ub·x`` — included reactions must carry flux ≥ ``eps`` (connectivity),
   excluded ones carry none.
-* Essential reactions are forced to carry flux (``v ≥ eps``) and skip the binary.
+* Essential reactions (``essential_rxns``) are forced to carry flux (``v ≥ eps``) and
+  skip the binary.
 * ``no_rev_loops`` adds ``x_fwd + x_rev ≤ 1`` so a reversible reaction can't look
   "connected" via an internal forward/back loop.
 * Steady state ``S·v = 0`` per metabolite; ``allow_excretion`` relaxes it to ``≥ 0``
-  (net production allowed). With ``prod_weight`` a per-metabolite sink ``s_m ∈ [0,1]``
-  is added and rewarded, giving a reason to include connectivity reactions.
+  (net production allowed). With ``prod_weight > 0`` a per-metabolite sink
+  ``s_m ∈ [0,1]`` is added and rewarded, giving a reason to include connectivity
+  reactions.
 * Objective: **maximise** ``Σ score·x + prod_weight·Σ s_m``.
 
-Needs a MILP solver (cobra's configured optlang solver, e.g. GLPK).
+Needs a MILP solver (cobra's configured optlang solver). On genome-scale problems,
+Gurobi is the only backend that is fully usable today (see
+``docs/init_solver_benchmark.md``).
 
-⚠️ **Parameter caveat (RAVEN's magic numbers are scale-dependent — tune with care).**
-RAVEN hard-codes a connectivity threshold of 1 flux unit (the "fake metabolite"
-produced ≥1), a big-M of 1000, essential-reaction flux of 0.1, and ``prodWeight``
-0.5 — all sensible only when reaction bounds are ~±1000 and scores are O(1). Two
-things here:
-* The upper gate uses each reaction's **own** ``ub`` as the big-M (``v ≤ ub·x``)
-  rather than a fixed 1000, so it adapts to the model's flux scale — an improvement.
-  Pass ``big_m`` to override with a fixed cap (tighter relaxation; see
-  ``scripts/analyze_init_params.py`` / docs/init_param_calibration.md).
-* ``eps`` (the flux an included reaction must carry, default 1.0) and ``prod_weight``
-  are **exposed parameters**, because the right values depend on the model's flux
-  magnitudes and on the score distribution. If a model's meaningful fluxes are far
-  below 1, ``eps=1`` is too coarse (it can exclude genuinely usable reactions or
-  distort the optimum) — lower it. These defaults match RAVEN for comparability, not
-  because they are universally correct; revisit them when results look off.
+**Parameter caveat — magic numbers are scale-dependent.** ``eps`` (the flux an
+included reaction must carry, default 1.0) and ``prod_weight`` (default 0.5) only make
+sense when reaction bounds are ~±1000 and scores are O(1); the right values depend on
+the model's flux magnitudes and the score distribution. The upper gate uses each
+reaction's own ``ub`` as the big-M by default (adapts to the model); pass ``big_m`` to
+override with a fixed cap for a tighter LP relaxation. Calibration tables live in
+``docs/init_param_calibration.md``.
 """
 from __future__ import annotations
 

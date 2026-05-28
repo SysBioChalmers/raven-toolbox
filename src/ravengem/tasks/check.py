@@ -1,17 +1,15 @@
-"""Check whether a model performs a set of metabolic tasks (port of ``checkTasks``).
+"""Check whether a model performs a set of metabolic tasks.
 
-For each task the model is constrained by the task's allowed inputs/outputs (and
-any extra reactions / bound changes), then tested for feasibility: a task *passes*
-if a steady-state flux exists, unless it is marked ``should_fail`` (then it passes
-iff infeasible). No cobra equivalent.
+For each task the model is constrained by the task's allowed inputs/outputs (and any
+extra reactions / bound changes), then tested for feasibility: a task *passes* if a
+steady-state flux exists, unless it is marked ``should_fail`` (then it passes iff
+infeasible).
 
-RAVEN defines inputs/outputs via a two-column metabolite RHS (``model.b``): the
-net production of a metabolite, ``Sv_m``, is constrained to ``[b1, b2]`` instead of
-the usual ``0``. We do the same directly on cobra's mass-balance constraints
+Inputs/outputs are encoded as ranges on the per-metabolite mass-balance constraint
 (``model.constraints[met.id]``): an input allows net consumption (``Sv ∈ [-UB, -LB]``)
-and an output allows/requires net production (``Sv ≤ UB``, and ``≥ LB`` if ``LB>0``).
-Existing boundary reactions are closed first, so inputs/outputs are defined solely
-by the task (RAVEN's closed-model assumption).
+and an output allows / requires net production (``Sv ≤ UB``, and ``≥ LB`` if
+``LB > 0``). Existing boundary reactions are closed first, so inputs/outputs are
+defined solely by the task (closed-model semantics).
 """
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Task gap-filling for ftINIT (port of ``ftINITFillGapsForAllTasks`` + the fill MILP).
+"""Task gap-filling for ftINIT.
 
 After ftINIT extracts a context-specific model, some metabolic tasks may no longer be
 feasible (the scoring removed reactions a task needs). :func:`fill_tasks` restores

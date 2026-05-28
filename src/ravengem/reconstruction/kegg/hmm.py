@@ -12,9 +12,9 @@ Per KO, within one domain (prokaryote / eukaryote):
 3. **MAFFT** — multiple-sequence alignment (``--auto --anysymbol``).
 4. **hmmbuild** — train the profile HMM.
 
-Finally the per-KO HMMs are concatenated and ``hmmpress``-ed into a single
-searchable library (an improvement over RAVEN's per-KO ``hmmsearch``: one
-``hmmscan`` against a pressed database replaces thousands of invocations).
+Finally the per-KO HMMs are concatenated and ``hmmpress``-ed into a single searchable
+library: a single ``hmmscan`` against the pressed database replaces a per-KO sweep with
+``hmmsearch``.
 
 The pure parts (FASTA indexing/grouping, command construction, CD-HIT ``-n``
 choice) are unit-tested; running the binaries needs HMMER/MAFFT/CD-HIT, located
@@ -79,7 +79,7 @@ def build_ko_fastas(
 ) -> dict[str, Path]:
     """Write one ``<KO>.fa`` per KO with its member genes' sequences.
 
-    Port of RAVEN ``constructMultiFasta``, but with a stdlib offset index instead
+    but with a stdlib offset index instead
     of the Java-hashtable byte scan. ``organisms`` restricts to a domain's
     organism codes (for the prok/euk split). Empty KOs are skipped (no file).
     Returns ``{ko: path}`` for the files written.

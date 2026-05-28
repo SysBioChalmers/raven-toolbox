@@ -1,9 +1,9 @@
 """Add transport reactions between compartments.
 
-Port of RAVEN ``addTransport.m``. cobra has **no** transport-reaction primitive,
-so this is genuinely cobra-absent: for each metabolite it matches the species by
-*name* across compartments (the source in ``from_compartment`` and its same-named
-twin in each target compartment), optionally creating the target metabolite, and
+cobra has no transport-reaction primitive. For each metabolite this matches the
+species by *name* across compartments (the source in ``from_compartment`` and its
+same-named twin in each target compartment), optionally creating the target
+metabolite, and
 builds a ``-1 from / +1 to`` reaction with a sequential ``tr_0001`` ID.
 """
 from __future__ import annotations
@@ -44,9 +44,6 @@ def add_transport_reactions(
     id_prefix: str = "tr_",
 ) -> list[Reaction]:
     """Add transport reactions from one compartment to one or more others.
-
-    Port of RAVEN ``addTransport.m``.
-
     Parameters
     ----------
     from_compartment

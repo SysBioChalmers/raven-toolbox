@@ -1,17 +1,8 @@
 """GPR (gene-protein-reaction rule) linting.
 
-Partial port of RAVEN ``standardizeGrRules.m``.
-
-RAVEN's ``standardizeGrRules`` did two things: (1) normalise grRule syntax
-(lowercase ``and``/``or``, strip redundant brackets, tidy whitespace) and
-(2) flag rules that are not a simple "OR of AND-complexes" — its
-``findPotentialErrors`` helper, which searched for the ``) and (`` family of
-substrings.
-
-Part (1) is **not ported**: cobrapy already normalises a GPR whenever it is
-assigned (``reaction.gene_reaction_rule = "(G1 AND G2)  OR  G3"`` is stored as
-``"(G1 and G2) or G3"``), so every GPR in a ``cobra.Model`` is normal by
-construction. Re-implementing it would be redundant.
+Flag GPRs that are *not* in disjunctive normal form ("OR of AND-complexes"), via cobra's
+GPR AST. GPR syntax *normalisation* is already done by cobra on assignment, so it isn't
+re-implemented here.
 
 Part (2) has no cobrapy equivalent and is ported here, reworked onto cobra's
 GPR AST instead of RAVEN's brittle substring search. The relevant property is
@@ -109,10 +100,9 @@ _NON_DNF_REASON = (
 
 
 def find_non_dnf_grrules(model: cobra.Model) -> list[GPRIssue]:
-    """Find reactions whose GPR is not in disjunctive normal form.
+    """Find reactions whose GPR is not in disjunctive normal form ("OR of AND-complexes").
 
-    Port of the ``findPotentialErrors`` half of RAVEN ``standardizeGrRules.m``,
-    using cobra's GPR AST. Reactions with no GPR are skipped.
+    Uses cobra's GPR AST. Reactions with no GPR are skipped.
 
     Returns
     -------

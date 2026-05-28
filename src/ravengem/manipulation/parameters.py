@@ -1,14 +1,12 @@
-"""Set reaction bounds to a variance band around measured values.
+"""Set reaction bounds to a sign-aware ±% variance band around measured values.
 
-Narrow port of the one part of RAVEN ``setParam.m`` that cobra has no idiom for:
-the ``'var'`` mode. Everything else ``setParam`` did is a cobra one-liner and is
-left to cobra (see the migration cheatsheet in PLAN.md §1):
+Cobra has no idiom for the *variance band* case (e.g. "5 ± 20 %"); the other common
+bound-setting cases are cobra one-liners:
 
-* ``lb``/``ub`` → ``reaction.lower_bound`` / ``upper_bound`` / ``reaction.bounds``
-* ``eq``       → ``reaction.bounds = (v, v)``
-* ``obj``      → ``model.objective = {reaction: coeff}``
-* ``unc``      → ``reaction.bounds = cobra.Configuration().bounds``
-* batch        → a loop over ``model.reactions.get_by_any(...)``
+* fixed lb / ub  → ``reaction.lower_bound`` / ``upper_bound`` / ``reaction.bounds``
+* equality       → ``reaction.bounds = (v, v)``
+* objective      → ``model.objective = {reaction: coeff}``
+* unconstrained  → ``reaction.bounds = cobra.Configuration().bounds``
 """
 from __future__ import annotations
 
@@ -52,8 +50,6 @@ def set_variance_bounds(
     percent: Number,
 ) -> list[Reaction]:
     """Constrain reactions to a ``±percent/2`` band around measured values.
-
-    Port of RAVEN ``setParam(model, 'var', rxns, values, percent)``.
 
     For a measured value ``v`` and ``percent`` ``p``, the bounds become
     ``v * (1 - p/200) .. v * (1 + p/200)`` — i.e. ``percent`` is the *total*

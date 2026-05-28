@@ -1,15 +1,15 @@
-"""Score reactions from gene scores via the GPR (port of ``scoreComplexModel`` core).
+"""Score reactions from gene scores via the GPR.
 
 Maps per-gene scores (e.g. expression-derived: present → positive, absent → negative)
 to per-reaction scores by walking each reaction's GPR: genes joined by **OR**
-(isozymes) are combined with ``isozyme_scoring`` (default ``max``), genes joined by
+(isozymes) are combined with ``isozyme_scoring`` (default ``max``); genes joined by
 **AND** (complexes) with ``complex_scoring`` (default ``min``). Genes missing from
-``gene_scores`` are **omitted** (RAVEN's ``omitnan``); a reaction with no genes — or
-whose genes are all missing — gets ``no_gene_score`` (default -2). These reaction
-scores feed :func:`ravengem.init.run_init`.
+``gene_scores`` are *omitted*; a reaction with no genes — or whose genes are all
+missing — gets ``no_gene_score`` (default −2). These reaction scores feed
+:func:`ravengem.init.run_init` and :func:`ravengem.init.ftinit`.
 
-The HPA/array-data → gene-score step (thresholding, expression levels) is upstream
-(Phase 5 ``omics``); this function takes gene scores as given.
+Upstream — the omics-data → gene-score step (thresholding, expression levels) — lives
+in :mod:`ravengem.omics`; this function takes gene scores as given.
 """
 from __future__ import annotations
 

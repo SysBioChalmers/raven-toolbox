@@ -1,14 +1,13 @@
-"""Export a model into a standard versioned-GEM repository layout.
+"""Export a model into a Standard-GEM versioned-repository layout.
 
-Port of RAVEN ``exportForGit.m``. Writes the model in several formats into the
-standard-GEM folder structure (a ``model/`` directory with one subfolder per
-format), ready to commit to a Git-maintained model repository (Metabolic Atlas /
-Human-GEM / yeast-GEM style), plus a ``dependencies.txt`` recording tool versions.
+Writes the model in several formats into the Standard-GEM folder structure (a
+``model/`` directory with one subfolder per format), ready to commit to a
+Git-maintained model repository (Metabolic Atlas / Human-GEM / yeast-GEM style),
+plus a ``dependencies.txt`` recording tool versions.
 
-This is thin orchestration over writers ravengem already has — ``write_yaml_model``
-(yml), cobra's ``write_sbml_model`` (xml) and ``save_matlab_model`` (mat),
-``export_to_excel`` (xlsx) — plus a single-file reaction table (txt). cobra has no
-repo-layout writer.
+Thin orchestration over the writers ravengem already exposes: ``write_yaml_model``,
+cobra's ``write_sbml_model`` and ``save_matlab_model``, ``export_to_excel``, plus a
+single-file reaction table (txt).
 """
 from __future__ import annotations
 
@@ -52,9 +51,7 @@ def export_for_git(
     formats: Iterable[str] = ("yml", "xml", "mat", "xlsx"),
     sub_dirs: bool = True,
 ) -> Path:
-    """Write ``model`` into a standard-GEM repository layout.
-
-    Port of RAVEN ``exportForGit.m``.
+    """Write ``model`` into a Standard-GEM repository layout.
 
     Parameters
     ----------

@@ -1,8 +1,6 @@
 """Expand reactions with isozymes into one reaction per isozyme.
 
-Port of RAVEN ``expandModel.m``. Reimplemented on top of cobrapy's GPR AST
-rather than RAVEN's string manipulation on grRules, so the model stays a plain
-``cobra.Model`` throughout.
+Operates on cobra's GPR AST, so the model stays a plain ``cobra.Model`` throughout.
 
 Provenance: this implementation was first written for geckopy
 (``geckopy/ec_model/pipeline/expand.py``, where it backed makeEcModel stage 5)
@@ -63,9 +61,6 @@ def _node_to_dnf(node) -> list[list[str]]:
 
 def expand_model(model: cobra.Model) -> list[str]:
     """Split reactions with isozymes (OR in GPR) into one reaction per isozyme.
-
-    Port of RAVEN ``expandModel.m``.
-
     For each reaction whose GPR contains at least one OR, the reaction
     is removed and replaced by one copy per disjunctive clause. The new
     reactions get ID suffix ``_EXP_1``, ``_EXP_2``, etc. All other

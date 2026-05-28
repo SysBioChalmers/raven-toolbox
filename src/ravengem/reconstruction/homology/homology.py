@@ -1,11 +1,14 @@
-"""Build a draft model from template models + homology (getModelFromHomology).
+"""Build a draft model from template models + homology hits.
 
-Port of RAVEN ``getModelFromHomology`` with the logic improvements designed in
-``docs/plan_get_model_from_homology.md`` (H1-H6): clearer ``bidirectional`` /
-``best_hits_only`` params instead of the overloaded ``strictness``; GPR rewriting
-on the cobra **AST** instead of regex; an explicit ``complex_policy`` for
-AND-subunits lacking an ortholog; bitscore-based best-hit selection; a DataFrame
-ortholog map; and structured provenance.
+Key behaviour:
+
+* clear ``bidirectional`` / ``best_hits_only`` parameters control the hit-filtering
+  strictness (cleaner than a single overloaded "strictness" knob);
+* GPR rewriting works on cobra's AST, not regex;
+* explicit ``complex_policy`` decides what happens to AND-subunits that lack an
+  ortholog (drop, keep, drop-the-reaction);
+* best-hit selection is bitscore-based;
+* the ortholog map is a DataFrame; provenance is structured.
 """
 from __future__ import annotations
 
@@ -199,10 +202,7 @@ def get_model_from_homology(
 ) -> HomologyResult:
     """Build a draft model for ``model_for`` by transferring reactions from templates.
 
-    Port of RAVEN ``getModelFromHomology``; see
-    ``docs/plan_get_model_from_homology.md`` for the design and the H1-H6 logic
-    improvements. ``strictness`` (1/2/3) is accepted as a RAVEN-compatible alias
-    for ``bidirectional``/``best_hits_only``.
+    ``strictness`` (1/2/3) is a legacy alias for ``bidirectional`` / ``best_hits_only``.
     """
     if isinstance(models, cobra.Model):
         models = [models]

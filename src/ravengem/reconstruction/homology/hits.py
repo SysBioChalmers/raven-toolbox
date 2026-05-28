@@ -1,8 +1,8 @@
 """Homology hits table — the data structure shared across the homology track.
 
-RAVEN's ``blastStructure`` (a struct array of directional hit sets) becomes one
-tidy ``pandas.DataFrame`` of bidirectional hits, one row per hit. This is the
-currency between the BLAST/DIAMOND wrappers and :func:`get_model_from_homology`.
+The hits are one tidy ``pandas.DataFrame`` of bidirectional hits, one row per hit.
+This is the currency between the BLAST / DIAMOND wrappers and
+:func:`get_model_from_homology`.
 
 Columns (``HIT_COLUMNS``):
 ``from_id, to_id`` (organism/model ids), ``from_gene, to_gene`` (the matched
@@ -28,7 +28,7 @@ def make_ortholog_hits(
 ) -> pd.DataFrame:
     """Build a bidirectional hits table from a predefined ortholog list.
 
-    Port of RAVEN ``makeFakeBlastStructure``. Each ``(source_gene, target_gene)``
+    Each ``(source_gene, target_gene)``
     pair is emitted in both directions with sentinel metrics (evalue 0,
     identity 100, align_len 1000, bitscore 1000, ppos 100) so every pair passes
     any reasonable filter. Lets a known ortholog mapping feed

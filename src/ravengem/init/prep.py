@@ -1,15 +1,14 @@
-"""ftINIT preprocessing — reaction classification + prepData (port of ``prepINITModel``).
+"""ftINIT preprocessing — once-per-template work shared by every sample on a model.
 
-ftINIT does all omics-independent work once per template model: classify reactions
-into the categories the staged MILP may *ignore* (leave in, never remove), discover
-task-essential reactions, linearly merge, and scale. The result (:class:`PrepData`)
-is reused across every sample.
+ftINIT does all omics-independent work once: classify reactions into the categories
+the staged MILP may *ignore* (leave in, never remove), discover task-essential
+reactions, linearly merge, and scale. The result (:class:`PrepData`) is reused across
+every sample.
 
-:func:`classify_reactions` is the reaction taxonomy (RAVEN's ``toIgnore*`` masks):
-exchange, GPR-less import/simple/advanced transport, spontaneous, GPR-less
-extracellular, custom, and "any without a GPR". The staged schedule
-(:func:`ravengem.init.get_init_steps`) selects which categories to keep out of each
-MILP step via an 8-bit pattern.
+:func:`classify_reactions` is the reaction taxonomy: exchange, GPR-less
+import / simple / advanced transport, spontaneous, GPR-less extracellular, custom, and
+"any without a GPR". The staged schedule (:func:`ravengem.init.get_init_steps`) selects
+which categories to keep out of each MILP step via an 8-bit pattern.
 """
 from __future__ import annotations
 
@@ -134,7 +133,7 @@ class PrepData:
 
 
 def rescale_for_init(model: cobra.Model, max_stoich_diff: float = 25.0) -> None:
-    """Compress each reaction's stoichiometric dynamic range (port of ``rescaleModelForINIT``).
+    """Compress each reaction's stoichiometric dynamic range.
 
     Large spreads in stoichiometric coefficients (e.g. a biomass/pool reaction with
     coefficients from 1e-3 to 1e2) force correspondingly extreme flux magnitudes, so no
@@ -178,15 +177,15 @@ def prep_init_model(
     essential_cache_path=None,
     scale: bool = True,
 ) -> PrepData:
-    """Build :class:`PrepData` from a template model (port of ``prepINITModel``).
+    """Build :class:`PrepData` from a template model — the once-per-template work shared
+    by every ftINIT sample on this model.
 
     With ``tasks``, discovers the task-essential reactions (kept regardless of score),
     orients them irreversibly in their required direction, and drops tasks that are
-    infeasible. Then classifies reactions into the ``toIgnore`` categories, linearly
+    infeasible. Then classifies reactions into the omics-independent categories, linearly
     merges, and (unless ``scale=False``) rescales the merged model's stoichiometry
     (:func:`rescale_for_init`) so a single MILP big-M is valid across all reactions —
-    without this, genome-scale ftINIT is infeasible/intractable. (Dead-end
-    simplification is still deferred.)
+    without this, genome-scale ftINIT is infeasible / intractable.
 
     ``essential_cache_path`` makes the (slow, genome-scale) essential-reaction discovery
     **resumable** across interruptions — see :func:`find_task_essential_reactions`.

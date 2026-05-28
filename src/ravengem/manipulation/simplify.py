@@ -1,17 +1,15 @@
 """Reduce a model by removing/merging reactions that cannot carry flux.
 
-Ports the cobra-absent reduction modes of RAVEN ``simplifyModel.m`` as focused
-functions. The other modes are cobra one-liners and live in the migration
-cheatsheet (PLAN.md §1):
+Four reduction modes that cobra does not cover out of the box:
+``remove_dead_end_reactions`` (reactions whose substrates have no producer),
+``remove_duplicate_reactions``, ``constrain_reversible_reactions`` (tighten bounds
+via FVA), and ``group_linear_reactions`` (lossy fold of unit-stoichiometry chains
+into one reaction; drops gene rules).
 
-* ``deleteMinMax`` (no-flux) → ``cobra.flux_analysis.find_blocked_reactions``
-* ``deleteZeroInterval`` → remove reactions with ``bounds == (0, 0)`` then prune
-* ``deleteUnconstrained`` → RAVEN-only ``unconstrained`` field; moot on cobra
+Cobra-covered modes that you'd reach for separately:
 
-Implemented here: ``remove_dead_end_reactions`` (``deleteInaccessible``),
-``remove_duplicate_reactions`` (``deleteDuplicates``),
-``constrain_reversible_reactions`` (``constrainReversible``), and
-``group_linear_reactions`` (``groupLinear``).
+* No-flux removal → ``cobra.flux_analysis.find_blocked_reactions``.
+* Zero-interval removal → filter reactions with ``bounds == (0, 0)`` then prune.
 """
 from __future__ import annotations
 
@@ -49,7 +47,7 @@ def remove_dead_end_reactions(
 ) -> tuple[list[str], list[str]]:
     """Iteratively remove dead-end reactions and metabolites.
 
-    Port of RAVEN ``simplifyModel(..., deleteInaccessible=true)``. A metabolite
+    A metabolite
     is a dead end if it participates in only one reaction, or if (accounting for
     reaction directionality) it can only be produced or only consumed — such
     metabolites cannot carry steady-state flux, so the reactions touching them
@@ -88,7 +86,6 @@ def remove_duplicate_reactions(
 ) -> list[str]:
     """Remove all-but-one of each set of duplicate reactions.
 
-    Port of RAVEN ``simplifyModel(..., deleteDuplicates=true)`` (``contractModel``).
     Reactions are duplicates when they have identical stoichiometry, bounds, and
     objective coefficient. One of each set is kept (reserved reactions are never
     removed). Returns the removed reaction IDs.
@@ -115,7 +112,7 @@ def constrain_reversible_reactions(
 ) -> list[str]:
     """Constrain reversible reactions that can only carry flux one way.
 
-    Port of RAVEN ``simplifyModel(..., constrainReversible=true)``. Runs FVA on
+    Runs FVA on
     each reversible reaction; if it can only carry forward flux its lower bound
     is set to 0, and if it can only carry reverse flux it is flipped to a forward
     reaction (stoichiometry, bounds, and objective negated). Returns the changed
@@ -149,7 +146,7 @@ def group_linear_reactions(
 ) -> None:
     """Merge linear (single-producer, single-consumer) reaction chains.
 
-    Port of RAVEN ``simplifyModel(..., groupLinear=true)``. **Lossy**: gene-reaction
+    **Lossy**: gene-reaction
     associations are discarded (RAVEN does the same), since merged reactions have
     no meaningful combined GPR. The model is first made irreversible, then any
     metabolite that is produced by exactly one reaction and consumed by exactly
