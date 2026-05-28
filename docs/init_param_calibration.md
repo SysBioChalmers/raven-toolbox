@@ -85,8 +85,64 @@ freely). → **Keep scaling on, msd=25** (RAVEN's default).
 set a `time_limit` (≈120–600 s/step) so a hard essential-forced step returns a near-optimal
 incumbent rather than grinding.
 
-_tINIT (`run_init`) calibration (`mip_gap`/`eps`/`prod_weight`/`big_m`): pending (sweep
-in progress)._
+### tINIT MILP (`get_init_model`, `essential_rxns=[]`, `time_limit=400s`)
+
+**mip_gap** (eps=1, prod_weight=0.5):
+
+| mip_gap | time (s) | n_kept | Jaccard vs gap=0.001 |
+|--------:|---------:|-------:|---------------------:|
+| 0.001 | 901 | 6024 | ref |
+| 0.003 | 869 | 6036 | 0.991 |
+| 0.01 | 595 | 5967 | 0.968 |
+
+Tightening the gap costs ~50% more wall time on this MILP (unlike ftINIT step-0, build
+doesn't dominate); a 1% gap is ~30% faster with ~3% reaction-set drift.
+→ **`mip_gap=0.001`** for stability, **0.01** for a faster looser solve.
+
+**eps** (gap=0.005, the connectivity-flux threshold — *changes the model*):
+
+| eps | n_kept | Jaccard vs eps=1.0 |
+|----:|-------:|-------------------:|
+| 0.1 | 6119 | 0.952 |
+| 0.5 | 6123 | 0.952 |
+| 1.0 | 6064 | ref |
+| 2.0 | 6090 | 0.960 |
+
+Each `eps` value gives a slightly different model (Jaccard ~0.95 across the range); the
+reaction-set spread is ~5%. `eps=1.0` is RAVEN's default; smaller values produce *slightly*
+larger models (loosen the connectivity bar). Pick by what the data justifies — see the
+caveat at the top of `init.py`.
+
+**prod_weight** (gap=0.005, the metabolite-production reward — *changes the model*):
+
+| prod_weight | n_kept | Jaccard vs 0.5 |
+|------------:|-------:|---------------:|
+| 0.0 | 5973 | 0.961 |
+| 0.25 | 6015 | 0.974 |
+| 0.5 | 6064 | ref |
+| 1.0 | 6106 | 0.955 |
+
+A higher `prod_weight` keeps slightly more reactions (rewards more connectivity); `0.5`
+(RAVEN's default) is the middle of the range. Effect is modest (~5%).
+
+**big_m** (gap=0.005, `None` = per-reaction `ub`):
+
+| big_m | n_kept | Jaccard vs None |
+|------:|-------:|----------------:|
+| None (per-rxn ub) | 6064 | ref |
+| 1000 | 6064 | **1.000** |
+| 250 | 6114 | 0.953 |
+| 100 | 6023 | 0.930 |
+
+`big_m=1000` is identical to `big_m=None` here because the model's `ub` is ±1000 already
+(so the per-reaction cap *is* 1000). Smaller fixed caps (250, 100) shift alternate optima
+by 5–7% but do not change the objective. Unlike ftINIT, tINIT has *not* been run through
+`rescaleModelForINIT`, so dropping `big_m` below 1000 may invalidate the LP feasibility
+region for reactions whose own bound is larger — keep the default (per-reaction `ub`).
+
+**tINIT calibration summary:** `mip_gap=0.001` (or 0.01 for ~30% speedup at ~3% drift);
+`eps`, `prod_weight`, `big_m` defaults are fine — they all change the *model*, not just
+tolerance, so tune by what the data and biology call for, not by these tables.
 
 ### tINIT + many task-essential reactions: a structural limitation
 
