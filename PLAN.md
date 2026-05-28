@@ -407,10 +407,10 @@ cobra equivalent.
 
 | RAVEN | Notes |
 |---|---|
-| `predictLocalization` | Compartmentalize a model from a gene→compartment score table (the algorithm). |
-| `getWoLFScores` | Parse WoLF PSORT output → score table (one backend). |
-| *(new)* DeepLoc loader | Parse DeepLoc output → the same score-table schema (NEW vs RAVEN). |
-| `mapCompartments`, `mergeCompartments`, `copyToComps` | Supporting compartment manipulation (port the RAVEN-specific logic; `getMetsInComp`/`getRxnsInComp` are cobra one-liners — see §1). |
+| `predictLocalization` | ✅ `predict_localization` ([localization/predict.py](src/ravengem/localization/predict.py)) — **deterministic MILP** (not simulated annealing), **partial mode** (`reactions_to_relocate=[…]` or auto via `notes['localization']='uncertain'`; rest pinned), **incomplete-model-tolerant** (no silent reaction removal), `apply=False` returns a `LocalizationProposal` diff. Optional `multi_compartment_genes=True` with per-extra-compartment penalty. Existing compartmentalisation respected by default — RAVEN's mandatory `mergeCompartments` first step is *not* ported. See [docs/localization_design.md](docs/localization_design.md). |
+| `getWoLFScores` | ✅ `load_wolfpsort` ([localization/scores.py](src/ravengem/localization/scores.py)) — parses WoLF PSORT summary output (RAVEN-compatible); row-normalised to max=1.0. Does *not* call the WoLF PSORT binary (RAVEN's `getWoLFScores` shells out to Perl); run that separately and feed in the output. |
+| *(new)* DeepLoc loader | ✅ `load_deeploc` ([localization/scores.py](src/ravengem/localization/scores.py)) — parses DeepLoc 2 per-protein CSV (Protein_ID, Localizations, Signals, then one column per compartment). |
+| `mapCompartments`, `mergeCompartments`, `copyToComps` | **DO NOT PORT** — `apply_localization` ([localization/predict.py](src/ravengem/localization/predict.py)) does the moves + transports the new MILP needs; RAVEN's mandatory pre-merge step was a workaround for SA, not for the algorithm. `getMetsInComp`/`getRxnsInComp` are cobra one-liners (§1). |
 
 ### 2.8 `analysis/` — RAVEN-specific analyses  *(Phase 5)*
 Not in cobrapy core (some exist in cameo/straindesign — evaluate reuse before porting).
