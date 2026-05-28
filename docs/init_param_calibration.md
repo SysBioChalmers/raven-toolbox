@@ -185,6 +185,46 @@ gap-fill MILP (keeps it tractable). For *missing*-gene sparsity specifically, `n
 trades model size against confidence. For noise, defaults are already robust. No parameter
 restores fidelity lost to dropout — that is a property of the data, not the pipeline.
 
+### tINIT robustness — `essential_rxns=[]` (the tINIT-without-task-layer picture)
+
+For the reasons in §1.5, tINIT cannot accept the full task-essential set as forced
+reactions; this section runs `get_init_model` with `essential_rxns=[]` to show the
+realistic tINIT behaviour on the same degradation gradient — i.e. the *cost of not
+having ftINIT's gap-fill safety net*.
+
+| input | n_rxns | tasks pass | frac | Jaccard vs clean |
+|-------|-------:|-----------:|-----:|-----------------:|
+| **clean** | 6277 | **35/69** | **0.507** | ref |
+| dropout 50% | 4910 | 23/69 | 0.333 | 0.673 |
+| dropout 70% | 2807 | 21/69 | 0.304 | 0.408 |
+| noise σ=1.0 | 6661 | 25/69 | 0.362 | 0.878 |
+| noise σ=2.0 | 6146 | 24/69 | 0.348 | 0.869 |
+| downsample 50% | 5006 | 24/69 | 0.348 | 0.722 |
+| downsample 70% | 3541 | 19/69 | 0.275 | 0.515 |
+
+**The headline contrast with ftINIT:**
+
+| | ftINIT (task layer) | tINIT (no task layer) |
+|---|---|---|
+| clean | 7777 rxns, **69/69 (1.000)** | 6277 rxns, **35/69 (0.507)** |
+| dropout 0.7 | 5113 rxns, **68/69 (0.986)**, J 0.594 | 2807 rxns, **21/69 (0.304)**, J 0.408 |
+| noise σ=2.0 | 7768 rxns, **69/69 (1.000)**, J 0.919 | 6146 rxns, **24/69 (0.348)**, J 0.869 |
+| downsample 0.7 | 6123 rxns, **68/69 (0.986)**, J 0.728 | 3541 rxns, **19/69 (0.275)**, J 0.515 |
+
+* tINIT-without-gap-fill fails roughly **half the essential tasks even on clean data**;
+  ftINIT-with-gap-fill passes them all. Under degradation tINIT collapses further (down
+  to 19/69 at 70 % downsample), ftINIT stays ≥67/69 throughout.
+* **Reaction-set drift is comparable** under noise (Jaccard 0.87 vs 0.92) but worse for
+  tINIT under sparsity (0.41 vs 0.59 at 70 % dropout) because there's no gap-fill to
+  re-add structurally needed reactions.
+
+This is *not* a critique of the tINIT algorithm — classic INIT was designed for the
+no-task-layer case. It is the empirical evidence for why ftINIT's design choices (task
++ gap-fill, adaptive essential forcing) are the right ones for genome-scale tissue
+model extraction, and why tINIT is mostly useful here as a baseline.
+
+_Lever phase (`prod_weight`/`eps` at dropout 0.7): pending (sweep finishing)._
+
 ---
 
 ## 3. Cross-solver portability
