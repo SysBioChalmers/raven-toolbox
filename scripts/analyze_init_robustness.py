@@ -201,9 +201,12 @@ def main() -> None:
         if args.algo == "ftinit":
             return ftinit(prep, r, gene_scores=g, series="1+1",
                           force_on=kw.get("force_on", 0.1), mip_gap=MIP_GAP, time_limit=TIME_LIMIT)
-        # eps default 0.1 (not RAVEN's 1.0): with many task-essentials, eps=1.0 forces
-        # every essential to carry ≥1 flux at steady state — infeasible at genome scale.
-        return get_init_model(ref, rxn_scores=r, essential_rxns=essential,
+        # tINIT's essential_rxns are forced via lb=eps; >100 essentials simultaneously is
+        # infeasible at genome scale regardless of eps (see docs/init_param_calibration.md
+        # §1.5). tINIT is therefore run *without* essentials here — the realistic
+        # tINIT-without-gap-fill picture. Use a small default eps (0.1) all the same to
+        # avoid the unrelated connectivity-threshold over-constraint.
+        return get_init_model(ref, rxn_scores=r, essential_rxns=[],
                               prod_weight=kw.get("prod_weight", 0.5), eps=kw.get("eps", 0.1),
                               mip_gap=MIP_GAP, time_limit=TIME_LIMIT).model
 

@@ -88,6 +88,33 @@ incumbent rather than grinding.
 _tINIT (`run_init`) calibration (`mip_gap`/`eps`/`prod_weight`/`big_m`): pending (sweep
 in progress)._
 
+### tINIT + many task-essential reactions: a structural limitation
+
+ftINIT's task layer (gap-fill) and tINIT's task layer (forcing `essential_rxns`) are
+*not equivalent*. tINIT forces every essential reaction to carry `flux ≥ eps`. With
+Human-GEM's 113 task-essential reactions (the validation set), the resulting steady-state
+system is infeasible regardless of `eps`:
+
+| essentials passed to `run_init` | result |
+|---|---|
+| 0 (the original validation call) | ✅ ok, 6024 reactions |
+| 113 (merged-survivor IDs from `prep.essential_rxns`) | ❌ `infeasible` (proven by Gurobi presolve, ~330s) |
+| 260 (pre-merge IDs from `find_task_essential_reactions` cache) | ❌ `infeasible` (~480s) |
+
+Lowering `eps` (1.0 → 0.1) does **not** fix it; the issue is that 100+ reactions cannot
+simultaneously each carry a fixed positive flux in their forced direction at steady state.
+ftINIT avoids this by using an *adaptive* per-reaction forcing magnitude
+(`min(0.99·|previous flux|, force_on)`) so each essential is forced at a value it
+*actually carried* in a prior feasible solution. tINIT's one-size-fits-all `eps`
+mechanism doesn't have that escape hatch.
+
+**Practical takeaway.** For functional context-specific models on genome-scale data, use
+ftINIT — the task layer (gap-fill, adaptive essential forcing) is what makes the pipeline
+robust. tINIT remains useful for the small/no-essentials case (e.g. the
+expression-only baseline in the validation), but pairing it with the full task-essential
+set is a known incompatibility; the tINIT robustness study below is therefore reported
+with `essential_rxns=[]`.
+
 ---
 
 ## 2. Robustness to degraded transcriptomics (task layer always on)
@@ -157,6 +184,18 @@ task + gap-fill layer (keeps the model functional regardless of input quality) a
 gap-fill MILP (keeps it tractable). For *missing*-gene sparsity specifically, `no_gene_score`
 trades model size against confidence. For noise, defaults are already robust. No parameter
 restores fidelity lost to dropout — that is a property of the data, not the pipeline.
+
+---
+
+## 3. Cross-solver portability
+
+See [init_solver_benchmark.md](init_solver_benchmark.md) for the genome-scale
+solver comparison (Gurobi/HiGHS/GLPK) and [tests/test_init_solvers.py](../tests/test_init_solvers.py)
+for CI parameterised over installed MILP backends. Headline: at genome scale only Gurobi
+is viable today; HiGHS fails on an upstream optlang `hybrid_interface.clone()` bug; GLPK
+ignores `configuration.timeout` on MIP and ran 1 h+ without converging. Toy-scale
+correctness is portable (Gurobi + GLPK give identical verdicts on the unit-test
+networks), so local development works without a Gurobi licence.
 
 ---
 
