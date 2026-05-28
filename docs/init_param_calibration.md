@@ -144,6 +144,27 @@ region for reactions whose own bound is larger — keep the default (per-reactio
 `eps`, `prod_weight`, `big_m` defaults are fine — they all change the *model*, not just
 tolerance, so tune by what the data and biology call for, not by these tables.
 
+### ftINIT full pipeline (`ftinit`, series='1+1', no-task scaled prep, `time_limit=600s`)
+
+| config | time (s) | n_kept | Jaccard vs gap=0.001 |
+|--------|---------:|-------:|---------------------:|
+| **mip_gap=0.001** (default big_m=100) | 346 | 7752 | ref |
+| mip_gap=0.003 | 288 | 7748 | 0.993 |
+| mip_gap=0.01 | 218 | 7746 | **0.995** |
+| big_m=50 (gap=0.003) | 738 | 7799 | 0.974 |
+| big_m=250 (gap=0.003) | 345 | 7766 | 0.977 |
+
+Unlike the single-step ftINIT MILP in §1.1 (where build time dominated and the gap was
+free), **the full pipeline does benefit from a looser gap**: `mip_gap=0.01` is ~37 %
+faster than `0.001` with Jaccard 0.995 — essentially the same model. → **For genome-scale
+ftINIT, `mip_gap=0.01` (or 0.005) is the sweet spot**; keep 0.001 only if exact
+reproducibility matters more than a few minutes.
+
+`big_m=50` is actually *slower* than the default 100 (738s vs 346s) — a tighter cap makes
+the LP relaxation harder for borderline reactions; `big_m=250` is the same speed as 100
+but shifts the reaction set ~2 %. → **Keep `big_m=100`** (RAVEN's value, what scaling is
+designed for).
+
 ### tINIT + many task-essential reactions: a structural limitation
 
 ftINIT's task layer (gap-fill) and tINIT's task layer (forcing `essential_rxns`) are
