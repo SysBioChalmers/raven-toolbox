@@ -214,6 +214,10 @@ Keyed to commits on `main`.
 | `e5d0966`+`14b4ca2`+`7394120` | Genome-scale tractability: `mip_gap`/`time_limit`, big-M=100, `optlang.symbolics.add` builds, port `rescaleModelForINIT` |
 | `b540283` | ftINIT gap-fill objective via `add()` not `sum()` (O(n²) fix) |
 | `bd46811`+`3cb535b` | **Human-GEM validation**: ravengem ftINIT vs RAVEN on 5 Hart2015 cell lines — Jaccard 0.975 (no-task) / 0.978–0.980 (task) ([docs/humangem_validation.md](docs/humangem_validation.md)) |
+| `54db34f`+`69aa708` | `check_tasks` + `fill_tasks._feasible` reuse one model (~12× each) — genome-scale task checking now ~130s for 69 tasks |
+| `31f6a59` | Bound the ftINIT gap-fill MILP (`mip_gap`/`time_limit`, threaded from `ftinit`) — prevents pathological gap-fill runs on degraded input |
+| `cc59f2d`+`61f850d` | **Cross-solver portability**: CI tests + genome-scale ftINIT benchmark on Gurobi/HiGHS/GLPK — Gurobi only viable at genome scale today; HiGHS hits an upstream optlang `hybrid_interface.clone()` bug; GLPK ignores `configuration.timeout` ([docs/init_solver_benchmark.md](docs/init_solver_benchmark.md)) |
+| `f6ba106`+`6cc7e03`+`f3a33cf`+`2904138`+`00b8486`+`cb83c3f` | **Parameter calibration & input robustness**: clean-data calibration (ftINIT MILP / tINIT / prep / full pipeline) + robustness gradient (dropout/noise/downsample) + tINIT-vs-ftINIT contrast ([docs/init_param_calibration.md](docs/init_param_calibration.md)). Headline: pipeline is robust to expression *noise* (Jaccard 0.92–0.95) but sensitive to *sparsity* (50–70% dropout → Jaccard 0.59–0.71); the task+gap-fill layer keeps functional-task pass-rate at 67–69/69, tINIT-without-it passes only 35/69 even on clean data |
 
 ---
 
