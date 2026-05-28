@@ -385,13 +385,14 @@ objective-feasibility mode → `cobra.flux_analysis.gapfill` (§1 cheatsheet). R
 production/consumption diagnostics (`canProduce`/`canConsume`/`makeSomething`/`gapReport`)
 are small follow-ups if needed.
 
-### 2.8 `omics/` + `analysis/` — data integration & analysis  *(Phase 5)*
+### 2.8 `omics/` + `analysis/` + `comparison/` — data integration & analysis  *(Phase 5)*
 | RAVEN | Notes |
 |---|---|
 | `reporterMetabolites` | ✅ `reporter_metabolites` ([analysis/reporter.py](src/ravengem/analysis/reporter.py)) — exact closed-form background replaces RAVEN's Monte-Carlo (RM1). |
-| `parseHPA`, `parseHPArna`, `scoreModel` | HPA/RNA-seq → gene/reaction scores (feeds INIT). RNA-seq the common path; pending. |
+| `parseHPA`, `parseHPArna`, `scoreModel` | ✅ `parse_hpa` / `parse_hpa_rna` / `hpa_gene_scores` / `rna_gene_scores` ([omics/hpa.py](src/ravengem/omics/hpa.py)) — pandas-tidy DataFrames replace RAVEN's sparse-matrix + cell-array layout; scoring adapters reuse the existing `score_reactions_from_genes` so the GPR walk has one source of truth. |
 | `FSEOF` | ✅ `fseof` ([analysis/fseof.py](src/ravengem/analysis/fseof.py)) — redesigned output: regression slope+correlation, amplify/knockdown/knockout classes, gene aggregation (FS1–FS4). |
-| dynamic FBA | Analysis tool; pending. |
+| `compareMultipleModels` | ✅ `compare_models` ([comparison/compare.py](src/ravengem/comparison/compare.py)) — returns `ModelComparison` of tidy DataFrames (reactions/metabolites/genes/subsystems presence + Jaccard similarity + optional `check_tasks` pass/fail). Plotting and tSNE/MDS deliberately not ported — one-liners in seaborn / scikit-learn on the returned DataFrames; keeping plotting out of the core function keeps it useful in pipelines. |
+| `runDynamicFBA` (dynamic FBA) | **DO NOT PORT** — established Python implementations cover this: [`dfba`](https://pypi.org/project/dfba/) (Pinheiro et al., 2021; CVODES-backed), [`reframed`](https://pypi.org/project/reframed/) (Machado lab), [`mewpy`](https://pypi.org/project/mewpy/) (Cunha lab). Cobrapy itself has no dFBA. Re-porting `runDynamicFBA` would duplicate well-maintained prior art with no obvious value-add; users should reach for one of these. Same call as MetaCyc / gap-fill targeted mode (use established Python tooling, document the migration). |
 
 ### 2.9 `localization/` — subcellular localization  *(Phase 7, self-contained)*
 A self-contained track (depends only on Phase 1, can be done anytime): predict subcellular
