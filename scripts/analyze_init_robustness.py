@@ -191,8 +191,10 @@ def main() -> None:
     tasks = parse_task_list(str(args.human_gem / "data" / "metabolicTasks" /
                                 "metabolicTasks_Essential.txt"))
     prep = pickle.load(open(args.work / "rg_prep_tasks.pkl", "rb"))  # ftINIT uses task layer
+    task_layer_note = ("task layer always on" if args.algo == "ftinit"
+                       else "essential_rxns=[] (tINIT lb=eps incompatible with many essentials)")
     print(f"[{time.time()-t0:.0f}s] ref {len(ref.reactions)} rxns, {len(tasks)} tasks, "
-          f"cell={args.cell}, algo={args.algo} (task layer always on)", flush=True)
+          f"cell={args.cell}, algo={args.algo} ({task_layer_note})", flush=True)
 
     def model_for(e, **kw):
         g = gene_scores_from_expression(e, 1.0)
