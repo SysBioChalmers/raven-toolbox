@@ -27,3 +27,4 @@ htmlcov/
 /blastdb/
 /keggModelFiles/
 /metacyc_cache/
+.claude/
