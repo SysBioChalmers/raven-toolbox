@@ -223,7 +223,22 @@ no-task-layer case. It is the empirical evidence for why ftINIT's design choices
 + gap-fill, adaptive essential forcing) are the right ones for genome-scale tissue
 model extraction, and why tINIT is mostly useful here as a baseline.
 
-_Lever phase (`prod_weight`/`eps` at dropout 0.7): pending (sweep finishing)._
+#### tINIT levers at dropout 70%
+
+| config | n_rxns | tasks pass | frac | Jaccard vs clean |
+|--------|-------:|-----------:|-----:|-----------------:|
+| default (prod_weight=0.5, eps=0.1) | 2807 | 21/69 | 0.304 | 0.408 |
+| prod_weight=0.0 | 2791 | 21/69 | 0.304 | 0.416 |
+| prod_weight=1.0 | 3386 | 22/69 | 0.319 | 0.485 |
+| prod_weight=2.0 | 3888 | 21/69 | 0.304 | 0.458 |
+| eps=0.5 | 2620 | 21/69 | 0.304 | 0.391 |
+| eps=1.0 | 3311 | 22/69 | 0.319 | 0.460 |
+
+Same conclusion as the ftINIT levers: parameter tuning can nudge (`prod_weight≥1.0`
+or a larger `eps` modestly grows the model and lifts Jaccard from 0.41 to ~0.48), but
+**no tINIT parameter recovers anything close to ftINIT's functionality** (22/69 at best
+vs ftINIT's 67–69/69 at the same dropout). The gap-fill layer, not the parameter
+choice, is what bridges the gap.
 
 ---
 
