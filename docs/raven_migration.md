@@ -96,7 +96,7 @@ standard plus the geckopy enzyme-constrained extension, so ecModels round-trip.
 
 | RAVEN | ravengem | Notes |
 |---|---|---|
-| `predictLocalization` | ✅ [`localization.predict_localization`](../src/ravengem/localization/predict.py) | Deterministic MILP (not simulated annealing). Caller-passed `reactions_to_relocate` set (everything else pinned). Multi-compartment by default: primary "free", extras pay `multi_compartment_penalty`. Tolerates incomplete models (no silent reaction removal). `apply=False` returns a `LocalizationProposal` diff. |
+| `predictLocalization` | ✅ [`localization.predict_localization`](../src/ravengem/localization/predict.py) | Deterministic MILP (not simulated annealing). Caller-passed `reactions_to_relocate` set (everything else pinned). Multi-compartment by default: primary "free", extras pay `multi_compartment_penalty`. Tolerates incomplete models (no silent reaction removal). `apply=False` returns a `LocalizationProposal` diff. Real-data validation against curated yeast-GEM in [yeast_localization_benchmark.md](yeast_localization_benchmark.md). |
 | `getWoLFScores`, `parseScores('wolf')` | ✅ [`localization.load_wolfpsort`](../src/ravengem/localization/scores.py) | Parses WoLF PSORT summary output (RAVEN-compatible); row-normalised. Does not shell out to the WoLF PSORT binary — run that separately and feed in the output. |
 | `parseScores('deeploc')` | ✅ [`localization.load_deeploc`](../src/ravengem/localization/scores.py) | DeepLoc 2 per-protein CSV (Protein_ID / Localizations / Signals + one column per compartment). |
 

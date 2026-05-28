@@ -24,6 +24,9 @@ Start with the [top-level README](../README.md). The docs are organised as:
   `prod_weight` / scaling; dropout / noise / downsample robustness).
 * **[init_solver_benchmark.md](init_solver_benchmark.md)** — Gurobi vs HiGHS vs GLPK on
   genome-scale ftINIT.
+* **[yeast_localization_benchmark.md](yeast_localization_benchmark.md)** —
+  `predict_localization` against curated yeast-GEM, with a predictor-noise sweep
+  (accuracy 0.72 → 0.39 as confident mis-scoring rises from 0 % to 50 %).
 * **[kegg_hmm_cutoff_calibration.md](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
 

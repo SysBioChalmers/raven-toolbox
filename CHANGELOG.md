@@ -15,6 +15,10 @@ Milestones in the ravengem port. For function-level status see
   with the `gene × compartment` DataFrame contract open for any predictor.
 * **Compartment helpers** ([`manipulation/compartments.py`](src/ravengem/manipulation/compartments.py)):
   `merge_compartments`, `copy_to_compartment` — useful standalone for model curation.
+* **Real-data validation on yeast-GEM** ([docs/yeast_localization_benchmark.md](docs/yeast_localization_benchmark.md))
+  — accuracy 0.72 → 0.39 on 298 GPR'd reactions as confident predictor mis-scoring rises
+  from 0 % to 50 %; perfect on compartments with disjoint gene sets (c/g/lp/p/v/vm), and
+  surfaces a `transport_cost` calibration insight for soft-probability score tables.
 
 ## Phase 5 — Data integration & analysis
 
