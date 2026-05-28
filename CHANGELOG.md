@@ -4,6 +4,14 @@ Milestones in the ravengem port. For function-level status see
 [docs/raven_migration.md](docs/raven_migration.md); for open work see
 [docs/todo.md](docs/todo.md).
 
+## Infrastructure
+
+* **GitHub Actions CI** ([.github/workflows/ci.yml](.github/workflows/ci.yml)) —
+  ruff + pytest matrix over Python 3.11/3.12/3.13. Tests that require Gurobi
+  auto-skip (no Gurobi on free runners); the known HiGHS upstream blocker
+  (`hybrid_interface.Configuration` rejects `lp_method='primal'`) is marked
+  `xfail(strict=True)` so CI flips red when optlang fixes it.
+
 ## Phase 7 — Localization
 
 * **Sub-cellular localisation by MILP.** [`localization.predict_localization`](src/ravengem/localization/predict.py)

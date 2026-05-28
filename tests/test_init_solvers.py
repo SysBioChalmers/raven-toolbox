@@ -22,13 +22,39 @@ import pytest
 from ravengem.init import ftinit, prep_init_model, run_ftinit, run_init
 from ravengem.tasks import Task, check_tasks
 
-# Detect which MILP-capable optlang interfaces are installed; skip the rest.
+# Detect which MILP-capable optlang interfaces actually work; skip the rest.
+# We do a real import (not just find_spec) because optlang ships every backend's
+# module file but those that wrap third-party solvers (gurobi, cplex) only import
+# cleanly when the underlying solver is installed — find_spec would say "present"
+# and then we'd crash at fixture time on CI runners without Gurobi.
 _INTERFACES = {"gurobi": "gurobi_interface", "hybrid": "hybrid_interface", "glpk": "glpk_interface"}
-_AVAILABLE = [name for name, mod in _INTERFACES.items()
-              if importlib.util.find_spec(f"optlang.{mod}") is not None]
 
 
-@pytest.fixture(params=_AVAILABLE)
+def _solver_available(modname: str) -> bool:
+    try:
+        importlib.import_module(f"optlang.{modname}")
+        return True
+    except ImportError:
+        return False
+
+
+_AVAILABLE = [name for name, mod in _INTERFACES.items() if _solver_available(mod)]
+
+# Known upstream blocker: ``optlang.hybrid_interface.Configuration.clone()`` rejects
+# ``lp_method='primal'``. Marked strict so this flips red when optlang is fixed and
+# we should drop the marker. See docs/init_solver_benchmark.md.
+_XFAIL = {"hybrid": pytest.mark.xfail(
+    reason="optlang hybrid_interface.Configuration rejects lp_method='primal' (upstream)",
+    strict=True, raises=ValueError,
+)}
+
+
+def _param(name: str):
+    marks = [_XFAIL[name]] if name in _XFAIL else []
+    return pytest.param(name, marks=marks, id=name)
+
+
+@pytest.fixture(params=[_param(n) for n in _AVAILABLE])
 def solver(request):
     """One installed MILP solver per parameter value."""
     return request.param

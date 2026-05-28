@@ -27,8 +27,6 @@ input. Worth doing only when a real user request lands.
 
 ## Infrastructure
 
-* **CI for Phase 1 / foundation.** Pytest + lint workflow on GitHub Actions. Currently runs
-  locally only.
 * **Binary ZIP releases** for BLAST/DIAMOND (Phase 3a). The runtime resolver in
   [`binaries.py`](../src/ravengem/binaries.py) is ready; the registry is empty until ZIPs are
   published as GitHub release assets.

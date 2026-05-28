@@ -1,5 +1,7 @@
 # ravengem
 
+[![CI](https://github.com/SysBioChalmers/ravengem/actions/workflows/ci.yml/badge.svg)](https://github.com/SysBioChalmers/ravengem/actions/workflows/ci.yml)
+
 **Reconstruction, Analysis and Visualisation of Metabolic Networks — in Python.**
 
 `ravengem` is the Python counterpart of the
