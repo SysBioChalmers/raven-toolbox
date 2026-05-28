@@ -190,8 +190,7 @@ def main() -> None:
             expr[p[0]] = float(p[c])
     tasks = parse_task_list(str(args.human_gem / "data" / "metabolicTasks" /
                                 "metabolicTasks_Essential.txt"))
-    prep = pickle.load(open(args.work / "rg_prep_tasks.pkl", "rb"))  # task layer is ALWAYS on
-    essential = list(prep.essential_rxns)
+    prep = pickle.load(open(args.work / "rg_prep_tasks.pkl", "rb"))  # ftINIT uses task layer
     print(f"[{time.time()-t0:.0f}s] ref {len(ref.reactions)} rxns, {len(tasks)} tasks, "
           f"cell={args.cell}, algo={args.algo} (task layer always on)", flush=True)
 
