@@ -127,10 +127,18 @@ def _classify(model, scan, enforced, corr_threshold, flux_eps) -> pd.DataFrame:
         slope, corr = float(fit.slope), float(fit.rvalue)
         if abs(corr) < corr_threshold or abs(slope) < flux_eps:
             continue
-        if abs(final) > abs(initial) + flux_eps:
-            ttype = "amplify"
-        elif abs(final) < flux_eps:
+        # Classify on the slope of |flux| vs the enforced product flux — the
+        # criterion the docstring states (|flux| rises = amplify, etc.). The
+        # old endpoint-only check (``abs(final) vs abs(initial)``) could
+        # mislabel a track whose first/last values straddled a peak/trough but
+        # whose overall trend was the opposite. Keep ``knockout`` for tracks
+        # the regression drives essentially to zero.
+        abs_fit = linregress(enforced, np.abs(flux))
+        abs_slope = float(abs_fit.slope)
+        if abs(final) < flux_eps and abs_slope < 0:
             ttype = "knockout"
+        elif abs_slope > 0:
+            ttype = "amplify"
         else:
             ttype = "knockdown"
         rows.append({

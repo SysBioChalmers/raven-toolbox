@@ -12,6 +12,30 @@ Milestones in the ravengem port. For function-level status see
   (`hybrid_interface.Configuration` rejects `lp_method='primal'`) is marked
   `xfail(strict=True)` so CI flips red when optlang fixes it.
 
+## Quality sweep — known-issues section F (design-choice divergences)
+
+Closed the five items in section F (the "design choices that differ from RAVEN"
+backlog from the original review). Three docstring/comment fixes; two code
+fixes with matching MATLAB back-port proposals in IMPROVEMENTS.md (FS4, B2).
+
+* `run_init` docstring spells out the score-0 semantics divergence between
+  classic INIT and ftINIT.
+* `get_init_model` inaccurate "same regime" comment replaced with an accurate
+  description of the conservative pre-filter.
+* `fseof` classifier now uses the slope of `|flux|` (`linregress(enforced, |flux|)`)
+  instead of first-vs-last endpoints. A track whose endpoints straddle a
+  peak/trough no longer ends up mislabelled.
+* `reporter_metabolites` docstring documents the one-sided p-value + z-score
+  ordering vs RAVEN's two-tailed sort, and points at the up/down split via
+  `gene_fold_changes`.
+* `get_elemental_balance` now reports `unknown` for empty-stoichiometry
+  reactions (previously vacuously `balanced`). Original review attributed the
+  bug to `check_model`; the actual code is in `balance.py`.
+
+Two new regression tests (F3 in `test_analysis_fseof.py`, F5 in
+`test_utils_balance.py`). [docs/known_issues.md](docs/known_issues.md) now
+fully closed (all sections A–F).
+
 ## Quality sweep — known-issues sections C / D / E
 
 Closed all the robustness, efficiency, and dead-code items in one pass.

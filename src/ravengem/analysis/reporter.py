@@ -89,6 +89,16 @@ def reporter_metabolites(
     turn the whole result NaN). If ``gene_fold_changes`` (gene id → log fold change)
     is given, two extra results are returned for the up- (fc ≥ 0) and down- (fc < 0)
     regulated gene subsets, in addition to ``"all"``.
+
+    Parity with RAVEN's ``reporterMetabolites``: the ``z_score`` and underlying
+    background correction match exactly (exact closed-form instead of RAVEN's
+    Monte-Carlo, see IMPROVEMENTS RM1). The reported ``p_value`` is the
+    *one-sided* (``"up"``) enrichment ``1 - Φ(z)`` and the result is sorted by
+    ``z_score`` descending. RAVEN sorts by p-value and reports both tails
+    (``allPValues``, ``allUpPValues``, ``allDownPValues``); the up/down splits
+    here come from the ``gene_fold_changes`` subset partition instead, so the
+    same information is available via the three returned ``ReporterResult``
+    rows.
     """
     model_genes = {g.id for g in model.genes}
     scored = {

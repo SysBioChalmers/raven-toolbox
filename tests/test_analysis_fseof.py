@@ -85,3 +85,28 @@ def test_infeasible_model_raises_clear_error(model):
     model.reactions.EX_P.bounds = (1000, 1000)
     with pytest.raises(ValueError, match="cannot carry positive flux"):
         fseof(model, "EX_P", n_steps=4)
+
+
+# --- regression: slope-based labels (known_issues.md F3) -------------------
+
+def test_amplify_label_uses_abs_slope_not_endpoint_difference():
+    """A reaction whose |flux| trend is upward but whose final value happens
+    to equal the initial (endpoints straddle a peak) should be labelled
+    ``amplify`` by the regression-slope rule, not ``knockdown`` by the old
+    endpoint check."""
+    import numpy as np
+    import pandas as pd
+
+    from ravengem.analysis.fseof import _classify
+
+    # Endpoints equal (0), but the |flux| regression slope is clearly positive
+    # over the scan — the new classifier picks amplify; the old endpoint code
+    # would have said knockdown (final not below eps, abs(final) not > abs(initial)).
+    enforced = np.linspace(0.0, 1.0, 6)
+    flux = np.array([0.0, 0.3, 0.6, 0.9, 0.4, 0.0])
+    scan = pd.DataFrame([flux], index=["r_test"], columns=enforced)
+    m = cobra.Model("synth")
+    m.add_reactions([cobra.Reaction("r_test")])
+    table = _classify(m, scan, enforced, corr_threshold=0.0, flux_eps=1e-6)
+    assert not table.empty
+    assert table.iloc[0]["target_type"] == "amplify"

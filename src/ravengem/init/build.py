@@ -74,9 +74,12 @@ def get_init_model(
 
     deleted_dead_end: list[str] = []
     if remove_dead_ends:
-        # Determine dead ends under the same regime run_init will use: with
-        # allow_excretion, any metabolite may be excreted (add a demand for each),
-        # so only reactions that cannot carry flux even then are truly dead.
+        # Identify and drop reactions that cannot carry flux even under the
+        # *most permissive* boundary regime: every metabolite open for excretion
+        # (when ``allow_excretion``) plus the exchange-opened FVA. That makes
+        # the pre-filter conservative — only reactions blocked under both lax
+        # and strict regimes are removed, so the strict run_init path never
+        # loses a candidate it could have used.
         probe = model.copy()
         original_ids = {r.id for r in model.reactions}
         if allow_excretion:

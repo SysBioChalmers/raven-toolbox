@@ -108,20 +108,32 @@ tests live alongside each fixed function.
 
 ## F. Documented design choices that differ from RAVEN (not bugs)
 
-- **`init/init.py` — `run_init`:** a reaction with score *exactly* 0 is removable
-  (gets a binary with 0 reward), unlike ftINIT's "score 0 ⇒ left in the model". This
-  matches classic INIT semantics but is undocumented in `run_init`; worth a one-line
-  note to avoid cross-variant confusion.
-- **`init/build.py` — `get_init_model`:** the dead-end pre-filter uses
-  `open_exchanges=True` even when `allow_excretion=False`; harmless (INIT drops the
-  reaction anyway) but the "same regime run_init will use" comment is inaccurate for
-  the strict path.
-- **`analysis/fseof.py` — `fseof`:** the amplify/knockdown/knockout label is decided
-  from the first vs last enforced-flux endpoints, not the (already-computed) regression
-  slope; a correlated-but-non-monotone track can be mislabelled. The `|r|` gate limits
-  this.
-- **`analysis/reporter.py` — `reporter_metabolites`:** reports a one-sided ("up")
-  enrichment p-value and sorts by `z_score`, which differs from RAVEN's p-value
-  ordering. Internally consistent; flagged for parity awareness.
-- **`utils/validate.py` — `check_model`:** a reaction with no metabolites is reported
-  `balanced` (vacuously); arguably should be `unknown`.
+All five items addressed in the quality-sweep pass (see CHANGELOG). The three
+docstring/comment items got documentation fixes; the two correctness items
+(F3, F5) got code fixes plus matching RAVEN-back-port proposals in
+[IMPROVEMENTS.md](../IMPROVEMENTS.md) (FS4, B2).
+
+- ✅ **`init/init.py` — `run_init`:** docstring now spells out the score-0
+  semantics divergence between classic INIT (score-0 = removable) and ftINIT
+  (score-0 = kept by default).
+- ✅ **`init/build.py` — `get_init_model`:** the inaccurate "same regime
+  run_init will use" comment is replaced — the pre-filter is now correctly
+  described as conservative (only reactions blocked under the *most* permissive
+  regime are removed, so the strict run_init path never loses a candidate).
+- ✅ **`analysis/fseof.py` — `fseof`:** classifier now uses the slope of
+  `|flux|` (a real `linregress(enforced, |flux|)` fit) instead of the first vs
+  last endpoints. A track whose endpoints straddle a peak/trough no longer
+  ends up with the wrong amplify/knockdown label. Matching MATLAB back-port
+  proposed as IMPROVEMENTS FS4. Test
+  `tests/test_analysis_fseof.py::test_amplify_label_uses_abs_slope_not_endpoint_difference`.
+- ✅ **`analysis/reporter.py` — `reporter_metabolites`:** docstring now
+  documents the one-sided ``1 - Φ(z)`` `p_value` and the `z_score`-descending
+  sort, explicitly contrasted with RAVEN's two-tailed `allPValues` ordering.
+  Internally consistent; same information available via the up/down `gene_fold_changes`
+  partition.
+- ✅ **`utils/balance.py` — `get_elemental_balance`:** empty-stoichiometry
+  reactions now report `unknown` instead of `balanced`. (Original review
+  attributed the bug to `utils/validate.py::check_model`; the actual code
+  lives in `balance.py`.) Matching MATLAB back-port proposed as
+  IMPROVEMENTS B2. Test
+  `tests/test_utils_balance.py::test_empty_reaction_is_unknown`.

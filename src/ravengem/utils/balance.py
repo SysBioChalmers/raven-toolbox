@@ -66,6 +66,14 @@ def get_elemental_balance(
 
     results: list[ElementalBalance] = []
     for rxn in rxns:
+        if not rxn.metabolites:
+            # A reaction with no metabolites used to fall through to ``balanced``
+            # (vacuously) because ``any()`` over the empty list is False and the
+            # zero-element imbalance dict is empty. Treat the no-formula case
+            # (zero formulae present) as ``unknown``: we can't determine balance
+            # for a reaction without stoichiometry.
+            results.append(ElementalBalance(rxn.id, "unknown"))
+            continue
         if any(not met.formula for met in rxn.metabolites):
             results.append(ElementalBalance(rxn.id, "unknown"))
             continue

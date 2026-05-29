@@ -114,6 +114,15 @@ def run_init(
     kept (forced to carry flux). ``present_mets`` are metabolite *names* that the
     network should be able to produce; each is tested and reported in
     ``met_production``. See the module docstring for the formulation.
+
+    Note on score 0 (classic INIT vs. ftINIT divergence): in classic INIT a
+    reaction with score exactly 0 receives an include-indicator with **zero
+    reward**, so the optimiser is free to drop it. This matches RAVEN's
+    `runINIT` semantics. ftINIT inverts that — score-0 reactions stay in the
+    model unless they actively hurt feasibility — so a score of exactly 0
+    means *different things* in the two variants. If you want score-0
+    reactions kept here, pass a small positive value (e.g. ``min_score`` from
+    `gene_scores_from_expression`) instead of 0.
     """
     scores = dict(rxn_scores or {})
     essential = set(essential_rxns or [])
