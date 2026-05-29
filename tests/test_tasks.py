@@ -53,6 +53,22 @@ def test_parse_missing_id_column(tmp_path):
         parse_task_list(p)
 
 
+def test_parse_warns_on_data_row_before_first_id(tmp_path):
+    """known_issues.md B3: continuation rows appearing before the first task ID
+    used to be silently dropped. Now warns so the user sees the malformed file."""
+    p = tmp_path / "orphan.txt"
+    p.write_text(
+        "ID\tDESCRIPTION\tIN\tIN UB\tOUT\tOUT UB\tSHOULD FAIL\n"
+        "\t\tglc[e]\t10\t\t\t\n"        # orphan data row, no ID seen yet
+        "T1\tgrowth\t\t\tbio[c]\t1\t\n"
+    )
+    with pytest.warns(UserWarning, match="no task ID has been seen yet"):
+        tasks = parse_task_list(p)
+    assert [t.id for t in tasks] == ["T1"]
+    # The orphan row's data isn't grafted onto T1 either.
+    assert tasks[0].inputs == []
+
+
 # --------------------------------------------------------------------------- #
 # check_tasks
 # --------------------------------------------------------------------------- #

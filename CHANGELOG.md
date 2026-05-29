@@ -12,6 +12,20 @@ Milestones in the ravengem port. For function-level status see
   (`hybrid_interface.Configuration` rejects `lp_method='primal'`) is marked
   `xfail(strict=True)` so CI flips red when optlang fixes it.
 
+## Quality sweep — known-issues section B
+
+Closed all four "silent misbehaviour" items from [docs/known_issues.md](docs/known_issues.md):
+* `merge_models` warns on `formula` / `charge` conflicts when two source models
+  share a name[comp] but disagree (used to silently keep the first-seen).
+* `add_reactions_from_equations` warns when creating a metabolite in an
+  unregistered compartment — both the `mets_by="id"` and `mets_by="name"` paths
+  (id-mode used to skip the check entirely, an asymmetry).
+* `parse_task_list` warns when continuation data appears before any task ID
+  has been seen (used to silently drop the orphan row).
+* `export_model_to_sif` warns up front when a custom label map sends two
+  distinct ids to the same label (used to silently collapse nodes).
+Four new regression tests cover them.
+
 ## Quality sweep — known-issues section A
 
 Closed all six "latent edge-case bug" items from [docs/known_issues.md](docs/known_issues.md):

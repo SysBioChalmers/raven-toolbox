@@ -40,17 +40,28 @@ here for traceability of the original review.
 
 ## B. Silent misbehaviour on unusual inputs
 
-- **`manipulation/merge.py` — `merge_models` (`match_by="name"`):** metabolites with
-  the same `name[comp]` but differing `formula`/`charge` across models silently unify
-  to the first-seen (no warning). *Fix:* warn on a formula/charge conflict.
-- **`manipulation/add.py`:** with `allow_new_mets=True`, an unknown/typo'd explicit
-  compartment silently creates a metabolite in a brand-new compartment (the
-  `mets_by="id"` path never validates compartment at all — asymmetric).
-- **`tasks/tasklist.py` — `parse_task_list`:** continuation rows appearing *before* the
-  first ID-bearing row are silently dropped (`current is None`). Undocumented.
-- **`io/sif.py` — `export_model_to_sif`:** node dedup is label-based, so two distinct
-  metabolites/reactions mapped to the same custom label collapse into one edge target.
-  Only with custom label maps.
+All four items in this section were closed in a quality-sweep pass (see CHANGELOG
+"Quality sweep — known-issues section B" entry); regression tests live alongside
+each fixed function. Kept here for traceability of the original review.
+
+- ✅ **`manipulation/merge.py` — `merge_models`:** name[comp]-matched metabolites
+  with differing `formula` or `charge` across models now warn instead of silently
+  unifying to the first-seen. Tests
+  `tests/test_manipulation_merge.py::test_formula_conflict_warns`,
+  `test_charge_conflict_warns`.
+- ✅ **`manipulation/add.py`:** both the `mets_by="id"` and `mets_by="name"` paths
+  now warn when a new metabolite is created in a compartment that hasn't been
+  registered yet (the id-mode path used to skip the check entirely). Tests
+  `tests/test_manipulation_add.py::test_id_mode_unknown_compartment_warns`,
+  `test_name_comp_unknown_compartment_warns`.
+- ✅ **`tasks/tasklist.py` — `parse_task_list`:** continuation rows appearing
+  *before* the first ID-bearing row used to be silently dropped. Now warns
+  with the file:row pointer. Test
+  `tests/test_tasks.py::test_parse_warns_on_data_row_before_first_id`.
+- ✅ **`io/sif.py` — `export_model_to_sif`:** when the caller's custom label
+  map sends two distinct ids to the same label, the target-side dedup used
+  to silently merge the nodes. Now warns up front. Test
+  `tests/test_io_sif.py::test_collapsing_label_map_warns`.
 
 ## C. Robustness gaps
 

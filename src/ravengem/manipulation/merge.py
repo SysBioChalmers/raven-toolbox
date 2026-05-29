@@ -14,6 +14,7 @@ assembly, none of which is needed on ``cobra.Model``.
 from __future__ import annotations
 
 import copy
+import warnings
 from collections.abc import Iterable
 
 import cobra
@@ -76,7 +77,32 @@ def merge_models(
     def ensure_metabolite(src: Metabolite, origin: str) -> Metabolite:
         key = met_key(src)
         if key in met_lookup:
-            return met_lookup[key]
+            existing = met_lookup[key]
+            # Two source models can map to the same name[comp] (or id) with
+            # different formula/charge; silently picking the first-seen has
+            # quietly corrupted mass balance in the past. Warn so the caller
+            # sees the conflict.
+            if src.formula and existing.formula and src.formula != existing.formula:
+                warnings.warn(
+                    f"merge_models: metabolite {existing.id!r} (from earlier model) "
+                    f"and {src.id!r} (from {origin!r}) share key {key!r} but "
+                    f"have different formulas ({existing.formula!r} vs {src.formula!r}); "
+                    "keeping the first.",
+                    stacklevel=3,
+                )
+            if (
+                existing.charge is not None
+                and src.charge is not None
+                and existing.charge != src.charge
+            ):
+                warnings.warn(
+                    f"merge_models: metabolite {existing.id!r} (from earlier model) "
+                    f"and {src.id!r} (from {origin!r}) share key {key!r} but "
+                    f"have different charges ({existing.charge} vs {src.charge}); "
+                    "keeping the first.",
+                    stacklevel=3,
+                )
+            return existing
         new_id = _unique_id(merged.metabolites, src.id, origin)
         new_met = Metabolite(
             new_id, name=src.name, compartment=src.compartment,

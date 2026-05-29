@@ -253,3 +253,26 @@ def test_empty_stoichiometry_warns(model):
             model, [{"id": "R1", "equation": "atp_c --> atp_c"}]
         )
     assert len(rxn.metabolites) == 0
+
+
+# --- regression: unknown-compartment warning (known_issues.md B2) ----------
+
+def test_id_mode_unknown_compartment_warns(model):
+    """A typo'd compartment used to silently produce a one-met ghost compartment
+    in id mode (the name/[comp] path used to validate, id mode never did)."""
+    with pytest.warns(UserWarning, match="unregistered compartment 'cyto'"):
+        add_reactions_from_equations(
+            model,
+            [{"id": "R1", "equation": "atp_c --> amp_c"}],
+            compartment="cyto",  # typo for 'c'
+        )
+
+
+def test_name_comp_unknown_compartment_warns(model):
+    """Same defensive check in the name[comp] path when allow_new_mets=True."""
+    with pytest.warns(UserWarning, match="unregistered compartment 'mito'"):
+        add_reactions_from_equations(
+            model,
+            [{"id": "R1", "equation": "ATP[c] --> AMP[mito]"}],
+            mets_by="name",
+        )

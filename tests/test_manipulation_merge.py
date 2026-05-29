@@ -105,3 +105,32 @@ def test_three_models(model_a, model_b):
 def test_bad_match_by(model_a, model_b):
     with pytest.raises(ValueError, match="match_by"):
         merge_models([model_a, model_b], match_by="oops")
+
+
+# --- regression: formula/charge conflict (known_issues.md B1) --------------
+
+def test_formula_conflict_warns():
+    """Two models sharing a name[comp] but with different formulas warn instead
+    of silently keeping the first."""
+    a = _model("A",
+        [cobra.Metabolite("g1", name="Glucose", formula="C6H12O6", compartment="c")],
+        [{"id": "EX_A", "equation": "g1 -->"}])
+    b = _model("B",
+        [cobra.Metabolite("g2", name="Glucose", formula="C6H12O7", compartment="c")],
+        [{"id": "EX_B", "equation": "g2 -->"}])
+    with pytest.warns(UserWarning, match="different formulas"):
+        merged = merge_models([a, b])
+    # The merge still picks the first-seen — the test asserts the warning fired
+    # and the model survives.
+    assert "EX_A" in merged.reactions and "EX_B" in merged.reactions
+
+
+def test_charge_conflict_warns():
+    a = _model("A",
+        [cobra.Metabolite("g1", name="Glucose", formula="C6H12O6", charge=0, compartment="c")],
+        [{"id": "EX_A", "equation": "g1 -->"}])
+    b = _model("B",
+        [cobra.Metabolite("g2", name="Glucose", formula="C6H12O6", charge=-1, compartment="c")],
+        [{"id": "EX_B", "equation": "g2 -->"}])
+    with pytest.warns(UserWarning, match="different charges"):
+        merge_models([a, b])

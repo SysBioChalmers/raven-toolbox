@@ -68,3 +68,15 @@ def test_cc_does_not_mutate_input(model, tmp_path):
     n_before = len(model.reactions)
     export_model_to_sif(model, tmp_path / "g.sif", "cc")
     assert len(model.reactions) == n_before  # convert_to_irreversible ran on a copy
+
+
+# --- regression: label-map collision (known_issues.md B4) ------------------
+
+def test_collapsing_label_map_warns(model, tmp_path):
+    """A label map that sends two distinct ids to the same label silently merges
+    nodes during the target-side dedup. Now warns so the user sees it."""
+    with pytest.warns(UserWarning, match="multiple ids to the same label"):
+        export_model_to_sif(
+            model, tmp_path / "g.sif", "rc",
+            reaction_labels={"R1": "shared", "R2": "shared"},
+        )

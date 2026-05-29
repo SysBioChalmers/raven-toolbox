@@ -143,6 +143,7 @@ def _resolve_metabolite(
             raise ValueError(
                 f"Cannot create metabolite {token!r}: no compartment given."
             )
+        _warn_unknown_compartment(model, compartment, token)
         met = Metabolite(token, compartment=compartment)
         model.add_metabolites([met])
         return met
@@ -169,9 +170,28 @@ def _resolve_metabolite(
             f"No metabolite named {name!r} in compartment {target_comp!r}; "
             "pass allow_new_mets=True to create it."
         )
+    _warn_unknown_compartment(model, target_comp, name)
     met = Metabolite(_new_met_id(model, new_met_prefix), name=name, compartment=target_comp)
     model.add_metabolites([met])
     return met
+
+
+def _warn_unknown_compartment(model: cobra.Model, compartment: str, identifier: str) -> None:
+    """Warn when a new metabolite would be born into a not-yet-registered compartment.
+
+    Both ``mets_by`` paths previously created the metabolite without validating
+    the compartment, so a typo (``"cyto"`` for ``"c"``) silently produced a
+    one-metabolite ghost compartment. cobra inherits the compartment from the
+    first metabolite assigned to it, so the fix is a warning, not a hard error.
+    """
+    known = set(model.compartments) | set(model._compartments)
+    if compartment not in known:
+        warnings.warn(
+            f"Creating metabolite {identifier!r} in unregistered compartment "
+            f"{compartment!r} (existing: {sorted(known) or 'none'}); "
+            "add the compartment first or check for a typo.",
+            stacklevel=5,
+        )
 
 
 def _stoichiometry(

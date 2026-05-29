@@ -21,6 +21,7 @@ bound is used).
 from __future__ import annotations
 
 import csv
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -83,9 +84,13 @@ def parse_task_list(path: str | Path) -> list[Task]:
         i = col.get(name)
         return row[i].strip() if i is not None and i < len(row) else ""
 
+    # Columns whose presence on an ID-less row signals real continuation data
+    # (vs. pure whitespace/comment), used by the orphan-row warning below.
+    _DATA_COLS = ("IN", "OUT", "EQU", "CHANGED RXN")
+
     tasks: list[Task] = []
     current: Task | None = None
-    for row in rows[header_idx + 1:]:
+    for row_no, row in enumerate(rows[header_idx + 1:], start=header_idx + 2):
         if not any(c.strip() for c in row):
             continue
         rid = cell(row, "ID")
@@ -101,6 +106,14 @@ def parse_task_list(path: str | Path) -> list[Task]:
             )
             tasks.append(current)
         if current is None:
+            # Continuation row appearing before any task ID: silently dropping it
+            # used to mask malformed task files. Warn (and skip) so the user sees it.
+            if any(cell(row, c) for c in _DATA_COLS):
+                warnings.warn(
+                    f"{path}: row {row_no} carries task data but no task ID has "
+                    "been seen yet; the row is being skipped.",
+                    stacklevel=2,
+                )
             continue
         _add_row(current, row, cell)
     return tasks

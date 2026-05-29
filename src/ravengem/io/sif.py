@@ -12,6 +12,8 @@ A SIF line is ``source <tab> graph_type <tab> target1 <tab> target2 ...``.
 """
 from __future__ import annotations
 
+import warnings
+from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -66,6 +68,20 @@ def export_model_to_sif(
 
     rlabels = reaction_labels or {}
     mlabels = metabolite_labels or {}
+
+    # Warn when the label maps collapse multiple distinct ids onto the same
+    # label: target-side dedup runs on labels, so the collision silently merges
+    # two nodes into one edge. Only check the ids actually mapped (cobra default
+    # labels are ids, which can't collide).
+    for kind, lmap in (("reaction", rlabels), ("metabolite", mlabels)):
+        duplicates = [lab for lab, n in Counter(lmap.values()).items() if n > 1]
+        if duplicates:
+            warnings.warn(
+                f"{kind}_labels maps multiple ids to the same label(s) "
+                f"({duplicates[:5]}{'…' if len(duplicates) > 5 else ''}); "
+                "SIF nodes are keyed by label, so those nodes will collapse.",
+                stacklevel=2,
+            )
 
     def label(obj) -> str:
         if isinstance(obj, cobra.Reaction):
