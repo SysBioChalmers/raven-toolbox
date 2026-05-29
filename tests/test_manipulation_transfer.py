@@ -107,3 +107,31 @@ def test_note_and_confidence_stored(draft, source):
     (rxn,) = add_reactions_from_model(draft, source, "HEX", note="from KEGG", confidence=2)
     assert rxn.notes["note"] == "from KEGG"
     assert rxn.notes["confidence_score"] == 2
+
+
+# --- regression: intra-batch met-id minting collision (known_issues.md A3) ---
+
+def test_intra_batch_id_minting_unique():
+    """Two source mets whose ids both collide with the draft and whose name[comp]
+    differs both get routed through new-id minting. The fix tracks ids minted in
+    the current batch so the two don't collapse to the same generated id."""
+    draft = cobra.Model("draft")
+    draft.add_metabolites([
+        cobra.Metabolite("atp_c", name="ATP-draft", compartment="c"),
+        cobra.Metabolite("adp_c", name="ADP-draft", compartment="c"),
+    ])
+    source = cobra.Model("source")
+    source.add_metabolites([
+        cobra.Metabolite("atp_c", name="ATP-source", compartment="c"),
+        cobra.Metabolite("adp_c", name="ADP-source", compartment="c"),
+    ])
+    rxn = cobra.Reaction("R1", lower_bound=0, upper_bound=1000)
+    source.add_reactions([rxn])
+    rxn.add_metabolites({
+        source.metabolites.get_by_id("atp_c"): -1,
+        source.metabolites.get_by_id("adp_c"): 1,
+    })
+    add_reactions_from_model(draft, source, "R1")
+    # Both source mets minted distinct ids (m1 and m2) — not a collision.
+    new_ids = sorted(m.id for m in draft.metabolites if m.id not in ("atp_c", "adp_c"))
+    assert len(new_ids) == 2 and len(set(new_ids)) == 2

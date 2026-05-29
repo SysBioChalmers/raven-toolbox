@@ -9,12 +9,34 @@ builds a ``-1 from / +1 to`` reaction with a sequential ``tr_0001`` ID.
 from __future__ import annotations
 
 import re
+import warnings
 from collections.abc import Iterable
 
 import cobra
 from cobra import Metabolite, Reaction
 
 from ravengem.manipulation.add import _new_met_id
+
+
+def _index_by_name(mets: Iterable[Metabolite], compartment: str) -> dict[str, Metabolite]:
+    """Index metabolites by name, warning when a name is duplicated.
+
+    Same-name duplicates in a single compartment are unusual but legal in cobra,
+    and the previous one-pass dict comprehension silently dropped all but one.
+    """
+    out: dict[str, list[Metabolite]] = {}
+    for m in mets:
+        out.setdefault(m.name, []).append(m)
+    chosen: dict[str, Metabolite] = {}
+    for name, group in out.items():
+        if len(group) > 1:
+            warnings.warn(
+                f"Multiple metabolites named {name!r} in compartment {compartment!r} "
+                f"({[m.id for m in group]}); using {group[0].id!r} for transport.",
+                stacklevel=3,
+            )
+        chosen[name] = group[0]
+    return chosen
 
 
 def _transport_id_factory(model: cobra.Model, prefix: str):
@@ -82,7 +104,10 @@ def add_transport_reactions(
         if comp not in known:
             raise ValueError(f"Compartment {comp!r} is not in the model.")
 
-    source = {m.name: m for m in model.metabolites if m.compartment == from_compartment}
+    source = _index_by_name(
+        (m for m in model.metabolites if m.compartment == from_compartment),
+        from_compartment,
+    )
     if metabolite_names is None:
         names = list(source)
     else:
@@ -101,7 +126,10 @@ def add_transport_reactions(
     added: list[Reaction] = []
     for to_comp in to_compartments:
         to_name = model.compartments.get(to_comp) or to_comp
-        targets = {m.name: m for m in model.metabolites if m.compartment == to_comp}
+        targets = _index_by_name(
+            (m for m in model.metabolites if m.compartment == to_comp),
+            to_comp,
+        )
         for name in names:
             src = source[name]
             dst = targets.get(name)

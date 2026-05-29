@@ -12,6 +12,25 @@ Milestones in the ravengem port. For function-level status see
   (`hybrid_interface.Configuration` rejects `lp_method='primal'`) is marked
   `xfail(strict=True)` so CI flips red when optlang fixes it.
 
+## Quality sweep — known-issues section A
+
+Closed all six "latent edge-case bug" items from [docs/known_issues.md](docs/known_issues.md):
+* `add_reactions_from_equations` no longer misparses `"2 oxoglutarate"` (or any
+  leading-number metabolite name) — the resolver tries the full token before
+  splitting off a coefficient.
+* `add_reactions_from_equations` warns when an equation's terms cancel to a
+  zero-metabolite reaction.
+* `add_reactions_from_model` tracks ids minted within the batch so two source
+  metabolites whose ids both collide with the draft don't collapse onto the
+  same generated id.
+* `add_transport_reactions` warns on duplicate metabolite names in the source
+  or target compartment instead of silently dropping all but one.
+* `connect_blocked_reactions` membership-guards the FVA result before
+  `.at[]` lookup.
+* `assign_kos` rejects `cutoff >= 1` up front — would have crashed inside the
+  ratio filter at `log(best_evalue) == 0`.
+Six new regression tests cover the user-reachable cases.
+
 ## Phase 7 — Localization
 
 * **Sub-cellular localisation by MILP.** [`localization.predict_localization`](src/ravengem/localization/predict.py)

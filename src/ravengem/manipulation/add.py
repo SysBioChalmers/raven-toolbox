@@ -27,6 +27,7 @@ automatically. See IMPROVEMENTS.md (A-series) for the rationale.
 from __future__ import annotations
 
 import re
+import warnings
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 
@@ -54,9 +55,17 @@ def _split_equation(equation: str) -> tuple[str, str, bool]:
     raise ValueError(f"No reaction arrow (<=>, -->, =>) found in equation: {equation!r}")
 
 
-def _parse_side(side: str) -> list[tuple[float, str]]:
-    """Parse one side of an equation into [(coefficient, token), ...]."""
-    terms: list[tuple[float, str]] = []
+def _parse_side(side: str) -> list[tuple[float, str, str | None]]:
+    """Parse one side of an equation into ``[(coefficient, token, fallback), ...]``.
+
+    The ``fallback`` slot is for the ambiguous ``"<number> <rest>"`` shape: when
+    matching by name, ``"2 oxoglutarate"`` could be either ``coeff=2, name="oxoglutarate"``
+    or ``coeff=1, name="2 oxoglutarate"`` (a real chemistry name). We return the
+    coefficient-split form as the primary and the full term as the fallback; the
+    resolver picks whichever matches an existing metabolite. Pure-number heads
+    with no name (``"2"``) and pure-name terms (``"glucose"``) have no fallback.
+    """
+    terms: list[tuple[float, str, str | None]] = []
     for raw in side.split(" + "):
         term = raw.strip()
         if not term:
@@ -67,9 +76,14 @@ def _parse_side(side: str) -> list[tuple[float, str]]:
             token = tail.strip()
         except ValueError:
             coeff, token = 1.0, term
+            fallback = None
+        else:
+            # Coefficient-split succeeded. Keep the full term as a fallback when
+            # the tail is non-empty so name-resolution can re-try it as one token.
+            fallback = term if token else None
         if not token:
             raise ValueError(f"Missing metabolite after coefficient in term: {raw!r}")
-        terms.append((coeff, token))
+        terms.append((coeff, token, fallback))
     return terms
 
 
@@ -81,6 +95,28 @@ def _new_met_id(model: cobra.Model, prefix: str) -> str:
     while f"{prefix}{n}" in model.metabolites:
         n += 1
     return f"{prefix}{n}"
+
+
+def _try_existing(
+    model: cobra.Model, token: str, *, mets_by: str, compartment: str | None
+) -> Metabolite | None:
+    """Look up ``token`` as an existing metabolite (no creation, no side effects).
+
+    Returns the matching metabolite or ``None``. Used by ``_stoichiometry`` to
+    disambiguate the ``"<number> <rest>"`` shape: if a metabolite whose *name*
+    (or id) literally contains a leading number exists, prefer it over splitting
+    the number off as a coefficient.
+    """
+    name, comp = parse_name_comp(token)
+    if mets_by == "id" and comp is None:
+        return model.metabolites.get_by_id(token) if token in model.metabolites else None
+    target_comp = comp if comp is not None else compartment
+    if target_comp is None:
+        return None
+    for met in model.metabolites:
+        if met.name == name and met.compartment == target_comp:
+            return met
+    return None
 
 
 def _resolve_metabolite(
@@ -150,19 +186,39 @@ def _stoichiometry(
     """Parse an equation into a {Metabolite: net coefficient} dict + reversibility."""
     lhs, rhs, reversible = _split_equation(equation)
     coeffs: OrderedDict[Metabolite, float] = OrderedDict()
+    had_terms = False
     for sign, side in ((-1.0, lhs), (1.0, rhs)):
-        for coeff, token in _parse_side(side):
-            met = _resolve_metabolite(
-                model,
-                token,
-                mets_by=mets_by,
-                compartment=compartment,
-                allow_new_mets=allow_new_mets,
-                new_met_prefix=new_met_prefix,
-            )
+        for coeff, token, fallback in _parse_side(side):
+            had_terms = True
+            # "<number> <name>" is ambiguous when the name itself starts with a
+            # number (e.g. "2 oxoglutarate"). Prefer the full-term interpretation
+            # when it matches an existing metabolite — otherwise fall through to
+            # the coefficient-split form.
+            met = None
+            if fallback is not None:
+                met = _try_existing(
+                    model, fallback, mets_by=mets_by, compartment=compartment
+                )
+                if met is not None:
+                    coeff = 1.0
+            if met is None:
+                met = _resolve_metabolite(
+                    model,
+                    token,
+                    mets_by=mets_by,
+                    compartment=compartment,
+                    allow_new_mets=allow_new_mets,
+                    new_met_prefix=new_met_prefix,
+                )
             coeffs[met] = coeffs.get(met, 0.0) + sign * coeff
     # Drop metabolites that net to zero (present as both substrate and product).
     coeffs = OrderedDict((met, c) for met, c in coeffs.items() if c != 0.0)
+    if had_terms and not coeffs:
+        warnings.warn(
+            f"Equation {equation!r} has no net metabolites (all terms cancelled); "
+            "the reaction will be added with empty stoichiometry.",
+            stacklevel=4,
+        )
     return dict(coeffs), reversible
 
 

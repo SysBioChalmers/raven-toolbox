@@ -86,6 +86,14 @@ def test_zero_evalue_does_not_crash():
     assert assign_kos(hits) == {"K1": ["g"]}
 
 
+def test_cutoff_ge_one_rejected():
+    """cutoff >= 1 would let log(best_evalue)=0 through and ZeroDivisionError later
+    (known_issues.md A6). Reject up front with a clear message."""
+    hits = pd.DataFrame([("K1", "g", 0.5)], columns=["ko", "gene", "evalue"])
+    with pytest.raises(ValueError, match="cutoff must be < 1"):
+        assign_kos(hits, cutoff=1.0)
+
+
 # --------------------------------------------------------------------------- #
 # Model assembly via the HMM path (hmmscan mocked)
 # --------------------------------------------------------------------------- #

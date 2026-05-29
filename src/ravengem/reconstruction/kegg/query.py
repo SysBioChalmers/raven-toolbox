@@ -108,6 +108,15 @@ def assign_kos(
     four organisms (identical output at 0.0/0.3/0.5) and is kept only for RAVEN
     parity.
     """
+    # The ratio filters compare log(evalue)/log(best_evalue); when best == 1.0
+    # the denominator is 0 → ZeroDivisionError. The default cutoff (1e-30) keeps
+    # us safely away, but a caller-passed cutoff ≥ 1 is ambiguous and would
+    # crash later. Reject it up front with a clear message.
+    if cutoff >= 1:
+        raise ValueError(
+            f"cutoff must be < 1 (smaller E-value = better hit); got {cutoff!r}."
+        )
+
     # Best (smallest) E-value per (ko, gene), filtered at the cut-off.
     mat: dict[str, dict[str, float]] = {}
     for ko, gene, evalue in zip(hits["ko"], hits["gene"], hits["evalue"], strict=True):

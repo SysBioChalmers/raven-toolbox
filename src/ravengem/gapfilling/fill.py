@@ -146,7 +146,13 @@ def connect_blocked_reactions(
     target: list[str] = []
     if candidates:
         fva = flux_variability_analysis(working, reaction_list=candidates, fraction_of_optimum=0.0)
-        target = [r for r in candidates if fva.at[r, "maximum"] > eps]
+        # A reaction can be missing from the FVA frame if the solver dropped it
+        # (e.g. the reaction was eliminated upstream); treat that as "unreachable"
+        # rather than letting the KeyError propagate.
+        target = [
+            r for r in candidates
+            if r in fva.index and fva.at[r, "maximum"] > eps
+        ]
 
     cannot = sorted(blocked - set(target))
     if not target:

@@ -82,3 +82,17 @@ def test_unknown_compartment_raises(model):
 def test_unknown_metabolite_raises(model):
     with pytest.raises(ValueError, match="not found in compartment"):
         add_transport_reactions(model, "c", "m", ["NOPE"])
+
+
+# --- regression: duplicate name in compartment (known_issues.md A4) --------
+
+def test_duplicate_name_in_source_compartment_warns(model):
+    """Two source mets sharing a name in the same compartment warn instead of
+    silently collapsing — previously one was dropped from the lookup dict."""
+    model.add_metabolites([
+        cobra.Metabolite("h2o2_c", name="H2O", compartment="c"),  # duplicate name
+    ])
+    with pytest.warns(UserWarning, match="Multiple metabolites named 'H2O'"):
+        added = add_transport_reactions(model, "c", "m", ["H2O"], only_to_existing=False)
+    # Transport still works (uses the first match) — the warning is the signal.
+    assert len(added) == 1

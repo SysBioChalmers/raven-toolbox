@@ -86,13 +86,27 @@ def add_reactions_from_model(
     draft_by_name = {_name_comp(m): m for m in model.metabolites}
     new_mets: list[Metabolite] = []
     pending: set[str] = set()
+    # Track ids minted within this batch so two source mets that share an id
+    # but differ in name[comp] don't collide when add_metabolites runs.
+    pending_ids: set[str] = set()
     for srx in source_rxns:
         for met in srx.metabolites:
             key = _name_comp(met)
             if key in draft_by_name or key in pending:
                 continue
             pending.add(key)
-            new_id = met.id if met.id not in model.metabolites else _new_met_id(model, "m")
+            if met.id not in model.metabolites and met.id not in pending_ids:
+                new_id = met.id
+            else:
+                # _new_met_id only knows the model; loop past in-batch hits too.
+                new_id = _new_met_id(model, "m")
+                while new_id in pending_ids:
+                    n = int(new_id[1:]) + 1
+                    new_id = f"m{n}"
+                    while new_id in model.metabolites:
+                        n += 1
+                        new_id = f"m{n}"
+            pending_ids.add(new_id)
             new_met = Metabolite(
                 new_id,
                 name=met.name,

@@ -6,34 +6,37 @@ not fixed yet: each is an edge case, robustness gap, efficiency concern, dead co
 a documented design choice — none affects correctness on normal, well-formed inputs.
 Line numbers are indicative; refer to the named function.
 
-## A. Latent edge-case bugs (rare crashes / silent misbehaviour)
+## A. Latent edge-case bugs
 
-- **`manipulation/add.py` — `add_reactions_from_equations` (name mode):** a metabolite
-  whose *name* starts with a number (e.g. `"2 oxoglutarate"`) is misparsed — the
-  leading number is taken as a stoichiometric coefficient, silently corrupting the
-  equation. RAVEN's parser has the same fragility. *Fix:* in `mets_by="name"` mode,
-  only treat a leading token as a coefficient if the remainder still resolves to a
-  known metabolite, or require explicit numeric+space only when the rest is a met.
-- **`manipulation/add.py` — `add_reactions_from_equations`:** an equation whose terms
-  net to zero produces a reaction with no metabolites and no warning. *Fix:* warn or
-  skip empty reactions.
-- **`manipulation/transfer.py` — `add_reactions_from_model` (`_new_met_id`):** two
-  source metabolites sharing an `id` but different `name[comp]`, neither already in the
-  draft, both pass the "not in model" check and get assigned the same new id →
-  `add_metabolites` collision/crash. *Fix:* track already-assigned new ids within the
-  batch and route intra-batch collisions through `_new_met_id` too.
-- **`manipulation/transport.py` — `add_transport_reactions`:** the source-metabolite
-  lookup is keyed by name (`{m.name: m}`), so two metabolites sharing a name in the
-  source compartment silently collapse (one is dropped from transport). *Fix:* group
-  by name → list, or key by id.
-- **`gapfilling/fill.py` — `connect_blocked_reactions`:** `fva.at[r, "maximum"]`
-  assumes every candidate appears in the FVA index; a `KeyError` results if FVA drops
-  one. *Fix:* `.get`/membership guard.
-- **`reconstruction/kegg/query.py` — `assign_kos`:** divides by `log(best_evalue)`,
-  which is `0` when the best E-value in a group is exactly `1.0` → `ZeroDivisionError`.
-  Guarded in practice (default `cutoff=1e-30` excludes `evalue==1`), but reachable when
-  a caller passes `cutoff >= 1`. *Fix:* clamp the cutoff `< 1` or special-case
-  `log_best == 0`.
+All six items in this section were closed in a quality-sweep pass (see CHANGELOG
+"Quality sweep" entry); regression tests live alongside each fixed function. Kept
+here for traceability of the original review.
+
+- ✅ **`manipulation/add.py` — `add_reactions_from_equations` (name mode):** a
+  metabolite whose *name* starts with a number (e.g. `"2 oxoglutarate"`) was
+  misparsed — the leading number was taken as a coefficient. Fixed by trying the
+  full token as a name first and only splitting off a coefficient when the
+  remainder names something resolvable. Test:
+  `tests/test_manipulation_add.py::test_name_mode_preserves_leading_number_name`.
+- ✅ **`manipulation/add.py` — `add_reactions_from_equations`:** an equation whose
+  terms net to zero produced a reaction with no metabolites and no warning. Now
+  warns. Test: `test_empty_stoichiometry_warns`.
+- ✅ **`manipulation/transfer.py` — `add_reactions_from_model` (`_new_met_id`):**
+  two source metabolites sharing an `id` but different `name[comp]`, both
+  needing minted ids, used to collide. Now tracks ids minted in the batch.
+  Test: `tests/test_manipulation_transfer.py::test_intra_batch_id_minting_unique`.
+- ✅ **`manipulation/transport.py` — `add_transport_reactions`:** the
+  source/target metabolite lookup was keyed by name, silently dropping
+  same-name duplicates. Now warns on collision. Test:
+  `tests/test_manipulation_transport.py::test_duplicate_name_in_source_compartment_warns`.
+- ✅ **`gapfilling/fill.py` — `connect_blocked_reactions`:** the
+  `fva.at[r, "maximum"]` access used to crash with `KeyError` if FVA dropped a
+  candidate. Now membership-guarded (defensive — the original is unreachable
+  with cobra's default FVA, no regression test).
+- ✅ **`reconstruction/kegg/query.py` — `assign_kos`:** `cutoff >= 1` would let
+  `log(best_evalue) == 0` through and crash inside the ratio filter. Now
+  rejected up front with a clear error. Test:
+  `tests/test_reconstruction_kegg_query.py::test_cutoff_ge_one_rejected`.
 
 ## B. Silent misbehaviour on unusual inputs
 

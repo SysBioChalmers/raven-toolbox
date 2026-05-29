@@ -209,3 +209,47 @@ def test_missing_equation_errors(model):
 def test_no_arrow_errors(model):
     with pytest.raises(ValueError, match="No reaction arrow"):
         add_reactions_from_equations(model, [{"id": "R1", "equation": "atp_c + h2o_c"}])
+
+
+# --- regression: leading-number metabolite name (known_issues.md A1) -------
+
+def test_name_mode_preserves_leading_number_name(model):
+    """A metabolite name that begins with a number isn't misparsed as a coefficient.
+
+    Before the fix the token ``"2 oxoglutarate"`` was parsed as ``(coeff=2, name="oxoglutarate")``
+    silently — corrupting the stoichiometry. The resolver now prefers the full
+    token when it matches an existing metabolite name.
+    """
+    model.add_metabolites([
+        cobra.Metabolite("akg_c", name="2 oxoglutarate", compartment="c"),
+    ])
+    (rxn,) = add_reactions_from_equations(
+        model,
+        [{"id": "R1", "equation": "ATP + 2 oxoglutarate --> ADP"}],
+        mets_by="name",
+        compartment="c",
+    )
+    assert rxn.get_coefficient("akg_c") == -1.0  # not -2.0
+    assert rxn.get_coefficient("atp_c") == -1.0
+
+
+def test_name_mode_coefficient_still_works_without_collision(model):
+    """If the full token doesn't match anything, fall back to coefficient split."""
+    (rxn,) = add_reactions_from_equations(
+        model,
+        [{"id": "R1", "equation": "2 ATP + H2O --> ADP + phosphate"}],
+        mets_by="name",
+        compartment="c",
+    )
+    assert rxn.get_coefficient("atp_c") == -2.0
+
+
+# --- regression: empty-stoichiometry warning (known_issues.md A2) ----------
+
+def test_empty_stoichiometry_warns(model):
+    """All-terms-cancel reaction warns instead of silently shipping an empty rxn."""
+    with pytest.warns(UserWarning, match="no net metabolites"):
+        (rxn,) = add_reactions_from_equations(
+            model, [{"id": "R1", "equation": "atp_c --> atp_c"}]
+        )
+    assert len(rxn.metabolites) == 0
