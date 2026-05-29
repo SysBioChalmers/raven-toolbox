@@ -103,14 +103,22 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     archive = dest_dir / "_download.zip"
-    with urlopen(entry["url"]) as resp, open(archive, "wb") as out:  # noqa: S310 (trusted registry URLs)
-        shutil.copyfileobj(resp, out)
-    digest = _sha256(archive)
-    if digest != entry["sha256"]:
-        archive.unlink(missing_ok=True)
-        raise ValueError(
-            f"SHA256 mismatch for {executable!r} ({key}): expected {entry['sha256']}, got {digest}."
-        )
+    # Download into a sibling .part file and rename on success — an interrupted
+    # download leaves the partial behind .part, never as a half-complete .zip
+    # that a later run might mistake for a finished one. Mirrors data.py.
+    part = archive.with_suffix(archive.suffix + ".part")
+    try:
+        with urlopen(entry["url"]) as resp, open(part, "wb") as out:  # noqa: S310
+            shutil.copyfileobj(resp, out)
+        digest = _sha256(part)
+        if digest != entry["sha256"]:
+            raise ValueError(
+                f"SHA256 mismatch for {executable!r} ({key}): "
+                f"expected {entry['sha256']}, got {digest}."
+            )
+        os.replace(part, archive)
+    finally:
+        part.unlink(missing_ok=True)
     with zipfile.ZipFile(archive) as zf:
         zf.extractall(dest_dir)
     archive.unlink(missing_ok=True)

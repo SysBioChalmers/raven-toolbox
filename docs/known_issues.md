@@ -65,37 +65,46 @@ each fixed function. Kept here for traceability of the original review.
 
 ## C. Robustness gaps
 
-- **`manipulation/simplify.py` — `constrain_reversible_reactions`:** uses
-  `fraction_of_optimum=0` FVA; on an infeasible model the NaN ranges make the
-  `abs(lo) < eps` comparisons silently no-op rather than erroring.
-- **`binaries.py` — `ensure_binary`:** an interrupted download leaves a stale
-  `_download.zip` in the cache (self-healing on retry, since the next call overwrites,
-  but it lingers on error). `data.py` does this better with a `.part` temp + atomic
-  `replace`. Also, a cached binary's integrity isn't verified before reuse.
-- **`tasks/tasklist.py`:** the xlsx reader assumes a sheet literally named `TASKS`;
-  any other name raises a bare `KeyError`. (The whole xlsx path is also untested.)
-- **`reconstruction/kegg/taxonomy.py`:** depth handling assumes no skipped levels
-  (a `####` directly under a `##`); real KEGG taxonomy is well-formed, and the domain
-  classification consumed downstream stays correct, so robustness-only.
+All four items closed in the same quality sweep (see CHANGELOG); regression
+tests live alongside each fixed function.
+
+- ✅ **`manipulation/simplify.py` — `constrain_reversible_reactions`:** the
+  FVA call is now wrapped in a try/except + NaN check; both backend-raised
+  `OptimizationError` and silent-NaN returns surface as a single clear
+  `RuntimeError`. Test
+  `tests/test_manipulation_simplify.py::test_constrain_reversible_raises_on_infeasible`.
+- ✅ **`binaries.py` — `ensure_binary`:** downloads through a `.part` sibling
+  and `os.replace`s into the final name on success, mirroring `data.py`.
+  An interrupted download leaves a `.part` (never a half-written `.zip`).
+  Defensive — no regression test (needs urlopen mocking).
+- ✅ **`tasks/tasklist.py`:** the xlsx reader checks `wb.sheetnames` before
+  the `wb["TASKS"]` lookup; a missing sheet now raises a clear `ValueError`
+  listing the actual sheets. Test
+  `tests/test_tasks.py::test_parse_task_list_xlsx_missing_tasks_sheet`.
+- ✅ **`reconstruction/kegg/taxonomy.py`:** depth handling pads with explicit
+  `""` placeholders and warns once when a level is skipped (e.g. `####`
+  directly under `##`). Test
+  `tests/test_reconstruction_kegg_hmm.py::test_parse_taxonomy_handles_skipped_depth`.
 
 ## D. Efficiency (correct but slow at scale)
 
-- **`manipulation/simplify.py` — `group_linear_reactions`:** restarts the full
-  scan after *every* merge (O(n²·m) on large models). (Note: `init/merge.py`'s
-  `merge_linear` is the ftINIT-grade implementation; this `simplifyModel` variant is
-  the lossy gene-dropping one.) *Fix:* don't `break` on each merge, or maintain live
-  incidence as `merge_linear` discusses.
-- **`reconstruction/kegg/parse.py`:** `_parse_equation` runs once per reaction in
-  `parse_kegg_reactions` and again in `build_reference_model` — a full redundant parse.
-  Maintainer-only, run-once, so low impact.
+- ✅ **`manipulation/simplify.py` — `group_linear_reactions`:** rewritten with
+  a metabolite worklist (re-enqueue the mets touched by each merge) instead of
+  the restart-after-every-merge loop. Same observable behaviour, O(n+m) work
+  per pass instead of O(n²·m). Test
+  `tests/test_manipulation_simplify.py::test_group_linear_merges_long_chain_in_one_pass`.
+- ✅ **`reconstruction/kegg/parse.py`:** `parse_kegg_reactions` now caches the
+  parsed stoichiometry on each `KeggReaction.stoichiometry`; `build_reference_model`
+  reuses it instead of re-parsing. Test
+  `tests/test_reconstruction_kegg_parse.py::test_stoichiometry_cached`.
 
 ## E. Dead / vestigial code
 
-- **`reconstruction/kegg/parse.py`:** `KeggReaction.modules` (and `rhea`) are parsed
-  and stored but never written to any artefact — dead data collection.
-- **`reconstruction/homology/homology.py`:** `only_genes_in_models` is threaded into
-  `_ortholog_map`'s signature but never referenced there (the filtering happens
-  earlier); vestigial.
+- ✅ **`reconstruction/kegg/parse.py`:** removed `KeggReaction.modules` and
+  `.rhea` (parsed but never consumed by the artefact builders).
+- ✅ **`reconstruction/homology/homology.py`:** removed the vestigial
+  `only_genes_in_models` parameter from `_ortholog_map` (the actual filtering
+  happens earlier in `get_model_from_homology`).
 
 ## F. Documented design choices that differ from RAVEN (not bugs)
 

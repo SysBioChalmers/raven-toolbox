@@ -1,5 +1,6 @@
 """Tests for simplifyModel reduction modes."""
 import cobra
+import pytest
 
 from ravengem.manipulation import (
     add_reactions_from_equations,
@@ -138,3 +139,46 @@ def test_group_linear_discards_genes():
     )
     group_linear_reactions(m)
     assert len(m.genes) == 0
+
+
+# --- regression: incremental merge collapses a long chain (known_issues.md D1) ---
+
+def test_group_linear_merges_long_chain_in_one_pass():
+    """The incremental scan still flattens a 5-reaction linear chain — the
+    correctness property the original O(n²·m) restart-after-merge loop had."""
+    m = cobra.Model("t")
+    m.add_metabolites([cobra.Metabolite(x, compartment="c") for x in "abcdef"])
+    add_reactions_from_equations(
+        m,
+        [
+            {"id": "R_in", "equation": " --> a"},
+            {"id": "R1", "equation": "a --> b"},
+            {"id": "R2", "equation": "b --> c"},
+            {"id": "R3", "equation": "c --> d"},
+            {"id": "R4", "equation": "d --> e"},
+            {"id": "R5", "equation": "e --> f"},
+            {"id": "R_out", "equation": "f --> "},
+        ],
+    )
+    group_linear_reactions(m)
+    # All the chain's internal metabolites are gone.
+    assert {x for x in m.metabolites if x.id in {"b", "c", "d", "e"}} == set()
+
+
+# --- regression: NaN FVA on infeasible model (known_issues.md C1) ----------
+
+def test_constrain_reversible_raises_on_infeasible():
+    """An infeasible model produces NaN FVA ranges; the old abs(NaN) < eps
+    check silently treated those as 'truly reversible'. Now raises."""
+    m = cobra.Model("t")
+    a, b = (cobra.Metabolite(x, compartment="c") for x in ("a", "b"))
+    m.add_metabolites([a, b])
+    # Force a contradiction: r requires production AND consumption of a, but
+    # nothing else produces a.
+    r = cobra.Reaction("r", lower_bound=-1, upper_bound=1)
+    r.add_metabolites({a: -1, b: 1})
+    forced = cobra.Reaction("forced", lower_bound=5, upper_bound=10)  # infeasible
+    forced.add_metabolites({a: -1})
+    m.add_reactions([r, forced])
+    with pytest.raises(RuntimeError, match="infeasible"):
+        constrain_reversible_reactions(m)

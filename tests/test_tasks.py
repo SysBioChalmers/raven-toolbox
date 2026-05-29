@@ -69,6 +69,20 @@ def test_parse_warns_on_data_row_before_first_id(tmp_path):
     assert tasks[0].inputs == []
 
 
+def test_parse_task_list_xlsx_missing_tasks_sheet(tmp_path):
+    """A .xlsx without a 'TASKS' sheet used to raise a bare KeyError; now
+    raises a clear ValueError naming the actual sheets (known_issues.md C3)."""
+    pytest.importorskip("openpyxl")
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.active.title = "NotTasks"
+    p = tmp_path / "wrong.xlsx"
+    wb.save(p)
+    with pytest.raises(ValueError, match="no sheet named 'TASKS'"):
+        parse_task_list(p)
+
+
 # --------------------------------------------------------------------------- #
 # check_tasks
 # --------------------------------------------------------------------------- #

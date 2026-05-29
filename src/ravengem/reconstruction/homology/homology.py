@@ -117,7 +117,7 @@ def _strictness_to_params(strictness, bidirectional, best_hits_only, complex_pol
 
 def _ortholog_map(
     hits, model_for, model_ids, *, bidirectional, best_hits_only, score, map_direction,
-    only_genes_in_models, model_genes, max_evalue, min_align_len, min_identity,
+    model_genes, max_evalue, min_align_len, min_identity,
 ):
     """Build {model_id: {template_gene: [new_gene, ...]}} from the hits table."""
     h = hits[
@@ -235,7 +235,7 @@ def get_model_from_homology(
 
     ortho = _ortholog_map(
         hits, model_for, model_ids, bidirectional=bidirectional, best_hits_only=best_hits_only,
-        score=score, map_direction=map_direction, only_genes_in_models=only_genes_in_models,
+        score=score, map_direction=map_direction,
         model_genes=model_genes, max_evalue=max_evalue, min_align_len=min_align_len,
         min_identity=min_identity,
     )

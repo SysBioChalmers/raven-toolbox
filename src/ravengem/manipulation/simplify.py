@@ -13,6 +13,7 @@ Cobra-covered modes that you'd reach for separately:
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 
 import cobra
@@ -121,12 +122,37 @@ def constrain_reversible_reactions(
     revs = [r for r in model.reactions if r.lower_bound < 0 < r.upper_bound]
     if not revs:
         return []
-    fva = flux_variability_analysis(model, reaction_list=revs, fraction_of_optimum=0.0)
+    # Infeasible models surface as either OptimizationError (Gurobi/HiGHS) or
+    # NaN-filled ranges (some optlang backends silently). Catch both and raise
+    # a single clear error — the original ``abs(NaN) < eps`` comparison would
+    # have silently no-op'd, letting bogus "all reactions truly reversible"
+    # decisions sneak through.
+    try:
+        fva = flux_variability_analysis(
+            model, reaction_list=revs, fraction_of_optimum=0.0
+        )
+    except Exception as exc:  # noqa: BLE001 - solver-family agnostic
+        raise RuntimeError(
+            "constrain_reversible_reactions: FVA failed — the model is likely "
+            "infeasible at fraction_of_optimum=0. Fix the infeasibility first "
+            "(often a missing exchange or an over-constrained essential). "
+            f"({exc})"
+        ) from exc
+    if fva[["minimum", "maximum"]].isna().any().any():
+        raise RuntimeError(
+            "constrain_reversible_reactions: FVA returned NaN ranges — the "
+            "model is infeasible at fraction_of_optimum=0. Fix the infeasibility "
+            "first (often a missing exchange or an over-constrained essential)."
+        )
 
     changed: list[str] = []
     for rxn in revs:
         lo = fva.at[rxn.id, "minimum"]
         hi = fva.at[rxn.id, "maximum"]
+        # Guard against ±inf ranges (unbounded objective): treat them as truly
+        # reversible rather than "zero" by the abs(·) < eps check.
+        if math.isinf(lo) or math.isinf(hi):
+            continue
         min_zero, max_zero = abs(lo) < eps, abs(hi) < eps
         if min_zero == max_zero:  # both ~0 (blocked) or both nonzero (truly reversible)
             continue
@@ -162,30 +188,42 @@ def group_linear_reactions(
 
     convert_to_irreversible(model)
 
-    while True:
-        merged = False
-        for met in list(model.metabolites):
-            rxns = list(met.reactions)
-            if len(rxns) != 2 or any(r.id in reserved for r in rxns):
-                continue
-            r1, r2 = rxns
-            c1, c2 = r1.get_coefficient(met), r2.get_coefficient(met)
-            if (c1 > 0) == (c2 > 0):  # need one producer and one consumer
-                continue
-            ratio = abs(c1 / c2)
-            new_lb = max(r1.lower_bound, r2.lower_bound / ratio)
-            new_ub = min(r1.upper_bound, r2.upper_bound / ratio)
-            new_obj = r1.objective_coefficient + r2.objective_coefficient * ratio
-            # Merge r2*ratio into r1; the shared metabolite cancels and is dropped.
-            r1.add_metabolites({m: c * ratio for m, c in r2.metabolites.items()})
-            model.remove_reactions([r2])
-            r1.bounds = (new_lb, new_ub)
-            r1.objective_coefficient = new_obj
-            merged = True
-            break
-        if not merged:
-            break
-        empty = [r for r in model.reactions if not r.metabolites]
-        if empty:
-            model.remove_reactions(empty)
-        _prune_orphan_metabolites(model)
+    # Worklist of metabolites to (re)consider for merging. Each metabolite
+    # participating in a merge can expose new linear chains in its neighbours,
+    # so we re-enqueue the touched mets rather than restart the whole scan
+    # (the old O(n²·m) restart-after-every-merge loop).
+    pending: list = list(model.metabolites)
+    seen_in_pass: set = set()
+    while pending:
+        met = pending.pop()
+        if met not in model.metabolites:  # removed in a previous merge
+            continue
+        rxns = list(met.reactions)
+        if len(rxns) != 2 or any(r.id in reserved for r in rxns):
+            continue
+        r1, r2 = rxns
+        c1, c2 = r1.get_coefficient(met), r2.get_coefficient(met)
+        if (c1 > 0) == (c2 > 0):  # need one producer and one consumer
+            continue
+        ratio = abs(c1 / c2)
+        new_lb = max(r1.lower_bound, r2.lower_bound / ratio)
+        new_ub = min(r1.upper_bound, r2.upper_bound / ratio)
+        new_obj = r1.objective_coefficient + r2.objective_coefficient * ratio
+        # Re-enqueue every metabolite touched by either side — the merge can
+        # turn neighbours into single-producer/consumer chains in turn.
+        touched = {m for m in r1.metabolites} | {m for m in r2.metabolites}
+        # Merge r2*ratio into r1; the shared metabolite cancels and is dropped.
+        r1.add_metabolites({m: c * ratio for m, c in r2.metabolites.items()})
+        model.remove_reactions([r2])
+        r1.bounds = (new_lb, new_ub)
+        r1.objective_coefficient = new_obj
+        seen_in_pass.clear()
+        for m in touched:
+            if m in model.metabolites and id(m) not in seen_in_pass:
+                seen_in_pass.add(id(m))
+                pending.append(m)
+    # One terminal cleanup pass (cheap; only what remains).
+    empty = [r for r in model.reactions if not r.metabolites]
+    if empty:
+        model.remove_reactions(empty)
+    _prune_orphan_metabolites(model)

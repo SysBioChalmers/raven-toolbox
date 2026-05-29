@@ -12,6 +12,36 @@ Milestones in the ravengem port. For function-level status see
   (`hybrid_interface.Configuration` rejects `lp_method='primal'`) is marked
   `xfail(strict=True)` so CI flips red when optlang fixes it.
 
+## Quality sweep — known-issues sections C / D / E
+
+Closed all the robustness, efficiency, and dead-code items in one pass.
+
+**Robustness (C):**
+* `constrain_reversible_reactions` wraps FVA in try/except + NaN check; both
+  backend-raised `OptimizationError` and silent-NaN returns now surface as one
+  clear `RuntimeError` (the original `abs(NaN) < eps` silently no-op'd).
+* `ensure_binary` downloads through `.part` + `os.replace`, matching `data.py` —
+  an interrupted download leaves a `.part`, never a half-complete `.zip`.
+* `parse_task_list` (.xlsx) checks `wb.sheetnames` before lookup; missing
+  `TASKS` sheet now raises a clear `ValueError` instead of a bare `KeyError`.
+* `parse_taxonomy` pads with explicit `""` when a depth level is skipped and
+  warns once.
+
+**Efficiency (D):**
+* `group_linear_reactions` rewritten with a metabolite worklist (re-enqueue
+  the mets touched by each merge); same observable result, O(n+m) work per
+  pass instead of restarting the full scan after every merge.
+* `parse_kegg_reactions` now caches the parsed stoichiometry on each
+  `KeggReaction.stoichiometry`; `build_reference_model` reuses it instead of
+  re-parsing.
+
+**Dead code (E):**
+* Dropped `KeggReaction.modules` and `.rhea` (parsed but never consumed).
+* Dropped the vestigial `only_genes_in_models` parameter from `_ortholog_map`.
+
+Six new regression tests; the only one without a test is the `.part` atomic
+download (defensive, needs urlopen mocking).
+
 ## Quality sweep — known-issues section B
 
 Closed all four "silent misbehaviour" items from [docs/known_issues.md](docs/known_issues.md):

@@ -60,6 +60,22 @@ def test_organisms_in_domain_prefix_match():
     assert organisms_in_domain(DUMP / "taxonomy", "Eukaryotes") == {"hsa"}
 
 
+def test_parse_taxonomy_handles_skipped_depth(tmp_path):
+    """A ``##`` directly under a ``#`` (skipping ``##`` level) used to corrupt
+    the stack. Now pads with '' placeholders and warns once (known_issues.md C4)."""
+    p = tmp_path / "tax"
+    p.write_text(
+        "#Domain1\n"
+        "###Skipped\n"          # skips ##
+        "T9999\torg1\tan org\n"
+    )
+    with pytest.warns(UserWarning, match="depth skips a level"):
+        cats = parse_taxonomy(p)
+    # Domain still recoverable; the missing level is a placeholder.
+    assert cats["org1"][0] == "Domain1"
+    assert cats["org1"][-1] == "Skipped"
+
+
 # --------------------------------------------------------------------------- #
 # build_ko_fastas (constructMultiFasta)
 # --------------------------------------------------------------------------- #

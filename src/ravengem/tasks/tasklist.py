@@ -63,7 +63,13 @@ def _read_rows(path: str | Path) -> list[list[str]]:
             from openpyxl import load_workbook
         except ImportError as exc:  # pragma: no cover - optional dep
             raise ImportError("Reading .xlsx task lists needs the '[excel]' extra (openpyxl).") from exc
-        ws = load_workbook(path, data_only=True)["TASKS"]
+        wb = load_workbook(path, data_only=True)
+        if "TASKS" not in wb.sheetnames:
+            raise ValueError(
+                f"{path}: workbook has no sheet named 'TASKS' "
+                f"(found: {wb.sheetnames}). Rename the sheet or pick that file."
+            )
+        ws = wb["TASKS"]
         return [["" if c is None else str(c) for c in row] for row in ws.iter_rows(values_only=True)]
     with open(path, encoding="utf-8", newline="") as handle:
         return [row for row in csv.reader(handle, delimiter="\t")]

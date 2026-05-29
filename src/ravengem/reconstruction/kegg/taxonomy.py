@@ -12,6 +12,7 @@ for phylogenetic distances.
 """
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 
@@ -19,15 +20,30 @@ def parse_taxonomy(path: str | Path) -> dict[str, list[str]]:
     """Return ``{organism_id: [category, ...]}`` from outermost to innermost."""
     org_categories: dict[str, list[str]] = {}
     stack: list[str] = []
+    skipped_level_warned = False
     with open(path, encoding="utf-8") as handle:
-        for raw in handle:
+        for line_no, raw in enumerate(handle, start=1):
             line = raw.rstrip("\n")
             if not line.strip():
                 continue
             if line.startswith("#"):
                 depth = len(line) - len(line.lstrip("#"))
                 name = line[depth:].strip()
-                stack = stack[: depth - 1]
+                if depth - 1 > len(stack):
+                    # Depth-skip (e.g. ## then ####): the original `stack[:depth-1]`
+                    # silently produced a too-short lineage. Pad with explicit
+                    # blanks so downstream slices stay aligned; warn once.
+                    if not skipped_level_warned:
+                        warnings.warn(
+                            f"{path}: taxonomy depth skips a level near line {line_no} "
+                            f"({'#' * depth} {name!r} appeared with stack {stack!r}); "
+                            "padding the missing levels with '' (later occurrences silenced).",
+                            stacklevel=2,
+                        )
+                        skipped_level_warned = True
+                    stack = stack + [""] * (depth - 1 - len(stack))
+                else:
+                    stack = stack[: depth - 1]
                 stack.append(name)
             else:
                 fields = line.split("\t") if "\t" in line else line.split()

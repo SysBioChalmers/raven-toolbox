@@ -97,12 +97,15 @@ class KeggReaction:
     eccodes: list[str] = field(default_factory=list)
     kos: list[str] = field(default_factory=list)
     pathways: list[str] = field(default_factory=list)
-    modules: list[str] = field(default_factory=list)
-    rhea: list[str] = field(default_factory=list)
     spontaneous: bool = False
     incomplete: bool = False
     general: bool = False
     undefined_stoich: bool = False
+    # Cached stoichiometry from ``_parse_equation(equation)``: populated by
+    # :func:`parse_kegg_reactions` so :func:`build_reference_model` reuses the
+    # parse instead of repeating it (KEGG has ~12k reactions; a full redundant
+    # parse cost a noticeable chunk of the build).
+    stoichiometry: dict[str, float] = field(default_factory=dict)
 
 
 def _first_id(lines: list[str]) -> str:
@@ -172,17 +175,14 @@ def parse_kegg_reactions(kegg_dir: str | Path) -> list[KeggReaction]:
         if entry.get("ENZYME"):
             rxn.eccodes = [ec for line in entry["ENZYME"] for ec in line.split()]
         rxn.kos = [line[:_ID_LEN].strip() for line in entry.get("ORTHOLOGY", [])]
-        rxn.modules = [line[:_ID_LEN].strip() for line in entry.get("MODULE", [])]
         for line in entry.get("PATHWAY", []):
             pid = line[:7].strip()
             if pid and not pid.startswith(("rn011", "rn012")):  # skip global/overview
                 rxn.pathways.append(pid)
-        for line in entry.get("DBLINKS", []):
-            if line.startswith("RHEA:"):
-                rxn.rhea.extend(line.split(":", 1)[1].split())
         if entry.get("EQUATION"):
             rxn.equation = " ".join(s.strip() for s in entry["EQUATION"])
-            _, rxn.reversible, rxn.undefined_stoich = _parse_equation(rxn.equation)
+            stoich, rxn.reversible, rxn.undefined_stoich = _parse_equation(rxn.equation)
+            rxn.stoichiometry = stoich  # cached for build_reference_model
         reactions.append(rxn)
 
     irrev = _irreversible_from_mapformula(kegg_dir / "reaction_mapformula.lst")
@@ -359,7 +359,12 @@ def build_reference_model(
     model.name = "Automatically generated from KEGG database"
 
     by_id = {c.id: c for c in compounds}
-    parsed = {r.id: _parse_equation(r.equation)[0] for r in reactions}
+    # Reuse the cached parse from parse_kegg_reactions; only re-parse for
+    # callers that constructed KeggReaction records without the cache.
+    parsed = {
+        r.id: (r.stoichiometry if r.stoichiometry else _parse_equation(r.equation)[0])
+        for r in reactions
+    }
     used = {m for stoich in parsed.values() for m in stoich}
 
     metabolites = []

@@ -45,10 +45,19 @@ def test_reaction_fields(reactions):
     assert r.name == "alpha,alpha-trehalose glucohydrolase"
     assert r.eccodes == ["3.2.1.28"]
     assert r.kos == ["K01194"]
-    assert r.modules == ["M00599"]
-    assert r.rhea == ["32678"]
     # rn01100 is an overview map and must be skipped.
     assert r.pathways == ["rn00500"]
+
+
+def test_stoichiometry_cached(reactions):
+    """parse_kegg_reactions populates the cached stoichiometry so
+    build_reference_model doesn't have to re-parse (known_issues.md D2)."""
+    r = next(r for r in reactions if r.id == "R00010")
+    assert r.stoichiometry  # non-empty
+    # Reactants negative, products positive.
+    assert all(c != 0 for c in r.stoichiometry.values())
+    assert any(c < 0 for c in r.stoichiometry.values())
+    assert any(c > 0 for c in r.stoichiometry.values())
 
 
 def test_spontaneous_flag(reactions):
