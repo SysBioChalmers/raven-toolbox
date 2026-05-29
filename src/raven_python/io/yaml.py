@@ -179,6 +179,17 @@ def write_yaml_model(
 
     doc = OrderedDict(_to_plain(model_to_dict(model)))
 
+    # cobra's model_to_dict serialises model.notes verbatim into doc["notes"],
+    # so the three management keys we just lifted out would otherwise also
+    # appear nested inside the notes section. Strip them; preserve any other
+    # genuine notes the caller stored on the model.
+    doc_notes = doc.get("notes")
+    if isinstance(doc_notes, dict):
+        for key in ("metaData", "version", "_yaml_sections"):
+            doc_notes.pop(key, None)
+        if not doc_notes:
+            doc.pop("notes", None)
+
     if sort_ids:
         for section in ("metabolites", "reactions", "genes"):
             if section in doc:
