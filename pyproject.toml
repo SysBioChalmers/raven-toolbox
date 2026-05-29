@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "raven-python"
+version = "0.0.1"
+description = "Reconstruction, Analysis and Visualization of Metabolic Networks in Python, a port of the RAVEN Toolbox built on cobrapy"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "GPL-3.0-or-later" }
+authors = [
+    { name = "Eduard Kerkhoven", email = "eduardk@chalmers.se" },
+]
+keywords = [
+    "genome-scale-model",
+    "metabolic-model",
+    "reconstruction",
+    "raven",
+    "cobra",
+    "systems-biology",
+    "constraint-based-modeling",
+    "kegg",
+    "metacyc",
+    "tinit",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "cobra>=0.29",
+    "numpy>=1.21",
+    "pandas>=2",
+    "scipy>=1.10",
+    "ruamel.yaml>=0.17",
+    "requests>=2.28",
+    "tqdm>=4.65",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+    "ruff>=0.4",
+]
+excel = [
+    "openpyxl>=3.1",
+]
+plotting = [
+    "matplotlib>=3.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/SysBioChalmers/raven-python"
+Source = "https://github.com/SysBioChalmers/raven-python"
+Issues = "https://github.com/SysBioChalmers/raven-python/issues"
+"RAVEN MATLAB" = "https://github.com/SysBioChalmers/RAVEN"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/raven_python"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # line length handled by the formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
