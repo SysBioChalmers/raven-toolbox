@@ -1,0 +1,31 @@
+ENTRY       R00010                      Reaction
+NAME        alpha,alpha-trehalose glucohydrolase
+DEFINITION  alpha,alpha-Trehalose + H2O <=> 2 D-Glucose
+EQUATION    C01083 + C00001 <=> 2 C00031
+ENZYME      3.2.1.28
+PATHWAY     rn00500  Starch and sucrose metabolism
+            rn01100  Metabolic pathways
+MODULE      M00599  example module
+ORTHOLOGY   K01194  alpha,alpha-trehalase [EC:3.2.1.28]
+DBLINKS     RHEA: 32678
+///
+ENTRY       R00100                      Reaction
+NAME        spontaneous example
+COMMENT     This reaction is spontaneous.
+EQUATION    C00002 <=> C00003
+ORTHOLOGY   K00002  some enzyme
+///
+ENTRY       R00200                      Reaction
+NAME        undefined stoich example
+EQUATION    C00001 + n C00002 <=> C00003
+///
+ENTRY       R00300                      Reaction
+NAME        general example
+COMMENT     General reaction.
+EQUATION    C00031 <=> C00006
+ORTHOLOGY   K09999  lumped ortholog
+///
+ENTRY       R00400                      Reaction
+NAME        empty after cancellation
+EQUATION    C00007 <=> C00007
+///
