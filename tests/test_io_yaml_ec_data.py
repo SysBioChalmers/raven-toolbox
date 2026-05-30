@@ -365,3 +365,50 @@ def test_model_from_yaml_data_mutates_in_place():
     assert "ec-rxns" not in doc
     assert "ec-enzymes" not in doc
     assert "gecko_light" not in doc
+
+
+# --------------------------------------------------------------------------- #
+# EcData.validate / EcData.empty
+# --------------------------------------------------------------------------- #
+
+def test_empty_has_canonical_sentinels():
+    """`EcData.empty(n, m)` preallocates with the documented sentinels."""
+    ec = EcData.empty(3, 2)
+    assert ec.n_rxns == 3
+    assert ec.n_enzymes == 2
+    assert ec.rxns == ["", "", ""]
+    assert (ec.kcat == 0).all()
+    assert np.isnan(ec.mw).all()
+    assert np.isnan(ec.concs).all()
+    assert ec.rxn_enz_mat.shape == (3, 2)
+    assert ec.rxn_enz_mat.nnz == 0
+
+
+def test_empty_round_trips_through_validate():
+    EcData.empty(5, 4).validate()  # must not raise
+
+
+def test_validate_catches_per_rxn_length_drift():
+    ec = EcData.empty(3, 2)
+    ec.kcat = np.array([1.0, 2.0])  # length 2, should be 3
+    with pytest.raises(ValueError, match="ec.kcat has length 2, expected 3"):
+        ec.validate()
+
+
+def test_validate_catches_per_enzyme_length_drift():
+    ec = EcData.empty(3, 2)
+    ec.mw = np.array([1.0])  # length 1, should be 2
+    with pytest.raises(ValueError, match="ec.mw has length 1, expected 2"):
+        ec.validate()
+
+
+def test_validate_catches_coupling_matrix_shape_drift():
+    ec = EcData.empty(3, 2)
+    ec.rxn_enz_mat = sparse.csr_matrix((3, 5), dtype=float)
+    with pytest.raises(ValueError, match=r"ec.rxn_enz_mat has shape \(3, 5\)"):
+        ec.validate()
+
+
+def test_empty_gecko_light_flag_propagates():
+    assert EcData.empty(1, 1, gecko_light=True).gecko_light is True
+    assert EcData.empty(1, 1).gecko_light is False

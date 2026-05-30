@@ -107,6 +107,80 @@ class EcData:
     def n_enzymes(self) -> int:
         return len(self.enzymes)
 
+    def validate(self) -> None:
+        """Raise ``ValueError`` if internal field lengths are inconsistent.
+
+        Cheap sanity check: catches accidental drift between the per-rxn
+        arrays, the per-enzyme arrays, and the coupling matrix shape.
+        Called by pipeline stages after they mutate the data, and by the
+        YAML loader after construction.
+        """
+        n_r, n_e = self.n_rxns, self.n_enzymes
+
+        rxn_lengths = {
+            "kcat": len(self.kcat),
+            "source": len(self.source),
+            "notes": len(self.notes),
+            "eccodes": len(self.eccodes),
+        }
+        for name, length in rxn_lengths.items():
+            if length != n_r:
+                raise ValueError(
+                    f"ec.{name} has length {length}, expected {n_r} "
+                    f"(matching ec.rxns)"
+                )
+
+        # `ec.enzymes` itself is the reference length; check the remaining
+        # per-enzyme arrays against it.
+        enz_lengths = {
+            "genes": len(self.genes),
+            "mw": len(self.mw),
+            "sequence": len(self.sequence),
+            "concs": len(self.concs),
+        }
+        for name, length in enz_lengths.items():
+            if length != n_e:
+                raise ValueError(
+                    f"ec.{name} has length {length}, expected {n_e} "
+                    f"(matching ec.enzymes)"
+                )
+
+        if self.rxn_enz_mat.shape != (n_r, n_e):
+            raise ValueError(
+                f"ec.rxn_enz_mat has shape {self.rxn_enz_mat.shape}, "
+                f"expected ({n_r}, {n_e})"
+            )
+
+    @staticmethod
+    def empty(n_rxns: int, n_enzymes: int = 0, *,
+              gecko_light: bool = False) -> "EcData":
+        """Preallocate an ``EcData`` with the canonical sentinel values.
+
+        Per-rxn fields get empty strings; per-enzyme fields get empty
+        strings and NaN arrays. ``kcat`` starts at 0 (0 marks "no kcat
+        assigned"). ``mw`` and ``concs`` start at NaN, since their
+        physical default is "unknown" rather than zero.
+
+        Used by makeEcModel-style builders that allocate the structure
+        up-front, then fill it row by row.
+        """
+        return EcData(
+            gecko_light=gecko_light,
+            rxns=[""] * n_rxns,
+            kcat=np.zeros(n_rxns, dtype=float),
+            source=[""] * n_rxns,
+            notes=[""] * n_rxns,
+            eccodes=[""] * n_rxns,
+            genes=[""] * n_enzymes,
+            enzymes=[""] * n_enzymes,
+            mw=np.full(n_enzymes, np.nan, dtype=float),
+            sequence=[""] * n_enzymes,
+            concs=np.full(n_enzymes, np.nan, dtype=float),
+            rxn_enz_mat=sparse.lil_matrix(
+                (n_rxns, n_enzymes), dtype=float,
+            ).tocsr(),
+        )
+
 
 # --------------------------------------------------------------------------- #
 # Load
