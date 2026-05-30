@@ -31,7 +31,7 @@ Point raven-python at a manifest and the resolvers populate themselves on first 
 verifying each download's checksum:
 
 ```bash
-export RAVEN_PYTHON_MANIFEST=https://github.com/SysBioChalmers/raven-data/releases/download/manifest-v1/manifest.json
+export RAVEN_PYTHON_MANIFEST=https://github.com/SysBioChalmers/raven-python/releases/download/manifest-v1/manifest.json
 ```
 
 ```python
@@ -76,25 +76,39 @@ which computes each SHA256 and byte size:
 ```bash
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
     --target data --dataset kegg --version kegg116 --dir artefacts \
-    --base-url https://github.com/SysBioChalmers/raven-data/releases/download/kegg-kegg116 \
+    --base-url https://github.com/SysBioChalmers/raven-python/releases/download/kegg-kegg116 \
     --doi 10.5281/zenodo.0000000 --source https://zenodo.org/records/0000000
 
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
     --target binary --bundle diamond --version 2.1.9 --provides diamond --dir zips \
-    --base-url https://github.com/SysBioChalmers/raven-data/releases/download/diamond-2.1.9 \
+    --base-url https://github.com/SysBioChalmers/raven-python/releases/download/diamond-2.1.9 \
     --license GPL-3.0-only
 ```
 
-## Where to host: GitHub Releases vs Zenodo
+## Where to host
 
-Both are just URLs in the manifest, so consumers don't care — choose per asset:
+Release **assets are stored separately from the git tree** (GitHub keeps them in a blob
+store), so attaching them to a release does **not** bloat the repository. A dedicated assets
+repository is therefore **optional** — attach the assets to releases on an existing RAVEN
+repo (this one, or MATLAB [RAVEN](https://github.com/SysBioChalmers/RAVEN)) and have **both
+packages reuse the same release-asset URLs** via this manifest.
 
-- **GitHub Releases** — simplest, free, language-agnostic, up to ~2 GB per file. Good default,
-  and you're already on GitHub for the code.
-- **Zenodo** — adds a citable **DOI**, long-term archival, and handles files larger than 2 GB
-  (up to 50 GB/record). Right for the KEGG HMM bundle and anything you want citable.
+Use **dedicated tags** for the assets — e.g. `kegg-kegg116`, `diamond-2.1.9` — rather than
+attaching them to code-milestone releases like `v0.1.0a1`. KEGG data updates roughly yearly
+while the code changes often; dedicated tags keep the two cadences decoupled while still
+living in one repository. The manifest's per-dataset `version` does the rest (it namespaces
+the download cache).
 
-### Auto-publishing to Zenodo from GitHub
+Both GitHub Releases and Zenodo are just URLs in the manifest, so consumers don't care —
+mix them per file:
+
+- **GitHub Releases** — simplest, free, language-agnostic, up to **~2 GB per file**. The
+  default home for the manifest and most assets.
+- **Zenodo** — adds a citable **DOI**, long-term archival, and handles files **larger than
+  2 GB** (up to 50 GB/record). Use it for individual large HMM libraries or anything you want
+  citable; point just that file's `url` at the Zenodo record.
+
+### Auto-publishing to Zenodo from GitHub (only if you need DOIs / >2 GB files)
 
 :::{important}
 The **native GitHub↔Zenodo integration** (flip a switch, publish a Release → DOI) archives
@@ -103,10 +117,11 @@ Release. So it only works for assets *committed into the repo*, which defeats th
 multi-GB binaries. Use it for a *software* DOI, not for the data assets.
 :::
 
-For the data assets, keep everything GitHub-driven with a small **GitHub Action** that, on
-release, uploads the assets to Zenodo via its REST API (e.g. [`zenodraft`](https://github.com/zenodraft/zenodraft)).
-You cut a normal GitHub Release with the files attached; the Action mirrors them to Zenodo and
-mints a new version DOI. Drop this in the data repo as `.github/workflows/zenodo.yml`:
+If you do want Zenodo DOIs (or need to host files >2 GB), keep it GitHub-driven with a small
+**GitHub Action** that, on release, uploads the assets to Zenodo via its REST API (e.g.
+[`zenodraft`](https://github.com/zenodraft/zenodraft)). You cut a normal GitHub Release with
+the files attached; the Action mirrors them to Zenodo and mints a new version DOI. Drop this
+into whichever repo hosts the asset releases as `.github/workflows/zenodo.yml`:
 
 ```yaml
 name: Mirror release assets to Zenodo
@@ -136,5 +151,5 @@ ever interact with GitHub Releases; Zenodo archiving + DOIs happen automatically
 | Asset | Home | Notes |
 | --- | --- | --- |
 | **Software binaries** (BLAST / DIAMOND / HMMER) | **bioconda** preferred; or release ZIPs via the resolver | DIAMOND is **GPL-3.0** — ship its license text in the ZIP; keep it as a separate asset, never bundled into the MIT wheel. |
-| **KEGG HMMs / tables** | **Zenodo** (DOI, >2 GB, archival) | ⚠️ Derived from the subscription-licensed KEGG dump — **confirm redistribution rights with KEGG before publishing publicly**. If not permitted, keep access-gated and have users build from their own dump (the resolver supports a local dir). |
+| **KEGG HMMs / tables** | GitHub release (dedicated `kegg-*` tag); Zenodo for libraries >2 GB | Derived from the KEGG dump and **redistributed with permission from KEGG**. Note the provenance in the release notes / manifest `license`. |
 | **Template models** (Human-GEM, yeast-GEM) | **Don't re-host** | Fetch from their canonical repos by pinned release tag — respects their licenses and avoids stale copies. |
