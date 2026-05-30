@@ -10,6 +10,7 @@ from .parameters import set_variance_bounds
 from .remove import remove_genes, remove_metabolites
 from .simplify import (
     constrain_reversible_reactions,
+    find_duplicate_reactions,
     group_linear_reactions,
     remove_dead_end_reactions,
     remove_duplicate_reactions,
@@ -26,6 +27,7 @@ __all__ = [
     "constrain_reversible_reactions",
     "convert_to_irreversible",
     "expand_model",
+    "find_duplicate_reactions",
     "group_linear_reactions",
     "merge_models",
     "remove_dead_end_reactions",
