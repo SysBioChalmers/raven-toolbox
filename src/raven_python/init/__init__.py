@@ -1,12 +1,14 @@
 """Context-specific model extraction (tINIT / ftINIT).
 
 tINIT:
+
 * :func:`run_init` — the classic INIT MILP.
 * :func:`score_reactions_from_genes` / :func:`gene_scores_from_expression` —
   gene → reaction scoring (RNA-seq is the common upstream).
 * :func:`get_init_model` — the tINIT pipeline (dead-end removal + ``run_init``).
 
 ftINIT (faster, staged):
+
 * :func:`run_ftinit` — the single-step ftINIT MILP (continuous indicators for
   positive-score reactions; binaries only on negatives — the speedup over ``run_init``).
 * :func:`ftinit` — the full pipeline (``prep_init_model`` → staged ``run_ftinit`` →

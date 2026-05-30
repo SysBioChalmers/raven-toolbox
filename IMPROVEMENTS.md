@@ -62,7 +62,7 @@ it is only incidentally in the MetaCyc folder.)
 
 ## getModelFromHomology (Phase 3a — implemented)
 
-Design + rationale in [docs/plan_get_model_from_homology.md](docs/plan_get_model_from_homology.md);
+Design + rationale in [docs/plan_get_model_from_homology.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/archive/plan_get_model_from_homology.md);
 implemented in `reconstruction/homology/homology.py`. *Logic* improvements over RAVEN's algorithm
 (RAVEN's own comments flag several of these spots as uncertain).
 
@@ -99,7 +99,7 @@ and `taxonomy.py` (3b.3). Maintainer-side, build-time tooling (PLAN.md §2.3b).
 | K12 | EFFICIENCY | raven-python 🔨 + MATLAB RAVEN 💡 | 🔨 | **Fast MAFFT (FFT-NS-2) for HMM training** instead of RAVEN's `--auto`, which selects slow iterative refinement (`dvtditr`) on medium/large KOs — observed ~2.5 min/KO (days for a domain) on real KEGG 118. FFT-NS-2 (`--retree 2 --maxiterate 0`) is seconds/KO and ample for profile-HMM building. **PartTree cutover is residue-based and memory-auto-tuned**: MAFFT memory tracks residues (count × length), not sequence count, so a count threshold let long-protein KOs (K00901: 2,788 seqs, 2.55 M residues) OOM under FFT-NS-2 — measured ~5 GB MAFFT RSS with FFT-NS-2 vs **0.69 GB with PartTree** for the same alignment. The cutover is **length-aware and memory-auto-tuned**: FFT-NS-2 memory is driven by the progressive-alignment **DP cost ≈ n_seqs × mean_len²** (= residues²/n_seqs), *not* residue count — a few hundred long proteins cost far more than the same residues in many short ones. (First tried a residue-only model `RSS≈1.32R²+1.84R`; it then OOM'd on K12047 — 452 seqs but mean length 2082, 0.94 M residues — because long proteins blow the per-residue cost.) Calibrated `RSS_GB ≈ 4.2e-9 × (n_seqs × mean_len²)` across real KEGG KOs (250k/266→0.67 GB … 1.5M/1624→5.73 GB; K12047 cost 1.96e9 = the largest, hence its OOM). `_auto_cost_budget` switches to PartTree when the DP cost exceeds `0.65 × (total − 2.5 GB overhead) / 4.2e-9` (≈7.9e8 on a 7.6 GB box), **warns on low-memory hosts**, and `parttree_residues` overrides with a manual residue cutoff. Back-portable to RAVEN. |
 | K13 | EFFICIENCY | raven-python 🗑️ | 🗑️ | ~~Per-KO sequence cap (`max_sequences`)~~ — **removed.** Briefly added as a count-based cap, but the residue-based PartTree cutover (K12) bounds MAFFT memory without dropping any sequences, so the cap was redundant complexity. All deduplicated sequences are kept. |
 | K14 | EFFICIENCY (size) | raven-python 🔨 + MATLAB RAVEN 💡 | 🔨 | **Sort `organism_gene_ko` by `(organism, gene)` and store it xz-compressed** (`organism_gene_ko.tsv.xz`), cutting the dominant artefact **≈78 → 27 MB (2.9×)**. Gene IDs within an organism share long prefixes (locus tags, numeric runs), so sorting makes them adjacent and far more compressible (sort alone: 78→48 MB; xz vs gzip captures the cross-row redundancy gzip's 32 KB window misses: →27 MB). The sort is an **external merge sort** bounded to `chunk_rows` rows in memory (sorted runs spooled to gzipped temp files, merged with `heapq.merge`), so it keeps K9's flat memory profile. Both `lzma` and `gzip` are Python stdlib (native on Windows/macOS/Linux, no extra binary); small tables stay gzipped TSV (MATLAB-native), only the big one is xz (MATLAB needs an external `unxz`). Sorted order also matches the by-organism query in `get_kegg_model_for_organism`, enabling a future `searchsorted` slice instead of loading all 9M rows. Back-portable to RAVEN. |
-| K15 | ERGONOMICS (correctness) | raven-python 🔨 + MATLAB RAVEN 💡 | 🔨 | **Recalibrate the HMM-query KO-assignment defaults** (`assign_kos`): cut-off `1e-50 → 1e-30`, `min_score_ratio_g 0.8 → 0.9`; `min_score_ratio_ko` left at 0.3 but **documented as empirically inert**. Cross-validated the full 3b.5 pipeline against the true KEGG gene→KO annotation of four organisms across both libraries and the well-/lesser-studied axis — *S. cerevisiae*, *Cyanidioschyzon merolae* (red alga), *E. coli* K-12, *Mycoplasma genitalium* (minimal genome). Real annotations score overwhelmingly (median E ≈ 1e-100…1e-155; even the weakest 1% ≈ 1e-15…1e-36) while spurious hits cluster at ≈1e-8 — a ~20-order-of-magnitude gap. RAVEN's `1e-50` therefore sits **inside the true-positive tail** and silently drops real-but-divergent hits for no noise-rejection gain: gene→KO recall on *M. genitalium* was only 0.84 (reaction recall 0.87). At `1e-30` + `ratio_g=0.9`: *M. genitalium* recall **0.84→0.94** (rxn 0.87→0.97), *E. coli* 0.95→0.97 with **fewer** unannotated reactions (198→173, the tighter gene-ratio prunes spurious multi-KO genes), *S. cerevisiae*/*C. merolae* held or improved. The three sweep tables showed `min_score_ratio_ko` produced identical output at 0.0/0.3/0.5 across all four organisms — a magic-number knob that does nothing; `min_score_ratio_g` is the real precision lever. Full numbers in [docs/kegg_hmm_cutoff_calibration.md](docs/kegg_hmm_cutoff_calibration.md) (reproduce with `scripts/analyze_hmm_cutoffs.py`). Back-portable to RAVEN. |
+| K15 | ERGONOMICS (correctness) | raven-python 🔨 + MATLAB RAVEN 💡 | 🔨 | **Recalibrate the HMM-query KO-assignment defaults** (`assign_kos`): cut-off `1e-50 → 1e-30`, `min_score_ratio_g 0.8 → 0.9`; `min_score_ratio_ko` left at 0.3 but **documented as empirically inert**. Cross-validated the full 3b.5 pipeline against the true KEGG gene→KO annotation of four organisms across both libraries and the well-/lesser-studied axis — *S. cerevisiae*, *Cyanidioschyzon merolae* (red alga), *E. coli* K-12, *Mycoplasma genitalium* (minimal genome). Real annotations score overwhelmingly (median E ≈ 1e-100…1e-155; even the weakest 1% ≈ 1e-15…1e-36) while spurious hits cluster at ≈1e-8 — a ~20-order-of-magnitude gap. RAVEN's `1e-50` therefore sits **inside the true-positive tail** and silently drops real-but-divergent hits for no noise-rejection gain: gene→KO recall on *M. genitalium* was only 0.84 (reaction recall 0.87). At `1e-30` + `ratio_g=0.9`: *M. genitalium* recall **0.84→0.94** (rxn 0.87→0.97), *E. coli* 0.95→0.97 with **fewer** unannotated reactions (198→173, the tighter gene-ratio prunes spurious multi-KO genes), *S. cerevisiae*/*C. merolae* held or improved. The three sweep tables showed `min_score_ratio_ko` produced identical output at 0.0/0.3/0.5 across all four organisms — a magic-number knob that does nothing; `min_score_ratio_g` is the real precision lever. Full numbers in [docs/kegg_hmm_cutoff_calibration.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/studies/kegg_hmm_cutoff_calibration.md) (reproduce with `scripts/analyze_hmm_cutoffs.py`). Back-portable to RAVEN. |
 
 ## FSEOF (Phase 5 — implemented, redesigned)
 
@@ -181,7 +181,7 @@ RAVEN `core/parseTaskList.m` + `core/checkTasks.m` → `tasks/tasklist.py` + `ta
 ## fillGaps (Phase 4b — implemented)
 
 RAVEN `core/fillGaps.m`. Only the **connectivity** mode is ported, as
-`connect_blocked_reactions` ([gapfilling/fill.py](src/raven_python/gapfilling/fill.py)) —
+`connect_blocked_reactions` ([gapfilling/fill.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/gapfilling/fill.py)) —
 MILP via cobra/optlang (GLPK). RAVEN's other mode (fill to make the objective feasible)
 is `cobra.flux_analysis.gapfill` and is **cheatsheeted, not re-wrapped** (PLAN §1).
 
@@ -194,7 +194,7 @@ is `cobra.flux_analysis.gapfill` and is **cheatsheeted, not re-wrapped** (PLAN �
 
 RAVEN `core/addRxns.m` — add reactions from equation strings (or mets+coeffs), auto-creating
 metabolites/genes. Ported as `add_reactions_from_equations`
-([manipulation/add.py](src/raven_python/manipulation/add.py)).
+([manipulation/add.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/add.py)).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -205,7 +205,7 @@ metabolites/genes. Ported as `add_reactions_from_equations`
 
 ## changeGrRules
 
-Ported as `change_gene_reaction_rules` ([manipulation/change.py](src/raven_python/manipulation/change.py)).
+Ported as `change_gene_reaction_rules` ([manipulation/change.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/change.py)).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -213,7 +213,7 @@ Ported as `change_gene_reaction_rules` ([manipulation/change.py](src/raven_pytho
 
 ## simplifyModel
 
-Gap modes ported in [manipulation/simplify.py](src/raven_python/manipulation/simplify.py).
+Gap modes ported in [manipulation/simplify.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/simplify.py).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -221,7 +221,7 @@ Gap modes ported in [manipulation/simplify.py](src/raven_python/manipulation/sim
 
 ## mergeModels
 
-Ported as `merge_models` ([manipulation/merge.py](src/raven_python/manipulation/merge.py)).
+Ported as `merge_models` ([manipulation/merge.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/merge.py)).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -230,7 +230,7 @@ Ported as `merge_models` ([manipulation/merge.py](src/raven_python/manipulation/
 
 ## checkModelStruct
 
-Ported (curation subset) as `check_model` ([utils/validate.py](src/raven_python/utils/validate.py)).
+Ported (curation subset) as `check_model` ([utils/validate.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/validate.py)).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -239,8 +239,8 @@ Ported (curation subset) as `check_model` ([utils/validate.py](src/raven_python/
 
 ## setParam / getElementalBalance
 
-Ported as `set_parameters` ([manipulation/parameters.py](src/raven_python/manipulation/parameters.py))
-and `get_elemental_balance` ([utils/balance.py](src/raven_python/utils/balance.py)).
+Ported as `set_parameters` ([manipulation/parameters.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/parameters.py))
+and `get_elemental_balance` ([utils/balance.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/balance.py)).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -256,7 +256,7 @@ if a downstream consumer needs the `include_partial` (fully-contained vs touchin
 several places — and ask before re-adding (see process note: argue pros/cons for marginal WRAPs).
 
 Ported as `remove_metabolites` / `remove_genes`
-([manipulation/remove.py](src/raven_python/manipulation/remove.py)). `removeReactions` was **not**
+([manipulation/remove.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/remove.py)). `removeReactions` was **not**
 ported: with orphan cleanup kept coupled (decision: don't separate metabolites from genes), it is
 identical to `cobra.Model.remove_reactions(remove_orphans=...)`.
 
@@ -270,7 +270,7 @@ identical to `cobra.Model.remove_reactions(remove_orphans=...)`.
 ## readYAMLmodel / writeYAMLmodel
 
 RAVEN `io/readYAMLmodel.m` + `writeYAMLmodel.m` (+ private legacy parser). Ported as
-`read_yaml_model`/`write_yaml_model` ([io/yaml.py](src/raven_python/io/yaml.py)).
+`read_yaml_model`/`write_yaml_model` ([io/yaml.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/io/yaml.py)).
 
 **Lens correction (no separate legacy parser).** RAVEN ships a 462-line `parseYAMLLegacy.m` for the
 `!!omap` dialect, and geckopy refuses it ("re-save from MATLAB"). But `!!omap` is **cobra's own YAML
@@ -289,7 +289,7 @@ value is preserving `metaData` identity and RAVEN-only per-entry fields, which i
 ## changeRxns
 
 RAVEN `core/changeRxns.m` — change reaction equations. Ported as
-`change_reaction_equations` ([manipulation/change.py](src/raven_python/manipulation/change.py)).
+`change_reaction_equations` ([manipulation/change.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/change.py)).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -331,7 +331,7 @@ OR-of-AND-complex (DNF) form (`findPotentialErrors`).
 **Decision (raven-python): port the lint half only.** cobra auto-normalizes a GPR on assignment
 (`"(G1 AND G2)  OR  G3"` is stored as `"(G1 and G2) or G3"`), so the normalization half is
 redundant. The non-DNF lint has no cobra equivalent and was ported as `find_non_dnf_grrules`/`is_dnf`
-([utils/gpr.py](src/raven_python/utils/gpr.py)).
+([utils/gpr.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/gpr.py)).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|

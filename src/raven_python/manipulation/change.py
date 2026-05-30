@@ -33,6 +33,7 @@ def change_reaction_equations(
     new_met_prefix: str = "m",
 ) -> list[Reaction]:
     """Replace the stoichiometry of existing reactions.
+
     Parameters
     ----------
     model

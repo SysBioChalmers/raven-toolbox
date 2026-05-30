@@ -24,7 +24,7 @@ functionality that's unique to RAVEN:
 
 The status of every RAVEN function (ported, cheatsheet-mapped to cobra, or explicitly
 not ported) is documented function-by-function in
-**[docs/raven_migration.md](docs/raven_migration.md)**.
+**[docs/raven_migration.md](docs/reference/migration.md)**.
 
 ## Design principle
 
@@ -38,7 +38,7 @@ COBRA ecosystem.
 ## Status
 
 raven-python has been validated against MATLAB RAVEN on **Human-GEM** (5 Hart2015 cell-line
-models, Jaccard 0.975–0.980 — see [docs/humangem_validation.md](docs/humangem_validation.md)).
+models, Jaccard 0.975–0.980 — see [docs/humangem_validation.md](docs/studies/humangem_validation.md)).
 The functional scope of the original RAVEN toolbox is covered with two principled
 omissions:
 
@@ -48,7 +48,7 @@ omissions:
   it ([`dfba`](https://pypi.org/project/dfba/), [`reframed`](https://pypi.org/project/reframed/),
   [`mewpy`](https://pypi.org/project/mewpy/)).
 
-What's still open is catalogued in **[docs/todo.md](docs/todo.md)** (visualisation / Phase
+What's still open is catalogued in **[docs/todo.md](docs/reference/todo.md)** (visualisation / Phase
 6 is the main item).
 
 ## Installation (development)
@@ -60,12 +60,15 @@ pip install -e ".[dev]"
 ```
 
 raven-python requires Python ≥ 3.11. Genome-scale (f)tINIT MILPs currently require **Gurobi**
-([details on solver portability](docs/init_solver_benchmark.md)); toy and unit-test work
+([details on solver portability](docs/studies/init_solver_benchmark.md)); toy and unit-test work
 runs on the open-source GLPK.
 
 ## Documentation
 
-See **[docs/README.md](docs/README.md)** for the documentation index.
+Full documentation is built with Sphinx and hosted on **ReadTheDocs**:
+**<https://raven-python.readthedocs.io>**. The source lives in
+[docs/](docs/) — see [docs/README.md](docs/README.md) for the layout and local-build
+instructions.
 
 ## Relationship to MATLAB RAVEN
 

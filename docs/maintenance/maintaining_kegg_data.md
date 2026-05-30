@@ -119,7 +119,7 @@ and tables.
 
 ## Building and publishing in one go
 
-[`scripts/build_kegg_artefacts.py`](../scripts/README.md) runs 3b.2 (+ 3b.3 with
+[`scripts/build_kegg_artefacts.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md) runs 3b.2 (+ 3b.3 with
 `--hmms`) and lays the output out as publishable assets (`<domain>.hmm` named for
 `ensure_kegg_hmm_library`):
 
@@ -128,7 +128,7 @@ python scripts/build_kegg_artefacts.py --keggdb keggdb --out artefacts --hmms --
 ```
 
 Upload the contents of `artefacts/` to a release, then emit the registry entry for
-`raven_python.data._DATA_REGISTRY` with [`scripts/make_registry_snippet.py`](../scripts/README.md):
+`raven_python.data._DATA_REGISTRY` with [`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md):
 
 ```bash
 python scripts/make_registry_snippet.py data --dataset kegg --version kegg116 \

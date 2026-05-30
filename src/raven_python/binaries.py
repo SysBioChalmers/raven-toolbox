@@ -1,6 +1,6 @@
 """Locate and provision external command-line binaries (BLAST+, DIAMOND, …).
 
-Shared across tools (not homology-specific). Resolution order for any executable:
+Shared across tools (not homology-specific). Resolution order for any executable::
 
     explicit path arg  →  env var (RAVEN_PYTHON_<TOOL>)  →  shutil.which (PATH)
       →  ensure_binary  (download the version-pinned ZIP from a raven_python release,
@@ -8,8 +8,8 @@ Shared across tools (not homology-specific). Resolution order for any executable
       →  FileNotFoundError with install guidance
 
 So a pre-installed/conda binary always wins; the bundled ZIP is the zero-setup
-fallback. See docs/maintaining_binaries.md for how the release ZIPs and the
-registry are produced and updated.
+fallback. See docs/maintenance/maintaining_binaries.md for how the release ZIPs and
+the registry are produced and updated.
 """
 from __future__ import annotations
 
