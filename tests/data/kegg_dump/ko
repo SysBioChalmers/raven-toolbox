@@ -1,0 +1,14 @@
+ENTRY       K01194                      KO
+NAME        treA, TREH
+DEFINITION  alpha,alpha-trehalase [EC:3.2.1.28]
+GENES       BSU: BSU31050(gbsB) BSU31060
+            HSA: 124 125(ADH)
+///
+ENTRY       K00002                      KO
+DEFINITION  AKR1A1; alcohol dehydrogenase (NADP+) [EC:1.1.1.2]
+GENES       ECO: b0001
+///
+ENTRY       K99999                      KO
+DEFINITION  unlinked ortholog
+GENES       ECO: b9999
+///
