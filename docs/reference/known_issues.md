@@ -111,7 +111,7 @@ tests live alongside each fixed function.
 All five items addressed in the quality-sweep pass (see CHANGELOG). The three
 docstring/comment items got documentation fixes; the two correctness items
 (F3, F5) got code fixes plus matching RAVEN-back-port proposals in
-[IMPROVEMENTS.md](../IMPROVEMENTS.md) (FS4, B2).
+[IMPROVEMENTS.md](improvements.md) (FS4, B2).
 
 - ✅ **`init/init.py` — `run_init`:** docstring now spells out the score-0
   semantics divergence between classic INIT (score-0 = removable) and ftINIT

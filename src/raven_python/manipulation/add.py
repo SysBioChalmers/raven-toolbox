@@ -253,6 +253,7 @@ def add_reactions_from_equations(
     new_met_prefix: str = "m",
 ) -> list[Reaction]:
     """Add reactions defined by equation strings, matching mets by ID or name.
+
     Parameters
     ----------
     model

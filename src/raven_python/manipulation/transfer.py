@@ -34,6 +34,7 @@ def add_reactions_from_model(
     confidence: int | None = None,
 ) -> list[Reaction]:
     """Copy reactions from ``source_model`` into ``model``.
+
     Parameters
     ----------
     model

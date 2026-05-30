@@ -40,6 +40,7 @@ def merge_models(
     track_origin: bool = True,
 ) -> cobra.Model:
     """Merge models into a single new model.
+
     Parameters
     ----------
     models

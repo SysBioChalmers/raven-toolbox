@@ -3,7 +3,7 @@
 This is a consolidated list of fixes and improvements that the Python port surfaced
 and that are worth carrying upstream into MATLAB RAVEN. Each item names a RAVEN
 file/function, briefly diagnoses the current behaviour, and proposes the minimal
-MATLAB-side patch. Items are sourced from [IMPROVEMENTS.md](../IMPROVEMENTS.md)
+MATLAB-side patch. Items are sourced from [IMPROVEMENTS.md](improvements.md)
 (the `MATLAB RAVEN 💡` rows) plus two new items from the section-F quality sweep
 in [docs/known_issues.md](known_issues.md).
 
@@ -17,7 +17,7 @@ fix is identical in spirit; the patch shape just differs.
 
 ## `core/getModelFromHomology.m`
 
-Implemented in raventoolbox as [`reconstruction.homology.get_model_from_homology`](../src/raventoolbox/reconstruction/homology/homology.py).
+Implemented in raventoolbox as [`reconstruction.homology.get_model_from_homology`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/homology/homology.py).
 
 * **H1** 🧹 — Split the overloaded `strictness` 1/2/3 into two orthogonal
   options: `bidirectional` (reciprocal hits) and `bestHitsOnly`. Reciprocal
@@ -36,7 +36,7 @@ Implemented in raventoolbox as [`reconstruction.homology.get_model_from_homology
 
 ## `core/getKEGGModelForOrganism.m` and the KEGG pipeline
 
-Implemented across [`reconstruction.kegg`](../src/raventoolbox/reconstruction/kegg/).
+Implemented across [`reconstruction.kegg`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/kegg/).
 
 * **K1** 🐛 — In the KEGG flat-file parser, read each reaction's equation from
   its **own `EQUATION` field**, not by matching line *i* of `reaction.lst`
@@ -85,11 +85,11 @@ Implemented across [`reconstruction.kegg`](../src/raventoolbox/reconstruction/ke
   (median true E ≈ 1e-100…1e-155; spurious ≈ 1e-8), silently dropping
   divergent real hits. At the proposed values, *M. genitalium* gene→KO recall
   rose from 0.84 → 0.94 (reaction recall 0.87 → 0.97) with no precision loss.
-  Full numbers in [docs/kegg_hmm_cutoff_calibration.md](kegg_hmm_cutoff_calibration.md).
+  Full numbers in [docs/kegg_hmm_cutoff_calibration.md](../studies/kegg_hmm_cutoff_calibration.md).
 
 ## `core/FSEOF.m`
 
-Implemented in raventoolbox as [`analysis.fseof`](../src/raventoolbox/analysis/fseof.py).
+Implemented in raventoolbox as [`analysis.fseof`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/fseof.py).
 
 * **FS1** 🐛 — Replace the strict step-by-step monotonicity gate (a target is
   discarded if any single step's flux fails to exceed the previous) with a
@@ -123,7 +123,7 @@ Implemented in raventoolbox as [`analysis.fseof`](../src/raventoolbox/analysis/f
 
 ## `core/randomSampling.m`
 
-Implemented in raventoolbox as [`analysis.random_sampling`](../src/raventoolbox/analysis/sampling.py).
+Implemented in raventoolbox as [`analysis.random_sampling`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/sampling.py).
 
 * **SAMP1** ⚡ — Compute `goodRxns` (loop-free, flux-carrying objective
   candidates) via a **single FVA pass**, not the current per-reaction `parfor`
@@ -142,7 +142,7 @@ Implemented in raventoolbox as [`analysis.random_sampling`](../src/raventoolbox/
 
 ## `core/reporterMetabolites.m`
 
-Implemented in raventoolbox as [`analysis.reporter_metabolites`](../src/raventoolbox/analysis/reporter.py).
+Implemented in raventoolbox as [`analysis.reporter_metabolites`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/reporter.py).
 
 * **RM1** ⚡🐛 — Replace the per-neighbour-count Monte Carlo background
   correction (currently 100 000 random sets drawn *for each distinct
@@ -154,7 +154,7 @@ Implemented in raventoolbox as [`analysis.reporter_metabolites`](../src/raventoo
 
 ## `core/runINIT.m`
 
-Implemented in raventoolbox as [`init.run_init`](../src/raventoolbox/init/init.py).
+Implemented in raventoolbox as [`init.run_init`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/init.py).
 
 * **I4** 🐛 — Drop the hard-coded big-M (1000) in the MILP and use **each
   reaction's own upper bound** instead: `v ≤ ub · x`. Expose `eps` and
@@ -164,12 +164,12 @@ Implemented in raventoolbox as [`init.run_init`](../src/raventoolbox/init/init.p
 
 ## `core/ftINIT.m` and the ftINIT pipeline
 
-Implemented across [`init.ftinit`](../src/raventoolbox/init/ftinit.py), [`init.taskfill`](../src/raventoolbox/init/taskfill.py), [`init.merge`](../src/raventoolbox/init/merge.py), [`init.prep`](../src/raventoolbox/init/prep.py).
+Implemented across [`init.ftinit`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/ftinit.py), [`init.taskfill`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/taskfill.py), [`init.merge`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/merge.py), [`init.prep`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/prep.py).
 
 * **FT3** 🐛 — Same big-M issue as `runINIT` — use each reaction's own bound
   as big-M instead of the fixed 100/1000. Expose `force_on` and `force_on_ess`
   as parameters (the calibrated values for genome-scale Human-GEM are
-  documented in [docs/init_param_calibration.md](init_param_calibration.md)).
+  documented in [docs/init_param_calibration.md](../studies/init_param_calibration.md)).
 * **FT9** 🐛 — Per-reaction essential forcing must be **clamped to the
   reaction's bound**. The staged pipeline fixes previous-step reactions as
   essential at `min(0.99 · |prev flux|, 0.1)`; if a low-capacity reaction
@@ -186,14 +186,14 @@ Implemented across [`init.ftinit`](../src/raventoolbox/init/ftinit.py), [`init.t
 
 ## `core/addRxns.m`
 
-Implemented in raventoolbox as [`manipulation.add_reactions_from_equations`](../src/raventoolbox/manipulation/add.py).
+Implemented in raventoolbox as [`manipulation.add_reactions_from_equations`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/add.py).
 
 * **A1** 🧹 — Accept a string keyword (`metsBy = 'id'` / `'name'`) instead of
   the opaque `eqnType = 1 / 2 / 3` integer. Call-sites become self-documenting.
 
 ## `core/checkModelStruct.m` (or its curation subset)
 
-Implemented in raventoolbox as [`utils.check_model`](../src/raventoolbox/utils/validate.py).
+Implemented in raventoolbox as [`utils.check_model`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/validate.py).
 
 * **V2** 🧹 — Return a struct array of issues (one per finding, with
   `category` / `target` / `message` fields) instead of printing warnings or
@@ -201,7 +201,7 @@ Implemented in raventoolbox as [`utils.check_model`](../src/raventoolbox/utils/v
 
 ## `core/getElementalBalance.m`
 
-Implemented in raventoolbox as [`utils.get_elemental_balance`](../src/raventoolbox/utils/balance.py).
+Implemented in raventoolbox as [`utils.get_elemental_balance`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/balance.py).
 
 * **B2** 🐛 — A reaction with no metabolites (an empty `S(:,j)`) currently
   falls through to `balanceStatus = 1` ("balanced") because both pre-loops
@@ -219,7 +219,7 @@ Implemented in raventoolbox as [`utils.get_elemental_balance`](../src/raventoolb
 
 ## `core/findPotentialErrors.m` (GPR linting)
 
-Implemented in raventoolbox as [`utils.find_non_dnf_grrules`](../src/raventoolbox/utils/gpr.py).
+Implemented in raventoolbox as [`utils.find_non_dnf_grrules`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/gpr.py).
 
 * **S1** 🧹 — Return the `indexes2check` array (which the function already
   computes) plus per-reaction reason strings as a struct array, instead of
@@ -252,4 +252,4 @@ Already flagged in `IMPROVEMENTS.md` as a removal target on both sides — the
 MetaCyc reconstruction path is dropped in raventoolbox and proposed for removal
 from MATLAB RAVEN (`external/metacyc/*`). Pasting here for visibility because
 the actual removal still needs to land upstream. See
-[IMPROVEMENTS.md § R-MetaCyc](../IMPROVEMENTS.md) for the full rationale.
+[IMPROVEMENTS.md § R-MetaCyc](improvements.md) for the full rationale.

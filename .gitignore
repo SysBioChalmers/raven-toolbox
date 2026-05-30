@@ -22,6 +22,9 @@ env/
 .DS_Store
 Thumbs.db
 
+# Docs build output
+docs/_build/
+
 # Tooling caches
 .claude/
 

@@ -211,7 +211,7 @@ Implications:
 
 After building the per-platform ZIPs (named `<bundle>-<version>-<os>-<arch>.zip`)
 and uploading them to the release, generate the `_REGISTRY` entry — checksums and
-URLs — with [`scripts/make_registry_snippet.py`](../scripts/README.md):
+URLs — with [`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md):
 
 ```bash
 python scripts/make_registry_snippet.py binary --bundle blast --version 2.16.0 \

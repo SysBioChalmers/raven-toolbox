@@ -42,6 +42,7 @@ def get_elemental_balance(
     model: cobra.Model, reactions=None
 ) -> list[ElementalBalance]:
     """Check whether reactions are elementally balanced.
+
     Parameters
     ----------
     reactions
