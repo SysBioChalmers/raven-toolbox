@@ -1,0 +1,157 @@
+"""Add transport reactions between compartments.
+
+cobra has no transport-reaction primitive. For each metabolite this matches the
+species by *name* across compartments (the source in ``from_compartment`` and its
+same-named twin in each target compartment), optionally creating the target
+metabolite, and
+builds a ``-1 from / +1 to`` reaction with a sequential ``tr_0001`` ID.
+"""
+from __future__ import annotations
+
+import re
+import warnings
+from collections.abc import Iterable
+
+import cobra
+from cobra import Metabolite, Reaction
+
+from raven_python.manipulation.add import _new_met_id
+
+
+def _index_by_name(mets: Iterable[Metabolite], compartment: str) -> dict[str, Metabolite]:
+    """Index metabolites by name, warning when a name is duplicated.
+
+    Same-name duplicates in a single compartment are unusual but legal in cobra,
+    and the previous one-pass dict comprehension silently dropped all but one.
+    """
+    out: dict[str, list[Metabolite]] = {}
+    for m in mets:
+        out.setdefault(m.name, []).append(m)
+    chosen: dict[str, Metabolite] = {}
+    for name, group in out.items():
+        if len(group) > 1:
+            warnings.warn(
+                f"Multiple metabolites named {name!r} in compartment {compartment!r} "
+                f"({[m.id for m in group]}); using {group[0].id!r} for transport.",
+                stacklevel=3,
+            )
+        chosen[name] = group[0]
+    return chosen
+
+
+def _transport_id_factory(model: cobra.Model, prefix: str):
+    pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
+    used = [int(m.group(1)) for r in model.reactions if (m := pattern.match(r.id))]
+    counter = max(used) + 1 if used else 1
+
+    def next_id() -> str:
+        nonlocal counter
+        while f"{prefix}{counter:04d}" in model.reactions:
+            counter += 1
+        rid = f"{prefix}{counter:04d}"
+        counter += 1
+        return rid
+
+    return next_id
+
+
+def add_transport_reactions(
+    model: cobra.Model,
+    from_compartment: str,
+    to_compartments: str | Iterable[str],
+    metabolite_names: str | Iterable[str] | None = None,
+    *,
+    reversible: bool = True,
+    only_to_existing: bool = True,
+    id_prefix: str = "tr_",
+) -> list[Reaction]:
+    """Add transport reactions from one compartment to one or more others.
+    Parameters
+    ----------
+    from_compartment
+        Source compartment id.
+    to_compartments
+        Target compartment id(s).
+    metabolite_names
+        Names of metabolites to transport. Default: every metabolite in
+        ``from_compartment``.
+    reversible
+        If True (default), bounds span the cobra configuration default
+        (reversible); otherwise lower bound 0.
+    only_to_existing
+        If True (default), only transport a metabolite into a target
+        compartment where a same-named metabolite already exists. If False,
+        create the missing target metabolite (copying name/formula/charge/
+        annotation from the source) before adding the transport.
+    id_prefix
+        Prefix for the sequential reaction IDs (``tr_0001``, ...).
+
+    Returns
+    -------
+    list of cobra.Reaction
+        The transport reactions added, in creation order.
+    """
+    # cobra's `model.compartments` only lists compartments that have metabolites;
+    # include registered-but-empty ones so transport can target an empty compartment.
+    known = set(model.compartments) | set(model._compartments)
+    if from_compartment not in known:
+        raise ValueError(f"Compartment {from_compartment!r} is not in the model.")
+    if isinstance(to_compartments, str):
+        to_compartments = [to_compartments]
+    else:
+        to_compartments = list(to_compartments)
+    for comp in to_compartments:
+        if comp not in known:
+            raise ValueError(f"Compartment {comp!r} is not in the model.")
+
+    source = _index_by_name(
+        (m for m in model.metabolites if m.compartment == from_compartment),
+        from_compartment,
+    )
+    if metabolite_names is None:
+        names = list(source)
+    else:
+        names = [metabolite_names] if isinstance(metabolite_names, str) else list(metabolite_names)
+        missing = [n for n in names if n not in source]
+        if missing:
+            raise ValueError(
+                f"Metabolites not found in compartment {from_compartment!r}: {missing}"
+            )
+
+    cfg = cobra.Configuration()
+    bounds = (cfg.lower_bound, cfg.upper_bound) if reversible else (0.0, cfg.upper_bound)
+    from_name = model.compartments.get(from_compartment) or from_compartment
+    next_id = _transport_id_factory(model, id_prefix)
+
+    added: list[Reaction] = []
+    for to_comp in to_compartments:
+        to_name = model.compartments.get(to_comp) or to_comp
+        targets = _index_by_name(
+            (m for m in model.metabolites if m.compartment == to_comp),
+            to_comp,
+        )
+        for name in names:
+            src = source[name]
+            dst = targets.get(name)
+            if dst is None:
+                if only_to_existing:
+                    continue
+                dst = Metabolite(
+                    _new_met_id(model, "m"),
+                    name=name,
+                    compartment=to_comp,
+                    formula=src.formula,
+                    charge=src.charge,
+                )
+                dst.annotation = dict(src.annotation)
+                model.add_metabolites([dst])
+                targets[name] = dst
+
+            rxn = Reaction(next_id())
+            rxn.name = f"{name} transport, {from_name}-{to_name}"
+            rxn.bounds = bounds
+            model.add_reactions([rxn])
+            rxn.add_metabolites({src: -1, dst: 1})
+            added.append(rxn)
+
+    return added
