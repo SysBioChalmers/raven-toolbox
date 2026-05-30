@@ -86,13 +86,33 @@ def _capture_entry_fields(entries, fields):
 
 
 def read_yaml_model(path: str | Path) -> cobra.Model:
-    """Read a RAVEN/cobrapy YAML model into a ``cobra.Model``."""
+    """Read a RAVEN/cobrapy YAML model into a ``cobra.Model``.
+
+    Convenience wrapper around :func:`model_from_yaml_data` that opens the
+    file (transparently un-gzipping ``.gz``) and parses the YAML. Callers
+    that need to pre-process the document (e.g. lift legacy fields that
+    cobra doesn't recognise) can read+normalise themselves and call
+    :func:`model_from_yaml_data` with the resulting dict.
+    """
     with _open_text(path, "r") as handle:
         raw = _to_plain(_cobra_yaml.load(handle))
 
     if not isinstance(raw, dict):
         raise ValueError(f"{path}: top-level YAML is a {type(raw).__name__}, not a mapping.")
+    return model_from_yaml_data(raw)
 
+
+def model_from_yaml_data(raw: dict) -> cobra.Model:
+    """Build a ``cobra.Model`` from an already-parsed RAVEN/cobrapy YAML dict.
+
+    Strips and restores the RAVEN per-entry side-fields onto each entry's
+    ``.notes``, lifts ``id``/``name`` out of legacy ``metaData``, and
+    stashes everything else (``version``, the ``metaData`` block itself,
+    and any unknown top-level keys such as ``ec-rxns``/``ec-enzymes``)
+    onto ``model.notes`` so a round-trip via :func:`write_yaml_model`
+    preserves them. ``raw`` is mutated in place — copy it first if the
+    caller needs the original.
+    """
     metadata = raw.pop("metaData", None) or {}
     version = raw.pop("version", None)
     foreign = {k: raw.pop(k) for k in list(raw) if k not in _COBRA_TOP_KEYS}
@@ -158,6 +178,17 @@ def write_yaml_model(
     foreign = model_notes.pop("_yaml_sections", None) or {}
 
     doc = OrderedDict(_to_plain(model_to_dict(model)))
+
+    # cobra's model_to_dict serialises model.notes verbatim into doc["notes"],
+    # so the three management keys we just lifted out would otherwise also
+    # appear nested inside the notes section. Strip them; preserve any other
+    # genuine notes the caller stored on the model.
+    doc_notes = doc.get("notes")
+    if isinstance(doc_notes, dict):
+        for key in ("metaData", "version", "_yaml_sections"):
+            doc_notes.pop(key, None)
+        if not doc_notes:
+            doc.pop("notes", None)
 
     if sort_ids:
         for section in ("metabolites", "reactions", "genes"):
