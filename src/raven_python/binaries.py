@@ -65,6 +65,19 @@ def _bundle_for(executable: str, registry: dict):
     return None, None
 
 
+def _maybe_autoload(registry: dict) -> None:
+    """Populate the default registry from ``$RAVEN_PYTHON_MANIFEST`` on first use, if set.
+
+    Only fires when the caller is using the default (still-empty) ``_REGISTRY`` and the
+    environment variable points at a manifest; a caller that passes its own ``registry``
+    is left untouched. The import is local to avoid a cycle with :mod:`raven_python.manifest`.
+    """
+    if registry is _REGISTRY and not registry and os.environ.get("RAVEN_PYTHON_MANIFEST"):
+        from raven_python import manifest as _manifest
+
+        _manifest.load_into_registries()
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -81,6 +94,7 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
     path. Raises ``FileNotFoundError`` if no bundle for this platform is hosted.
     """
     registry = _REGISTRY if registry is None else registry
+    _maybe_autoload(registry)
     bundle_name, bundle = _bundle_for(executable, registry)
     if bundle is None:
         raise FileNotFoundError(
