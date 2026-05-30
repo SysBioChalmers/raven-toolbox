@@ -9,7 +9,8 @@ from raven_python.io import read_yaml_model, write_yaml_model
 
 # A model laid out exactly as RAVEN writeYAMLmodel (fa281a1) emits: cobra-native
 # structure, RAVEN-only fields as top-level per-entry keys, smiles/ec-code inside
-# the annotation block, metaData provenance-only, id/name/version top-level.
+# the annotation block, metaData provenance-only, id/name/version top-level,
+# plus the GECKO ec-* sections that populate `model.ec`.
 RAVEN_DOC = {
     "metabolites": [
         {
@@ -51,7 +52,13 @@ RAVEN_DOC = {
     "compartments": {"c": "cytoplasm"},
     "version": "1.0",
     "metaData": {"date": "2026-05-23", "taxonomy": "taxonomy/559292", "defaultLB": "-1000"},
-    "ec-rxns": [{"id": "R1", "kcat": 100.0}],
+    "gecko_light": False,
+    "ec-rxns": [
+        {"id": "R1", "kcat": 100.0, "source": "brenda", "enzymes": {"P12345": 1.0}},
+    ],
+    "ec-enzymes": [
+        {"genes": "G1", "enzymes": "P12345", "mw": 50000.0, "sequence": "MAGIC"},
+    ],
 }
 
 
@@ -101,10 +108,13 @@ def test_raven_only_fields_captured(yaml_file):
 
 
 def test_model_level_extras(yaml_file):
+    """metaData / version round-trip via model.notes; the ec-* sections
+    are consumed into a typed model.ec, not stashed in _yaml_sections."""
     model = read_yaml_model(yaml_file)
     assert model.notes["metaData"]["taxonomy"] == "taxonomy/559292"
     assert model.notes["version"] == "1.0"
-    assert model.notes["_yaml_sections"]["ec-rxns"][0]["kcat"] == 100.0
+    # ec sections live on model.ec, not in _yaml_sections.
+    assert "_yaml_sections" not in model.notes
 
 
 def test_round_trip(yaml_file, tmp_path):
@@ -123,7 +133,12 @@ def test_round_trip(yaml_file, tmp_path):
     r = reloaded.reactions.get_by_id("R1")
     assert r.notes["confidence_score"] == 2
     assert reloaded.genes.get_by_id("G1").notes["protein"] == "P12345"
-    assert reloaded.notes["_yaml_sections"]["ec-rxns"][0]["id"] == "R1"
+    # ec round-trip: same kcat, same coupling entry.
+    assert reloaded.ec.rxns == ["R1"]
+    assert reloaded.ec.kcat[0] == 100.0
+    assert reloaded.ec.source[0] == "brenda"
+    assert reloaded.ec.enzymes == ["P12345"]
+    assert reloaded.ec.mw[0] == 50000.0
 
 
 def test_extra_notes_not_dropped_when_free_text_note_present(yaml_file, tmp_path):
