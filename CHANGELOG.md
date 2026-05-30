@@ -4,6 +4,23 @@ Milestones in the raven-python port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
 
+## 0.1.0a1 — 2026-05-30
+
+First alpha release. Covers the functional scope of RAVEN built on cobrapy:
+de-novo reconstruction (KEGG / homology), context-specific modeling (tINIT / ftINIT),
+metabolic-task validation, connectivity gap-filling, HPA omics ingestion, sub-cellular
+localisation, N-model comparison, reporter metabolites, FSEOF, flux sampling, and the
+RAVEN-style I/O formats (YAML / SIF / Excel). Validated against MATLAB RAVEN on Human-GEM
+(Jaccard 0.975–0.980).
+
+* **Licensing:** released under the **MIT** license (previously GPL-3.0-or-later).
+* **Docs:** Sphinx + MyST documentation site (sources under `docs/`).
+* Not yet implemented: visualization (`plotting/`), metabolomics-based (f)tINIT scoring,
+  and published binary / KEGG-artefact release bundles. See the README and
+  [docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
+
+The milestone sections below record the incremental development history leading to this release.
+
 ## Infrastructure
 
 * **GitHub Actions CI** ([.github/workflows/ci.yml](https://github.com/SysBioChalmers/raven-python/blob/develop/.github/workflows/ci.yml)) —
