@@ -45,7 +45,21 @@ def _data_cache_dir() -> Path:
     return Path(base) / "raven_python" / "data"
 
 
+def _maybe_autoload(registry: dict) -> None:
+    """Populate the default registry from ``$RAVEN_PYTHON_MANIFEST`` on first use, if set.
+
+    Fires only when the caller relies on the default (still-empty) ``_DATA_REGISTRY`` and
+    the environment variable points at a manifest. Local import avoids an import cycle with
+    :mod:`raven_python.manifest`.
+    """
+    if registry is _DATA_REGISTRY and not registry and os.environ.get("RAVEN_PYTHON_MANIFEST"):
+        from raven_python import manifest as _manifest
+
+        _manifest.load_into_registries()
+
+
 def _bundle(dataset: str, registry: dict) -> dict:
+    _maybe_autoload(registry)
     bundle = registry.get(dataset)
     if bundle is None:
         raise FileNotFoundError(

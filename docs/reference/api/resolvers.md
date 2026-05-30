@@ -20,3 +20,13 @@ Data-bundle resolver (KEGG artefacts and template-model data).
 .. automodule:: raven_python.data
    :members:
 ```
+
+## `raven_python.manifest`
+
+Loads a shared [data/binary manifest](../../maintenance/data_manifest.md) into the two
+registries above (and is consulted lazily via `$RAVEN_PYTHON_MANIFEST`).
+
+```{eval-rst}
+.. automodule:: raven_python.manifest
+   :members:
+```

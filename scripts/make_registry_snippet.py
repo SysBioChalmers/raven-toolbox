@@ -19,6 +19,19 @@ Binary bundle (one ZIP per platform, named ``<bundle>-<version>-<os>-<arch>.zip`
         --bundle blast --version 2.16.0 --provides blastp makeblastdb --dir zips \\
         --base-url https://github.com/ORG/raven_python/releases/download/blast-2.16.0
 
+Add/update an entry in the shared ``manifest.json`` (the single source of truth read by
+both raven-python and MATLAB RAVEN — see data/manifest.schema.json)::
+
+    python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \\
+        --target data --dataset kegg --version kegg116 --dir artefacts \\
+        --base-url https://github.com/ORG/raven-data/releases/download/kegg-kegg116 \\
+        --doi 10.5281/zenodo.0000000
+
+    python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \\
+        --target binary --bundle diamond --version 2.1.9 --provides diamond --dir zips \\
+        --base-url https://github.com/ORG/raven-data/releases/download/diamond-2.1.9 \\
+        --license GPL-3.0-only
+
 The SHA256 helper is shared with the runtime resolvers (``raven_python.binaries``), so
 published checksums always match what ``ensure_data`` / ``ensure_binary`` verify.
 """
@@ -68,6 +81,55 @@ def render(key: str, entry: dict) -> str:
     return json.dumps({key: entry}, indent=4)
 
 
+# --- manifest.json (shared source of truth) --------------------------------
+
+
+def _file_meta(path: Path, base: str) -> dict:
+    """Manifest file record: url + sha256 + byte size."""
+    return {"url": f"{base}/{path.name}", "sha256": _sha256(path), "bytes": path.stat().st_size}
+
+
+def manifest_data_entry(version: str, base_url: str, directory: Path, **meta: str) -> dict:
+    """Build a manifest ``data`` dataset entry (registry fields + optional metadata)."""
+    base = base_url.rstrip("/")
+    files = {p.name: _file_meta(p, base) for p in _files_in(directory)}
+    if not files:
+        raise SystemExit(f"No files found in {directory}")
+    entry = {"version": version}
+    entry.update({k: v for k, v in meta.items() if v})  # description/license/doi/source
+    entry["files"] = files
+    return entry
+
+
+def manifest_binary_entry(
+    bundle: str, version: str, provides: list[str], base_url: str, directory: Path, **meta: str
+) -> dict:
+    """Build a manifest ``binaries`` bundle entry from per-platform ZIPs."""
+    base = base_url.rstrip("/")
+    prefix = f"{bundle}-{version}-"
+    platforms = {
+        zp.name[len(prefix) : -len(".zip")]: _file_meta(zp, base)
+        for zp in sorted(directory.glob(f"{prefix}*.zip"))
+    }
+    if not platforms:
+        raise SystemExit(f"No {prefix}*.zip files found in {directory}")
+    entry = {"version": version, "provides": provides}
+    entry.update({k: v for k, v in meta.items() if v})  # description/license
+    entry["platforms"] = platforms
+    return entry
+
+
+def update_manifest(manifest_path: Path, section: str, key: str, entry: dict) -> None:
+    """Insert ``entry`` under ``manifest[section][key]`` and write the manifest back."""
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    else:
+        manifest = {"manifest_version": 1}
+    manifest.setdefault("manifest_version", 1)
+    manifest.setdefault(section, {})[key] = entry
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="kind", required=True)
@@ -85,17 +147,51 @@ def main(argv: list[str] | None = None) -> None:
     b.add_argument("--dir", required=True, type=Path, help="directory of uploaded ZIPs")
     b.add_argument("--base-url", required=True, help="release download URL prefix")
 
+    m = sub.add_parser("manifest", help="add/update an entry in the shared manifest.json")
+    m.add_argument("--manifest", required=True, type=Path, help="manifest.json to create/update")
+    m.add_argument("--target", required=True, choices=["data", "binary"])
+    m.add_argument("--version", required=True)
+    m.add_argument("--dir", required=True, type=Path, help="directory of uploaded files")
+    m.add_argument("--base-url", required=True, help="release download URL prefix")
+    m.add_argument("--dataset", help="data: dataset key, e.g. 'kegg'")
+    m.add_argument("--bundle", help="binary: bundle key, e.g. 'diamond'")
+    m.add_argument("--provides", nargs="+", help="binary: executables the bundle provides")
+    m.add_argument("--description")
+    m.add_argument("--license")
+    m.add_argument("--doi", help="data: Zenodo (or other) DOI for this version")
+    m.add_argument("--source", help="data: human-facing release/record page")
+
     args = parser.parse_args(argv)
     if args.kind == "data":
         key, entry = args.dataset, data_entry(args.dataset, args.version, args.base_url, args.dir)
         target = "raven_python/data.py  _DATA_REGISTRY"
-    else:
+        print(f"# Merge into {target}:", file=sys.stderr)
+        print(render(key, entry))
+    elif args.kind == "binary":
         key = args.bundle
         entry = binary_entry(args.bundle, args.version, args.provides, args.base_url, args.dir)
         target = "raven_python/binaries.py  _REGISTRY"
-
-    print(f"# Merge into {target}:", file=sys.stderr)
-    print(render(key, entry))
+        print(f"# Merge into {target}:", file=sys.stderr)
+        print(render(key, entry))
+    else:  # manifest
+        if args.target == "data":
+            if not args.dataset:
+                parser.error("--dataset is required for --target data")
+            entry = manifest_data_entry(
+                args.version, args.base_url, args.dir,
+                description=args.description, license=args.license, doi=args.doi, source=args.source,
+            )
+            update_manifest(args.manifest, "data", args.dataset, entry)
+            print(f"Updated {args.manifest}: data/{args.dataset} ({len(entry['files'])} files)", file=sys.stderr)
+        else:
+            if not (args.bundle and args.provides):
+                parser.error("--bundle and --provides are required for --target binary")
+            entry = manifest_binary_entry(
+                args.bundle, args.version, args.provides, args.base_url, args.dir,
+                description=args.description, license=args.license,
+            )
+            update_manifest(args.manifest, "binaries", args.bundle, entry)
+            print(f"Updated {args.manifest}: binaries/{args.bundle} ({len(entry['platforms'])} platforms)", file=sys.stderr)
 
 
 if __name__ == "__main__":
