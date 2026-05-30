@@ -153,7 +153,7 @@ class EcData:
 
     @staticmethod
     def empty(n_rxns: int, n_enzymes: int = 0, *,
-              gecko_light: bool = False) -> "EcData":
+              gecko_light: bool = False) -> EcData:
         """Preallocate an ``EcData`` with the canonical sentinel values.
 
         Per-rxn fields get empty strings; per-enzyme fields get empty
@@ -311,7 +311,10 @@ def _build_ec_rxns_list(ec: EcData) -> list[dict[str, Any]]:
     """
     coo = ec.rxn_enz_mat.tocoo()
     per_row_enzymes: list[dict[str, float]] = [{} for _ in range(ec.n_rxns)]
-    for i, j, v in zip(coo.row, coo.col, coo.data):
+    # All three arrays come from the same COO matrix, so they're guaranteed
+    # equal length; strict=True turns any future drift into a loud TypeError
+    # instead of silent truncation.
+    for i, j, v in zip(coo.row, coo.col, coo.data, strict=True):
         per_row_enzymes[int(i)][ec.enzymes[int(j)]] = float(v)
 
     out: list[dict[str, Any]] = []

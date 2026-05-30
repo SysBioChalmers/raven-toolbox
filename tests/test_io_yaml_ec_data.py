@@ -23,7 +23,6 @@ from scipy import sparse
 from raven_python.io import EcData, read_yaml_model, write_yaml_model
 from raven_python.io.yaml import model_from_yaml_data
 
-
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
