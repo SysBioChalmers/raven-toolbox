@@ -48,8 +48,22 @@ omissions:
   it ([`dfba`](https://pypi.org/project/dfba/), [`reframed`](https://pypi.org/project/reframed/),
   [`mewpy`](https://pypi.org/project/mewpy/)).
 
-What's still open is catalogued in **[docs/todo.md](docs/reference/todo.md)** (visualisation / Phase
-6 is the main item).
+### Not yet implemented
+
+Planned or partial functionality still on the books (full detail in
+**[docs/todo.md](docs/reference/todo.md)**):
+
+- [ ] **Visualization (`plotting/`)** — pathway maps (Escher), omics-overlay and
+  flux-distribution plots. *The main open item.*
+- [ ] **Metabolomics-based scoring in tINIT / ftINIT** — passing a non-empty `metabolomics`
+  argument currently raises `NotImplementedError`.
+- [ ] **Published binary release ZIPs** (BLAST / DIAMOND / HMMER) — the resolver in
+  `binaries.py` is ready; the registry is empty until the ZIPs are published as release assets.
+- [ ] **Published KEGG data-artefact releases** — the build pipeline exists; the artefact
+  bundle is not published yet.
+
+The two principled omissions above (MetaCyc reconstruction, dynamic FBA) are **not** on this
+list — they are deliberately out of scope, not pending work.
 
 ## Installation (development)
 
