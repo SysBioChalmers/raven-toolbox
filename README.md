@@ -79,15 +79,15 @@ runs on the open-source GLPK.
 
 ## Documentation
 
-Full documentation is built with Sphinx and hosted on **ReadTheDocs**:
-**<https://raven-python.readthedocs.io>**. The source lives in
+The documentation is built with Sphinx (MyST Markdown); the source lives in
 [docs/](docs/) — see [docs/README.md](docs/README.md) for the layout and local-build
-instructions.
+instructions. (A hosted ReadTheDocs site is not yet published.)
 
 ## Relationship to MATLAB RAVEN
 
-`raven-python` is a derivative work and is released under the same **GPL-3.0-or-later**
-license. If you use it in scientific work, please cite the RAVEN 2 paper:
+`raven-python` is an independent Python reimplementation of the
+[RAVEN Toolbox 2](https://github.com/SysBioChalmers/RAVEN), released under the permissive
+**MIT** license. If you use it in scientific work, please cite the RAVEN 2 paper:
 
 > Wang H, Marcišauskas S, Sánchez BJ, Domenzain I, Hermansson D, Agren R, Nielsen J,
 > Kerkhoven EJ. (2018) RAVEN 2.0: A versatile toolbox for metabolic network
@@ -96,4 +96,4 @@ license. If you use it in scientific work, please cite the RAVEN 2 paper:
 
 ## License
 
-[GPL-3.0-or-later](LICENSE)
+[MIT](LICENSE)
