@@ -187,6 +187,158 @@ def test_smiles_with_yaml_special_chars_quoted(src, tmp_path):
     ]
 
 
+PRE_SHIM_YAML = """\
+---
+!!omap
+- metaData:
+    id: "eciYali"
+    name: "Yarrowia lipolytica"
+    version: "1.0"
+    date: "2024-10-17"
+    geckoLight: "true"
+- metabolites:
+    - !!omap
+      - id: "s_0001"
+      - name: "ATP"
+      - compartment: "c"
+      - formula: "C10H16N5O13P3"
+      - charge: -4
+      - inchis: "InChI=1S/CH4"
+      - smiles: "[O-]P(=O)([O-])OP(=O)([O-])O"
+      - annotation: !!omap
+          - kegg.compound: "C00002"
+          - sbo: "SBO:0000247"
+      - deltaG: 12.5
+      - notes: "metabolite note"
+      - metFrom: "KEGG"
+- reactions:
+    - !!omap
+      - id: "r_0001"
+      - name: "hexokinase"
+      - metabolites: !!omap
+          - s_0001: -1
+      - lower_bound: -1000
+      - upper_bound: 1000
+      - gene_reaction_rule: "G1"
+      - rxnFrom: "KEGG"
+      - eccodes: "2.7.1.1"
+      - references: "PMID:12345"
+      - subsystem: "Glycolysis"
+      - annotation: !!omap
+          - kegg.reaction: "R00299"
+          - sbo: "SBO:0000176"
+      - deltaG: -17.39
+      - confidence_score: 2
+      - rxnNotes: "old reaction note"
+- genes:
+    - !!omap
+      - id: "G1"
+      - name: "HXK1"
+      - protein: "P01234"
+      - annotation: !!omap
+          - uniprot: "P01234"
+- compartments: !!omap
+    - c: "cytoplasm"
+- ec-rxns:
+    - !!omap
+      - id: "r_0001"
+      - kcat: 25.3
+      - enzymes: !!omap
+          - P01234: 1
+- ec-enzymes:
+    - !!omap
+      - genes: "G1"
+      - enzymes: "P01234"
+      - mw: 50000
+"""
+
+
+def test_pre_shim_format_loads(tmp_path):
+    """The pre-`feat/yeast-gem-shared` RAVEN MATLAB writer emitted a
+    file shape that differs from the current one in seven concrete
+    ways. The reader must continue to load every one of them:
+
+      1. ``---`` document-start marker (kept by old MATLAB writer)
+      2. ``- metaData:`` as a plain block mapping (no ``!!omap`` tag)
+      3. ``geckoLight: "true"`` *inside* metaData (now emitted as a
+         top-level ``gecko_light``)
+      4. Metabolite ``smiles`` as a top-level entry key (now emitted
+         inside the ``annotation`` block)
+      5. Reaction notes under the ``rxnNotes`` key (now emitted as
+         ``notes``)
+      6. Integer-typed bounds / coefficients (now emitted as floats)
+      7. Every string double-quoted (now bare unless YAML requires
+         quoting)
+
+    Each item below maps to one of those seven cases.
+    """
+    p = tmp_path / "pre_shim.yml"
+    p.write_text(PRE_SHIM_YAML)
+    model = read_yaml_model(p)
+
+    # metaData survives + provenance is lifted onto the cobra-shape
+    # accessors (cases 1 + 2).
+    assert model.id == "eciYali"
+    assert model.name == "Yarrowia lipolytica"
+    assert model.notes["version"] == "1.0"
+    assert model.notes["metaData"]["taxonomy" if "taxonomy" in model.notes["metaData"] else "date"]
+
+    # geckoLight in metaData populates the typed EcData (case 3).
+    assert model.ec is not None
+    assert model.ec.gecko_light is True
+    assert model.ec.rxns == ["r_0001"]
+    assert model.ec.kcat[0] == 25.3
+
+    # Top-level smiles lifted into annotation.smiles (case 4).
+    a = model.metabolites.get_by_id("s_0001")
+    assert a.annotation["smiles"] == ["[O-]P(=O)([O-])OP(=O)([O-])O"]
+    assert "smiles" not in a.notes  # stays in annotation, not notes
+
+    # rxnNotes read as the canonical notes key (case 5).
+    r = model.reactions.get_by_id("r_0001")
+    assert r.notes["note"] == "old reaction note"
+
+    # Integer bounds become floats inside cobra (case 6).
+    assert r.bounds == (-1000.0, 1000.0)
+    assert isinstance(r.lower_bound, float)
+
+    # Quoted strings unquote cleanly (case 7) — verified implicitly by
+    # all the equality assertions above. Spot check the metabolite
+    # name, which used double quotes in the source.
+    assert a.name == "ATP"
+
+    # Other RAVEN extras still preserved.
+    assert a.notes["inchis"] == "InChI=1S/CH4"
+    assert a.notes["deltaG"] == 12.5
+    assert a.notes["note"] == "metabolite note"
+    assert a.notes["metFrom"] == "KEGG"
+    assert r.notes["rxnFrom"] == "KEGG"
+    assert r.notes["eccodes"] == "2.7.1.1"
+    assert r.notes["references"] == "PMID:12345"
+    assert r.notes["confidence_score"] == 2
+    assert r.notes["deltaG"] == -17.39
+    assert model.genes.get_by_id("G1").notes["protein"] == "P01234"
+
+
+def test_pre_shim_yeast_gem_loads_if_available():
+    """The real pre-shim yeast-GEM.yml: 2748 mets, 4102 rxns, 1143
+    genes. Skipped when the working copy isn't mounted (CI runners)."""
+    real = Path("/mnt/c/Work/GitHub/yeast-GEM/model/yeast-GEM.yml")
+    if not real.exists():
+        pytest.skip("yeast-GEM.yml not available in this environment")
+    model = read_yaml_model(real)
+    assert model.id == "yeastGEM_develop"
+    assert len(model.metabolites) == 2748
+    assert len(model.reactions) == 4102
+    assert len(model.genes) == 1143
+    # Every RAVEN extension we know about must come through.
+    assert sum(1 for r in model.reactions if r.notes.get("eccodes")) == 2411
+    assert sum(1 for r in model.reactions if r.notes.get("deltaG") is not None) == 3984
+    assert sum(1 for m in model.metabolites if m.notes.get("deltaG") is not None) == 2696
+    assert sum(1 for m in model.metabolites if "smiles" in (m.annotation or {})) == 1788
+    assert sum(1 for r in model.reactions if r.notes.get("note")) == 1443
+
+
 def test_eccodes_round_trip_through_cobra_extras(src, tmp_path):
     """A model loaded from cobra (no eccodes awareness) and re-written
     via raven_python.write_yaml_model still keeps eccodes — they're

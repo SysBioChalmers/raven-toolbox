@@ -8,7 +8,9 @@ unchanged. On top of that it adds the RAVEN-specific formats:
 - {func}`raven_python.io.read_yaml_model` / {func}`raven_python.io.write_yaml_model` —
   cobra-standard YAML (the `!!omap` layout), transparently handling `.yml.gz`. RAVEN-only and
   GECKO `ec-*` side-fields are preserved on each entry's `notes` so a read→write round-trip is
-  lossless.
+  lossless. The full schema (top-level layout, field order, quoting rules, the GECKO
+  `ec-*` and `metaData` extensions) is documented in
+  [the YAML model format reference](../reference/yaml_format.md).
 - {func}`raven_python.io.export_model_to_sif` — Cytoscape SIF (`rc` / `rr` / `cc` graphs).
 - {func}`raven_python.io.export_to_excel` — the RAVEN 5-sheet workbook (RXNS / METS / COMPS /
   GENES / MODEL). Requires the `excel` extra. Excel **import** is intentionally not provided.

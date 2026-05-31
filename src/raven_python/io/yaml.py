@@ -235,7 +235,17 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
         model.notes["version"] = version
 
     # Pop the ec sections out of `foreign` and into a typed EcData.
-    # The remaining unknown keys round-trip opaquely.
+    # The remaining unknown keys round-trip opaquely. Pre-shim RAVEN
+    # MATLAB writes wrote `geckoLight: "true"` inside metaData (rather
+    # than the current top-level `gecko_light`); honour the legacy
+    # placement too — keep the metaData entry untouched (round-trip)
+    # and surface it at the top level so EcData picks it up.
+    legacy_gecko = metadata.get("geckoLight")
+    if legacy_gecko is not None and "gecko_light" not in foreign:
+        if isinstance(legacy_gecko, str):
+            foreign["gecko_light"] = legacy_gecko.lower() == "true"
+        else:
+            foreign["gecko_light"] = bool(legacy_gecko)
     ec_sections = {k: foreign.pop(k) for k in list(foreign) if k in _EC_TOP_KEYS}
     ec_data = ec_data_from_yaml_sections(ec_sections)
     if ec_data is not None:
