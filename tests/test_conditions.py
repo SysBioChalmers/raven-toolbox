@@ -1,15 +1,27 @@
 """Tests for raven_python.conditions.apply (generic condition mechanism)."""
 from __future__ import annotations
 
+import io
+
 import cobra
 import pytest
-import yaml
+from ruamel.yaml import YAML
 
 from raven_python.conditions import (
     apply_condition,
     load_condition,
     set_reaction_bounds,
 )
+
+_SAFE_YAML = YAML(typ="safe")
+
+
+def _yaml_dump(cfg: dict) -> str:
+    """Helper: dump a dict to YAML via ruamel.yaml (PyYAML.safe_dump
+    equivalent). Used here because PyYAML isn't a project dependency."""
+    buf = io.StringIO()
+    _SAFE_YAML.dump(cfg, buf)
+    return buf.getvalue()
 
 
 def _toy_model() -> cobra.Model:
@@ -164,7 +176,7 @@ def test_expected_uptake_count_match_silent(recwarn):
 def test_apply_condition_accepts_yaml_path(tmp_path):
     cfg = {"bounds": [{"rxn": "EX_glc", "lb": -42}]}
     path = tmp_path / "cond.yml"
-    path.write_text(yaml.safe_dump(cfg))
+    path.write_text(_yaml_dump(cfg))
     m = _toy_model()
     apply_condition(m, path)
     assert m.reactions.get_by_id("EX_glc").lower_bound == -42
@@ -173,7 +185,7 @@ def test_apply_condition_accepts_yaml_path(tmp_path):
 def test_load_condition_round_trip(tmp_path):
     cfg = {"name": "x", "bounds": [{"rxn": "r1", "lb": 0}]}
     path = tmp_path / "cond.yml"
-    path.write_text(yaml.safe_dump(cfg))
+    path.write_text(_yaml_dump(cfg))
     assert load_condition(path) == cfg
 
 

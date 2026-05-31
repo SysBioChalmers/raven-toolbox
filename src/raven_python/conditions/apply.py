@@ -49,7 +49,13 @@ from pathlib import Path
 from typing import Any
 
 import cobra
-import yaml
+from ruamel.yaml import YAML
+
+# A safe loader keeps the parsed document as plain dict / list / scalars,
+# which matches what callers expect from ``load_condition``. ruamel.yaml
+# is already a transitive dependency via cobra, so we don't take on
+# PyYAML on top.
+_SAFE_YAML = YAML(typ="safe")
 
 #: ``prelude.reset_exchanges`` puts every exchange reaction at this
 #: upper bound (and lower bound = 0).
@@ -62,7 +68,7 @@ def load_condition(path: str | Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"Condition file not found: {path}")
     with open(path) as f:
-        return yaml.safe_load(f)
+        return _SAFE_YAML.load(f)
 
 
 def apply_condition(
