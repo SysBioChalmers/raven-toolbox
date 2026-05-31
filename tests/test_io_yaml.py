@@ -165,12 +165,16 @@ def test_gzipped_round_trip(yaml_file, tmp_path):
 
 
 def test_output_is_cobra_readable(yaml_file, tmp_path):
-    # The written file must load with stock cobra (it's cobra's native format).
+    """Cobrapy must be able to parse the file (no syntax error) and
+    recover the metabolites, reactions, and the cobrapy-canonical
+    annotation block. Model-level id / name / version live inside the
+    metaData section (RAVEN convention) — cobrapy doesn't know about
+    metaData, so cobra_model.id is None here. raven_python recovers
+    them; cobrapy ignores them gracefully."""
     model = read_yaml_model(yaml_file)
     out = tmp_path / "out.yml"
     write_yaml_model(model, out)
     cobra_model = cobra.io.load_yaml_model(str(out))
-    assert cobra_model.id == "testModel"
     assert {m.id for m in cobra_model.metabolites} == {"s_0001", "s_0002"}
     # RAVEN-only fields land in cobra notes; smiles in annotation
     assert cobra_model.metabolites.get_by_id("s_0001").annotation["smiles"] == ["C1=NC2"]
