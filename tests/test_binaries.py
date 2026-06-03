@@ -78,3 +78,24 @@ def test_ensure_binary_unhosted_platform_raises(tmp_path):
     registry = {"footool": {"version": "1", "provides": ["footool"], "platforms": {}}}
     with pytest.raises(FileNotFoundError, match="No bundled"):
         binaries.ensure_binary("footool", registry=registry)
+
+
+def test_ensure_binary_rejects_path_traversal_zip(tmp_path, monkeypatch):
+    # A ZIP whose member escapes the extraction dir must be refused, not written
+    # outside the cache (ZipFile.extractall has no traversal guard of its own).
+    archive = tmp_path / "evil.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("footool", "ok")
+        zf.writestr("../escape.txt", "pwned")
+    sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    registry = {
+        "footool": {
+            "version": "1.0",
+            "provides": ["footool"],
+            "platforms": {binaries.platform_key(): {"url": archive.as_uri(), "sha256": sha}},
+        }
+    }
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    with pytest.raises(ValueError, match="path traversal"):
+        binaries.ensure_binary("footool", registry=registry)
+    assert not (tmp_path / "escape.txt").exists()

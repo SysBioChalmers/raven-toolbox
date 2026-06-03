@@ -8,6 +8,8 @@ from pathlib import Path
 import cobra
 import pandas as pd
 
+from raven_python.utils.parse import subsystem_to_str
+
 #: Core columns recognised in ``mets_df``. Anything else is treated as a
 #: MIRIAM annotation column (the header becomes the namespace key).
 DEFAULT_CORE_MET_COLUMNS: tuple[str, ...] = (
@@ -369,7 +371,7 @@ def _update_reaction(rxn: cobra.Reaction, row: pd.Series, miriam_cols: list[str]
     if _has_value(row.get("ub")):
         rxn.upper_bound = float(row["ub"])
     if _has_value(row.get("subSystems")):
-        rxn.subsystem = str(row["subSystems"])
+        rxn.subsystem = subsystem_to_str(row["subSystems"])
     if _has_value(row.get("eccodes")):
         rxn.annotation["ec-code"] = str(row["eccodes"])
     if _has_value(row.get("rxnNotes")):

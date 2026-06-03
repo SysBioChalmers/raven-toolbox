@@ -37,6 +37,12 @@ def draft_and_template():
 # --------------------------------------------------------------------------- #
 # Connectivity gap-fill
 # --------------------------------------------------------------------------- #
+def test_non_positive_penalty_rejected(draft_and_template):
+    draft, template = draft_and_template
+    with pytest.raises(ValueError, match="penalty must be"):
+        connect_blocked_reactions(draft, template, penalty=0)
+
+
 def test_fill_gaps_connects_blocked_reaction(draft_and_template):
     draft, template = draft_and_template
     assert "r1" in cobra.flux_analysis.find_blocked_reactions(draft)  # precondition

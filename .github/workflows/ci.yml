@@ -23,7 +23,9 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install --upgrade pip
-      - run: pip install ruff
+      # Pinned so the lint result is reproducible (unpinned ruff silently
+      # adds rules over time). Keep in sync with the ``dev`` extra in pyproject.
+      - run: pip install ruff==0.15.15
       - run: ruff check .
 
   test:

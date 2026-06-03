@@ -18,6 +18,7 @@ import cobra
 import pandas as pd
 
 from raven_python.tasks import Task, check_tasks
+from raven_python.utils.parse import subsystem_to_str
 
 
 @dataclass
@@ -60,12 +61,9 @@ def _subsystem_counts(model: cobra.Model) -> dict[str, int]:
     """{subsystem_name: reaction_count}. Reactions with empty subsystem fall under '(none)'."""
     counts: dict[str, int] = {}
     for r in model.reactions:
-        # cobra stores subsystem as a string; RAVEN sometimes uses cell-of-cells (we'd
-        # already have it as a string here, but guard against list/tuple from messy YAML).
-        sub = r.subsystem
-        if isinstance(sub, (list, tuple)):
-            sub = sub[0] if sub else ""
-        sub = (sub or "").strip() or "(none)"
+        # cobra stores subsystem as a string; RAVEN sometimes uses cell-of-cells.
+        # Coerce to the same ;-joined string used everywhere else (no data lost).
+        sub = subsystem_to_str(r.subsystem).strip() or "(none)"
         counts[sub] = counts.get(sub, 0) + 1
     return counts
 
