@@ -30,6 +30,8 @@ Legacy quirks the reader also accepts (silent normalisation):
 
 * older RAVEN files with ``id`` / ``name`` nested in ``metaData``;
 * per-metabolite top-level ``smiles`` (lifted into ``annotation['smiles']``);
+* per-reaction top-level ``eccodes`` (lifted into ``annotation['ec-code']`` —
+  the cobra-standard place where geckopy reads EC numbers);
 * very old RAVEN files written as a bare ``-`` sequence of single-key mappings
   rather than one big mapping;
 * MATLAB GECKO ecModels whose ``usage_prot_*`` and ``prot_pool_exchange``
@@ -66,7 +68,6 @@ def _open_text(path: str | Path, mode: str):
 # 'note' to avoid colliding with the notes container itself.)
 _MET_FIELDS = (("inchis", "inchis"), ("deltaG", "deltaG"), ("metFrom", "metFrom"), ("notes", "note"))
 _RXN_FIELDS = (
-    ("eccodes", "eccodes"),
     ("references", "references"),
     ("rxnFrom", "rxnFrom"),
     ("deltaG", "deltaG"),
@@ -168,8 +169,9 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
        out of legacy ``metaData``; preserves ``version`` and ``metaData``
        on ``model.notes`` for round-trip.
     2. **legacy quirks:** lifts per-metabolite top-level ``smiles`` into
-       ``annotation['smiles']`` (older MATLAB GECKO ecModels emitted it
-       at the top level); flips the older reverse-direction
+       ``annotation['smiles']`` and per-reaction top-level ``eccodes`` into
+       ``annotation['ec-code']`` (older RAVEN/MATLAB GECKO files emitted
+       these at the top level); flips the older reverse-direction
        ``usage_prot_*`` / ``prot_pool_exchange`` convention to the
        forward convention.
     3. **GECKO ec sections:** when ``ec-rxns`` / ``ec-enzymes`` are
@@ -188,6 +190,13 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     # Done before model_from_dict so cobra sees the annotation in its
     # canonical place. No-op on current files.
     _lift_smiles_to_annotation(raw.get("metabolites"))
+
+    # Legacy quirk: per-reaction top-level `eccodes` -> annotation['ec-code'].
+    # EC numbers are standard cobra annotation; older RAVEN/MATLAB files put
+    # them at the reaction top level, which hid them from cobra/geckopy (which
+    # read annotation['ec-code']). Lift before model_from_dict. No-op on
+    # current cobra-shaped files.
+    _lift_eccodes_to_annotation(raw.get("reactions"))
 
     # Normalise legacy reaction-side YAML keys (e.g. RAVEN MATLAB's
     # ``rxnNotes`` -> the canonical ``notes``) before any field capture so
@@ -282,6 +291,45 @@ def _lift_smiles_to_annotation(metabolites) -> None:
             annotation["smiles"] = (
                 smiles if isinstance(smiles, list) else [smiles]
             )
+
+
+def _lift_eccodes_to_annotation(reactions) -> None:
+    """Move a reaction's legacy top-level ``eccodes`` into ``annotation['ec-code']``.
+
+    EC numbers are a standard MIRIAM cross-reference, so the cobra/raven
+    convention is to carry them inside ``annotation`` under the ``ec-code``
+    key — where cobra and geckopy read them — not as a RAVEN-only top-level
+    field. Older RAVEN/MATLAB writers emitted a top-level ``eccodes`` (a
+    ``;``-joined string or a list of codes); lift it into the canonical
+    place. Normalises in place; no-op when no reaction carries a top-level
+    ``eccodes`` key. A native ``annotation['ec-code']`` (if already present)
+    wins and is left untouched.
+    """
+    if not isinstance(reactions, list):
+        return
+    for rxn in reactions:
+        if not (isinstance(rxn, dict) and "eccodes" in rxn):
+            continue
+        codes = _eccodes_to_list(rxn.pop("eccodes"))
+        if not codes:
+            continue
+        annotation = rxn.get("annotation")
+        if not isinstance(annotation, dict):
+            annotation = {}
+            rxn["annotation"] = annotation
+        annotation.setdefault("ec-code", codes)
+
+
+def _eccodes_to_list(value) -> list:
+    """Normalise a RAVEN ``eccodes`` value to a list of trimmed code strings.
+
+    Accepts a ``;``-joined string (RAVEN MATLAB's ``getECstring`` form) or an
+    already-split list; drops empty tokens.
+    """
+    if value is None:
+        return []
+    items = value if isinstance(value, list) else str(value).split(";")
+    return [str(s).strip() for s in items if str(s).strip()]
 
 
 def _flip_legacy_prot_direction(model: cobra.Model) -> None:
