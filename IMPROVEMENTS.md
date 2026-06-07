@@ -103,7 +103,7 @@ and `taxonomy.py` (3b.3). Maintainer-side, build-time tooling (PLAN.md §2.3b).
 
 ## FSEOF (Phase 5 — implemented, redesigned)
 
-RAVEN `core/FSEOF.m` → `analysis/fseof.py` (`fseof`). User was unhappy with RAVEN's
+RAVEN `analysis/FSEOF.m` → `analysis/fseof.py` (`fseof`). User was unhappy with RAVEN's
 output; redesigned substantially.
 
 | # | Cat | Target | Status | Improvement |
@@ -115,7 +115,7 @@ output; redesigned substantially.
 
 ## randomSampling (Phase 5 — implemented)
 
-RAVEN `core/randomSampling.m` → `analysis/sampling.py` (`random_sampling`). The
+RAVEN `analysis/randomSampling.m` → `analysis/sampling.py` (`random_sampling`). The
 random-objective / extreme-point method of Bordel et al. (2010) — **not** what
 `cobra.sampling` (OptGP/ACHR) does (those draw a near-uniform MCMC sample of the
 polytope interior), so it is a genuine addition, and it was wrongly listed as
@@ -131,7 +131,7 @@ combination of reactions.
 
 ## reporterMetabolites (Phase 5 — implemented)
 
-RAVEN `core/reporterMetabolites.m` → `analysis/reporter.py` (`reporter_metabolites`).
+RAVEN `analysis/reporterMetabolites.m` → `analysis/reporter.py` (`reporter_metabolites`).
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -170,7 +170,7 @@ RAVEN `INIT/ftINITInternalAlg.m` (+ orchestration) → `init/ftinit.py` (`run_ft
 
 ## parseTaskList / checkTasks (Phase 4a — implemented)
 
-RAVEN `core/parseTaskList.m` + `core/checkTasks.m` → `tasks/tasklist.py` + `tasks/check.py`.
+RAVEN `tasks/parseTaskList.m` + `tasks/checkTasks.m` → `tasks/tasklist.py` + `tasks/check.py`.
 
 | # | Cat | Target | Status | Improvement |
 |---|---|---|---|---|
@@ -180,7 +180,7 @@ RAVEN `core/parseTaskList.m` + `core/checkTasks.m` → `tasks/tasklist.py` + `ta
 
 ## fillGaps (Phase 4b — implemented)
 
-RAVEN `core/fillGaps.m`. Only the **connectivity** mode is ported, as
+RAVEN `gapfilling/fillGaps.m`. Only the **connectivity** mode is ported, as
 `connect_blocked_reactions` ([gapfilling/fill.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/gapfilling/fill.py)) —
 MILP via cobra/optlang (GLPK). RAVEN's other mode (fill to make the objective feasible)
 is `cobra.flux_analysis.gapfill` and is **cheatsheeted, not re-wrapped** (PLAN §1).
@@ -192,7 +192,7 @@ is `cobra.flux_analysis.gapfill` and is **cheatsheeted, not re-wrapped** (PLAN �
 
 ## addRxns
 
-RAVEN `core/addRxns.m` — add reactions from equation strings (or mets+coeffs), auto-creating
+RAVEN `manipulation/addRxns.m` — add reactions from equation strings (or mets+coeffs), auto-creating
 metabolites/genes. Ported as `add_reactions_from_equations`
 ([manipulation/add.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/add.py)).
 
@@ -246,7 +246,7 @@ and `get_elemental_balance` ([utils/balance.py](https://github.com/SysBioChalmer
 |---|---|---|---|---|
 | ~~P1~~ | ERGONOMICS | — | ↩ revised | A 6-mode keyword `set_parameters` was built then **trimmed** (review: not Pythonic — it re-wrapped cobra one-liners for `lb`/`ub`/`eq`/`obj`/`unc`). Only the `var` ±% band, which cobra has no idiom for, is kept as `set_variance_bounds`; the rest are documented as cobra idioms in the §1 cheatsheet. |
 | B1 | ERGONOMICS (correctness) | raven-python 🔨 | 🔨 | **getElementalBalance: report `unknown` for missing formulas.** cobra's `check_mass_balance` silently treats a metabolite with no formula as contributing nothing, so the reaction can read as (un)balanced on incomplete data. raven-python flags those as `unknown` rather than guessing — preserving RAVEN's distinction (its `-1` status). |
-| B2 | CORRECTNESS | raven-python 🔨 + MATLAB RAVEN 💡 | 🔨 | **Empty-stoichiometry reactions report `unknown`, not vacuous `balanced`.** A reaction with no metabolites used to fall through to `balanced` (any-over-empty is False; the zero-imbalance dict is empty). Same bug in MATLAB `core/getElementalBalance.m`: with no entries in `model.S(:,j)`, `balanceStatus` stays NaN through both loops and the final `isnan→1` step labels it `balanced`. **Proposed back-port:** add an `emptyRxns = full(sum(model.S~=0,1))==0` mask and `balanceStatus(emptyRxns) = min(-1, balanceStatus(emptyRxns))` before the `isnan→1` line, so empty reactions are marked "missing information". |
+| B2 | CORRECTNESS | raven-python 🔨 + MATLAB RAVEN 💡 | 🔨 | **Empty-stoichiometry reactions report `unknown`, not vacuous `balanced`.** A reaction with no metabolites used to fall through to `balanced` (any-over-empty is False; the zero-imbalance dict is empty). Same bug in MATLAB `queries/getElementalBalance.m`: with no entries in `model.S(:,j)`, `balanceStatus` stays NaN through both loops and the final `isnan→1` step labels it `balanced`. **Proposed back-port:** add an `emptyRxns = full(sum(model.S~=0,1))==0` mask and `balanceStatus(emptyRxns) = min(-1, balanceStatus(emptyRxns))` before the `isnan→1` line, so empty reactions are marked "missing information". |
 
 ## getRxnsInComp / getMetsInComp — not ported
 
@@ -288,7 +288,7 @@ value is preserving `metaData` identity and RAVEN-only per-entry fields, which i
 
 ## changeRxns
 
-RAVEN `core/changeRxns.m` — change reaction equations. Ported as
+RAVEN `manipulation/changeRxns.m` — change reaction equations. Ported as
 `change_reaction_equations` ([manipulation/change.py](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/change.py)).
 
 | # | Cat | Target | Status | Improvement |
@@ -297,7 +297,7 @@ RAVEN `core/changeRxns.m` — change reaction equations. Ported as
 
 ## getIndexes
 
-RAVEN `core/getIndexes.m` — resolve a list of IDs / logical mask / index vector into positional
+RAVEN `queries/getIndexes.m` — resolve a list of IDs / logical mask / index vector into positional
 indexes (or a logical array) for `rxns` / `mets` / `genes` / `metNames` / `metcomps` (and GECKO
 `ec.*` fields).
 
@@ -325,7 +325,7 @@ batch, and substring/regex matching — all already provided by `get_by_any` / `
 
 ## standardizeGrRules
 
-RAVEN `core/standardizeGrRules.m` — normalize grRule syntax + flag rules not in simple
+RAVEN `manipulation/standardizeGrRules.m` — normalize grRule syntax + flag rules not in simple
 OR-of-AND-complex (DNF) form (`findPotentialErrors`).
 
 **Decision (raven-python): port the lint half only.** cobra auto-normalizes a GPR on assignment
