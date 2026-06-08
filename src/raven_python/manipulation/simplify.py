@@ -82,6 +82,54 @@ def _signature(rxn):
     return (mets, rxn.lower_bound, rxn.upper_bound, rxn.objective_coefficient)
 
 
+def _stoich_signature(rxn, *, ignore_direction: bool) -> frozenset:
+    """Signature considering stoichiometry only (used by find_duplicate_reactions).
+
+    When ``ignore_direction`` is True, ``A → B`` and ``B → A`` (the same
+    reaction with all coefficients negated) share a signature. Both
+    orientations are accumulated and the lexicographically smaller one
+    wins so the dict-key lookup is direction-symmetric.
+    """
+    forward = frozenset((m.id, c) for m, c in rxn.metabolites.items())
+    if not ignore_direction:
+        return forward
+    backward = frozenset((m.id, -c) for m, c in rxn.metabolites.items())
+    return min(forward, backward, key=lambda s: sorted(s))
+
+
+def find_duplicate_reactions(
+    model: cobra.Model,
+    *,
+    ignore_direction: bool = True,
+) -> list[list[cobra.Reaction]]:
+    """Return groups of reactions that share identical stoichiometry.
+
+    Detection-only counterpart to :func:`remove_duplicate_reactions`.
+    Bounds, objective coefficients, GPRs and annotations are ignored —
+    only stoichiometry is compared, mirroring the legacy yeast-GEM
+    ``findDuplicatedRxns`` and matching the typical curation use case
+    (find reactions that *could* be merged).
+
+    Parameters
+    ----------
+    ignore_direction
+        When True (default), ``A → B`` and ``B → A`` are treated as
+        duplicates (yeast-GEM's convention). Set ``False`` to require
+        identical orientation.
+
+    Returns
+    -------
+    A list of duplicate groups. Each group is itself a list with
+    ≥ 2 reactions sharing the same stoichiometry. Reactions that have
+    no duplicate are omitted.
+    """
+    groups: dict[frozenset, list[cobra.Reaction]] = {}
+    for rxn in model.reactions:
+        sig = _stoich_signature(rxn, ignore_direction=ignore_direction)
+        groups.setdefault(sig, []).append(rxn)
+    return [g for g in groups.values() if len(g) >= 2]
+
+
 def remove_duplicate_reactions(
     model: cobra.Model, *, reserved: Iterable[str] | None = None
 ) -> list[str]:

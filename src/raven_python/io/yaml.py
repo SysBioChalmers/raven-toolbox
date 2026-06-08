@@ -66,12 +66,17 @@ def _open_text(path: str | Path, mode: str):
 # 'note' to avoid colliding with the notes container itself.)
 _MET_FIELDS = (("inchis", "inchis"), ("deltaG", "deltaG"), ("metFrom", "metFrom"), ("notes", "note"))
 _RXN_FIELDS = (
-    ("confidence_score", "confidence_score"),
+    ("eccodes", "eccodes"),
     ("references", "references"),
     ("rxnFrom", "rxnFrom"),
     ("deltaG", "deltaG"),
+    ("confidence_score", "confidence_score"),
     ("notes", "note"),
 )
+# Legacy YAML keys accepted on READ for reaction notes. Old RAVEN MATLAB writers
+# used "rxnNotes"; the canonical key (matching cobrapy and the current MATLAB
+# writer) is "notes". When both appear, "notes" wins.
+_LEGACY_RXN_KEY_ALIASES = (("rxnNotes", "notes"),)
 _GENE_FIELDS = (("protein", "protein"),)
 
 _COBRA_TOP_KEYS = frozenset({"metabolites", "reactions", "genes", "compartments", "id", "name"})
@@ -82,8 +87,17 @@ _EC_TOP_KEYS = frozenset({"ec-rxns", "ec-enzymes", "gecko_light"})
 
 
 def _to_plain(obj):
+    """Coerce ruamel/numpy scalars to plain Python primitives.
+
+    Dicts are returned as ``OrderedDict`` so that the round-trip dumper
+    emits them with the ``!!omap`` tag (ruamel's CommentedMap subclass
+    is replaced by a plain ``OrderedDict`` to avoid carrying ruamel's
+    own type tags through). Returning a plain ``dict`` instead would
+    drop the ``!!omap`` tag and produce files that RAVEN's MATLAB
+    reader (a line-based parser keyed on ``!!omap``) cannot load.
+    """
     if isinstance(obj, dict):
-        return {str(k): _to_plain(v) for k, v in obj.items()}
+        return OrderedDict((str(k), _to_plain(v)) for k, v in obj.items())
     if isinstance(obj, (list, tuple)):
         return [_to_plain(v) for v in obj]
     if isinstance(obj, bool) or obj is None:
@@ -175,6 +189,19 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     # canonical place. No-op on current files.
     _lift_smiles_to_annotation(raw.get("metabolites"))
 
+    # Normalise legacy reaction-side YAML keys (e.g. RAVEN MATLAB's
+    # ``rxnNotes`` -> the canonical ``notes``) before any field capture so
+    # the capture step sees a single key per concept.
+    for entry in raw.get("reactions", []):
+        if not isinstance(entry, dict):
+            continue
+        for legacy_key, canonical_key in _LEGACY_RXN_KEY_ALIASES:
+            if legacy_key in entry and canonical_key not in entry:
+                entry[canonical_key] = entry.pop(legacy_key)
+            elif legacy_key in entry:
+                # Canonical wins; just drop the legacy duplicate.
+                entry.pop(legacy_key)
+
     met_notes = _capture_entry_fields(raw.get("metabolites", []), _MET_FIELDS)
     rxn_notes = _capture_entry_fields(raw.get("reactions", []), _RXN_FIELDS)
     gene_notes = _capture_entry_fields(raw.get("genes", []), _GENE_FIELDS)
@@ -192,18 +219,33 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     # No-op when none match.
     _flip_legacy_prot_direction(model)
 
-    # Legacy files keep id/name inside metaData; restore them if cobra found none.
+    # RAVEN convention keeps id/name/version inside metaData; lift them
+    # onto the model so cobra-shaped accessors find them too. Older
+    # cobra-style files (id/name/version at root) are handled by the
+    # cobra reader; the metaData lookups below are pure fallbacks.
     if metadata.get("id") and not model.id:
         model.id = metadata["id"]
     if metadata.get("name") and not model.name:
         model.name = metadata["name"]
+    if version is None and metadata.get("version") is not None:
+        version = metadata["version"]
     if metadata:
         model.notes["metaData"] = metadata
     if version is not None:
         model.notes["version"] = version
 
     # Pop the ec sections out of `foreign` and into a typed EcData.
-    # The remaining unknown keys round-trip opaquely.
+    # The remaining unknown keys round-trip opaquely. Pre-shim RAVEN
+    # MATLAB writes wrote `geckoLight: "true"` inside metaData (rather
+    # than the current top-level `gecko_light`); honour the legacy
+    # placement too — keep the metaData entry untouched (round-trip)
+    # and surface it at the top level so EcData picks it up.
+    legacy_gecko = metadata.get("geckoLight")
+    if legacy_gecko is not None and "gecko_light" not in foreign:
+        if isinstance(legacy_gecko, str):
+            foreign["gecko_light"] = legacy_gecko.lower() == "true"
+        else:
+            foreign["gecko_light"] = bool(legacy_gecko)
     ec_sections = {k: foreign.pop(k) for k in list(foreign) if k in _EC_TOP_KEYS}
     ec_data = ec_data_from_yaml_sections(ec_sections)
     if ec_data is not None:
@@ -344,6 +386,13 @@ def write_yaml_model(
     _emit_entry_fields(doc.get("reactions", []), _RXN_FIELDS)
     _emit_entry_fields(doc.get("genes", []), _GENE_FIELDS)
 
+    # cobra's _gene_to_dict always emits `name: ''` because name is a
+    # required attribute; RAVEN MATLAB skips empty names. Drop the
+    # empty-string entry so the two writers produce identical genes.
+    for gene in doc.get("genes", []) or ():
+        if isinstance(gene, dict) and gene.get("name") == "":
+            gene.pop("name", None)
+
     # ec sections come from the typed model.ec (when present), not from the
     # opaque foreign-keys stash. Drop any stale ec-* entries in `foreign` so
     # they can't conflict with the EcData-derived ones.
@@ -356,24 +405,42 @@ def write_yaml_model(
         else None
     )
 
-    # cobra dict order is metabolites, reactions, genes, id, name, compartments;
-    # append version / gecko_light / metaData / ec-* like RAVEN's writer.
-    if version is not None:
-        doc["version"] = version
-    metadata = dict(stored_meta)
+    # Final document order (matches RAVEN MATLAB writeYAMLmodel):
+    #   metaData, metabolites, reactions, genes, compartments,
+    #   gecko_light, ec-rxns, ec-enzymes, <opaque foreign>
+    # id/name/version live inside metaData (the RAVEN convention) — they
+    # are NOT emitted at root level. Cobra reading such a file recovers
+    # the lists and compartments and leaves model.id empty (consistent
+    # with how RAVEN MATLAB has always laid these files out).
+    metadata = OrderedDict(stored_meta)
     if model.id:
         metadata.setdefault("id", model.id)
     if model.name:
         metadata.setdefault("name", model.name)
-    if ec_sections is not None:
-        doc["gecko_light"] = ec_sections["gecko_light"]
+    if version is not None:
+        metadata.setdefault("version", version)
+
+    # cobra's model_to_dict put id / name at root level; drop them so they
+    # don't duplicate the metaData copy.
+    doc.pop("id", None)
+    doc.pop("name", None)
+
+    ordered = OrderedDict()
     if metadata:
-        doc["metaData"] = metadata
+        ordered["metaData"] = metadata
+    for key in ("metabolites", "reactions", "genes", "compartments", "notes"):
+        if key in doc:
+            ordered[key] = doc.pop(key)
     if ec_sections is not None:
-        doc["ec-rxns"] = ec_sections["ec-rxns"]
-        doc["ec-enzymes"] = ec_sections["ec-enzymes"]
+        ordered["gecko_light"] = ec_sections["gecko_light"]
+        ordered["ec-rxns"] = ec_sections["ec-rxns"]
+        ordered["ec-enzymes"] = ec_sections["ec-enzymes"]
+    # Carry over any cobra-shaped fields we didn't classify above
+    # (defensive: keeps forward compatibility with future cobra additions).
+    for key, value in doc.items():
+        ordered.setdefault(key, value)
     for key, value in foreign.items():
-        doc[key] = value
+        ordered.setdefault(key, value)
 
     with _open_text(path, "w") as handle:
-        _cobra_yaml.dump(doc, handle)
+        _cobra_yaml.dump(ordered, handle)
