@@ -2,9 +2,9 @@
 must produce a file that:
 
   * cobra.io.load_yaml_model can read (the cobrapy-canonical core);
-  * keeps every RAVEN-only field (inchis / eccodes / deltaG / rxnFrom /
+  * keeps every RAVEN-only field (inchis / deltaG / rxnFrom /
     metFrom / references / confidence_score / rxnNotes / protein /
-    metMiriams / rxnMiriams / annotation-side SMILES);
+    metMiriams / rxnMiriams / annotation-side SMILES and EC codes);
   * emits ``!!omap`` tags on each per-entry mapping (so RAVEN MATLAB's
     line-based reader can ingest it);
   * places the ``metaData`` block first, matching RAVEN MATLAB's layout.
@@ -108,9 +108,10 @@ def test_round_trip_preserves_every_raven_field(src, tmp_path):
     assert a.notes["note"] == "metabolite note"
     assert a.annotation["smiles"] == ["C1=NC2=C(N=CN2)N(C1=O)C"]
 
-    # Reaction RAVEN extras (incl. the eccodes round-trip that earlier
-    # versions dropped on write).
-    assert r.notes["eccodes"] == "1.1.1.1"
+    # EC codes round-trip through cobra annotation (the cobra-native place,
+    # where geckopy reads them), not a RAVEN-only top-level/notes field.
+    assert r.annotation["ec-code"] == ["1.1.1.1"]
+    assert "eccodes" not in r.notes
     assert r.notes["references"] == "PMID:123"
     assert r.notes["rxnFrom"] == "manual"
     assert r.notes["confidence_score"] == 2
@@ -312,7 +313,9 @@ def test_pre_shim_format_loads(tmp_path):
     assert a.notes["note"] == "metabolite note"
     assert a.notes["metFrom"] == "KEGG"
     assert r.notes["rxnFrom"] == "KEGG"
-    assert r.notes["eccodes"] == "2.7.1.1"
+    # legacy top-level eccodes lifted into the cobra-native annotation['ec-code']
+    assert r.annotation["ec-code"] == ["2.7.1.1"]
+    assert "eccodes" not in r.notes
     assert r.notes["references"] == "PMID:12345"
     assert r.notes["confidence_score"] == 2
     assert r.notes["deltaG"] == -17.39
@@ -331,7 +334,7 @@ def test_pre_shim_yeast_gem_loads_if_available():
     assert len(model.reactions) == 4102
     assert len(model.genes) == 1143
     # Every RAVEN extension we know about must come through.
-    assert sum(1 for r in model.reactions if r.notes.get("eccodes")) == 2411
+    assert sum(1 for r in model.reactions if r.annotation.get("ec-code")) == 2411
     assert sum(1 for r in model.reactions if r.notes.get("deltaG") is not None) == 3984
     assert sum(1 for m in model.metabolites if m.notes.get("deltaG") is not None) == 2696
     assert sum(1 for m in model.metabolites if "smiles" in (m.annotation or {})) == 1788
@@ -339,26 +342,23 @@ def test_pre_shim_yeast_gem_loads_if_available():
 
 
 def test_eccodes_round_trip_through_cobra_extras(src, tmp_path):
-    """A model loaded from cobra (no eccodes awareness) and re-written
-    via raven_python.write_yaml_model still keeps eccodes — they're
-    sourced from .notes['eccodes'] which read_yaml_model puts there."""
-    # Same fixture, but go through cobra first to prove notes-based
-    # eccodes propagation works when cobra is in the loop.
+    """EC codes round-trip as cobra annotation through a
+    raven_python -> cobra -> raven_python loop. They live in
+    ``annotation['ec-code']`` — the cobra-native place — so plain
+    ``cobra.io`` preserves them with no RAVEN-specific handling, and
+    geckopy (which reads ``annotation['ec-code']``) sees them."""
     model = read_yaml_model(src)
     pass1 = tmp_path / "via_rp.yml"
     write_yaml_model(model, pass1)
+    # Plain cobra reads annotation['ec-code'] natively — this is the
+    # interop the alignment guarantees.
     via_cobra = cobra.io.load_yaml_model(str(pass1))
-    # cobra exposes eccodes as an attribute (setattr fall-through), proving
-    # the key written by write_yaml_model survives a cobra round-trip.
-    assert getattr(via_cobra.reactions.get_by_id("R1"), "eccodes", None) == "1.1.1.1"
+    assert via_cobra.reactions.get_by_id("R1").annotation["ec-code"] == ["1.1.1.1"]
     pass2 = tmp_path / "via_rp2.yml"
-    # Promote cobra's setattr-eccodes back into notes for the writer
-    # path. (Tests the documented integration: cobra preserves the YAML
-    # key, raven_python.read sees it again.)
     again = read_yaml_model(pass1)
     write_yaml_model(again, pass2)
     final = read_yaml_model(pass2)
-    assert final.reactions.get_by_id("R1").notes["eccodes"] == "1.1.1.1"
+    assert final.reactions.get_by_id("R1").annotation["ec-code"] == ["1.1.1.1"]
     # And cobra can still read the final result.
     cm = cobra.io.load_yaml_model(str(pass2))
     assert cm.reactions.get_by_id("R1").bounds == (-1000.0, 1000.0)
