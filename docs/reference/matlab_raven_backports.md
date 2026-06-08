@@ -15,7 +15,7 @@ fix is identical in spirit; the patch shape just differs.
 
 ---
 
-## `core/getModelFromHomology.m`
+## `reconstruction/homology/getModelFromHomology.m`
 
 Implemented in raventoolbox as [`reconstruction.homology.get_model_from_homology`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/homology/homology.py).
 
@@ -34,7 +34,7 @@ Implemented in raventoolbox as [`reconstruction.homology.get_model_from_homology
   preference can flip the chosen template when the database grows. Keep
   E-value as an option.
 
-## `core/getKEGGModelForOrganism.m` and the KEGG pipeline
+## `reconstruction/kegg/getKEGGModelForOrganism.m` and the KEGG pipeline
 
 Implemented across [`reconstruction.kegg`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/kegg/).
 
@@ -87,7 +87,7 @@ Implemented across [`reconstruction.kegg`](https://github.com/SysBioChalmers/rav
   rose from 0.84 → 0.94 (reaction recall 0.87 → 0.97) with no precision loss.
   Full numbers in [docs/kegg_hmm_cutoff_calibration.md](../studies/kegg_hmm_cutoff_calibration.md).
 
-## `core/FSEOF.m`
+## `analysis/FSEOF.m`
 
 Implemented in raventoolbox as [`analysis.fseof`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/fseof.py).
 
@@ -121,7 +121,7 @@ Implemented in raventoolbox as [`analysis.fseof`](https://github.com/SysBioChalm
   matches the selection criterion. The amplify/knockdown/knockout label
   (after FS2) should use the slope of `|flux|`, not endpoint comparison.
 
-## `core/randomSampling.m`
+## `analysis/randomSampling.m`
 
 Implemented in raventoolbox as [`analysis.random_sampling`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/sampling.py).
 
@@ -140,7 +140,7 @@ Implemented in raventoolbox as [`analysis.random_sampling`](https://github.com/S
   "unbounded objective". Scope `replaceBoundsWithInf` to sampling only, after
   the goodRxns set is found.
 
-## `core/reporterMetabolites.m`
+## `analysis/reporterMetabolites.m`
 
 Implemented in raventoolbox as [`analysis.reporter_metabolites`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/reporter.py).
 
@@ -152,7 +152,7 @@ Implemented in raventoolbox as [`analysis.reporter_metabolites`](https://github.
   metabolite Z is just `(metZ − √n·μ) / σ`. This removes both the slow
   sampling step and its run-to-run randomness (results become deterministic).
 
-## `core/runINIT.m`
+## `INIT/runINIT.m`
 
 Implemented in raventoolbox as [`init.run_init`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/init.py).
 
@@ -162,7 +162,7 @@ Implemented in raventoolbox as [`init.run_init`](https://github.com/SysBioChalme
   fits ±1000-bounded models with O(1) scores — flagged in RAVEN as
   scale-dependent and tunable, but no API knobs are exposed.
 
-## `core/ftINIT.m` and the ftINIT pipeline
+## `INIT/ftINIT.m` and the ftINIT pipeline
 
 Implemented across [`init.ftinit`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/ftinit.py), [`init.taskfill`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/taskfill.py), [`init.merge`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/merge.py), [`init.prep`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/prep.py).
 
@@ -184,14 +184,14 @@ Implemented across [`init.ftinit`](https://github.com/SysBioChalmers/raven-pytho
   to test. Make the all-negative tie-break **deterministic** (sort + take
   the least-negative) instead of random.
 
-## `core/addRxns.m`
+## `manipulation/addRxns.m`
 
 Implemented in raventoolbox as [`manipulation.add_reactions_from_equations`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/add.py).
 
 * **A1** 🧹 — Accept a string keyword (`metsBy = 'id'` / `'name'`) instead of
   the opaque `eqnType = 1 / 2 / 3` integer. Call-sites become self-documenting.
 
-## `core/checkModelStruct.m` (or its curation subset)
+## `queries/checkModelStruct.m` (or its curation subset)
 
 Implemented in raventoolbox as [`utils.check_model`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/validate.py).
 
@@ -199,7 +199,7 @@ Implemented in raventoolbox as [`utils.check_model`](https://github.com/SysBioCh
   `category` / `target` / `message` fields) instead of printing warnings or
   throwing on the first problem. Programmatically filterable.
 
-## `core/getElementalBalance.m`
+## `queries/getElementalBalance.m`
 
 Implemented in raventoolbox as [`utils.get_elemental_balance`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/balance.py).
 
@@ -217,7 +217,7 @@ Implemented in raventoolbox as [`utils.get_elemental_balance`](https://github.co
   Empty reactions then report `-1` ("missing information") rather than
   vacuously balanced.
 
-## `core/findPotentialErrors.m` (GPR linting)
+## `manipulation/findPotentialErrors.m` (GPR linting)
 
 Implemented in raventoolbox as [`utils.find_non_dnf_grrules`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/gpr.py).
 
@@ -229,7 +229,7 @@ Implemented in raventoolbox as [`utils.find_non_dnf_grrules`](https://github.com
   to spacing and bracketing and to gene IDs containing those characters; the
   tree walk (no OR beneath any AND) is exact.
 
-## `core/getIndexes.m`
+## `queries/getIndexes.m`
 
 * **G1** ⚡ — Build a `containers.Map` `{id: position}` once per call and use
   hashed lookup (O(1)) instead of looping `find(strcmp(obj(i), searchIn))`
