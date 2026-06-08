@@ -25,6 +25,6 @@ resolvers
 ```
 
 :::{note}
-The `plotting` subpackage is a stub — pathway-map and omics-overlay visualisation
+The `visualization` subpackage is a stub — pathway-map and omics-overlay visualisation
 (Phase 6) is not yet implemented.
 :::
