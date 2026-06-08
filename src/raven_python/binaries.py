@@ -86,6 +86,22 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _safe_extract_zip(zf: zipfile.ZipFile, dest_dir: Path) -> None:
+    """Extract ``zf`` into ``dest_dir``, rejecting members that escape it.
+
+    ``ZipFile.extractall`` has no path-traversal guard (unlike tarfile's
+    ``filter="data"`` used in reconstruction/kegg/download.py), so a malicious or
+    corrupt archive could write outside the cache via absolute paths or ``..``.
+    SHA256 + HTTPS already make a hostile archive unlikely; this is defence in depth.
+    """
+    dest = dest_dir.resolve()
+    for member in zf.namelist():
+        target = (dest_dir / member).resolve()
+        if target != dest and dest not in target.parents:
+            raise ValueError(f"unsafe path in archive (path traversal): {member!r}")
+    zf.extractall(dest_dir)
+
+
 def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
     """Download (if needed) and return the path to a bundled ``executable``.
 
@@ -134,7 +150,7 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
     finally:
         part.unlink(missing_ok=True)
     with zipfile.ZipFile(archive) as zf:
-        zf.extractall(dest_dir)
+        _safe_extract_zip(zf, dest_dir)
     archive.unlink(missing_ok=True)
     if not exe.exists():
         raise FileNotFoundError(f"{executable!r} not found in the extracted bundle at {dest_dir}.")

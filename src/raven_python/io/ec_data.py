@@ -45,6 +45,7 @@ YAML schema (one entry per row):
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -262,6 +263,14 @@ def _build_ec_data(
                     f"{enz_id!r} that is not present in ec-enzymes."
                 )
             mat[i, j] = float(stoich)
+
+    if n_r > 0 and mat.nnz == 0:  # reactions present but none coupled to an enzyme
+        warnings.warn(
+            f"ec-rxns has {n_r} entries but none reference an enzyme; the "
+            "reaction↔enzyme coupling matrix is all-zero (likely malformed "
+            "ec-rxns/ec-enzymes).",
+            stacklevel=2,
+        )
 
     return EcData(
         gecko_light=gecko_light,

@@ -46,11 +46,15 @@ def _transport_id_factory(model: cobra.Model, prefix: str):
 
     def next_id() -> str:
         nonlocal counter
-        while f"{prefix}{counter:04d}" in model.reactions:
+        # A free id must appear within len(reactions)+1 tries (only that many are
+        # occupied); the bound turns any pathological case into a clear error
+        # instead of spinning forever.
+        for _ in range(len(model.reactions) + 2):
+            rid = f"{prefix}{counter:04d}"
             counter += 1
-        rid = f"{prefix}{counter:04d}"
-        counter += 1
-        return rid
+            if rid not in model.reactions:
+                return rid
+        raise RuntimeError(f"could not allocate a free reaction id with prefix {prefix!r}.")
 
     return next_id
 

@@ -27,11 +27,14 @@ concatenated), and ``taxonomy``.
 from __future__ import annotations
 
 import gzip
+import logging
 import netrc
 import shutil
 import tarfile
 import urllib.request
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 KEGG_HOST = "ftp.kegg.net"
 BASE_URL = "https://ftp.kegg.net"
@@ -116,12 +119,12 @@ def fetch_kegg_files(
         target = dest / Path(path).name
         if target.exists() and not force:
             if verbose:
-                print(f"  skip (exists): {target.name}")
+                logger.info("skip (exists): %s", target.name)
             out.append(target)
             continue
         url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
         if verbose:
-            print(f"  fetching {path}")
+            logger.info("fetching %s", path)
         with opener.open(url) as resp, open(target, "wb") as handle:
             shutil.copyfileobj(resp, handle)
         out.append(target)
@@ -253,5 +256,5 @@ def download_kegg_dump(
         verbose=verbose,
     )
     if verbose:
-        print(">>> Extracting and arranging KEGG dump...")
+        logger.info("Extracting and arranging KEGG dump...")
     return extract_kegg_dump(dest)

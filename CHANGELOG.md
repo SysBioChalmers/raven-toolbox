@@ -4,6 +4,34 @@ Milestones in the raven-python port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
 
+## Unreleased
+
+Post-release review pass — cobra-aligned hardening (no behaviour change on
+well-formed inputs). Highlights:
+
+* **Packaging:** `raven_python.__version__` now derives from the installed package
+  metadata (`importlib.metadata`) instead of a hard-coded literal that had drifted
+  to `0.0.1`; the docs site reported the wrong version. Pinned `ruff==0.15.15` in
+  both the `dev` extra and CI so the lint result is reproducible, and fixed two
+  lint errors the unpinned ruff had started flagging.
+* **Errors aligned to cobra:** solver/feasibility failures in `run_init`,
+  `run_ftinit`, `fill_tasks` and `random_sampling` now raise
+  `cobra.exceptions.OptimizationError` (already used elsewhere in the package)
+  instead of a bare `RuntimeError`.
+* **Consistency:** a single `utils.parse.subsystem_to_str` coerces a reaction
+  `subsystem` to cobra's canonical `str` everywhere it is rendered/compared
+  (`io.excel`, `comparison.compare`, `curation.batch`, `manipulation.add`) — fixes
+  a crash on non-string subsystem items and the silent drop of multi-subsystem
+  reactions. GPR score-aggregation (`AGGREGATORS` / `resolve_aggregators`) is now
+  shared by `init.score` and `init.genes`. Maintainer-side KEGG-download progress
+  uses a module logger instead of `print`.
+* **Robustness:** path-traversal guard on bundled-ZIP extraction (`binaries.py`,
+  matching the tarfile `filter="data"` precedent); `connect_blocked_reactions`
+  rejects a non-positive `penalty`; `random_sampling` refuses a NaN-contaminated
+  sample matrix; `ec_data` warns on an all-zero reaction↔enzyme coupling; optional
+  `verify=` SHA256 re-check on `ensure_data_file` cache hits; reporter p-value
+  guarded against non-finite z-scores. Regression tests added for each.
+
 ## 0.1.0a1 — 2026-05-30
 
 First alpha release. Covers the functional scope of RAVEN built on cobrapy:

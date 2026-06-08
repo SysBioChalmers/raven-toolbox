@@ -18,6 +18,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 import cobra
+from cobra.exceptions import OptimizationError
 from optlang.symbolics import Real, add, mul
 
 from raven_python.tasks import Task
@@ -87,13 +88,15 @@ def _fill_one_task(
     right trade for tractability, exactly as for the main ftINIT MILP.
     """
     if not candidates:  # nothing left to add → task cannot be made feasible
-        raise RuntimeError(f"gap-filling found no candidates for task {task.id!r}.")
+        raise OptimizationError(f"gap-filling found no candidates for task {task.id!r}.")
     combined = _closed_copy(model)  # task I/O via the task's b, not the model's exchanges
     combined.add_reactions([r.copy() for r in candidates])
     name_to_id, comp_to_ids = task_name_maps(combined)
     _, error = apply_task_constraints(combined, task, name_to_id, comp_to_ids)
     if error is not None:
-        raise RuntimeError(f"task {task.id!r} could not be applied to the reference: {error}")
+        raise OptimizationError(
+            f"task {task.id!r} could not be applied to the reference: {error}"
+        )
 
     prob = combined.problem
     extras = []
@@ -126,7 +129,7 @@ def _fill_one_task(
     # (no incumbent) means the task cannot be satisfied from the reference.
     if combined.solver.status not in ("optimal", "feasible", "suboptimal", "time_limit") or \
             combined.variables[f"_fill_{candidates[0].id}"].primal is None:
-        raise RuntimeError(f"gap-filling found no way to make task {task.id!r} feasible.")
+        raise OptimizationError(f"gap-filling found no way to make task {task.id!r} feasible.")
     return [c.id for c in candidates
             if (combined.variables[f"_fill_{c.id}"].primal or 0.0) > 0.5]
 
@@ -174,7 +177,7 @@ def fill_tasks(
         avail = [r for r in candidates if r.id not in present]
         try:
             chosen = _fill_one_task(out, avail, task, costs, mip_gap=mip_gap, time_limit=time_limit)
-        except RuntimeError:
+        except OptimizationError:
             failed.append(task.id)
             continue
         if chosen:

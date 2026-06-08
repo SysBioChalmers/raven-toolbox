@@ -75,12 +75,18 @@ def ensure_data_file(
     *,
     version: str | None = None,
     registry: dict | None = None,
+    verify: bool = False,
 ) -> Path:
     """Download (if needed) and return the cached path to one artefact file.
 
     Looks the file up in the registry for ``dataset`` (at ``version`` or the
     registry's default), downloads it to the version-pinned cache directory,
     verifies its SHA256, and returns the path. Re-uses an already-cached copy.
+
+    A freshly downloaded file is always SHA256-checked. ``verify`` additionally
+    re-checks an *already-cached* file's SHA256 (a mismatch — i.e. a corrupted
+    cache — discards it and re-downloads); it is off by default so the common
+    cache-hit path stays fast.
     """
     registry = _DATA_REGISTRY if registry is None else registry
     bundle = _bundle(dataset, registry)
@@ -95,7 +101,9 @@ def ensure_data_file(
     dest_dir = _data_cache_dir() / f"{dataset}-{ver}"
     dest = dest_dir / filename
     if dest.exists():
-        return dest
+        if not verify or _sha256(dest) == entry["sha256"]:
+            return dest
+        dest.unlink()  # corrupted cache → fall through and re-download
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")

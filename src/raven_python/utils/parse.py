@@ -31,3 +31,29 @@ def parse_name_comp(token: str) -> tuple[str, str | None]:
     if match:
         return match.group("name").strip(), match.group("comp").strip()
     return token.strip(), None
+
+
+def subsystem_to_str(value) -> str:
+    """Coerce a reaction ``subsystem`` to cobra's canonical ``str`` form.
+
+    cobra defines ``Reaction.subsystem`` as a plain string, but RAVEN/MATLAB and
+    "messy" YAML sometimes deliver a list/tuple of subsystem names (a reaction can
+    belong to several). This collapses any such value to a single ``;``-joined
+    string of its parts — losing no data, unlike taking only the first — and returns
+    ``""`` for an empty/None subsystem. Used wherever a subsystem is rendered or
+    compared so the handling is identical across modules.
+
+    Examples
+    --------
+    >>> subsystem_to_str("glycolysis")
+    'glycolysis'
+    >>> subsystem_to_str(["glycolysis", "TCA cycle"])
+    'glycolysis;TCA cycle'
+    >>> subsystem_to_str(None)
+    ''
+    """
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return ";".join(str(s) for s in value if str(s).strip())
+    return str(value)

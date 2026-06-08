@@ -25,7 +25,6 @@ from cobra.io.yaml import yaml as cobra_yaml
 
 from raven_python.io import read_yaml_model, write_yaml_model
 
-
 SAMPLE = {
     "metabolites": [
         {

@@ -51,6 +51,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 import cobra
+from cobra.exceptions import OptimizationError
 from optlang.symbolics import Real, add, mul
 
 from raven_python.init.genes import remove_low_score_genes
@@ -210,7 +211,7 @@ def run_ftinit(
     opt.optimize()
     # Accept a near-optimal incumbent (when a MIP gap / time limit is set), as RAVEN does.
     if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
-        raise RuntimeError(f"ftINIT MILP did not solve (status: {opt.status}).")
+        raise OptimizationError(f"ftINIT MILP did not solve (status: {opt.status}).")
 
     # RAVEN: a reaction is "on" iff its indicator ≥ 0.5 (positive indicators are
     # continuous and can land fractionally when a reaction can carry only tiny flux).

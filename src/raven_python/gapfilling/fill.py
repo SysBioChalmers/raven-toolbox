@@ -137,6 +137,8 @@ def connect_blocked_reactions(
     The draft is expected to have exchange reactions for its nutrients (otherwise most
     reactions are trivially blocked).
     """
+    if penalty <= 0:
+        raise ValueError(f"penalty must be > 0 (a non-positive cost malforms the MILP); got {penalty}.")
     templates = _as_models(templates)
     blocked = set(find_blocked_reactions(model))
     candidates = [r for r in blocked if model.reactions.get_by_id(r).lower_bound >= 0]
