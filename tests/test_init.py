@@ -1,6 +1,7 @@
 """Tests for the INIT MILP (init/init.py, Phase 4c)."""
 import cobra
 import pytest
+from cobra.exceptions import OptimizationError
 
 from raven_python.init import InitResult, run_init
 
@@ -38,6 +39,21 @@ def test_keeps_positive_drops_negative(model):
     assert {"r1", "r2"} <= kept  # positive-score, flux-consistent -> kept
     assert "r3" in res.deleted_reactions  # negative score -> removed
     assert "r3" not in kept
+
+
+def test_infeasible_milp_raises_optimization_error():
+    # A lone irreversible reaction that drains A (no producer) forced essential cannot
+    # satisfy steady state without excretion -> the solver is infeasible. raven aligns
+    # with cobra by raising cobra.exceptions.OptimizationError (not bare RuntimeError).
+    m = cobra.Model("infeasible")
+    A = _met("A_c")
+    m.add_metabolites([A])
+    drain = cobra.Reaction("drain", lower_bound=0, upper_bound=1000)
+    drain.add_metabolites({A: -1})
+    m.add_reactions([drain])
+    with pytest.raises(OptimizationError):
+        run_init(m, {"drain": 1.0}, essential_rxns=["drain"],
+                 prod_weight=0.0, allow_excretion=False)
 
 
 def test_negative_scores_emptied_when_no_reward(model):

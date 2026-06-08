@@ -349,6 +349,16 @@ def test_load_dangling_enzyme_reference_raises(tmp_path):
         read_yaml_model(_write_yaml(doc, tmp_path / "m.yml"))
 
 
+def test_load_all_zero_coupling_matrix_warns(tmp_path):
+    """ec-rxns present but none reference an enzyme -> the coupling matrix is
+    all-zero (likely malformed). Warn rather than build a silently empty model."""
+    doc = _minimal_model_doc()
+    doc["ec-rxns"] = [{"id": "R1", "kcat": 1.0, "enzymes": {}}]
+    doc["ec-enzymes"] = [{"genes": "G1", "enzymes": "P1", "mw": 1.0}]
+    with pytest.warns(UserWarning, match="all-zero"):
+        read_yaml_model(_write_yaml(doc, tmp_path / "m.yml"))
+
+
 # --------------------------------------------------------------------------- #
 # In-memory model_from_yaml_data (no file I/O)
 # --------------------------------------------------------------------------- #

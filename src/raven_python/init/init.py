@@ -39,6 +39,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 import cobra
+from cobra.exceptions import OptimizationError
 from optlang.symbolics import Real, add, mul
 
 _EPS = 1.0  # flux an included reaction must carry (RAVEN's fake-met unit)
@@ -203,7 +204,7 @@ def run_init(
     opt.optimize()
     # With a MIP gap / time limit set, accept a near-optimal incumbent (as RAVEN does).
     if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
-        raise RuntimeError(f"INIT MILP did not solve (status: {opt.status}).")
+        raise OptimizationError(f"INIT MILP did not solve (status: {opt.status}).")
 
     # A reaction is kept if any of its directed parts is essential or has x≈1.
     kept_origins = {d.origin for d in directed if d.essential}

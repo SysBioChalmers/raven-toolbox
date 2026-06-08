@@ -36,6 +36,7 @@ from dataclasses import dataclass
 import cobra
 import numpy as np
 import pandas as pd
+from cobra.exceptions import OptimizationError
 from cobra.flux_analysis import flux_variability_analysis, pfba
 
 logger = logging.getLogger(__name__)
@@ -188,11 +189,18 @@ def random_sampling(
             model.objective = model.problem.Objective(sum(terms), direction="max")
             sol = model.optimize()
             if sol.status == "optimal" and abs(sol.objective_value) > 1e-8:
-                samples[i, :] = (pfba(model) if min_flux else sol).fluxes.reindex(reaction_ids).to_numpy()
+                fluxes = (pfba(model) if min_flux else sol).fluxes.reindex(reaction_ids)
+                if fluxes.isna().any():  # solver returned an unexpected reaction set
+                    missing = fluxes.index[fluxes.isna()].tolist()
+                    raise OptimizationError(
+                        "solver returned fluxes missing reaction(s) "
+                        f"{missing[:5]}; cannot assemble a NaN-free sample matrix."
+                    )
+                samples[i, :] = fluxes.to_numpy()
                 break
             if attempt == max_attempts:
                 if not suppress_errors:
-                    raise RuntimeError(
+                    raise OptimizationError(
                         "Could not find a non-zero, loop-free solution after "
                         f"{max_attempts} attempts for sample {i}. Review the model's "
                         "constraints, or set suppress_errors=True."

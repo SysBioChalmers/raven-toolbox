@@ -223,7 +223,10 @@ def predict_localization(
     score_lookup = scores.df  # gene_id × compartment → float
     for g in genes_in_scope:
         for c in compartments:
-            s = float(score_lookup.at[g, c]) if c in score_lookup.columns and not pd.isna(score_lookup.at[g, c]) else 0.0
+            if c not in score_lookup.columns:
+                continue
+            val = score_lookup.at[g, c]
+            s = 0.0 if pd.isna(val) else float(val)
             if s:
                 obj_terms.append(mul([Real(s), y[g, c]]))
     # − transport cost per added transport

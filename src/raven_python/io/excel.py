@@ -12,6 +12,8 @@ from pathlib import Path
 
 import cobra
 
+from raven_python.utils.parse import subsystem_to_str
+
 
 def _miriam_string(annotation: dict, exclude: tuple[str, ...] = ()) -> str:
     """RAVEN MIRIAM column: ``namespace/id;namespace/id2;...`` (sorted)."""
@@ -84,9 +86,7 @@ def export_to_excel(
          "REPLACEMENT ID", "NOTE", "REFERENCE", "CONFIDENCE SCORE"]
     )
     for r in reactions:
-        subsystem = r.subsystem
-        if isinstance(subsystem, (list, tuple)):
-            subsystem = ";".join(subsystem)
+        subsystem = subsystem_to_str(r.subsystem)
         ws.append([
             None, r.id, r.name, _equation(r), _ec_codes(r), r.gene_reaction_rule,
             r.lower_bound, r.upper_bound,

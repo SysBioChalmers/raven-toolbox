@@ -11,13 +11,12 @@ negative. Operates on cobra's GPR AST recursively, so nested rules like
 from __future__ import annotations
 
 import ast
-import statistics
 from collections.abc import Mapping
 
 import cobra
 from cobra.manipulation import remove_genes
 
-_AGG = {"min": min, "max": max, "median": statistics.median, "average": statistics.fmean}
+from raven_python.utils.gpr import resolve_aggregators
 
 
 def _prune(node, scores, iso, cplx) -> tuple[str | None, float | None]:
@@ -64,10 +63,7 @@ def remove_low_score_genes(
     **deterministically** (first on a tie), unlike RAVEN's random tie-break — same
     quality, reproducible.
     """
-    for name, value in (("isozyme_scoring", isozyme_scoring), ("complex_scoring", complex_scoring)):
-        if value not in _AGG:
-            raise ValueError(f"{name} must be one of {sorted(_AGG)}; got {value!r}.")
-    iso, cplx = _AGG[isozyme_scoring], _AGG[complex_scoring]
+    iso, cplx = resolve_aggregators(isozyme_scoring, complex_scoring)
 
     out = model.copy()
     for rxn in out.reactions:

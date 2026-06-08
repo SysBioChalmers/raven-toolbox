@@ -7,4 +7,9 @@ metabolic task validation, connectivity gap-filling, omics integration (HPA),
 sub-cellular localisation, N-model comparison, and the RAVEN-style I/O formats.
 """
 
-__version__ = "0.0.1"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("raven-python")
+except PackageNotFoundError:  # running from a source tree without an install
+    __version__ = "0.0.0+unknown"

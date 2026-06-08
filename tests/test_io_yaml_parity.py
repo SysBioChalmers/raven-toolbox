@@ -25,7 +25,6 @@ from cobra.io.yaml import yaml as cobra_yaml
 
 from raven_python.io import read_yaml_model, write_yaml_model
 
-
 SAMPLE = {
     "metabolites": [
         {
@@ -349,9 +348,9 @@ def test_eccodes_round_trip_through_cobra_extras(src, tmp_path):
     pass1 = tmp_path / "via_rp.yml"
     write_yaml_model(model, pass1)
     via_cobra = cobra.io.load_yaml_model(str(pass1))
-    # cobra exposes eccodes as an attribute (setattr fall-through);
-    # raven_python sourced it from notes, so .notes['eccodes'] should
-    # still be present on the reloaded model.
+    # cobra exposes eccodes as an attribute (setattr fall-through), proving
+    # the key written by write_yaml_model survives a cobra round-trip.
+    assert getattr(via_cobra.reactions.get_by_id("R1"), "eccodes", None) == "1.1.1.1"
     pass2 = tmp_path / "via_rp2.yml"
     # Promote cobra's setattr-eccodes back into notes for the writer
     # path. (Tests the documented integration: cobra preserves the YAML

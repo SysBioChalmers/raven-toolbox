@@ -60,6 +60,8 @@ def _reporter_one(model: cobra.Model, gene_z: dict[str, float], test: str) -> Re
         raw = zs.sum() / math.sqrt(n)
         # Exact background correction for sampling-with-replacement (see module doc).
         corrected = (raw - math.sqrt(n) * mu) / sigma if sigma > 0 else 0.0
+        if not math.isfinite(corrected):  # never on clamped z-scores; guards the p-value
+            corrected = 0.0
         rows.append(
             {
                 "metabolite": met.id,

@@ -17,10 +17,40 @@ RAVEN did, only printing a warning.
 from __future__ import annotations
 
 import ast
+import statistics
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import cobra
 from cobra.core.gene import GPR
+
+#: Score-aggregation functions for combining gene scores across a GPR: isozymes
+#: (genes joined by OR) and complex subunits (joined by AND). Shared by the
+#: gene→reaction scoring (:mod:`raven_python.init.score`) and low-score-gene
+#: pruning (:mod:`raven_python.init.genes`) so both validate the same way.
+AGGREGATORS: dict[str, Callable] = {
+    "min": min,
+    "max": max,
+    "median": statistics.median,
+    "average": statistics.fmean,
+}
+
+
+def resolve_aggregators(
+    isozyme_scoring: str, complex_scoring: str
+) -> tuple[Callable, Callable]:
+    """Validate the scoring-mode names and return ``(isozyme_fn, complex_fn)``.
+
+    Raises ``ValueError`` naming the offending argument if either mode is not one
+    of :data:`AGGREGATORS`.
+    """
+    for name, value in (
+        ("isozyme_scoring", isozyme_scoring),
+        ("complex_scoring", complex_scoring),
+    ):
+        if value not in AGGREGATORS:
+            raise ValueError(f"{name} must be one of {sorted(AGGREGATORS)}; got {value!r}.")
+    return AGGREGATORS[isozyme_scoring], AGGREGATORS[complex_scoring]
 
 
 def _contains_or(node: ast.AST | None) -> bool:

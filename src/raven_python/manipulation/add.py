@@ -35,7 +35,7 @@ import cobra
 from cobra import Metabolite, Reaction
 from cobra.core.gene import GPR
 
-from raven_python.utils.parse import parse_name_comp
+from raven_python.utils.parse import parse_name_comp, subsystem_to_str
 
 # Reversibility arrows. ``<=>`` must be tried before ``=>`` (it contains it).
 _REVERSIBLE_ARROWS = ("<=>",)
@@ -302,7 +302,9 @@ def add_reactions_from_equations(
         rxn_id = spec["id"]
         if rxn_id in model.reactions:
             raise ValueError(
-                f"Reaction {rxn_id!r} already exists; use changeRxns or remove it first."
+                f"Reaction {rxn_id!r} already exists. To change its stoichiometry use "
+                "change_reaction_equations; to replace it, remove it first with "
+                "model.remove_reactions([...])."
             )
         if "equation" not in spec:
             raise ValueError(f"Reaction {rxn_id!r} spec missing required 'equation'.")
@@ -324,7 +326,7 @@ def add_reactions_from_equations(
             lower = config.lower_bound if reversible else 0.0
             rxn.bounds = (lower, config.upper_bound)
         if "subsystem" in spec:
-            rxn.subsystem = spec["subsystem"]
+            rxn.subsystem = subsystem_to_str(spec["subsystem"])
 
         model.add_reactions([rxn])
         rxn.add_metabolites(coeffs)

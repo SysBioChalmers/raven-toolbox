@@ -15,12 +15,11 @@ from __future__ import annotations
 
 import ast
 import math
-import statistics
 from collections.abc import Mapping
 
 import cobra
 
-_AGG = {"min": min, "max": max, "median": statistics.median, "average": statistics.fmean}
+from raven_python.utils.gpr import resolve_aggregators
 
 
 def gene_scores_from_expression(
@@ -70,10 +69,7 @@ def score_reactions_from_genes(
     no_gene_score: float = -2.0,
 ) -> dict[str, float]:
     """Return ``{reaction_id: score}`` from per-gene scores via each reaction's GPR."""
-    for name, value in (("isozyme_scoring", isozyme_scoring), ("complex_scoring", complex_scoring)):
-        if value not in _AGG:
-            raise ValueError(f"{name} must be one of {sorted(_AGG)}; got {value!r}.")
-    iso, cplx = _AGG[isozyme_scoring], _AGG[complex_scoring]
+    iso, cplx = resolve_aggregators(isozyme_scoring, complex_scoring)
 
     scores: dict[str, float] = {}
     for rxn in model.reactions:
