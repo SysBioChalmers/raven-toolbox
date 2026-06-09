@@ -195,6 +195,8 @@ def extract_kegg_dump(dest: str | Path) -> dict[str, Path]:
             f"KEGG archives did not yield required file(s): {missing}. "
             f"Check that the source .tar.gz archives are present in {dest}."
         )
+    # Narrowing for the type checker: the `missing` check above raised if any were None.
+    assert reaction is not None and compound is not None and ko is not None
 
     shutil.move(str(reaction), str(dest / "reaction"))
     shutil.move(str(ko), str(dest / "ko"))

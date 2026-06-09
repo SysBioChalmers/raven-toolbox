@@ -26,15 +26,15 @@ def _prune(node, scores, iso, cplx) -> tuple[str | None, float | None]:
     if not isinstance(node, ast.BoolOp):
         return None, None
 
-    children = [_prune(v, scores, iso, cplx) for v in node.values]
-    children = [(s, sc) for s, sc in children if s is not None]
+    pruned = [_prune(v, scores, iso, cplx) for v in node.values]
+    children: list[tuple[str, float | None]] = [(s, sc) for s, sc in pruned if s is not None]
 
     if isinstance(node.op, ast.And):  # complex: keep every subunit, prune nested ORs
         kept = children
     else:  # OR / isozymes: drop negative-scoring alternatives, keep at least one
         kept = [(s, sc) for s, sc in children if sc is None or sc >= 0]
-        if not kept:  # all negative → keep the least-negative
-            kept = [max(children, key=lambda c: c[1])]
+        if not kept:  # all negative → keep the least-negative (every sc is non-None here)
+            kept = [max(children, key=lambda c: c[1] if c[1] is not None else float("-inf"))]
 
     parts = [s for s, _ in kept]
     score_vals = [sc for _, sc in kept if sc is not None]

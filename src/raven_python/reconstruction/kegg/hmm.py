@@ -329,8 +329,8 @@ def build_ko_hmm(
         logger.info("[%s] start: %d sequences", label, n)
 
     hmmbuild = resolve_binary("hmmbuild", binary=hmmbuild)
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
         if n == 1:
             if verbose:
                 logger.info("[%s] single sequence: skipping CD-HIT/MAFFT", label)
@@ -408,7 +408,7 @@ def build_hmm_library(
     mafft: str | Path | None = None,
     hmmbuild: str | Path | None = None,
     hmmpress: str | Path | None = None,
-) -> dict[str, Path | list[Path]]:
+) -> dict[str, Path | list[Path] | None]:
     """Build a domain (``"prokaryotes"``/``"eukaryotes"``) HMM library.
 
     Restricts genes to the domain's organisms (from ``taxonomy``), builds a

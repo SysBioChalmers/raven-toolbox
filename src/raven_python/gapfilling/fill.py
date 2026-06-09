@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 import cobra
 from cobra.flux_analysis import find_blocked_reactions, flux_variability_analysis
+from optlang.interface import Variable  # untyped (resolves to Any); used for container hints
 
 from raven_python.manipulation.transfer import add_reactions_from_model
 
@@ -74,7 +75,7 @@ def _solve_min_templates(
     the problem is infeasible.
     """
     prob = working.problem
-    indicators: dict[str, object] = {}
+    indicators: dict[str, Variable] = {}
     extra = []
     for rid in template_ids:
         rxn = working.reactions.get_by_id(rid)

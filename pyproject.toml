@@ -50,6 +50,7 @@ dev = [
     "pytest>=7",
     "pytest-cov",
     "ruff==0.15.15",
+    "mypy>=1.8",
 ]
 excel = [
     "openpyxl>=3.1",
@@ -82,3 +83,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/raven_python"]
+# cobra / optlang / scipy / ruamel ship no type stubs; don't error on their imports.
+ignore_missing_imports = true

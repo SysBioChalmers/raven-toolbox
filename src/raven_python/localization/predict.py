@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 
 import cobra
 import pandas as pd
+from optlang.interface import Variable  # untyped (resolves to Any); used for container hints
 from optlang.symbolics import Real, add, mul
 
 from raven_python.localization.scores import LocalizationScores
@@ -165,12 +166,12 @@ def predict_localization(
     opt = prob.Model()
 
     # x[r, c] = 1 iff reaction r placed in c (only for r ∈ placeable)
-    x: dict[tuple[str, str], object] = {
+    x: dict[tuple[str, str], Variable] = {
         (r.id, c): prob.Variable(f"x_{r.id}_{c}", type="binary")
         for r in placeable for c in compartments
     }
     # y[g, c] = 1 iff gene g assigned to c
-    y: dict[tuple[str, str], object] = {
+    y: dict[tuple[str, str], Variable] = {
         (g, c): prob.Variable(f"y_{g}_{c}", type="binary")
         for g in genes_in_scope for c in compartments
     }
@@ -182,7 +183,7 @@ def predict_localization(
             for c in compartments:
                 if c != default_compartment:
                     met_keys.add((m.id, c))
-    t: dict[tuple[str, str], object] = {
+    t: dict[tuple[str, str], Variable] = {
         k: prob.Variable(f"t_{k[0]}_{k[1]}", type="binary") for k in met_keys
     }
 
