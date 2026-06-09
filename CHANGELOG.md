@@ -43,7 +43,7 @@ RAVEN-style I/O formats (YAML / SIF / Excel). Validated against MATLAB RAVEN on 
 
 * **Licensing:** released under the **MIT** license (previously GPL-3.0-or-later).
 * **Docs:** Sphinx + MyST documentation site (sources under `docs/`).
-* Not yet implemented: visualization (`plotting/`), metabolomics-based (f)tINIT scoring,
+* Not yet implemented: visualization (`visualization/`), metabolomics-based (f)tINIT scoring,
   and published binary / KEGG-artefact release bundles. See the README and
   [docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
 

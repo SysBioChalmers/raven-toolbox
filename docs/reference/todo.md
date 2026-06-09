@@ -6,7 +6,7 @@ catalogue of raven-python improvements that should also be back-ported into MATL
 
 ## Major
 
-### Visualization (`plotting/`)
+### Visualization (`visualization/`)
 
 Not started. RAVEN has limited plotting (`drawMap` etc., MATLAB-bound). For raven-python the most
 useful targets are:

@@ -18,11 +18,11 @@ Some features need extra packages, exposed as optional extras:
 | Extra | Pulls in | Needed for |
 | --- | --- | --- |
 | `excel` | `openpyxl` | {func}`raven_python.io.excel.export_to_excel` |
-| `plotting` | `matplotlib` | visualisation (Phase 6, in progress) |
+| `visualization` | `matplotlib` | visualisation (Phase 6, in progress) |
 | `dev` | `pytest`, `pytest-cov`, `ruff` | running the test-suite / linting |
 
 ```bash
-pip install -e ".[excel,plotting,dev]"
+pip install -e ".[excel,visualization,dev]"
 ```
 
 ## Solvers
