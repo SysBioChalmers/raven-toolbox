@@ -91,14 +91,21 @@ def _safe_extract_zip(zf: zipfile.ZipFile, dest_dir: Path) -> None:
 
     ``ZipFile.extractall`` has no path-traversal guard (unlike tarfile's
     ``filter="data"`` used in reconstruction/kegg/download.py), so a malicious or
-    corrupt archive could write outside the cache via absolute paths or ``..``.
-    SHA256 + HTTPS already make a hostile archive unlikely; this is defence in depth.
+    corrupt archive could write outside the cache via absolute paths, ``..``, or
+    symlink members. SHA256 + HTTPS already make a hostile archive unlikely; this
+    is defence in depth.
     """
     dest = dest_dir.resolve()
-    for member in zf.namelist():
+    for info in zf.infolist():
+        member = info.filename
         target = (dest_dir / member).resolve()
         if target != dest and dest not in target.parents:
             raise ValueError(f"unsafe path in archive (path traversal): {member!r}")
+        # Reject symlink members: extractall recreates them as real symlinks whose
+        # target the path check above never validates, so one could point outside
+        # dest_dir (or a later member be written through it).
+        if (info.external_attr >> 16) & 0o170000 == 0o120000:  # stat.S_IFLNK
+            raise ValueError(f"unsafe symlink in archive: {member!r}")
     zf.extractall(dest_dir)
 
 
@@ -138,7 +145,7 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
     # that a later run might mistake for a finished one. Mirrors data.py.
     part = archive.with_suffix(archive.suffix + ".part")
     try:
-        with urlopen(entry["url"]) as resp, open(part, "wb") as out:  # noqa: S310
+        with urlopen(entry["url"], timeout=60) as resp, open(part, "wb") as out:  # noqa: S310
             shutil.copyfileobj(resp, out)
         digest = _sha256(part)
         if digest != entry["sha256"]:

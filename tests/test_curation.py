@@ -147,6 +147,29 @@ def test_add_new_reaction_with_existing_mets():
     assert new.notes.get("rxnConfidenceScores") == "3"
 
 
+def test_add_new_reaction_joins_list_subsystems():
+    # RAVEN allows a reaction in several subsystems (a list). The new-reaction
+    # path must ``;``-join it like the update path does, not emit a str(list) repr.
+    m = _base_model()
+    rxns_df = pd.DataFrame([
+        {"rxnNames": "ADP phosphorylation", "grRules": "YBR456W",
+         "lb": -1000, "ub": 1000, "rev": 1,
+         "subSystems": ["glycolysis", "energy"],
+         "eccodes": "2.7.4.6", "rxnNotes": "", "rxnReferences": "",
+         "rxnConfidenceScores": 3, "kegg.reaction": "R00187"},
+    ])
+    coeffs_df = pd.DataFrame([
+        {"rxnNames": "ADP phosphorylation", "metNames": "ADP", "comps": "c",
+         "coefficient": -1.0},
+        {"rxnNames": "ADP phosphorylation", "metNames": "ATP", "comps": "c",
+         "coefficient": 1.0},
+    ])
+    result = batch_curate(m, rxns_df=rxns_df, rxns_coeffs_df=coeffs_df,
+                          rxn_id_prefix="r_")
+    assert result.added_reactions == ["r_0002"]
+    assert m.reactions.get_by_id("r_0002").subsystem == "glycolysis;energy"
+
+
 def test_update_existing_reaction_by_stoichiometry():
     m = _base_model()
     rxns_df = pd.DataFrame([
