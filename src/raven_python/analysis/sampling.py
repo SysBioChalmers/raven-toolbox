@@ -38,6 +38,7 @@ import numpy as np
 import pandas as pd
 from cobra.exceptions import OptimizationError
 from cobra.flux_analysis import flux_variability_analysis, pfba
+from optlang.symbolics import add
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +187,9 @@ def random_sampling(
             weights = rng.random(n_objectives) * signs
             terms = [w * good_rxn_objs[j].flux_expression
                      for j, w in zip(chosen, weights, strict=True)]
-            model.objective = model.problem.Objective(sum(terms), direction="max")
+            # add() (not sum()) builds the symbolic objective in one pass; sum()
+            # re-canonicalises the optlang expression on every term (O(n^2)).
+            model.objective = model.problem.Objective(add(terms), direction="max")
             sol = model.optimize()
             if sol.status == "optimal" and abs(sol.objective_value) > 1e-8:
                 fluxes = (pfba(model) if min_flux else sol).fluxes.reindex(reaction_ids)

@@ -153,8 +153,14 @@ def _ortholog_map(
     if pairs.empty:
         return {}
 
-    # Keep only template genes that actually exist in their model.
-    pairs = pairs[pairs.apply(lambda r: r.template_gene in model_genes.get(r.model_id, ()), axis=1)]
+    # Keep only template genes that actually exist in their model. A list
+    # comprehension over the columns avoids DataFrame.apply(axis=1)'s per-row
+    # Series construction (model_genes values are sets, so membership is O(1)).
+    keep = [
+        tg in model_genes.get(mid, ())
+        for mid, tg in zip(pairs.model_id, pairs.template_gene, strict=True)
+    ]
+    pairs = pairs[keep]
 
     ortho: dict = {}
     for model_id, template_gene, new_gene in zip(pairs.model_id, pairs.template_gene, pairs.new_gene, strict=True):

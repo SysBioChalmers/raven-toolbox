@@ -114,6 +114,25 @@ def test_name_mode_creates_new_met_with_auto_id(model):
     assert new[0].compartment == "c"
 
 
+def test_name_mode_dedups_new_met_across_reactions(model):
+    # A new metabolite named on more than one reaction in the same call must be
+    # created once and shared — later tokens have to see mets created earlier in
+    # the call (the (name, comp) index is seeded once and updated on creation).
+    r1, r2 = add_reactions_from_equations(
+        model,
+        [
+            {"id": "R1", "equation": "ATP --> AMP"},
+            {"id": "R2", "equation": "AMP --> ADP"},
+        ],
+        mets_by="name",
+        compartment="c",
+    )
+    amp = [m for m in model.metabolites if m.name == "AMP"]
+    assert len(amp) == 1                 # created once, not duplicated
+    assert amp[0] in r1.metabolites
+    assert amp[0] in r2.metabolites
+
+
 def test_name_mode_requires_compartment(model):
     with pytest.raises(ValueError, match="needs a compartment"):
         add_reactions_from_equations(
