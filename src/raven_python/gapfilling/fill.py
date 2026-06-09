@@ -15,6 +15,7 @@ RAVEN's ``rxnScores``; the MILP minimises the penalty ``-score`` (default penalt
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -76,13 +77,25 @@ def _solve_min_templates(
     prob = working.problem
     indicators: dict[str, object] = {}
     extra = []
+    # Big-M for the indicator constraints. A template reaction with an infinite
+    # bound would otherwise put an infinite coefficient into the MILP; clamp it to
+    # the largest finite bound magnitude in the model (>= any flux it can carry).
+    finite_bounds = [
+        abs(b)
+        for r in working.reactions
+        for b in (r.lower_bound, r.upper_bound)
+        if math.isfinite(b)
+    ]
+    big_m = max(finite_bounds) if finite_bounds else 1000.0
     for rid in template_ids:
         rxn = working.reactions.get_by_id(rid)
         y = prob.Variable(f"_gf_keep_{rid}", type="binary")
         indicators[rid] = y
         # Flux is confined to [lb*y, ub*y]: zero unless the reaction is kept (y=1).
-        extra.append(prob.Constraint(rxn.flux_expression - rxn.upper_bound * y, ub=0, name=f"_gf_ub_{rid}"))
-        extra.append(prob.Constraint(rxn.flux_expression - rxn.lower_bound * y, lb=0, name=f"_gf_lb_{rid}"))
+        ub = rxn.upper_bound if math.isfinite(rxn.upper_bound) else big_m
+        lb = rxn.lower_bound if math.isfinite(rxn.lower_bound) else -big_m
+        extra.append(prob.Constraint(rxn.flux_expression - ub * y, ub=0, name=f"_gf_ub_{rid}"))
+        extra.append(prob.Constraint(rxn.flux_expression - lb * y, lb=0, name=f"_gf_lb_{rid}"))
     working.add_cons_vars(list(indicators.values()) + extra)
 
     if allow_net_production:  # relax steady state to Sv >= 0 (mets may accumulate)

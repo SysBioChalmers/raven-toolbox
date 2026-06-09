@@ -57,6 +57,14 @@ def test_resolve_auth_host_absent(tmp_path):
         _resolve_auth("ftp.kegg.net", netrc_path=netrc_file)
 
 
+def test_resolve_auth_malformed_netrc(tmp_path):
+    netrc_file = tmp_path / ".netrc"
+    netrc_file.write_text("this is not a valid netrc line\n")
+    netrc_file.chmod(0o600)
+    with pytest.raises(ValueError, match="Could not read credentials"):
+        _resolve_auth("ftp.kegg.net", netrc_path=netrc_file)
+
+
 # --------------------------------------------------------------------------- #
 # Extract / arrange
 # --------------------------------------------------------------------------- #

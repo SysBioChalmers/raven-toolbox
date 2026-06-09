@@ -76,7 +76,7 @@ def test_mets_sheet(model, tmp_path):
     assert atp["ID"] == "ATP[c]"
     assert atp["NAME"] == "ATP"
     assert atp["InChI"] == "InChI=1S/X"
-    assert atp["COMPOSITION"] is None  # suppressed when InChI present
+    assert atp["COMPOSITION"] == "C10H16N5O13P3"  # formula kept even when InChI present
     assert atp["CHARGE"] == -4
     assert atp["MIRIAM"] == "kegg.compound/C00002"  # smiles excluded
 
