@@ -95,11 +95,10 @@ def is_dnf(gpr: GPR | str | None) -> bool:
     >>> is_dnf("(G1 or G2) and G3")
     False
     """
-    if isinstance(gpr, str):
-        gpr = GPR.from_string(gpr)
-    if gpr is None:
+    parsed = GPR.from_string(gpr) if isinstance(gpr, str) else gpr
+    if parsed is None:
         return True
-    return _is_dnf_node(gpr.body)
+    return _is_dnf_node(parsed.body)
 
 
 @dataclass(frozen=True)

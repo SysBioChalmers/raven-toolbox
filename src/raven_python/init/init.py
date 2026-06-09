@@ -40,6 +40,7 @@ from dataclasses import dataclass
 
 import cobra
 from cobra.exceptions import OptimizationError
+from optlang.interface import Variable  # untyped (resolves to Any); used for container hints
 from optlang.symbolics import Real, add, mul
 
 _EPS = 1.0  # flux an included reaction must carry (RAVEN's fake-met unit)
@@ -137,7 +138,7 @@ def run_init(
     flux = {d.key: prob.Variable(f"v_{d.key}", lb=0.0, ub=d.ub) for d in directed}
 
     # Binary include-indicators for non-essential reactions; eps*x <= v <= ub*x.
-    keep: dict[str, object] = {}
+    keep: dict[str, Variable] = {}
     gates = []
     for d in directed:
         if d.essential:

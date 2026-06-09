@@ -20,8 +20,10 @@ import copy
 import cobra
 from cobra.core.gene import GPR
 
+__all__ = ["expand_model", "gpr_to_dnf"]
 
-def _gpr_to_dnf(gpr: GPR) -> list[list[str]]:
+
+def gpr_to_dnf(gpr: GPR) -> list[list[str]]:
     """Convert a GPR to disjunctive normal form (list of AND-clauses).
 
     An empty GPR yields an empty list. A single clause (no OR anywhere)
@@ -88,7 +90,7 @@ def expand_model(model: cobra.Model) -> list[str]:
     for rxn in model.reactions:
         if not rxn.gene_reaction_rule:
             continue
-        clauses = _gpr_to_dnf(rxn.gpr)
+        clauses = gpr_to_dnf(rxn.gpr)
         if len(clauses) <= 1:
             continue
         expansions.append((rxn, clauses))

@@ -69,8 +69,8 @@ def get_init_model(
             model, gene_scores, isozyme_scoring=isozyme_scoring,
             complex_scoring=complex_scoring, no_gene_score=no_gene_score,
         )
-    else:
-        scores = dict(rxn_scores)
+    else:  # rxn_scores is not None here (exactly-one-of check above); `or {}` placates mypy
+        scores = dict(rxn_scores or {})
 
     deleted_dead_end: list[str] = []
     if remove_dead_ends:

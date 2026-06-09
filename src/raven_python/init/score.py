@@ -39,10 +39,9 @@ def gene_scores_from_expression(
     score is clamped to ``[min_score, max_score]``; non-positive level/reference (and
     missing reference) → ``min_score`` (RAVEN maps these NaNs to -5).
     """
-    scalar = isinstance(reference, (int, float))
     scores: dict[str, float] = {}
     for gene, level in expression.items():
-        ref = reference if scalar else reference.get(gene)
+        ref = reference if isinstance(reference, (int, float)) else reference.get(gene)
         if not level or not ref or level <= 0 or ref <= 0:
             scores[gene] = min_score
         else:

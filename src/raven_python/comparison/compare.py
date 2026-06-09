@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import cast
 
 import cobra
 import pandas as pd
@@ -131,8 +133,9 @@ def compare_models(
         # raven_python.tasks.check_tasks accepts a path or an iterable of Task; preserve task
         # ids for the index. Capture the list once so all models test the same set.
         from raven_python.tasks.tasklist import parse_task_list
-        task_list = (parse_task_list(tasks) if isinstance(tasks, (str, bytes))
-                     or hasattr(tasks, "__fspath__") else list(tasks))
+        task_list = (parse_task_list(cast("str | Path", tasks))
+                     if isinstance(tasks, (str, bytes)) or hasattr(tasks, "__fspath__")
+                     else list(tasks))
         task_ids = [t.id for t in task_list]
         task_df = pd.DataFrame(False, index=task_ids, columns=model_ids, dtype=bool)
         for mid, m in zip(model_ids, models_list, strict=True):

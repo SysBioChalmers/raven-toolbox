@@ -17,6 +17,7 @@ import pickle
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import cobra
 from cobra.exceptions import OptimizationError
@@ -51,11 +52,14 @@ def _set_constraint_bounds(constraint, lb: float, ub: float) -> None:
         constraint.ub = ub
 
 
-def _classify(token: str) -> tuple[str, str | None]:
-    """Return ``("all", None)``, ``("comp", COMP)``, or ``("met", token_upper)``."""
+def _classify(token: str) -> tuple[str, str]:
+    """Return ``("all", "")``, ``("comp", COMP)``, or ``("met", token_upper)``.
+
+    The arg is empty only for ``"all"``, which never reads it.
+    """
     upper = token.upper()
     if upper == _ALLMETS:
-        return "all", None
+        return "all", ""
     if upper.startswith(_ALLMETSIN + "[") and upper.endswith("]"):
         return "comp", upper[len(_ALLMETSIN) + 1: -1]
     return "met", upper  # incl. malformed ALLMETSIN[... → treated as a (missing) metabolite
@@ -210,7 +214,7 @@ def check_tasks(
 
 def _as_tasks(tasks: str | Iterable[Task]) -> list[Task]:
     if isinstance(tasks, (str, bytes)) or hasattr(tasks, "__fspath__"):
-        return parse_task_list(tasks)
+        return parse_task_list(cast("str | Path", tasks))  # guard above ⇒ path-like
     return list(tasks)
 
 

@@ -99,7 +99,7 @@ def remove_genes(
         return []
 
     # Reactions touched by these genes that currently have a GPR.
-    affected = set()
+    affected: set[str] = set()
     for gid in present:
         affected.update(r.id for r in model.genes.get_by_id(gid).reactions)
     had_gpr = {rid for rid in affected if model.reactions.get_by_id(rid).gene_reaction_rule}

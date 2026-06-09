@@ -72,8 +72,8 @@ def run_blast(
     outfmt = "10 " + " ".join(_OUTFMT_FIELDS)  # 10 = CSV
 
     frames = []
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
 
         def blastp_dir(query, subject_fasta, from_id, to_id):
             db = tmp / f"db_{from_id}_{to_id}"
@@ -113,8 +113,8 @@ def run_diamond(
     diamond = resolve_binary("diamond", binary=diamond)
 
     frames = []
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
 
         def diamond_dir(query, subject_fasta, from_id, to_id):
             db = tmp / f"db_{from_id}_{to_id}"

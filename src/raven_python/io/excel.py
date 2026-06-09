@@ -17,7 +17,7 @@ from raven_python.utils.parse import subsystem_to_str
 
 def _miriam_string(annotation: dict, exclude: tuple[str, ...] = ()) -> str:
     """RAVEN MIRIAM column: ``namespace/id;namespace/id2;...`` (sorted)."""
-    parts = []
+    parts: list[str] = []
     for namespace in sorted(annotation):
         if namespace in exclude:
             continue

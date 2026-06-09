@@ -52,6 +52,7 @@ from dataclasses import dataclass, field
 
 import cobra
 from cobra.exceptions import OptimizationError
+from optlang.interface import Variable  # untyped (resolves to Any); used for container hints
 from optlang.symbolics import Real, add, mul
 
 from raven_python.init.genes import remove_low_score_genes
@@ -112,8 +113,8 @@ def run_ftinit(
 
     variables: list = []
     constraints: list = []
-    flux_terms: dict[str, list[tuple[object, float]]] = {}  # rxn id -> [(var, sign)]
-    indicators: dict[str, tuple[object, float]] = {}  # rxn id -> (indicator var, score)
+    flux_terms: dict[str, list[tuple[Variable, float]]] = {}  # rxn id -> [(var, sign)]
+    indicators: dict[str, tuple[Variable, float]] = {}  # rxn id -> (indicator var, score)
     free_or_essential: set[str] = set()               # kept regardless of an indicator
 
     def add_constraint(expr, **kw):
@@ -218,7 +219,7 @@ def run_ftinit(
     on = {rid for rid, (ind, _) in indicators.items() if (ind.primal or 0.0) >= 0.5}
     kept = free_or_essential | on
     deleted = [r.id for r in model.reactions if r.id not in kept]
-    fluxes = {
+    fluxes: dict[str, float] = {
         rid: sum(sign * (var.primal or 0.0) for var, sign in terms)
         for rid, terms in flux_terms.items()
     }
