@@ -27,7 +27,7 @@ import pandas as pd
 from raven_python.binaries import resolve_binary
 from raven_python.io.yaml import read_yaml_model
 from raven_python.reconstruction.kegg.assemble import assemble_model_from_ko_genes
-from raven_python.reconstruction.kegg.parse import read_kegg_table
+from raven_python.reconstruction.kegg.parse import _resolve_artefact, read_kegg_table
 
 _NOTE = "Included by get_kegg_model_from_sequences (using HMMs)"
 _MIN_EVALUE = 1e-250  # floor for a reported E-value of 0, to keep logs finite
@@ -223,9 +223,9 @@ def get_kegg_model_from_sequences_with_artefacts(
         if library is None:
             library = ensure_kegg_hmm_library(domain, version=version)
     artefact_dir = Path(artefact_dir)
-    reference_model = read_yaml_model(artefact_dir / "reference_model.yml.gz")
-    ko_reaction = read_kegg_table(artefact_dir / "ko_reaction.tsv.gz")
-    rxn_flags = read_kegg_table(artefact_dir / "rxn_flags.tsv.gz")
+    reference_model = read_yaml_model(_resolve_artefact(artefact_dir, "reference_model.yml.gz"))
+    ko_reaction = read_kegg_table(_resolve_artefact(artefact_dir, "ko_reaction.tsv.gz"))
+    rxn_flags = read_kegg_table(_resolve_artefact(artefact_dir, "rxn_flags.tsv.gz"))
     return get_kegg_model_from_sequences(
         fasta, reference_model, ko_reaction, library, rxn_flags=rxn_flags, **kwargs
     )

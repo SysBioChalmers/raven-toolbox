@@ -76,11 +76,13 @@ KEGG release).
 ```python
 from raven_python.reconstruction.kegg import parse_kegg_dump
 
-parse_kegg_dump("keggdb", "artefacts")
+parse_kegg_dump("keggdb", "artefacts", version="kegg116")
 ```
 
 This writes the gene-free reference model (`reference_model.yml.gz`, gzipped
-RAVEN/cobra YAML) and the relational tables as gzipped TSV. See
+RAVEN/cobra YAML) and the relational tables as gzipped TSV. With `version=` set,
+every output filename is version-prefixed (e.g. `kegg116_organism_gene_ko.tsv.gz`),
+matching the published release assets. See
 [kegg_data_format.md](kegg_data_format.md) for what those tables contain and the
 format rationale.
 
@@ -98,7 +100,7 @@ searches. This needs **HMMER** (`hmmbuild`, `hmmpress`), **MAFFT**, and
 ```python
 from raven_python.reconstruction.kegg import build_hmm_library, read_kegg_table
 
-organism_gene_ko = read_kegg_table("artefacts/organism_gene_ko.tsv.xz")
+organism_gene_ko = read_kegg_table("artefacts/kegg116_organism_gene_ko.tsv.gz")
 for domain in ("prokaryotes", "eukaryotes"):
     build_hmm_library(
         organism_gene_ko,
@@ -111,32 +113,42 @@ for domain in ("prokaryotes", "eukaryotes"):
 
 For each KO in the domain it gathers the member sequences, dereplicates with
 CD-HIT (~90 % identity), aligns with MAFFT, trains a profile with `hmmbuild`, and
-finally concatenates and `hmmpress`-es them into a single `library.hmm` for fast
-`hmmscan` querying. This is the slowest step (hours, once per KEGG release); it
-skips KOs whose `.hmm` already exists, so it is resumable. The resulting
-libraries are published as version-pinned artefacts alongside the reference model
-and tables.
+finally concatenates them into a single `library.hmm`. This is the slowest step
+(hours, once per KEGG release); it skips KOs whose `.hmm` already exists, so it is
+resumable. The concatenated library is published **gzipped** as
+`<version>_<domain>.hmm.gz` (e.g. `kegg116_prokaryotes.hmm.gz`); end users
+decompress it and run `hmmpress` once on first use (see `ensure_kegg_hmm_library`),
+which keeps the download ~10× smaller than the binary index, stays portable across
+HMMER versions, and lets the same artefact serve MATLAB RAVEN.
 
 ## Building and publishing in one go
 
 [`scripts/build_kegg_artefacts.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md) runs 3b.2 (+ 3b.3 with
-`--hmms`) and lays the output out as publishable assets (`<domain>.hmm` named for
-`ensure_kegg_hmm_library`):
+`--hmms`) and lays the output out as publishable, version-prefixed assets
+(`<version>_<domain>.hmm.gz` named for `ensure_kegg_hmm_library`):
 
 ```bash
-python scripts/build_kegg_artefacts.py --keggdb keggdb --out artefacts --hmms --threads 8
+python scripts/build_kegg_artefacts.py --keggdb keggdb --out artefacts \
+    --version kegg116 --hmms --threads 8
 ```
 
-Upload the contents of `artefacts/` to a release, then emit the registry entry for
-`raven_python.data._DATA_REGISTRY` with [`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md):
+Upload the contents of `artefacts/` to the release, then record the artefacts in
+both the shared `data/manifest.json` and `raven_python.data._DATA_REGISTRY` with
+[`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md)
+(it computes each file's SHA256 + size):
 
 ```bash
+# shared source of truth (read by raven-python and MATLAB RAVEN):
+python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
+    --target data --dataset kegg --version kegg116 --dir artefacts \
+    --base-url https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0
+# in-code registry, so end users auto-fetch with no env var (paste into _DATA_REGISTRY):
 python scripts/make_registry_snippet.py data --dataset kegg --version kegg116 \
-    --dir artefacts --base-url https://github.com/ORG/raven-python/releases/download/kegg-data-kegg116
+    --dir artefacts --base-url https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0
 ```
 
-Paste the printed block into `_DATA_REGISTRY`; from then on `ensure_data` fetches
-and verifies the artefacts for end users automatically.
+From then on `ensure_data` fetches and verifies the artefacts for end users
+automatically.
 
 ## End-user paths (3b.4 / 3b.5)
 
@@ -152,6 +164,7 @@ model from the artefacts:
   cross-platform. `organism_id="prokaryotes"`/`"eukaryotes"` builds a whole-domain
   model (pass `taxonomy=`).
 - **3b.5 — organism not in KEGG** (`get_kegg_model_from_sequences`): `hmmscan`-es a
-  proteome FASTA against the pressed `library.hmm`, so it needs **HMMER**
-  (`hmmscan`) — Linux/macOS or WSL2 (see the OS matrix). Tune assignment with
+  proteome FASTA against the domain library (decompressed and `hmmpress`-ed from
+  the published `.hmm.gz` on first use), so it needs **HMMER** (`hmmpress`,
+  `hmmscan`) — Linux/macOS or WSL2 (see the OS matrix). Tune assignment with
   `cutoff`, `min_score_ratio_ko`, `min_score_ratio_g`.

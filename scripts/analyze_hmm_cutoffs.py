@@ -50,7 +50,7 @@ def load_ko2rxn(artefacts: Path) -> dict[str, set[str]]:
 
 
 def ground_truth(artefacts: Path, org: str, ko2rxn) -> tuple[set, set]:
-    ogk = read_kegg_table(artefacts / "organism_gene_ko.tsv.xz")
+    ogk = read_kegg_table(artefacts / "organism_gene_ko.tsv.gz")
     rows = ogk[ogk["organism"].str.lower() == org]
     pairs = set(zip(rows["gene"], rows["ko"], strict=True))
     rxns = {r for _, ko in pairs for r in ko2rxn.get(ko, ())}

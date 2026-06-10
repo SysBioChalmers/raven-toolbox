@@ -70,11 +70,11 @@ Implemented across [`reconstruction.kegg`](https://github.com/SysBioChalmers/rav
   switches when DP-cost > 0.65 × (RAM − 2.5 GB) / 4.2e-9). Same protein
   set, no sequences dropped.
 * **K14** ⚡ — Sort `organism_gene_ko` by `(organism, gene)` and store it
-  xz-compressed (`organism_gene_ko.tsv.xz`). Cuts the dominant artefact from
-  ~78 MB to ~27 MB (2.9×): gene IDs within an organism share long prefixes
-  so adjacency makes them far more compressible, and xz's larger window
-  catches cross-row redundancy gzip's 32 KB window misses. MATLAB needs an
-  external `unxz` to read the file; the small tables remain plain gzipped TSV.
+  gzipped (`organism_gene_ko.tsv.gz`). Sorting makes gene IDs within an organism
+  adjacent (shared locus-tag/numeric prefixes), so they compress far better
+  (~78 → 48 MB) and the order matches the by-organism query. Stored as gzip (not
+  xz) so MATLAB reads it with built-in `gunzip`, since the same artefact is shared
+  with raven-python; xz would be ~3× smaller but needs an external `unxz`.
 * **K15** 🐛 — Recalibrate the HMM-query KO-assignment defaults: change
   `cutoff` from `1e-50` to `1e-30` and `min_score_ratio_g` from `0.8` to
   `0.9`. `min_score_ratio_ko` can stay at `0.3` but is empirically inert
