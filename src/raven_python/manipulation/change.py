@@ -18,7 +18,7 @@ from collections.abc import Mapping
 import cobra
 from cobra import Reaction
 
-from raven_python.manipulation.add import _stoichiometry
+from raven_python.manipulation.add import _build_met_index, _stoichiometry
 
 __all__ = ["change_reaction_equations", "change_gene_reaction_rules"]
 
@@ -60,6 +60,7 @@ def change_reaction_equations(
         raise ValueError(f"mets_by must be 'id' or 'name', got {mets_by!r}")
 
     changed: list[Reaction] = []
+    met_index = _build_met_index(model)
     for rxn_id, equation in equations.items():
         if rxn_id not in model.reactions:
             raise ValueError(f"Reaction {rxn_id!r} not found in the model.")
@@ -72,6 +73,7 @@ def change_reaction_equations(
             compartment=compartment,
             allow_new_mets=allow_new_mets,
             new_met_prefix=new_met_prefix,
+            met_index=met_index,
         )
 
         rxn.subtract_metabolites(dict(rxn.metabolites), combine=True)

@@ -97,8 +97,24 @@ def _new_met_id(model: cobra.Model, prefix: str) -> str:
     return f"{prefix}{n}"
 
 
+def _build_met_index(model: cobra.Model) -> dict[tuple[str, str | None], Metabolite]:
+    """Build a ``(name, compartment) -> metabolite`` index (first match wins,
+    mirroring the old linear scan). Lets name / name[comp] resolution be O(1)
+    instead of re-scanning ``model.metabolites`` per token; callers update it as
+    new mets are created so later tokens dedup against earlier ones."""
+    index: dict[tuple[str, str | None], Metabolite] = {}
+    for met in model.metabolites:
+        index.setdefault((met.name, met.compartment), met)
+    return index
+
+
 def _try_existing(
-    model: cobra.Model, token: str, *, mets_by: str, compartment: str | None
+    model: cobra.Model,
+    token: str,
+    *,
+    mets_by: str,
+    compartment: str | None,
+    met_index: dict[tuple[str, str | None], Metabolite],
 ) -> Metabolite | None:
     """Look up ``token`` as an existing metabolite (no creation, no side effects).
 
@@ -113,10 +129,7 @@ def _try_existing(
     target_comp = comp if comp is not None else compartment
     if target_comp is None:
         return None
-    for met in model.metabolites:
-        if met.name == name and met.compartment == target_comp:
-            return met
-    return None
+    return met_index.get((name, target_comp))
 
 
 def _resolve_metabolite(
@@ -127,6 +140,7 @@ def _resolve_metabolite(
     compartment: str | None,
     allow_new_mets: bool,
     new_met_prefix: str,
+    met_index: dict[tuple[str, str | None], Metabolite],
 ) -> Metabolite:
     """Resolve an equation token to an existing or newly created Metabolite."""
     name, comp = parse_name_comp(token)
@@ -146,6 +160,7 @@ def _resolve_metabolite(
         _warn_unknown_compartment(model, compartment, token)
         met = Metabolite(token, compartment=compartment)
         model.add_metabolites([met])
+        met_index.setdefault((met.name, met.compartment), met)
         return met
 
     # name-based (mets_by="name") or explicit name[comp]
@@ -158,13 +173,9 @@ def _resolve_metabolite(
     if comp is not None and target_comp not in model.compartments and not allow_new_mets:
         raise ValueError(f"Compartment {target_comp!r} is not in the model.")
 
-    matches = [
-        met
-        for met in model.metabolites
-        if met.name == name and met.compartment == target_comp
-    ]
-    if matches:
-        return matches[0]
+    existing = met_index.get((name, target_comp))
+    if existing is not None:
+        return existing
     if not allow_new_mets:
         raise ValueError(
             f"No metabolite named {name!r} in compartment {target_comp!r}; "
@@ -173,6 +184,7 @@ def _resolve_metabolite(
     _warn_unknown_compartment(model, target_comp, name)
     met = Metabolite(_new_met_id(model, new_met_prefix), name=name, compartment=target_comp)
     model.add_metabolites([met])
+    met_index.setdefault((met.name, met.compartment), met)
     return met
 
 
@@ -202,6 +214,7 @@ def _stoichiometry(
     compartment: str | None,
     allow_new_mets: bool,
     new_met_prefix: str,
+    met_index: dict[tuple[str, str | None], Metabolite],
 ) -> tuple[dict[Metabolite, float], bool]:
     """Parse an equation into a {Metabolite: net coefficient} dict + reversibility."""
     lhs, rhs, reversible = _split_equation(equation)
@@ -217,7 +230,8 @@ def _stoichiometry(
             met = None
             if fallback is not None:
                 met = _try_existing(
-                    model, fallback, mets_by=mets_by, compartment=compartment
+                    model, fallback, mets_by=mets_by, compartment=compartment,
+                    met_index=met_index,
                 )
                 if met is not None:
                     coeff = 1.0
@@ -229,6 +243,7 @@ def _stoichiometry(
                     compartment=compartment,
                     allow_new_mets=allow_new_mets,
                     new_met_prefix=new_met_prefix,
+                    met_index=met_index,
                 )
             coeffs[met] = coeffs.get(met, 0.0) + sign * coeff
     # Drop metabolites that net to zero (present as both substrate and product).
@@ -295,6 +310,7 @@ def add_reactions_from_equations(
 
     known_genes = {gene.id for gene in model.genes}
     added: list[Reaction] = []
+    met_index = _build_met_index(model)
 
     for spec in reactions:
         if "id" not in spec:
@@ -316,6 +332,7 @@ def add_reactions_from_equations(
             compartment=compartment,
             allow_new_mets=allow_new_mets,
             new_met_prefix=new_met_prefix,
+            met_index=met_index,
         )
 
         rxn = Reaction(rxn_id, name=spec.get("name", ""))
