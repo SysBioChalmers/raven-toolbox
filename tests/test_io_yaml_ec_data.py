@@ -21,6 +21,7 @@ from cobra.io.yaml import yaml as cobra_yaml
 from scipy import sparse
 
 from raven_python.io import EcData, read_yaml_model, write_yaml_model
+from raven_python.io.ec_data import _eccodes_to_yaml
 from raven_python.io.yaml import model_from_yaml_data
 
 # --------------------------------------------------------------------------- #
@@ -131,6 +132,16 @@ def test_load_eccodes_scalar_or_list_both_round_trip(tmp_path):
     doc["ec-rxns"][0]["eccodes"] = ["1.1.1.1", "1.1.99.40"]
     m2 = read_yaml_model(_write_yaml(doc, tmp_path / "m2.yml"))
     assert m2.ec.eccodes == ["1.1.1.1;1.1.99.40"]
+
+
+def test_eccodes_to_yaml_strips_trailing_separator():
+    # The write-path helper must clean the internal `;`-joined form: a single EC
+    # round-trips to a bare scalar, and stray separators never leak into the YAML.
+    assert _eccodes_to_yaml("1.1.1.1") == "1.1.1.1"
+    assert _eccodes_to_yaml("1.1.1.1;") == "1.1.1.1"
+    assert _eccodes_to_yaml(";") == ""
+    assert _eccodes_to_yaml("") == ""
+    assert _eccodes_to_yaml("1.1.1.1;1.1.99.40") == ["1.1.1.1", "1.1.99.40"]
 
 
 # --------------------------------------------------------------------------- #

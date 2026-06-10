@@ -388,5 +388,5 @@ def _eccodes_to_yaml(eccodes: str):
     a scalar string for one EC, a list for multiple."""
     parts = [p for p in eccodes.split(";") if p]
     if len(parts) <= 1:
-        return eccodes
+        return ";".join(parts)
     return parts

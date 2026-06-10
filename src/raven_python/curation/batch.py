@@ -402,7 +402,7 @@ def _build_new_reactions(
         if _has_value(row.get("grRules")):
             rxn.gene_reaction_rule = str(row["grRules"])
         if _has_value(row.get("subSystems")):
-            rxn.subsystem = str(row["subSystems"])
+            rxn.subsystem = subsystem_to_str(row["subSystems"])
         if _has_value(row.get("eccodes")):
             rxn.annotation["ec-code"] = str(row["eccodes"])
         if _has_value(row.get("rxnNotes")):

@@ -107,7 +107,7 @@ def ensure_data_file(
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
-    with urlopen(entry["url"]) as resp, open(tmp, "wb") as out:  # noqa: S310 (trusted registry URLs)
+    with urlopen(entry["url"], timeout=60) as resp, open(tmp, "wb") as out:  # noqa: S310 (trusted registry URLs)
         shutil.copyfileobj(resp, out)
     digest = _sha256(tmp)
     if digest != entry["sha256"]:
