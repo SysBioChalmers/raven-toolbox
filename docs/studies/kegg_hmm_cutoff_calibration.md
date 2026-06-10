@@ -199,5 +199,5 @@ Full reconstruction of *S. cerevisiae* two ways, at the old defaults:
 
 Reaction recall 96.3 % (1305/1355 shared, Jaccard 0.86); gene recall 96.6 %
 (807/835 shared, Jaccard 0.87). The annotation path also exercises the new
-`organism_gene_ko.tsv.xz` artefact (K14). `hmmscan` throughput ≈ 0.1 s/query
+`organism_gene_ko.tsv.gz` artefact (K14). `hmmscan` throughput ≈ 0.1 s/query
 against either library on 12 threads (yeast: 6021 queries in 633 s).

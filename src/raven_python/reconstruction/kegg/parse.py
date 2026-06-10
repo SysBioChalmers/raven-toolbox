@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import gzip
 import heapq
-import lzma
 import re
 import tempfile
 from collections.abc import Iterator
@@ -444,17 +443,21 @@ def build_kegg_tables(
     }
 
 
-def write_kegg_tables(tables: dict[str, pd.DataFrame], out_dir: str | Path) -> list[Path]:
-    """Write each table as a gzipped TSV (``<name>.tsv.gz``) into ``out_dir``.
+def write_kegg_tables(
+    tables: dict[str, pd.DataFrame], out_dir: str | Path, *, prefix: str = ""
+) -> list[Path]:
+    """Write each table as a gzipped TSV (``<prefix><name>.tsv.gz``) into ``out_dir``.
 
     Gzipped TSV is the dependency-free cross-language format shared with MATLAB
-    RAVEN (see docs/kegg_data_format.md). Returns the written paths.
+    RAVEN (see docs/kegg_data_format.md) — readable by MATLAB's built-in ``gunzip``
+    with no external tool. ``prefix`` version-tags the filenames (e.g.
+    ``kegg116_``). Returns the written paths.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
     for name, frame in tables.items():
-        path = out_dir / f"{name}.tsv.gz"
+        path = out_dir / f"{prefix}{name}.tsv.gz"
         with gzip.open(path, "wt", encoding="utf-8", newline="") as handle:
             frame.to_csv(handle, sep="\t", index=False)
         written.append(path)
@@ -465,11 +468,33 @@ def read_kegg_table(path: str | Path) -> pd.DataFrame:
     """Read a KEGG table written by :func:`write_kegg_tables` or
     :func:`stream_organism_gene_ko`.
 
-    Compression is inferred from the suffix, so both the gzipped small tables
-    (``.tsv.gz``) and the xz-compressed ``organism_gene_ko.tsv.xz`` are read
-    transparently.
+    Compression is inferred from the suffix; all published tables are gzipped TSV
+    (``.tsv.gz``), and a version-prefixed name (``kegg116_<name>.tsv.gz``) reads
+    just the same.
     """
     return pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
+
+
+def _resolve_artefact(directory: str | Path, base: str) -> Path:
+    """Locate an artefact file by its base name, tolerating a version prefix.
+
+    Returns ``directory/base`` if it exists, else the single version-prefixed
+    match ``directory/<version>_<base>`` (the published asset name, e.g.
+    ``kegg116_ko_reaction.tsv.gz``). This lets one reader consume both a user's own
+    unprefixed build directory and the version-pinned download cache.
+    """
+    directory = Path(directory)
+    exact = directory / base
+    if exact.exists():
+        return exact
+    matches = sorted(directory.glob(f"*_{base}"))
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise FileNotFoundError(
+            f"{base!r} (or a <version>_ prefixed form) not found in {directory}"
+        )
+    raise ValueError(f"Ambiguous {base!r} in {directory}: {sorted(p.name for p in matches)}")
 
 
 def _flush_sorted_run(rows: list[str], tmp_dir: Path, run_no: int) -> Path:
@@ -490,14 +515,15 @@ def _ogk_sort_key(line: str) -> tuple[str, str]:
 def stream_organism_gene_ko(
     kegg_dir: str | Path, keep: set[str], ogk_path: str | Path, *, chunk_rows: int = 1_000_000
 ) -> pd.DataFrame:
-    """Stream the ``ko`` file to a sorted, xz-compressed ``organism_gene_ko.tsv.xz``.
+    """Stream the ``ko`` file to a sorted, gzipped ``organism_gene_ko.tsv.gz``.
 
     Real KEGG has ~9M gene↔KO associations — far too many to hold in memory as a
     DataFrame. Rows are sorted by ``(organism, gene)`` before writing: gene IDs
     from one organism share long common prefixes (locus tags, numeric runs), so
-    sorting makes them adjacent and lets the compressor shrink the table ~2.9x
-    versus the unsorted gzip form. The order also matches the by-organism query
-    pattern in :func:`get_kegg_model_for_organism`.
+    sorting makes them adjacent and helps the compressor; the order also matches
+    the by-organism query pattern in :func:`get_kegg_model_for_organism`. Gzip
+    (not xz) keeps the table readable by MATLAB's built-in ``gunzip`` with no
+    external tool, at a modestly larger size.
 
     The sort is an **external merge sort** bounded to ``chunk_rows`` rows in
     memory at a time (sorted runs spooled to gzipped temp files, then merged with
@@ -526,7 +552,7 @@ def stream_organism_gene_ko(
 
         handles = [gzip.open(r, "rt", encoding="utf-8") for r in runs]
         try:
-            with lzma.open(ogk_path, "wt", encoding="utf-8", newline="") as out:
+            with gzip.open(ogk_path, "wt", encoding="utf-8", newline="") as out:
                 out.write("organism\tgene\tko\n")
                 out.writelines(heapq.merge(*handles, key=_ogk_sort_key))
         finally:
@@ -535,7 +561,9 @@ def stream_organism_gene_ko(
     return pd.DataFrame(names, columns=["ko", "name"])
 
 
-def parse_kegg_dump(kegg_dir: str | Path, out_dir: str | Path) -> dict[str, Path]:
+def parse_kegg_dump(
+    kegg_dir: str | Path, out_dir: str | Path, *, version: str | None = None
+) -> dict[str, Path]:
     """Parse a full KEGG dump into the reference model + tables and write them out.
 
     Writes ``reference_model.yml.gz`` (gzipped RAVEN/cobra YAML) plus the
@@ -544,9 +572,14 @@ def parse_kegg_dump(kegg_dir: str | Path, out_dir: str | Path) -> dict[str, Path
     ``organism_gene_ko`` table is streamed to disk (see
     :func:`stream_organism_gene_ko`) rather than built in memory, so this scales
     to the full KEGG database; the small derived tables are built in memory.
+
+    When ``version`` is given (e.g. ``"kegg116"``) the output filenames are
+    version-prefixed (``<version>_<name>``), matching the published release
+    assets; the returned dict keys stay the logical table names.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    prefix = f"{version}_" if version else ""
 
     reactions = parse_kegg_reactions(kegg_dir)
     compounds = parse_kegg_compounds(kegg_dir)
@@ -563,16 +596,23 @@ def parse_kegg_dump(kegg_dir: str | Path, out_dir: str | Path) -> dict[str, Path
             columns=["reaction", "spontaneous", "undefined_stoich", "incomplete", "general"],
         ),
     }
-    paths = {name: p for name, p in zip(small, write_kegg_tables(small, out_dir), strict=True)}
+    paths = {
+        name: p
+        for name, p in zip(small, write_kegg_tables(small, out_dir, prefix=prefix), strict=True)
+    }
 
-    ogk_path = out_dir / "organism_gene_ko.tsv.xz"
+    ogk_path = out_dir / f"{prefix}organism_gene_ko.tsv.gz"
     ko_names = stream_organism_gene_ko(kegg_dir, linked_kos, ogk_path)
     paths["organism_gene_ko"] = ogk_path
     paths.update(
-        zip(["ko_names"], write_kegg_tables({"ko_names": ko_names}, out_dir), strict=True)
+        zip(
+            ["ko_names"],
+            write_kegg_tables({"ko_names": ko_names}, out_dir, prefix=prefix),
+            strict=True,
+        )
     )
 
-    ref_path = out_dir / "reference_model.yml.gz"
+    ref_path = out_dir / f"{prefix}reference_model.yml.gz"
     write_yaml_model(model, ref_path)
     paths["reference_model"] = ref_path
     return paths

@@ -1,20 +1,21 @@
 {
   "manifest_version": 1,
-  "generated": "2026-05-30",
+  "generated": "2026-06-10",
   "data": {
     "kegg": {
       "version": "kegg116",
       "description": "KEGG reference model, KO/reaction tables, and prokaryote/eukaryote HMM libraries for getKEGGModelForOrganism.",
       "license": "Derived from the KEGG database; redistributed with permission from KEGG.",
-      "doi": "10.5281/zenodo.0000000",
-      "source": "https://github.com/SysBioChalmers/raven-python/releases/tag/kegg-kegg116",
+      "source": "https://github.com/SysBioChalmers/raven-python/releases/tag/v0.1.0",
       "files": {
-        "reference_model.yml.gz":   { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/kegg-kegg116/reference_model.yml.gz",   "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "ko_reaction.tsv.gz":       { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/kegg-kegg116/ko_reaction.tsv.gz",       "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "ko_names.tsv.gz":          { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/kegg-kegg116/ko_names.tsv.gz",          "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "organism_gene_ko.tsv.xz":  { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/kegg-kegg116/organism_gene_ko.tsv.xz",  "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "rxn_flags.tsv.gz":         { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/kegg-kegg116/rxn_flags.tsv.gz",         "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "prokaryotes.hmm":          { "url": "https://zenodo.org/records/0000000/files/prokaryotes.hmm",                                            "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
+        "kegg116_reference_model.yml.gz":  { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_reference_model.yml.gz",  "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_ko_reaction.tsv.gz":      { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_ko_reaction.tsv.gz",      "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_ko_names.tsv.gz":         { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_ko_names.tsv.gz",         "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_organism_gene_ko.tsv.gz": { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_organism_gene_ko.tsv.gz", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_rxn_flags.tsv.gz":        { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_rxn_flags.tsv.gz",        "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_taxonomy.gz":             { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_taxonomy.gz",             "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_prokaryotes.hmm.gz":      { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",      "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_eukaryotes.hmm.gz":       { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",       "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
       }
     }
   },

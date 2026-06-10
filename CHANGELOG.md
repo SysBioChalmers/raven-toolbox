@@ -4,11 +4,25 @@ Milestones in the raven-python port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
 
-## Unreleased
+## 0.1.0 — 2026-06-10
 
-Post-release review pass — cobra-aligned hardening (no behaviour change on
-well-formed inputs). Highlights:
+First release with **published, downloadable KEGG artefacts**, plus a cobra-aligned
+hardening pass (no behaviour change on well-formed inputs). Highlights:
 
+* **KEGG artefacts published (`kegg116`):** `ensure_kegg_data` /
+  `ensure_kegg_hmm_library` fetch version-pinned, SHA256-verified files from the
+  GitHub release. Every artefact is **gzip + version-prefixed**
+  (`kegg116_<name>.gz`) so MATLAB and Windows read them with the built-in `gunzip`
+  (no external tool) — `organism_gene_ko` moved from xz to gzip for this. The **HMM
+  libraries ship as one gzip concatenated flatfile per domain**
+  (`kegg116_<domain>.hmm.gz`); the client decompresses and `hmmpress`-es once on
+  first use, cutting the download ~10× versus the pressed index and letting the
+  same artefact serve MATLAB RAVEN.
+* **Taxonomy + phylogenetic distance:** publish `kegg116_taxonomy.gz` and add
+  `reconstruction.kegg.phyl_dist` (with `PhylDist`), a faithful port of RAVEN's
+  `getPhylDist` that regenerates the `keggPhylDist` distance matrix from the
+  taxonomy file — so GECKO's organism-distance kcat selection needs no MATLAB
+  `.mat`. `ensure_kegg_taxonomy` fetches the artefact.
 * **Packaging:** `raven_python.__version__` now derives from the installed package
   metadata (`importlib.metadata`) instead of a hard-coded literal that had drifted
   to `0.0.1`; the docs site reported the wrong version. Pinned `ruff==0.15.15` in

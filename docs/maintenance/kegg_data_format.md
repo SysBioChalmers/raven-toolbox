@@ -16,33 +16,32 @@ under `~/.cache/raven-python/data/kegg-<version>/` by `ensure_data` (see
 
 ## Decision (current)
 
-- **Small tables** (`ko_reaction`, `ko_names`, `rxn_flags`): **gzipped TSV
-  (`.tsv.gz`)**. Each is well under 1 MB, so compression choice is irrelevant;
-  gzip keeps them MATLAB-native and dependency-free.
-- **The large `organism_gene_ko` table**: **xz-compressed TSV
-  (`organism_gene_ko.tsv.xz`), with rows sorted by `(organism, gene)`**.
+- **All tables** (`ko_reaction`, `ko_names`, `rxn_flags`, and the large
+  `organism_gene_ko`): **gzipped TSV (`.tsv.gz`)**. Published assets are
+  version-prefixed, e.g. `kegg116_organism_gene_ko.tsv.gz`.
+- The large `organism_gene_ko` table keeps its rows **sorted by `(organism, gene)`**.
 
-Why the large table differs. It carries KEGG's ~9M gene↔KO associations and
-dominates the artefact set (≈78 MB as unsorted gzipped TSV). Two cheap,
-stdlib-only changes cut that to ≈27 MB (2.9×):
+Why everything is gzip — even the big table. `organism_gene_ko` carries KEGG's
+~9M gene↔KO associations and dominates the artefact set. Sorting by
+`(organism, gene)` before writing makes gene IDs from one organism adjacent
+(shared locus-tag/numeric prefixes), which both helps the compressor and matches
+the by-organism query pattern in `get_kegg_model_for_organism`; the sort is an
+external merge sort bounded to `chunk_rows` in memory (see
+`stream_organism_gene_ko`), so it stays scalable. On the real dump this lands
+around ~74 MB.
 
-1. **Sort by `(organism, gene)`** before writing. Gene IDs from one organism
-   share long common prefixes (locus tags, numeric runs); sorting makes them
-   adjacent so the compressor can fold them. This alone takes 78 → 48 MB and
-   happens to match the by-organism query pattern in
-   `get_kegg_model_for_organism`. The sort is an external merge sort bounded to
-   `chunk_rows` in memory (see `stream_organism_gene_ko`), so it stays scalable.
-2. **xz instead of gzip** (Python stdlib `lzma`). Its larger dictionary captures
-   cross-row redundancy gzip's 32 KB window misses: sorted + xz reaches ≈27 MB.
+We previously xz-compressed this one file (≈27 MB, ~2.9× smaller). We switched it
+to **gzip** so the *same* artefact is readable by MATLAB's built-in `gunzip` with
+no external tool — the artefacts are shared with MATLAB RAVEN, and `.xz` would
+force an external `xz`/`unxz` dependency. The size cost (~74 vs ~27 MB on a
+once-per-release download) buys a dependency-free, cross-tool, cross-platform
+read; xz's larger dictionary is not worth a MATLAB toolchain requirement.
 
-- **pandas reads/writes both with zero extra dependencies** — compression is
-  inferred from the `.gz`/`.xz` suffix; `lzma` and `gzip` are both stdlib, so
-  this works natively on Windows, macOS, and Linux with no external binary.
-- **MATLAB caveat:** `readtable` reads gzipped TSV after a `gunzip`, but MATLAB
-  has no built-in xz decompressor. The small tables stay MATLAB-native; the
-  large table needs an external `unxz` (or Java/`7-Zip`) before `readtable` on
-  the MATLAB side. The xz file is raven-python's (Python) primary artefact; this
-  trades a little MATLAB convenience on the one big file for a ~3× size cut.
+- **pandas reads/writes gzip with zero extra dependencies** — compression is
+  inferred from the `.gz` suffix; `gzip` is stdlib, so this works natively on
+  Windows, macOS, and Linux with no external binary.
+- **MATLAB:** `readtable` reads every table after a built-in `gunzip`, with no
+  external binary on any file.
 
 ## Options considered
 
@@ -57,7 +56,7 @@ stdlib-only changes cut that to ≈27 MB (2.9×):
 Reconsider Parquet (or SQLite) if any of these become true:
 
 - The `organism_gene_ko` table grows large enough that load *time* (not just
-  size — the sort+xz change above already addresses on-disk size) becomes a real
+  size — the sort above already keeps on-disk size in check) becomes a real
   bottleneck. The remaining inefficiency is that building one species' model
   still loads all ~9M rows; sorted order makes a `searchsorted`/row-group
   by-organism read the natural next step before reaching for Parquet.

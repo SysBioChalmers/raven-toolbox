@@ -195,8 +195,8 @@ def test_parse_kegg_dump_writes_artefacts(tmp_path):
         "ko_reaction", "ko_names", "organism_gene_ko", "rxn_flags", "reference_model"
     }
     assert (tmp_path / "reference_model.yml.gz").is_file()
-    # organism_gene_ko is streamed to a sorted, xz-compressed TSV.
-    assert paths["organism_gene_ko"].name == "organism_gene_ko.tsv.xz"
+    # organism_gene_ko is streamed to a sorted, gzipped TSV.
+    assert paths["organism_gene_ko"].name == "organism_gene_ko.tsv.gz"
     ogk = read_kegg_table(paths["organism_gene_ko"])
     assert set(ogk.columns) == {"organism", "gene", "ko"}
     assert ("eco", "b0001", "K00002") in set(map(tuple, ogk.to_numpy()))
@@ -205,11 +205,21 @@ def test_parse_kegg_dump_writes_artefacts(tmp_path):
     assert keys == sorted(keys)
 
 
+def test_parse_kegg_dump_version_prefixes_filenames(tmp_path):
+    paths = parse_kegg_dump(DUMP, tmp_path, version="kegg116")
+    # Dict keys stay logical; the files on disk are version-prefixed.
+    assert set(paths) >= {"ko_reaction", "organism_gene_ko", "reference_model"}
+    assert paths["organism_gene_ko"].name == "kegg116_organism_gene_ko.tsv.gz"
+    assert paths["reference_model"].name == "kegg116_reference_model.yml.gz"
+    assert (tmp_path / "kegg116_ko_reaction.tsv.gz").is_file()
+    assert read_kegg_table(paths["organism_gene_ko"]).columns.tolist() == ["organism", "gene", "ko"]
+
+
 def test_stream_organism_gene_ko_external_merge(tmp_path):
     """A tiny chunk_rows forces multiple sorted runs to be merged; output stays sorted."""
     from raven_python.reconstruction.kegg.parse import stream_organism_gene_ko
 
-    out = tmp_path / "organism_gene_ko.tsv.xz"
+    out = tmp_path / "organism_gene_ko.tsv.gz"
     keep = {ko.id for ko in parse_kegg_kos(DUMP)}
     names = stream_organism_gene_ko(DUMP, keep, out, chunk_rows=1)
     assert out.is_file() and not list(tmp_path.glob("ogk_sort_*"))  # temp dir cleaned up
