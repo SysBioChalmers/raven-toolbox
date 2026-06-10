@@ -78,22 +78,9 @@ def test_expression_per_gene_reference():
 # get_init_model pipeline
 # --------------------------------------------------------------------------- #
 @pytest.fixture
-def model():
-    m = cobra.Model("net")
-    A, B, C, D = (cobra.Metabolite(x, name=x[:-2], compartment="c") for x in ("A_c", "B_c", "C_c", "D_c"))
-    m.add_metabolites([A, B, C, D])
-    exa = cobra.Reaction("EX_A", lower_bound=-1000, upper_bound=1000)
-    exa.add_metabolites({A: -1})
-    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
-    r1.add_metabolites({A: -1, B: 1})
-    r2 = cobra.Reaction("r2", lower_bound=0, upper_bound=1000)
-    r2.add_metabolites({B: -1, C: 1})
-    r3 = cobra.Reaction("r3", lower_bound=0, upper_bound=1000)
-    r3.add_metabolites({C: -1, D: 1})
-    m.add_reactions([exa, r1, r2, r3])
-    for r, rule in (("r1", "g1"), ("r2", "g2"), ("r3", "g3")):
-        m.reactions.get_by_id(r).gene_reaction_rule = rule
-    return m
+def model(linear_chain_model_with_genes):
+    # Shared linear-chain INIT model (with gene rules g1/g2/g3) — see tests/conftest.py.
+    return linear_chain_model_with_genes
 
 
 def test_get_init_model_from_gene_scores(model):

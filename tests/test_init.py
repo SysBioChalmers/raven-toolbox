@@ -11,24 +11,10 @@ def _met(mid):
 
 
 @pytest.fixture
-def model():
-    """EX_A -> A -(r1)-> B -(r2)-> C -(r3)-> D, with A uptake and excretion allowed.
-
-    r1, r2 are good (positive score); r3 is bad (negative score).
-    """
-    m = cobra.Model("net")
-    A, B, C, D = _met("A_c"), _met("B_c"), _met("C_c"), _met("D_c")
-    m.add_metabolites([A, B, C, D])
-    exa = cobra.Reaction("EX_A", lower_bound=-1000, upper_bound=1000)
-    exa.add_metabolites({A: -1})  # negative flux = uptake of A
-    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
-    r1.add_metabolites({A: -1, B: 1})
-    r2 = cobra.Reaction("r2", lower_bound=0, upper_bound=1000)
-    r2.add_metabolites({B: -1, C: 1})
-    r3 = cobra.Reaction("r3", lower_bound=0, upper_bound=1000)
-    r3.add_metabolites({C: -1, D: 1})
-    m.add_reactions([exa, r1, r2, r3])
-    return m
+def model(linear_chain_model):
+    # The linear-chain INIT model now lives in tests/conftest.py (it was built
+    # identically here, in test_init_build.py and test_init_solvers.py).
+    return linear_chain_model
 
 
 def test_keeps_positive_drops_negative(model):
