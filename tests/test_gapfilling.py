@@ -54,6 +54,16 @@ def test_fill_gaps_connects_blocked_reaction(draft_and_template):
     assert "r_unneeded" not in res.added_reactions  # irrelevant template rxn not added
 
 
+def test_fill_gaps_handles_infinite_template_bound(draft_and_template):
+    # A template reaction with an unbounded (inf) bound must not put an infinite
+    # coefficient into the big-M MILP; it is clamped to a finite surrogate.
+    draft, template = draft_and_template
+    template.reactions.get_by_id("r2").upper_bound = float("inf")
+    res = connect_blocked_reactions(draft, template)
+    assert "r1" in res.newly_connected
+    assert "r2" in res.added_reactions
+
+
 def test_fill_gaps_returns_working_model_that_unblocks(draft_and_template):
     draft, template = draft_and_template
     res = connect_blocked_reactions(draft, template)

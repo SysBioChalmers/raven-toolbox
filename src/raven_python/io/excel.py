@@ -104,7 +104,7 @@ def export_to_excel(
         ws.append([
             None, f"{m.name}[{m.compartment}]", m.name, None,
             _miriam_string(m.annotation, exclude=("smiles",)),
-            None if inchi else m.formula, inchi, m.compartment, m.id, m.charge,
+            m.formula, inchi, m.compartment, m.id, m.charge,
         ])
 
     # --- COMPS ---

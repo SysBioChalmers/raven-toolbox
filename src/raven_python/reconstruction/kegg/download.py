@@ -69,7 +69,14 @@ def _resolve_auth(
             f"No credentials given and {path} does not exist. Create it (chmod 600) "
             f"with a line:\n    machine {host} login YOUR_USER password YOUR_PASS"
         )
-    creds = netrc.netrc(str(path)).authenticators(host)
+    try:
+        creds = netrc.netrc(str(path)).authenticators(host)
+    except (netrc.NetrcParseError, OSError) as exc:
+        raise ValueError(
+            f"Could not read credentials from {path}: {exc}. Ensure it is a valid "
+            f".netrc (chmod 600) with a line:\n"
+            f"    machine {host} login YOUR_USER password YOUR_PASS"
+        ) from exc
     if not creds:
         raise ValueError(
             f"No credentials for '{host}' in {path}. Add a line:\n"
