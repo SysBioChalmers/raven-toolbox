@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import shutil
+import tarfile
 from pathlib import Path
 
 from raven_python.reconstruction.kegg import (
@@ -104,6 +105,21 @@ def main(argv: list[str] | None = None) -> None:
             )
             published = _publish_library(work, args.out, domain, prefix)
             print(f"    {domain}: {published} ({len(work['hmms'])} profiles)")
+
+    # Bundle the core model artefacts (reference model + tables) into one archive that
+    # ensure_kegg_data fetches and extracts. HMMs and taxonomy stay separate assets.
+    # (After the HMM step, which reads organism_gene_ko.)
+    core_members = [
+        paths[n]
+        for n in ("reference_model", "ko_reaction", "ko_names", "organism_gene_ko", "rxn_flags")
+    ]
+    bundle = args.out / f"{prefix}core.tar.gz"
+    with tarfile.open(bundle, "w:gz") as tar:
+        for member in core_members:
+            tar.add(member, arcname=member.name)
+    for member in core_members:
+        member.unlink()
+    print(f"    core bundle: {bundle} ({len(core_members)} files)")
 
     print(f"\n>>> Done. Upload the contents of {args.out} as release assets, then run:")
     print("    python scripts/make_registry_snippet.py data --dataset kegg "
