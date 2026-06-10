@@ -82,6 +82,15 @@ def main(argv: list[str] | None = None) -> None:
     for name, path in paths.items():
         print(f"    {name}: {path}")
 
+    # Publish the taxonomy file too: domain split, plus the source for phyl_dist
+    # (RAVEN's keggPhylDist, used by GECKO). It is a raw dump file, so gzip it as-is.
+    tax_src = args.keggdb / "taxonomy"
+    if tax_src.is_file():
+        tax_out = args.out / f"{prefix}taxonomy.gz"
+        with open(tax_src, "rb") as src, gzip.open(tax_out, "wb") as out:
+            shutil.copyfileobj(src, out)
+        print(f"    taxonomy: {tax_out}")
+
     if args.hmms:
         ogk = read_kegg_table(paths["organism_gene_ko"])
         genes_pep = args.keggdb / "genes.pep"

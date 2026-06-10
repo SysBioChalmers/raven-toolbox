@@ -13,6 +13,7 @@
         "kegg116_ko_names.tsv.gz":         { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_ko_names.tsv.gz",         "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
         "kegg116_organism_gene_ko.tsv.gz": { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_organism_gene_ko.tsv.gz", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
         "kegg116_rxn_flags.tsv.gz":        { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_rxn_flags.tsv.gz",        "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_taxonomy.gz":             { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_taxonomy.gz",             "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
         "kegg116_prokaryotes.hmm.gz":      { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",      "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
         "kegg116_eukaryotes.hmm.gz":       { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",       "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
       }

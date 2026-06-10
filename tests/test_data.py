@@ -12,6 +12,7 @@ from raven_python.data import (
     ensure_data_file,
     ensure_kegg_data,
     ensure_kegg_hmm_library,
+    ensure_kegg_taxonomy,
 )
 
 
@@ -36,6 +37,7 @@ def served(tmp_path, monkeypatch):
         "ko_names.tsv.gz": b"ko\tname\n",
         "organism_gene_ko.tsv.gz": b"organism\tgene\tko\n",
         "rxn_flags.tsv.gz": b"reaction\tspontaneous\n",
+        "taxonomy.gz": b"# Prokaryotes\n",
     }
     files = {}
     payloads = {}
@@ -132,6 +134,13 @@ def test_ensure_kegg_hmm_library_decompresses_and_presses(served, tmp_path, monk
     assert len(presses) == 1
 
 
+def test_ensure_kegg_taxonomy(served):
+    registry, cache, _ = served
+    path = ensure_kegg_taxonomy(registry=registry)
+    assert path == cache / "raven_python" / "data" / "kegg-v1" / "v1_taxonomy.gz"
+    assert path.is_file()
+
+
 def test_unregistered_dataset_raises():
     # An unpublished dataset still raises an actionable error against the shipped registry.
     with pytest.raises(FileNotFoundError, match="No data artefacts registered"):
@@ -146,3 +155,4 @@ def test_shipped_registry_matches_resolver_names():
     names = set(kegg["files"])
     assert {f"{ver}_{base}" for base in CORE_KEGG_FILES} <= names
     assert {f"{ver}_{d}.hmm.gz" for d in ("prokaryotes", "eukaryotes")} <= names
+    assert f"{ver}_taxonomy.gz" in names

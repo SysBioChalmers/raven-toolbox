@@ -63,6 +63,10 @@ _DATA_REGISTRY: dict = {
                 "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_rxn_flags.tsv.gz",
                 "sha256": "c4c134effc9edeeb74b925ae8616320af162edbaad3a9b44dcc29d2c4d12db9b",
             },
+            "kegg116_taxonomy.gz": {
+                "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_taxonomy.gz",
+                "sha256": "1edc56da94d71433e5f08c133600292c311baaf33279a959518ab08389b0e538",
+            },
         },
     },
 }
@@ -216,3 +220,17 @@ def ensure_kegg_hmm_library(
         if proc.returncode != 0:
             raise RuntimeError(f"hmmpress failed:\n{(proc.stderr or '').strip()}")
     return library
+
+
+def ensure_kegg_taxonomy(*, version: str | None = None, registry: dict | None = None) -> Path:
+    """Ensure the KEGG ``taxonomy`` artefact is cached; return its (gzipped) path.
+
+    The gzipped KEGG ``taxonomy`` file is the source for domain classification and for
+    regenerating the phylogenetic distance matrix — RAVEN's ``keggPhylDist``, which GECKO
+    uses to pick the closest organism for kcat assignment — via
+    :func:`raven_python.reconstruction.kegg.phyl_dist` (which reads ``.gz`` directly). So
+    that capability needs only this published artefact, no MATLAB ``.mat`` file.
+    """
+    registry = _DATA_REGISTRY if registry is None else registry
+    ver = version or _bundle("kegg", registry)["version"]
+    return ensure_data_file("kegg", f"{ver}_taxonomy.gz", version=ver, registry=registry)

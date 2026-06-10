@@ -65,7 +65,7 @@ standard plus the geckopy enzyme-constrained extension, so ecModels round-trip.
 |---|---|---|
 | `getModelFromHomology` + `getBlast`/`getDiamond` | ✅ [`reconstruction.homology.get_model_from_homology`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/homology/homology.py), `run_blast`, `run_diamond`, `blast_from_table` | Core homology reconstruction with structured improvements (bidirectional / best-hits-only, AST GPR rewrite, complex policy, bitscore best-hits, DataFrame ortholog map). |
 | KEGG download → species model (5 steps) | ✅ [`reconstruction.kegg.*`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/kegg/) | All five steps: `download.fetch_keggdb`, `parse.read_kegg_table` + reference model, `hmm.build_libraries`, `organism.build_kegg_model_for_organism` (no-FASTA), `query.assign_kos` + `run_hmmscan`. |
-| `getPhylDist` | ⛔ not ported | Fixed prok90/euk90 libraries make the distance matrix moot. |
+| `getPhylDist` | ✅ [`reconstruction.kegg.phyl_dist`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/kegg/taxonomy.py) (+ `parse_taxonomy`) | Lineage parsing **and** the distance matrix (RAVEN's `keggPhylDist`), regenerated from the published `taxonomy` artefact so GECKO's organism-distance kcat selection needs no `.mat`. The per-organism HMM-subsampling use is moot here (fixed prok90/euk90 libraries). |
 | `getMetaCycModelForOrganism` | ⛔ not ported (and **flagged for removal from MATLAB RAVEN**) | BLAST-to-single-representatives is low-precision at every cutoff. See [IMPROVEMENTS.md](improvements.md) under `R-MetaCyc`. |
 
 ## Tasks, gap-filling, INIT, ftINIT
@@ -106,7 +106,7 @@ standard plus the geckopy enzyme-constrained extension, so ecModels round-trip.
 * **`checkModelStruct` struct/type checks** — moot in cobra.
 * **`runDynamicFBA`** — see Omics/analysis row.
 * **`getMetaCycModelForOrganism`** — see Reconstruction row; flagged for upstream removal.
-* **`getPhylDist`** — fixed prok90/euk90 libraries make it moot.
+* **`getPhylDist` per-organism HMM subsampling** — fixed prok90/euk90 libraries make it moot (the distance matrix itself **is** ported, as `reconstruction.kegg.phyl_dist`, for GECKO).
 * **`mapCompartments`** — overlaps with `compare_models`.
 * **`editMiriam`, `extractMiriam`, `getRxnsInComp`, `getMetsInComp`, `constructEquations`, `getIndexes`** (most), **`setExchangeBounds`**, **most `setParam` modes**, **`getBlastFromExcel` Excel branch** — cobra one-liners; recorded above.
 

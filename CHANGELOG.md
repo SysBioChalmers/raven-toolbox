@@ -18,6 +18,11 @@ hardening pass (no behaviour change on well-formed inputs). Highlights:
   (`kegg116_<domain>.hmm.gz`); the client decompresses and `hmmpress`-es once on
   first use, cutting the download ~10× versus the pressed index and letting the
   same artefact serve MATLAB RAVEN.
+* **Taxonomy + phylogenetic distance:** publish `kegg116_taxonomy.gz` and add
+  `reconstruction.kegg.phyl_dist` (with `PhylDist`), a faithful port of RAVEN's
+  `getPhylDist` that regenerates the `keggPhylDist` distance matrix from the
+  taxonomy file — so GECKO's organism-distance kcat selection needs no MATLAB
+  `.mat`. `ensure_kegg_taxonomy` fetches the artefact.
 * **Packaging:** `raven_python.__version__` now derives from the installed package
   metadata (`importlib.metadata`) instead of a hard-coded literal that had drifted
   to `0.0.1`; the docs site reported the wrong version. Pinned `ruff==0.15.15` in

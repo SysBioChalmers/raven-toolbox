@@ -4,7 +4,7 @@
   "data": {
     "kegg": {
       "version": "kegg116",
-      "description": "KEGG reference model, KO/reaction tables, and prokaryote/eukaryote HMM libraries for getKEGGModelForOrganism.",
+      "description": "KEGG reference model, KO/reaction tables, taxonomy, and prokaryote/eukaryote HMM libraries for getKEGGModelForOrganism.",
       "license": "Derived from the KEGG database; redistributed with permission from KEGG.",
       "source": "https://github.com/SysBioChalmers/raven-python/releases/tag/v0.1.0",
       "files": {
@@ -42,6 +42,11 @@
           "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_rxn_flags.tsv.gz",
           "sha256": "c4c134effc9edeeb74b925ae8616320af162edbaad3a9b44dcc29d2c4d12db9b",
           "bytes": 33289
+        },
+        "kegg116_taxonomy.gz": {
+          "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_taxonomy.gz",
+          "sha256": "1edc56da94d71433e5f08c133600292c311baaf33279a959518ab08389b0e538",
+          "bytes": 234693
         }
       }
     }

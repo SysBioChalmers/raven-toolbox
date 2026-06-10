@@ -40,15 +40,19 @@ from raven_python.reconstruction.kegg.query import (
     run_hmmscan,
 )
 from raven_python.reconstruction.kegg.taxonomy import (
+    PhylDist,
     organism_domains,
     organisms_in_domain,
     parse_taxonomy,
+    parse_taxonomy_records,
+    phyl_dist,
 )
 
 __all__ = [
     "KeggCompound",
     "KeggKO",
     "KeggReaction",
+    "PhylDist",
     "assign_kos",
     "build_hmm_library",
     "build_kegg_tables",
@@ -70,6 +74,8 @@ __all__ = [
     "parse_kegg_kos",
     "parse_kegg_reactions",
     "parse_taxonomy",
+    "parse_taxonomy_records",
+    "phyl_dist",
     "read_kegg_table",
     "run_hmmscan",
     "stream_organism_gene_ko",

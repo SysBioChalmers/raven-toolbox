@@ -125,7 +125,10 @@ HMMER versions, and lets the same artefact serve MATLAB RAVEN.
 
 [`scripts/build_kegg_artefacts.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md) runs 3b.2 (+ 3b.3 with
 `--hmms`) and lays the output out as publishable, version-prefixed assets
-(`<version>_<domain>.hmm.gz` named for `ensure_kegg_hmm_library`):
+(`<version>_<domain>.hmm.gz` named for `ensure_kegg_hmm_library`). It also publishes
+`<version>_taxonomy.gz` — the domain split plus the source for
+[`phyl_dist`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/kegg/taxonomy.py),
+which regenerates RAVEN's `keggPhylDist` (used by GECKO) with no `.mat` file:
 
 ```bash
 python scripts/build_kegg_artefacts.py --keggdb keggdb --out artefacts \
