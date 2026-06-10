@@ -219,3 +219,42 @@ def test_real_yeast_gem_loads():
     assert len(model.reactions) > 1000
     # legacy file: identity comes from metaData
     assert model.id
+
+
+def test_code_built_model_round_trips(tmp_path):
+    """A model built from cobra objects (not parsed from a doc) survives a
+    write->read cycle intact — including the objective, which no other I/O
+    round-trip test asserts is preserved."""
+    m = cobra.Model("built")
+    m.compartments = {"c": "cytoplasm"}
+    a = cobra.Metabolite("a_c", name="A", compartment="c", formula="C6H12O6", charge=0)
+    b = cobra.Metabolite("b_c", name="B", compartment="c", formula="C3H4O3", charge=-1)
+    a.annotation = {"kegg.compound": ["C00031"]}
+    m.add_metabolites([a, b])
+    r = cobra.Reaction("R1", lower_bound=0, upper_bound=1000)
+    r.add_metabolites({a: -1, b: 2})
+    r.gene_reaction_rule = "G1"
+    r.subsystem = "glycolysis"
+    bio = cobra.Reaction("BIOMASS", lower_bound=0, upper_bound=1000)
+    bio.add_metabolites({b: -1})
+    m.add_reactions([r, bio])
+    m.objective = "BIOMASS"
+
+    out = tmp_path / "built.yml"
+    write_yaml_model(m, out)
+    back = read_yaml_model(out)
+
+    assert {x.id for x in back.metabolites} == {"a_c", "b_c"}
+    assert {x.id for x in back.reactions} == {"R1", "BIOMASS"}
+    rr = back.reactions.get_by_id("R1")
+    assert rr.bounds == (0.0, 1000.0)
+    assert rr.get_coefficient("a_c") == -1
+    assert rr.get_coefficient("b_c") == 2
+    assert rr.gene_reaction_rule == "G1"
+    assert rr.subsystem == "glycolysis"
+    ma = back.metabolites.get_by_id("a_c")
+    assert ma.formula == "C6H12O6"
+    assert ma.annotation["kegg.compound"] == ["C00031"]
+    # The objective survives the round-trip (no other I/O test checks this).
+    assert {x.id for x in back.reactions if x.objective_coefficient != 0} == {"BIOMASS"}
+    assert back.reactions.get_by_id("BIOMASS").objective_coefficient == 1.0
