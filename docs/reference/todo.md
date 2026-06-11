@@ -6,17 +6,6 @@ catalogue of raven-python improvements that should also be back-ported into MATL
 
 ## Major
 
-### Visualization (`visualization/`)
-
-Not started. RAVEN has limited plotting (`drawMap` etc., MATLAB-bound). For raven-python the most
-useful targets are:
-
-* Pathway maps / Escher integration for context-specific models.
-* Omics overlay (gene-score / expression heatmaps on the reaction set).
-* Flux distribution overlays.
-
-cobrapy + Escher already covers a lot here — likely a thin integration layer rather than a port.
-
 ### Metabolomics-based scoring in ftINIT
 
 The metabolomics-detected metabolite production-reward block in [`init.ftinit`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/ftinit.py)

@@ -23,8 +23,3 @@ analysis
 comparison
 resolvers
 ```
-
-:::{note}
-The `visualization` subpackage is a stub — pathway-map and omics-overlay visualisation
-(Phase 6) is not yet implemented.
-:::
