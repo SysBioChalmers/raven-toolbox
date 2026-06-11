@@ -53,8 +53,6 @@ omissions:
 Planned or partial functionality still on the books (full detail in
 **[docs/todo.md](docs/reference/todo.md)**):
 
-- [ ] **Visualization (`visualization/`)** — pathway maps (Escher), omics-overlay and
-  flux-distribution plots. *The main open item.*
 - [ ] **Metabolomics-based scoring in tINIT / ftINIT** — passing a non-empty `metabolomics`
   argument currently raises `NotImplementedError`.
 - [ ] **Published binary release ZIPs** (BLAST / DIAMOND / HMMER) — the resolver in

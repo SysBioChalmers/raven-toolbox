@@ -59,10 +59,10 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install --upgrade pip
-      # ``-e .[dev,visualization,excel]`` so every optional extra is exercised.
+      # ``-e .[dev,excel]`` so every optional extra is exercised.
       # Gurobi is not installable on free runners; the relevant tests
       # skip themselves when ``optlang.gurobi_interface`` cannot import.
-      - run: pip install -e ".[dev,visualization,excel]"
+      - run: pip install -e ".[dev,excel]"
       - run: pytest -q --maxfail=5 --durations=20
 
   docs:
@@ -77,7 +77,7 @@ jobs:
           cache-dependency-path: pyproject.toml
       - run: pip install --upgrade pip
       # The package (with autodoc's import-time extras) plus the docs toolchain.
-      - run: pip install -e ".[excel,visualization]" -r docs/requirements.txt
+      - run: pip install -e ".[excel]" -r docs/requirements.txt
       # ``-W --keep-going`` keeps the docs build warning-clean; mirrors the
       # ReadTheDocs build (docs/conf.py + .readthedocs.yaml).
       - run: sphinx-build -b html -W --keep-going docs docs/_build/html

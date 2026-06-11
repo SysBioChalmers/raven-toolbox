@@ -177,3 +177,21 @@ def test_from_artefacts_roundtrip(tmp_path):
     model = get_kegg_model_for_organism_from_artefacts("eco", tmp_path)
     assert {r.id for r in model.reactions} == {"R00100"}
     assert model.reactions.get_by_id("R00100").gene_reaction_rule == "b0001"
+
+
+def test_from_artefacts_domain_mode_auto_resolves_taxonomy(tmp_path):
+    # Domain mode must auto-resolve the taxonomy artefact from artefact_dir, without the
+    # caller passing taxonomy= (previously raised "Domain mode needs the KEGG taxonomy").
+    import gzip
+    import shutil
+
+    parse_kegg_dump(DUMP, tmp_path)
+    with open(DUMP / "taxonomy", "rb") as src, gzip.open(tmp_path / "taxonomy.gz", "wb") as out:
+        shutil.copyfileobj(src, out)
+    model = get_kegg_model_for_organism_from_artefacts("prokaryotes", tmp_path)
+    # Same prokaryote-domain content (bsu + eco) as the explicit-taxonomy build.
+    assert "R00010" in model.reactions and "R00100" in model.reactions
+    assert {g.id for g in model.reactions.get_by_id("R00010").genes} == {
+        "bsu:BSU31050",
+        "bsu:BSU31060",
+    }
