@@ -12,7 +12,10 @@ this is ~1.1 MB (vs ~30 MB as SBML) for the full 12k-reaction gene-free model.
 
 End users do not build any of this: the published artefacts are fetched and cached
 under `~/.cache/raven-python/data/kegg-<version>/` by `ensure_data` (see
-`raven_python.data`), mirroring how binaries are provisioned.
+`raven_python.data`), mirroring how binaries are provisioned. The core tables and the
+reference model are distributed together as a single `<version>_core.tar.gz`
+(`ensure_kegg_data` extracts it on first use); the per-file format below is unchanged.
+The HMM libraries and the `taxonomy` file are separate, individually-fetched artefacts.
 
 ## Decision (current)
 
