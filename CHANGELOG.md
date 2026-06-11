@@ -4,6 +4,13 @@ Milestones in the raven-python port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
 
+## Unreleased
+
+* **`get_kegg_model_for_organism_from_artefacts` domain mode** now auto-resolves the
+  KEGG `taxonomy` artefact (from the artefact directory, else via
+  `ensure_kegg_taxonomy`), so `organism_id="prokaryotes"`/`"eukaryotes"` builds from
+  the published artefacts without the caller passing `taxonomy=`.
+
 ## 0.1.0 — 2026-06-10
 
 First release with **published, downloadable KEGG artefacts**, plus a cobra-aligned
