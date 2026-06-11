@@ -20,7 +20,10 @@ hardening pass (no behaviour change on well-formed inputs). Highlights:
   `ensure_kegg_hmm_library` fetch version-pinned, SHA256-verified files from the
   GitHub release. Every artefact is **gzip + version-prefixed**
   (`kegg116_<name>.gz`) so MATLAB and Windows read them with the built-in `gunzip`
-  (no external tool) — `organism_gene_ko` moved from xz to gzip for this. The **HMM
+  (no external tool) — `organism_gene_ko` moved from xz to gzip for this. The core
+  model files (reference model + KO/reaction tables) ship as a single
+  `kegg116_core.tar.gz` that `ensure_kegg_data` extracts on first use; the HMM
+  libraries and `taxonomy` are separate assets. The **HMM
   libraries ship as one gzip concatenated flatfile per domain**
   (`kegg116_<domain>.hmm.gz`); the client decompresses and `hmmpress`-es once on
   first use, cutting the download ~10× versus the pressed index and letting the
