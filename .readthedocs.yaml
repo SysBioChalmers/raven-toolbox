@@ -21,7 +21,6 @@ python:
       path: .
       extra_requirements:
         - excel
-        - visualization
     - requirements: docs/requirements.txt
 
 formats:

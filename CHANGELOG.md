@@ -4,6 +4,12 @@ Milestones in the raven-python port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
 
+## Unreleased
+
+* **Removed the `visualization` stub and `[visualization]` extra**, mirroring MATLAB
+  RAVEN dropping its pathway-map / omics-overlay plotting functions (`drawMap`,
+  `colorPathway`, etc.) as obsolete. cobrapy + Escher cover this externally.
+
 ## 0.1.0 — 2026-06-10
 
 First release with **published, downloadable KEGG artefacts**, plus a cobra-aligned
