@@ -12,9 +12,9 @@ Per KO, within one domain (prokaryote / eukaryote):
 3. **MAFFT** — multiple-sequence alignment (``--auto --anysymbol``).
 4. **hmmbuild** — train the profile HMM.
 
-Finally the per-KO HMMs are concatenated and ``hmmpress``-ed into a single searchable
-library: a single ``hmmscan`` against the pressed database replaces a per-KO sweep with
-``hmmsearch``.
+Finally the per-KO HMMs are concatenated into a single library: end users search it
+with a single ``hmmsearch`` over the multi-profile query (the fast direction), replacing
+RAVEN's per-KO ``hmmsearch`` sweep — one invocation, no ``hmmpress``.
 
 The pure parts (FASTA indexing/grouping, command construction, CD-HIT ``-n``
 choice) are unit-tested; running the binaries needs HMMER/MAFFT/CD-HIT, located
@@ -245,7 +245,7 @@ def _hmmbuild_cmd(
     hmmbuild: str, out_hmm: Path, aligned: Path, threads: int, name: str | None = None
 ) -> list[str]:
     cmd = [hmmbuild, "--cpu", str(threads)]
-    if name:  # name the profile after its KO so hmmscan targets are KO ids
+    if name:  # name the profile after its KO so it is the query name in hmmsearch output
         cmd += ["-n", name]
     cmd += [str(out_hmm), str(aligned)]
     return cmd
@@ -403,18 +403,17 @@ def build_hmm_library(
     threads: int = 1,
     fast: bool = True,
     verbose: bool = False,
-    press: bool = True,
+    concatenate: bool = True,
     cdhit: str | Path | None = None,
     mafft: str | Path | None = None,
     hmmbuild: str | Path | None = None,
-    hmmpress: str | Path | None = None,
 ) -> dict[str, Path | list[Path] | None]:
     """Build a domain (``"prokaryotes"``/``"eukaryotes"``) HMM library.
 
     Restricts genes to the domain's organisms (from ``taxonomy``), builds a
-    multi-FASTA and a profile HMM per KO under ``out_dir``, and (if ``press``)
-    concatenates them into ``out_dir/library.hmm`` and ``hmmpress``-es it for fast
-    ``hmmscan`` querying. Returns ``{"hmms": [...], "library": path | None}``.
+    multi-FASTA and a profile HMM per KO under ``out_dir``, and (if ``concatenate``)
+    concatenates them into ``out_dir/library.hmm`` — searched directly with
+    ``hmmsearch`` (no ``hmmpress`` needed). Returns ``{"hmms": [...], "library": path | None}``.
 
     Heavy and binary-dependent — intended for the maintainer, run once per KEGG
     release. Skips KOs that already have an ``.hmm`` (resumable).
@@ -442,12 +441,11 @@ def build_hmm_library(
         hmms.append(out_hmm)
 
     library: Path | None = None
-    if press and hmms:
+    if concatenate and hmms:
         library = out_dir / "library.hmm"
         with open(library, "wb") as out:
             for hmm in sorted(hmms):
                 with open(hmm, "rb") as fh:
                     shutil.copyfileobj(fh, out)
-        _run([resolve_binary("hmmpress", binary=hmmpress), "-f", str(library)])
 
     return {"hmms": hmms, "library": library}

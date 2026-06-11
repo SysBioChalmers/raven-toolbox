@@ -5,14 +5,15 @@ proteome against the KO profile-HMM library (3b.3), assign genes to KOs using th
 score cut-off and the two score-ratio filters, then build the draft model with the
 shared assembler. For organisms not in KEGG.
 
-Improvement over RAVEN: one ``hmmscan`` against the single ``hmmpress``-ed library
-(K7) replaces RAVEN's per-KO ``hmmsearch`` loop. Phylogenetic-distance subsampling
-is **not** used — our prebuilt prok90/euk90 libraries already fix the sequence set,
-so picking the right domain library (not per-organism distance weighting) is the
-relevant choice.
+Improvement over RAVEN: one ``hmmsearch`` of the whole concatenated KO library (K7)
+replaces RAVEN's per-KO ``hmmsearch`` loop — the same fast search direction, but one
+invocation instead of thousands, and no ``hmmpress``/``hmmscan`` needed.
+Phylogenetic-distance subsampling is **not** used — our prebuilt prok90/euk90
+libraries already fix the sequence set, so picking the right domain library (not
+per-organism distance weighting) is the relevant choice.
 
-The scoring/assignment logic (:func:`assign_kos`, :func:`parse_hmmscan_tblout`) is
-pure and unit-tested; running the search needs HMMER (``hmmscan``).
+The scoring/assignment logic (:func:`assign_kos`, :func:`parse_hmmsearch_tblout`) is
+pure and unit-tested; running the search needs HMMER (``hmmsearch``).
 """
 from __future__ import annotations
 
@@ -33,30 +34,48 @@ _NOTE = "Included by get_kegg_model_from_sequences (using HMMs)"
 _MIN_EVALUE = 1e-250  # floor for a reported E-value of 0, to keep logs finite
 
 
-def run_hmmscan(
+def _count_profiles(library: str | Path) -> int:
+    """Number of profiles in an HMMER flatfile (one ``HMMER3/`` record header each)."""
+    n = 0
+    with open(library, encoding="utf-8", errors="ignore") as handle:
+        for line in handle:
+            if line.startswith("HMMER3/"):
+                n += 1
+    return n
+
+
+def run_hmmsearch(
     fasta: str | Path,
     library: str | Path,
     *,
     threads: int = 1,
-    hmmscan: str | Path | None = None,
+    hmmsearch: str | Path | None = None,
 ) -> str:
-    """Run ``hmmscan`` of ``fasta`` against the pressed ``library``; return tblout text."""
-    exe = resolve_binary("hmmscan", binary=hmmscan)
+    """Search the profile ``library`` against proteome ``fasta``; return tblout text.
+
+    One ``hmmsearch`` of the whole concatenated multi-profile ``library`` (query)
+    against ``fasta`` (target) — the fast search direction, parallelised with
+    ``--cpu``, and no ``hmmpress`` needed. ``-Z`` is fixed to the profile count so the
+    per-hit E-values match the convention :func:`assign_kos` is calibrated against
+    (identical to a ``hmmscan`` against the same library).
+    """
+    exe = resolve_binary("hmmsearch", binary=hmmsearch)
+    nprofiles = _count_profiles(library)
+    z_opt = ["-Z", str(nprofiles)] if nprofiles > 0 else []
     with tempfile.TemporaryDirectory() as tmp:
         tbl = Path(tmp) / "hits.tbl"
-        cmd = [exe, "--cpu", str(threads), "--tblout", str(tbl), str(library), str(fasta)]
+        cmd = [exe, "--cpu", str(threads), *z_opt, "--tblout", str(tbl), str(library), str(fasta)]
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if proc.returncode != 0:
-            raise RuntimeError(f"hmmscan failed:\n{(proc.stderr or '').strip()}")
+            raise RuntimeError(f"hmmsearch failed:\n{(proc.stderr or '').strip()}")
         return tbl.read_text()
 
 
-def parse_hmmscan_tblout(text: str) -> pd.DataFrame:
-    """Parse ``hmmscan --tblout`` text into a ``[ko, gene, evalue]`` table.
+def parse_hmmsearch_tblout(text: str) -> pd.DataFrame:
+    """Parse ``hmmsearch --tblout`` text into a ``[ko, gene, evalue]`` table.
 
-    In ``hmmscan`` the HMM database is the *target*, so column 1 (target name) is
-    the KO, column 3 (query name) is the proteome gene, and column 5 is the
-    full-sequence E-value.
+    With the profile library as the *query*, column 1 (target name) is the proteome
+    gene, column 3 (query name) is the KO, and column 5 is the full-sequence E-value.
     """
     rows = []
     for line in text.splitlines():
@@ -65,7 +84,7 @@ def parse_hmmscan_tblout(text: str) -> pd.DataFrame:
         fields = line.split()
         if len(fields) < 5:
             continue
-        rows.append((fields[0], fields[2], float(fields[4])))
+        rows.append((fields[2], fields[0], float(fields[4])))
     return pd.DataFrame(rows, columns=["ko", "gene", "evalue"])
 
 
@@ -170,15 +189,15 @@ def get_kegg_model_from_sequences(
     keep_incomplete: bool = True,
     keep_general: bool = False,
     threads: int = 1,
-    hmmscan: str | Path | None = None,
+    hmmsearch: str | Path | None = None,
 ) -> cobra.Model:
     """Reconstruct a draft model for a proteome by HMM-searching the KO library.
 
-    Searches ``fasta`` against the pressed ``library`` (3b.3), assigns KOs
+    Searches the ``library`` against ``fasta`` (3b.3), assigns KOs
     (:func:`assign_kos`), and assembles the model against ``reference_model`` /
     ``ko_reaction``. Genes are the query proteome's identifiers.
     """
-    hits = parse_hmmscan_tblout(run_hmmscan(fasta, library, threads=threads, hmmscan=hmmscan))
+    hits = parse_hmmsearch_tblout(run_hmmsearch(fasta, library, threads=threads, hmmsearch=hmmsearch))
     ko_to_genes = assign_kos(
         hits,
         cutoff=cutoff,

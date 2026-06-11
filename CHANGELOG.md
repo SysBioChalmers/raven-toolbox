@@ -4,6 +4,15 @@ Milestones in the raven-python port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
 
+## Unreleased
+
+* **De-novo KEGG query uses `hmmsearch` instead of `hmmscan`.**
+  `get_kegg_model_from_sequences` now runs one `hmmsearch` over the concatenated KO
+  library (`-Z` set to the profile count, so E-values and KO assignments are identical
+  to the previous `hmmscan` path) — the faster, more parallel search direction.
+  `ensure_kegg_hmm_library` no longer runs `hmmpress` (just gunzips); the published
+  `.hmm.gz` artefact is unchanged.
+
 ## 0.1.0 — 2026-06-10
 
 First release with **published, downloadable KEGG artefacts**, plus a cobra-aligned

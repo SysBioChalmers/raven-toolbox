@@ -117,8 +117,8 @@ finally concatenates them into a single `library.hmm`. This is the slowest step
 (hours, once per KEGG release); it skips KOs whose `.hmm` already exists, so it is
 resumable. The concatenated library is published **gzipped** as
 `<version>_<domain>.hmm.gz` (e.g. `kegg116_prokaryotes.hmm.gz`); end users
-decompress it and run `hmmpress` once on first use (see `ensure_kegg_hmm_library`),
-which keeps the download ~10× smaller than the binary index, stays portable across
+decompress it and search it directly with `hmmsearch` (see `ensure_kegg_hmm_library`),
+which keeps the download ~10× smaller than a binary index, stays portable across
 HMMER versions, and lets the same artefact serve MATLAB RAVEN.
 
 ## Building and publishing in one go
