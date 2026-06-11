@@ -6,9 +6,10 @@ Milestones in the raven-python port. For function-level status see
 
 ## Unreleased
 
-* **Removed the `visualization` stub and `[visualization]` extra**, mirroring MATLAB
-  RAVEN dropping its pathway-map / omics-overlay plotting functions (`drawMap`,
-  `colorPathway`, etc.) as obsolete. cobrapy + Escher cover this externally.
+* **`get_kegg_model_for_organism_from_artefacts` domain mode** now auto-resolves the
+  KEGG `taxonomy` artefact (from the artefact directory, else via
+  `ensure_kegg_taxonomy`), so `organism_id="prokaryotes"`/`"eukaryotes"` builds from
+  the published artefacts without the caller passing `taxonomy=`.
 
 ## 0.1.0 — 2026-06-10
 
