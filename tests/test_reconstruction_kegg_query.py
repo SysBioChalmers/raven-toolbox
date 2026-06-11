@@ -9,7 +9,7 @@ from raven_python.reconstruction.kegg import (
     build_kegg_tables,
     build_reference_model,
     get_kegg_model_from_sequences,
-    parse_hmmscan_tblout,
+    parse_hmmsearch_tblout,
     parse_kegg_compounds,
     parse_kegg_kos,
     parse_kegg_reactions,
@@ -17,14 +17,14 @@ from raven_python.reconstruction.kegg import (
 
 DUMP = Path(__file__).parent / "data" / "kegg_dump"
 
-# A minimal hmmscan --tblout excerpt: target(KO) accession query(gene) ... evalue ...
+# A minimal hmmsearch --tblout excerpt: target(gene) accession query(KO) ... evalue ...
 TBLOUT = """\
 #                                                               --- full sequence ----
 # target name        accession  query name  accession   E-value  score  bias
 #------------------- ---------- ----------- ---------- --------- ------ -----
-K01194               -          gene1       -          1e-120     400.0   0.0
-K01194               -          gene2       -          1e-100     350.0   0.0
-K00002               -          gene1       -          1e-10      40.0    0.0
+gene1                -          K01194      -          1e-120     400.0   0.0
+gene2                -          K01194      -          1e-100     350.0   0.0
+gene1                -          K00002      -          1e-10      40.0    0.0
 """
 
 
@@ -32,7 +32,7 @@ K00002               -          gene1       -          1e-10      40.0    0.0
 # Parsing
 # --------------------------------------------------------------------------- #
 def test_parse_tblout_skips_comments():
-    hits = parse_hmmscan_tblout(TBLOUT)
+    hits = parse_hmmsearch_tblout(TBLOUT)
     assert list(hits.columns) == ["ko", "gene", "evalue"]
     assert len(hits) == 3
     assert set(hits["ko"]) == {"K01194", "K00002"}
@@ -40,14 +40,14 @@ def test_parse_tblout_skips_comments():
 
 
 def test_parse_tblout_empty():
-    assert parse_hmmscan_tblout("# only a header\n").empty
+    assert parse_hmmsearch_tblout("# only a header\n").empty
 
 
 # --------------------------------------------------------------------------- #
 # assign_kos scoring/filters
 # --------------------------------------------------------------------------- #
 def test_cutoff_excludes_weak_hits():
-    hits = parse_hmmscan_tblout(TBLOUT)
+    hits = parse_hmmsearch_tblout(TBLOUT)
     # gene1->K00002 has evalue 1e-10, above the default cutoff 1e-30: dropped.
     assigned = assign_kos(hits)
     assert "K00002" not in assigned
@@ -55,7 +55,7 @@ def test_cutoff_excludes_weak_hits():
 
 
 def test_loose_cutoff_keeps_hit():
-    hits = parse_hmmscan_tblout(TBLOUT)
+    hits = parse_hmmsearch_tblout(TBLOUT)
     assigned = assign_kos(hits, cutoff=1e-5, min_score_ratio_g=0.0, min_score_ratio_ko=0.0)
     assert assigned.get("K00002") == ["gene1"]
 
@@ -95,7 +95,7 @@ def test_cutoff_ge_one_rejected():
 
 
 # --------------------------------------------------------------------------- #
-# Model assembly via the HMM path (hmmscan mocked)
+# Model assembly via the HMM path (hmmsearch mocked)
 # --------------------------------------------------------------------------- #
 @pytest.fixture(scope="module")
 def reference_and_tables():
@@ -110,10 +110,10 @@ def test_get_model_from_sequences(reference_and_tables, monkeypatch):
     model_ref, tables = reference_and_tables
     # Mock the HMM search: K01194 -> myGeneA/myGeneB (-> R00010).
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.query.run_hmmscan",
+        "raven_python.reconstruction.kegg.query.run_hmmsearch",
         lambda *a, **k: (
-            "K01194 - myGeneA - 1e-120 400 0\n"
-            "K01194 - myGeneB - 1e-110 380 0\n"
+            "myGeneA - K01194 - 1e-120 400 0\n"
+            "myGeneB - K01194 - 1e-110 380 0\n"
         ),
     )
     model = get_kegg_model_from_sequences(

@@ -6,10 +6,12 @@ Milestones in the raven-python port. For function-level status see
 
 ## Unreleased
 
-* **`get_kegg_model_for_organism_from_artefacts` domain mode** now auto-resolves the
-  KEGG `taxonomy` artefact (from the artefact directory, else via
-  `ensure_kegg_taxonomy`), so `organism_id="prokaryotes"`/`"eukaryotes"` builds from
-  the published artefacts without the caller passing `taxonomy=`.
+* **De-novo KEGG query uses `hmmsearch` instead of `hmmscan`.**
+  `get_kegg_model_from_sequences` now runs one `hmmsearch` over the concatenated KO
+  library (`-Z` set to the profile count, so E-values and KO assignments are identical
+  to the previous `hmmscan` path) — the faster, more parallel search direction.
+  `ensure_kegg_hmm_library` no longer runs `hmmpress` (just gunzips); the published
+  `.hmm.gz` artefact is unchanged.
 
 ## 0.1.0 — 2026-06-10
 

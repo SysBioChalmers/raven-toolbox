@@ -22,12 +22,11 @@ from __future__ import annotations
 import gzip
 import os
 import shutil
-import subprocess
 import tarfile
 from pathlib import Path
 from urllib.request import urlopen
 
-from raven_python.binaries import _sha256, resolve_binary
+from raven_python.binaries import _sha256
 
 # dataset -> {"version": str, "files": {filename: {"url": str, "sha256": str}}}
 # Mirrors data/manifest.json (the cross-language source of truth); regenerate the
@@ -178,20 +177,17 @@ def ensure_kegg_hmm_library(
     *,
     version: str | None = None,
     registry: dict | None = None,
-    hmmpress: str | os.PathLike | None = None,
 ) -> Path:
-    """Ensure a domain HMM library is cached and pressed; return the ``.hmm`` path.
+    """Ensure a domain HMM library is cached and decompressed; return the ``.hmm`` path.
 
     ``domain`` is ``"prokaryotes"`` or ``"eukaryotes"``. Fetches the gzipped
-    concatenated library ``<version>_<domain>.hmm.gz``, decompresses it once, and
-    runs ``hmmpress`` to build the ``.h3f/.h3i/.h3m/.h3p`` index ``hmmscan`` needs
-    (HMMER is already a requirement of the de-novo query path). Both steps are
-    cached, so they run only on first use. Returns the path to the decompressed
-    ``.hmm`` (the argument for :func:`run_hmmscan`).
+    concatenated library ``<version>_<domain>.hmm.gz`` and decompresses it once
+    (cached). Returns the path to the ``.hmm`` flatfile — the argument for
+    :func:`run_hmmsearch`, which searches it directly (no ``hmmpress`` needed).
 
-    Shipping the gzip flatfile and pressing on the client keeps the download ~10x
-    smaller than the binary index, stays portable across HMMER versions/platforms,
-    and lets the same artefact serve MATLAB RAVEN.
+    Shipping the gzip flatfile keeps the download ~10x smaller than a binary index,
+    stays portable across HMMER versions/platforms, and lets the same artefact serve
+    MATLAB RAVEN.
     """
     registry = _DATA_REGISTRY if registry is None else registry
     ver = version or _bundle("kegg", registry)["version"]
@@ -202,12 +198,6 @@ def ensure_kegg_hmm_library(
         with gzip.open(archive, "rb") as src, open(tmp, "wb") as out:
             shutil.copyfileobj(src, out)
         tmp.replace(library)
-    sidecars = (".h3f", ".h3i", ".h3m", ".h3p")
-    if not all(library.with_name(library.name + s).exists() for s in sidecars):
-        exe = resolve_binary("hmmpress", binary=hmmpress)
-        proc = subprocess.run([exe, "-f", str(library)], capture_output=True, text=True)
-        if proc.returncode != 0:
-            raise RuntimeError(f"hmmpress failed:\n{(proc.stderr or '').strip()}")
     return library
 
 

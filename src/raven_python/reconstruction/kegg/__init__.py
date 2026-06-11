@@ -36,8 +36,8 @@ from raven_python.reconstruction.kegg.query import (
     assign_kos,
     get_kegg_model_from_sequences,
     get_kegg_model_from_sequences_with_artefacts,
-    parse_hmmscan_tblout,
-    run_hmmscan,
+    parse_hmmsearch_tblout,
+    run_hmmsearch,
 )
 from raven_python.reconstruction.kegg.taxonomy import (
     PhylDist,
@@ -68,7 +68,7 @@ __all__ = [
     "get_kegg_model_from_sequences_with_artefacts",
     "organism_domains",
     "organisms_in_domain",
-    "parse_hmmscan_tblout",
+    "parse_hmmsearch_tblout",
     "parse_kegg_compounds",
     "parse_kegg_dump",
     "parse_kegg_kos",
@@ -77,7 +77,7 @@ __all__ = [
     "parse_taxonomy_records",
     "phyl_dist",
     "read_kegg_table",
-    "run_hmmscan",
+    "run_hmmsearch",
     "stream_organism_gene_ko",
     "write_kegg_tables",
 ]

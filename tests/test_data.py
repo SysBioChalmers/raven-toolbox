@@ -2,9 +2,7 @@
 import gzip
 import hashlib
 import io
-import subprocess
 import tarfile
-from pathlib import Path
 
 import pytest
 
@@ -113,7 +111,7 @@ def test_ensure_kegg_taxonomy(served):
     assert path.is_file()
 
 
-def test_ensure_kegg_hmm_library_decompresses_and_presses(served, tmp_path, monkeypatch):
+def test_ensure_kegg_hmm_library_decompresses(served, tmp_path):
     registry, cache, _ = served
     raw = b"HMMER3/f [3.4]\nNAME  K00001\n//\n"
     blob = gzip.compress(raw, mtime=0)
@@ -123,29 +121,12 @@ def test_ensure_kegg_hmm_library_decompresses_and_presses(served, tmp_path, monk
         "url": gz.as_uri(),
         "sha256": _sha256(blob),
     }
-
-    presses: list[Path] = []
-
-    def fake_run(cmd, capture_output, text):
-        library = Path(cmd[-1])
-        presses.append(library)
-        for suffix in (".h3f", ".h3i", ".h3m", ".h3p"):
-            library.with_name(library.name + suffix).write_bytes(b"")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    monkeypatch.setattr(data, "resolve_binary", lambda name, binary=None: "hmmpress")
-    monkeypatch.setattr(data.subprocess, "run", fake_run)
-
     library = ensure_kegg_hmm_library("prokaryotes", registry=registry)
     assert library.name == "v1_prokaryotes.hmm"
-    assert library.read_bytes() == raw  # decompressed in place
-    assert library.with_name(library.name + ".h3m").exists()
-    assert len(presses) == 1
+    assert library.read_bytes() == raw  # decompressed flatfile, no hmmpress
 
-    # Second call: library + sidecars already cached, so no re-decompress/-press.
-    again = ensure_kegg_hmm_library("prokaryotes", registry=registry)
-    assert again == library
-    assert len(presses) == 1
+    # Second call: already decompressed, returns the same cached library.
+    assert ensure_kegg_hmm_library("prokaryotes", registry=registry) == library
 
 
 def test_unregistered_dataset_raises():

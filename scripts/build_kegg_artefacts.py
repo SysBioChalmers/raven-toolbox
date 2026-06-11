@@ -6,8 +6,8 @@ Runs the maintainer pipeline against an arranged KEGG dump (see
 
 * 3b.2 — ``parse_kegg_dump`` → ``reference_model.yml.gz`` + the gzipped-TSV tables;
 * 3b.3 — ``build_hmm_library`` per domain → a gzipped concatenated flatfile
-  ``<version>_<domain>.hmm.gz`` (the client decompresses + ``hmmpress``-es it on
-  first use), named so :func:`raven_python.data.ensure_kegg_hmm_library` can fetch it.
+  ``<version>_<domain>.hmm.gz`` (the client decompresses it and searches with
+  ``hmmsearch``), named so :func:`raven_python.data.ensure_kegg_hmm_library` can fetch it.
 
 Pass ``--version`` (e.g. ``kegg116``) to version-prefix every output filename, matching
 the published release assets. Everything lands in ``--out`` ready to upload; feed that
@@ -42,9 +42,9 @@ from raven_python.reconstruction.kegg import (
 def _publish_library(work: dict, out_dir: Path, domain: str, prefix: str = "") -> Path:
     """Gzip a built ``library.hmm`` to ``out_dir/<prefix><domain>.hmm.gz``.
 
-    Only the concatenated flatfile is published (gzip, ~10x smaller than the
-    hmmpress index and portable across HMMER versions); the client decompresses and
-    re-presses on first use, so the same artefact also serves MATLAB RAVEN.
+    Only the concatenated flatfile is published (gzip, portable across HMMER
+    versions); the client decompresses it and searches with ``hmmsearch``, so the
+    same artefact also serves MATLAB RAVEN.
     """
     library = work["library"]
     if library is None:
