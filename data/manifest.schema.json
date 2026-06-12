@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/SysBioChalmers/raven-python/manifest.schema.json",
+  "$id": "https://github.com/SysBioChalmers/raven-toolbox/manifest.schema.json",
   "title": "RAVEN data/binary manifest",
-  "description": "Language-agnostic registry of downloadable raven-python / RAVEN data artefacts and external binary bundles. Consumed by the Python resolvers (raven_python.data / raven_python.binaries) and by MATLAB RAVEN. Every file carries a SHA256 so consumers verify integrity after download.",
+  "description": "Language-agnostic registry of downloadable raven-toolbox / RAVEN data artefacts and external binary bundles. Consumed by the Python resolvers (raven_toolbox.data / raven_toolbox.binaries) and by MATLAB RAVEN. Every file carries a SHA256 so consumers verify integrity after download.",
   "type": "object",
   "required": ["manifest_version"],
   "additionalProperties": false,
@@ -18,12 +18,12 @@
     },
     "data": {
       "type": "object",
-      "description": "Data-artefact datasets, keyed by dataset id (e.g. 'kegg'). Maps onto raven_python.data._DATA_REGISTRY.",
+      "description": "Data-artefact datasets, keyed by dataset id (e.g. 'kegg'). Maps onto raven_toolbox.data._DATA_REGISTRY.",
       "additionalProperties": { "$ref": "#/$defs/dataset" }
     },
     "binaries": {
       "type": "object",
-      "description": "External command-line tool bundles, keyed by bundle id (e.g. 'blast', 'diamond', 'hmmer'). Maps onto raven_python.binaries._REGISTRY.",
+      "description": "External command-line tool bundles, keyed by bundle id (e.g. 'blast', 'diamond', 'hmmer'). Maps onto raven_toolbox.binaries._REGISTRY.",
       "additionalProperties": { "$ref": "#/$defs/bundle" }
     }
   },
@@ -73,7 +73,7 @@
         "platforms": {
           "type": "object",
           "minProperties": 1,
-          "description": "One entry per platform, keyed '<os>-<arch>' (e.g. 'linux-x86_64', 'macos-arm64', 'windows-x86_64'). Matches raven_python.binaries._platform_key().",
+          "description": "One entry per platform, keyed '<os>-<arch>' (e.g. 'linux-x86_64', 'macos-arm64', 'windows-x86_64'). Matches raven_toolbox.binaries._platform_key().",
           "additionalProperties": { "$ref": "#/$defs/file" }
         }
       }

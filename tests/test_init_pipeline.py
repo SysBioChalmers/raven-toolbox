@@ -14,14 +14,14 @@ from tinit_oracles import (
     make_test_task,
 )
 
-from raven_python.init import (
+from raven_toolbox.init import (
     classify_reactions,
     ftinit,
     get_init_steps,
     prep_init_model,
     score_reactions_from_genes,
 )
-from raven_python.init.score import gene_scores_from_expression
+from raven_toolbox.init.score import gene_scores_from_expression
 
 
 def _scores(model):
@@ -112,7 +112,7 @@ def test_orient_forward_reverses_a_reversible_reaction():
     """_orient_forward(rxn, -1) flips stoichiometry and makes it irreversible forward."""
     import cobra
 
-    from raven_python.init.prep import _orient_forward
+    from raven_toolbox.init.prep import _orient_forward
 
     m = cobra.Model("o")
     a, b = (cobra.Metabolite(x, compartment="s") for x in "ab")
@@ -140,7 +140,7 @@ def test_essential_merged_away_is_skipped():
     """
     import cobra
 
-    from raven_python.tasks import Task
+    from raven_toolbox.tasks import Task
 
     m = cobra.Model("collapse")
     a, b = (cobra.Metabolite(x, name=x, compartment="s") for x in "ab")

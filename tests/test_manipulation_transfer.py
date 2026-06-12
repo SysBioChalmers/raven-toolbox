@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.manipulation import add_reactions_from_equations, add_reactions_from_model
+from raven_toolbox.manipulation import add_reactions_from_equations, add_reactions_from_model
 
 
 @pytest.fixture

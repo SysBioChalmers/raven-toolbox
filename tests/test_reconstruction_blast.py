@@ -4,8 +4,8 @@ import shutil
 import pandas as pd
 import pytest
 
-from raven_python.reconstruction.homology import HIT_COLUMNS, blast_from_table, run_blast
-from raven_python.reconstruction.homology.blast import _parse_tabular
+from raven_toolbox.reconstruction.homology import HIT_COLUMNS, blast_from_table, run_blast
+from raven_toolbox.reconstruction.homology.blast import _parse_tabular
 
 _SEQ = (
     "MSTNPKPQRKTKRNTNRRPQDVKFPGGGQIVGGVYLLPRRGPRLGVRATRKTSERSQPRGRRQPIPKARRPEGRTWAQPGYPWPLYGNEGCGWAGWLLSPRG"

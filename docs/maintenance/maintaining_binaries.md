@@ -1,7 +1,7 @@
 # Maintaining bundled binaries (BLAST+, DIAMOND, …)
 
-Audience: **raven-python maintainers / the GitHub repo owner.** This explains how
-raven-python ships external command-line tools, how to update their versions, and how
+Audience: **raven-toolbox maintainers / the GitHub repo owner.** This explains how
+raven-toolbox ships external command-line tools, how to update their versions, and how
 to build **minimal-footprint** ZIPs to attach to a GitHub release.
 
 > End users never read this. They get a binary automatically via `ensure_binary`,
@@ -12,12 +12,12 @@ to build **minimal-footprint** ZIPs to attach to a GitHub release.
 
 ## 1. How binary provisioning works
 
-raven-python does **not** vendor binaries in the git repo or on PyPI. Instead:
+raven-toolbox does **not** vendor binaries in the git repo or on PyPI. Instead:
 
 1. For each tool we publish **version-pinned ZIPs as GitHub release assets**.
-2. A **registry** (`src/raven_python/binaries_registry.json`) maps each *bundle* to its
+2. A **registry** (`src/raven_toolbox/binaries_registry.json`) maps each *bundle* to its
    version, the executables it provides, and per-platform `{asset, sha256}`.
-3. At run time `raven_python.binaries.ensure_binary("blastp")` resolves a tool in this
+3. At run time `raven_toolbox.binaries.ensure_binary("blastp")` resolves a tool in this
    order — and only reaches the download as a last resort:
 
    ```
@@ -35,7 +35,7 @@ bundle provides both `blastp` and `makeblastdb`), so they are fetched once.
 
 ---
 
-## 2. What raven-python actually needs — ship only these
+## 2. What raven-toolbox actually needs — ship only these
 
 Distribute the **minimum** set of executables. Everything else (other suite
 tools, docs, examples, changelogs) must be excluded.
@@ -113,9 +113,9 @@ Example: bump DIAMOND to a new version for Linux x86-64. Repeat per `(os, arch)`
    ```bash
    sha256sum diamond-2.1.11-linux-x86_64.zip   # shasum -a 256 on macOS
    ```
-8. **Attach the ZIP to a raven-python GitHub release** (a release tagged for the binary
+8. **Attach the ZIP to a raven-toolbox GitHub release** (a release tagged for the binary
    set, e.g. `binaries-2024.06`, keeps them independent of code releases).
-9. **Update the registry** `src/raven_python/binaries_registry.json` — bump `version`
+9. **Update the registry** `src/raven_toolbox/binaries_registry.json` — bump `version`
    and set the per-platform `asset` + `sha256`:
    ```json
    {
@@ -125,7 +125,7 @@ Example: bump DIAMOND to a new version for Linux x86-64. Repeat per `(os, arch)`
        "platforms": {
          "linux-x86_64": {
            "asset": "diamond-2.1.11-linux-x86_64.zip",
-           "url": "https://github.com/SysBioChalmers/raven-python/releases/download/binaries-2024.06/diamond-2.1.11-linux-x86_64.zip",
+           "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/binaries-2024.06/diamond-2.1.11-linux-x86_64.zip",
            "sha256": "<sha256>"
          }
        }
@@ -177,7 +177,7 @@ version, upstream checksum, and the SHA256 you published.
 
 ### Native OS support per tool
 
-raven-python invokes each tool through `subprocess.run([resolved_path, …])` — that
+raven-toolbox invokes each tool through `subprocess.run([resolved_path, …])` — that
 call is itself cross-platform, so the real constraint is whether a given tool has
 a binary that runs natively on each OS. It varies:
 
@@ -197,8 +197,8 @@ Implications:
   HMM build (3b.3) and HMM query (3b.5) do not**: HMMER and CD-HIT have no Windows
   binaries, and bioconda has no Windows packages for any of them. Bundling can't
   fix this — there is no binary to bundle.
-- **Windows users should run raven-python inside WSL2** (or a Linux container), where
-  every tool is native Linux. raven-python does **not** replicate RAVEN's
+- **Windows users should run raven-toolbox inside WSL2** (or a Linux container), where
+  every tool is native Linux. raven-toolbox does **not** replicate RAVEN's
   `getWSLpath`/`wsl …` path translation: it calls the resolved binary directly, so
   mixing native-Windows Python with WSL binaries is unsupported — keep the whole
   stack inside WSL2.
@@ -211,12 +211,12 @@ Implications:
 
 After building the per-platform ZIPs (named `<bundle>-<version>-<os>-<arch>.zip`)
 and uploading them to the release, generate the `_REGISTRY` entry — checksums and
-URLs — with [`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md):
+URLs — with [`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/README.md):
 
 ```bash
 python scripts/make_registry_snippet.py binary --bundle blast --version 2.16.0 \
     --provides blastp makeblastdb --dir zips \
-    --base-url https://github.com/ORG/raven-python/releases/download/blast-2.16.0
+    --base-url https://github.com/ORG/raven-toolbox/releases/download/blast-2.16.0
 ```
 
 It prints the ready-to-paste `_REGISTRY["blast"]` block; its SHA256 helper is the

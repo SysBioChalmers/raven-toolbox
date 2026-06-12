@@ -19,8 +19,8 @@ import importlib
 import cobra
 import pytest
 
-from raven_python.init import ftinit, prep_init_model, run_ftinit, run_init
-from raven_python.tasks import Task, check_tasks
+from raven_toolbox.init import ftinit, prep_init_model, run_ftinit, run_init
+from raven_toolbox.tasks import Task, check_tasks
 
 # Detect which MILP-capable optlang interfaces actually work; skip the rest.
 # We do a real import (not just find_spec) because optlang ships every backend's

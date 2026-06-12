@@ -17,7 +17,7 @@ fix is identical in spirit; the patch shape just differs.
 
 ## `reconstruction/homology/getModelFromHomology.m`
 
-Implemented in raventoolbox as [`reconstruction.homology.get_model_from_homology`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/homology/homology.py).
+Implemented in raventoolbox as [`reconstruction.homology.get_model_from_homology`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/reconstruction/homology/homology.py).
 
 * **H1** 🧹 — Split the overloaded `strictness` 1/2/3 into two orthogonal
   options: `bidirectional` (reciprocal hits) and `bestHitsOnly`. Reciprocal
@@ -36,7 +36,7 @@ Implemented in raventoolbox as [`reconstruction.homology.get_model_from_homology
 
 ## `reconstruction/kegg/getKEGGModelForOrganism.m` and the KEGG pipeline
 
-Implemented across [`reconstruction.kegg`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/kegg/).
+Implemented across [`reconstruction.kegg`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/reconstruction/kegg/).
 
 * **K1** 🐛 — In the KEGG flat-file parser, read each reaction's equation from
   its **own `EQUATION` field**, not by matching line *i* of `reaction.lst`
@@ -89,7 +89,7 @@ Implemented across [`reconstruction.kegg`](https://github.com/SysBioChalmers/rav
 
 ## `analysis/FSEOF.m`
 
-Implemented in raventoolbox as [`analysis.fseof`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/fseof.py).
+Implemented in raventoolbox as [`analysis.fseof`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/analysis/fseof.py).
 
 * **FS1** 🐛 — Replace the strict step-by-step monotonicity gate (a target is
   discarded if any single step's flux fails to exceed the previous) with a
@@ -123,7 +123,7 @@ Implemented in raventoolbox as [`analysis.fseof`](https://github.com/SysBioChalm
 
 ## `analysis/randomSampling.m`
 
-Implemented in raventoolbox as [`analysis.random_sampling`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/sampling.py).
+Implemented in raventoolbox as [`analysis.random_sampling`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/analysis/sampling.py).
 
 * **SAMP1** ⚡ — Compute `goodRxns` (loop-free, flux-carrying objective
   candidates) via a **single FVA pass**, not the current per-reaction `parfor`
@@ -142,7 +142,7 @@ Implemented in raventoolbox as [`analysis.random_sampling`](https://github.com/S
 
 ## `analysis/reporterMetabolites.m`
 
-Implemented in raventoolbox as [`analysis.reporter_metabolites`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/reporter.py).
+Implemented in raventoolbox as [`analysis.reporter_metabolites`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/analysis/reporter.py).
 
 * **RM1** ⚡🐛 — Replace the per-neighbour-count Monte Carlo background
   correction (currently 100 000 random sets drawn *for each distinct
@@ -154,7 +154,7 @@ Implemented in raventoolbox as [`analysis.reporter_metabolites`](https://github.
 
 ## `INIT/runINIT.m`
 
-Implemented in raventoolbox as [`init.run_init`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/init.py).
+Implemented in raventoolbox as [`init.run_init`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/init/init.py).
 
 * **I4** 🐛 — Drop the hard-coded big-M (1000) in the MILP and use **each
   reaction's own upper bound** instead: `v ≤ ub · x`. Expose `eps` and
@@ -164,7 +164,7 @@ Implemented in raventoolbox as [`init.run_init`](https://github.com/SysBioChalme
 
 ## `INIT/ftINIT.m` and the ftINIT pipeline
 
-Implemented across [`init.ftinit`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/ftinit.py), [`init.taskfill`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/taskfill.py), [`init.merge`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/merge.py), [`init.prep`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/prep.py).
+Implemented across [`init.ftinit`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/init/ftinit.py), [`init.taskfill`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/init/taskfill.py), [`init.merge`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/init/merge.py), [`init.prep`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/init/prep.py).
 
 * **FT3** 🐛 — Same big-M issue as `runINIT` — use each reaction's own bound
   as big-M instead of the fixed 100/1000. Expose `force_on` and `force_on_ess`
@@ -186,14 +186,14 @@ Implemented across [`init.ftinit`](https://github.com/SysBioChalmers/raven-pytho
 
 ## `manipulation/addRxns.m`
 
-Implemented in raventoolbox as [`manipulation.add_reactions_from_equations`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/add.py).
+Implemented in raventoolbox as [`manipulation.add_reactions_from_equations`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/manipulation/add.py).
 
 * **A1** 🧹 — Accept a string keyword (`metsBy = 'id'` / `'name'`) instead of
   the opaque `eqnType = 1 / 2 / 3` integer. Call-sites become self-documenting.
 
 ## `queries/checkModelStruct.m` (or its curation subset)
 
-Implemented in raventoolbox as [`utils.check_model`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/validate.py).
+Implemented in raventoolbox as [`utils.check_model`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/utils/validate.py).
 
 * **V2** 🧹 — Return a struct array of issues (one per finding, with
   `category` / `target` / `message` fields) instead of printing warnings or
@@ -201,7 +201,7 @@ Implemented in raventoolbox as [`utils.check_model`](https://github.com/SysBioCh
 
 ## `queries/getElementalBalance.m`
 
-Implemented in raventoolbox as [`utils.get_elemental_balance`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/balance.py).
+Implemented in raventoolbox as [`utils.get_elemental_balance`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/utils/balance.py).
 
 * **B2** 🐛 — A reaction with no metabolites (an empty `S(:,j)`) currently
   falls through to `balanceStatus = 1` ("balanced") because both pre-loops
@@ -219,7 +219,7 @@ Implemented in raventoolbox as [`utils.get_elemental_balance`](https://github.co
 
 ## `manipulation/findPotentialErrors.m` (GPR linting)
 
-Implemented in raventoolbox as [`utils.find_non_dnf_grrules`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/gpr.py).
+Implemented in raventoolbox as [`utils.find_non_dnf_grrules`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/utils/gpr.py).
 
 * **S1** 🧹 — Return the `indexes2check` array (which the function already
   computes) plus per-reaction reason strings as a struct array, instead of

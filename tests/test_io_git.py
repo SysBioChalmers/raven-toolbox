@@ -1,9 +1,9 @@
-"""Tests for raven_python.io.git (exportForGit port)."""
+"""Tests for raven_toolbox.io.git (exportForGit port)."""
 import cobra
 import pytest
 
-from raven_python.io import export_for_git
-from raven_python.manipulation import add_reactions_from_equations
+from raven_toolbox.io import export_for_git
+from raven_toolbox.manipulation import add_reactions_from_equations
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def test_dependencies_file(model, tmp_path):
     deps = (root / "dependencies.txt").read_text()
     assert "python\t" in deps
     assert "cobra\t" in deps
-    assert "raven_python\t" in deps
+    assert "raven_toolbox\t" in deps
 
 
 def test_flat_layout(model, tmp_path):

@@ -5,7 +5,7 @@ isozyme alternatives are negative.
 """
 import cobra
 
-from raven_python.init import remove_low_score_genes
+from raven_toolbox.init import remove_low_score_genes
 
 
 def _model(rule: str) -> cobra.Model:

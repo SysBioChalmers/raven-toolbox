@@ -102,7 +102,7 @@ like we did for the HMM cut-offs (K15):
 
 **RAVEN/Gurobi coupling & quirks**
 - `ftINITFillGapsMILP` **hard-errors on glpk-via-COBRA**; "only tested with Gurobi".
-  raven-python uses **optlang**, so we are solver-agnostic — but the magic numbers and
+  raven-toolbox uses **optlang**, so we are solver-agnostic — but the magic numbers and
   `Seed=26` reproducibility were Gurobi-tuned. Validation must expect *equally optimal
   but not identical* reaction sets (alternative optima); compare on objective value
   and task feasibility, not exact rxn identity.
@@ -129,7 +129,7 @@ pass/feasible per task. `prepINITModel` needs **essential-reaction discovery** (
 reactions, and in which direction, are essential for each task) and the task
 metabolite set. That work was explicitly deferred from 4a/4c to here.
 
-## 5. What cobra/raven-python already gives us
+## 5. What cobra/raven-toolbox already gives us
 
 - MILP via **optlang** (HiGHS bundled, Gurobi/CPLEX if licensed) — `run_init`
   already builds INIT-style MILPs this way; ftINIT extends that builder.

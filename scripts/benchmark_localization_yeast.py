@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark :func:`raven_python.localization.predict_localization` on yeast-GEM.
+"""Benchmark :func:`raven_toolbox.localization.predict_localization` on yeast-GEM.
 
 Treats yeast-GEM's curated compartmentalisation as ground truth, flattens the model with
 :func:`merge_compartments` to a single compartment (so the algorithm cannot lean on
@@ -32,8 +32,8 @@ import cobra
 import numpy as np
 import pandas as pd
 
-from raven_python.localization import LocalizationScores, predict_localization
-from raven_python.manipulation.compartments import merge_compartments
+from raven_toolbox.localization import LocalizationScores, predict_localization
+from raven_toolbox.manipulation.compartments import merge_compartments
 
 # --------------------------------------------------------------------------- inputs
 

@@ -1,11 +1,11 @@
-"""Tests for raven_python.comparison.diff — strict 2-model equality."""
+"""Tests for raven_toolbox.comparison.diff — strict 2-model equality."""
 from __future__ import annotations
 
 import cobra
 import pytest
 
-from raven_python.comparison import DiffReport, diff_models
-from raven_python.comparison.diff import _normalise_gpr
+from raven_toolbox.comparison import DiffReport, diff_models
+from raven_toolbox.comparison.diff import _normalise_gpr
 
 
 def _mini_model(model_id: str = "m") -> cobra.Model:

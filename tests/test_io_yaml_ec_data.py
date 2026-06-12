@@ -1,4 +1,4 @@
-"""Tests for raven_python.io.yaml's GECKO ec-model support.
+"""Tests for raven_toolbox.io.yaml's GECKO ec-model support.
 
 Covers:
 - model.ec populated from `ec-rxns` / `ec-enzymes` / `gecko_light` sections;
@@ -20,9 +20,9 @@ import pytest
 from cobra.io.yaml import yaml as cobra_yaml
 from scipy import sparse
 
-from raven_python.io import EcData, read_yaml_model, write_yaml_model
-from raven_python.io.ec_data import _eccodes_to_yaml
-from raven_python.io.yaml import model_from_yaml_data
+from raven_toolbox.io import EcData, read_yaml_model, write_yaml_model
+from raven_toolbox.io.ec_data import _eccodes_to_yaml
+from raven_toolbox.io.yaml import model_from_yaml_data
 
 # --------------------------------------------------------------------------- #
 # Helpers

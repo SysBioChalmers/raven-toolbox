@@ -93,7 +93,7 @@ TEST_MODEL_GROUPED_SCORES = [0, -0.5, 7.5, -1, 0.5]
 # The task: generate e[s] from a[s] (RAVEN getTstModelTasks()).
 def make_test_task():
     """RAVEN getTstModelTasks(): make e[s] from a[s]."""
-    from raven_python.tasks import Task
+    from raven_toolbox.tasks import Task
 
     return Task(
         id="Gen e[s] from a[s]",

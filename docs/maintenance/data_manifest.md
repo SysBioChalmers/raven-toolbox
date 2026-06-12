@@ -3,19 +3,19 @@
 Large artefacts (KEGG tables / HMMs, template models) and external-binary bundles
 (BLAST / DIAMOND / HMMER) are **not** committed to the code repository. They are published
 as downloadable assets and described by a single, language-agnostic **manifest** that both
-raven-python and MATLAB RAVEN read. Every file carries a **SHA256**, so consumers verify
+raven-toolbox and MATLAB RAVEN read. Every file carries a **SHA256**, so consumers verify
 integrity after download.
 
-- Format: [`data/manifest.schema.json`](https://github.com/SysBioChalmers/raven-python/blob/develop/data/manifest.schema.json) (JSON Schema)
-- Worked example: [`data/manifest.example.json`](https://github.com/SysBioChalmers/raven-python/blob/develop/data/manifest.example.json)
-- Live manifest: [`data/manifest.json`](https://github.com/SysBioChalmers/raven-python/blob/develop/data/manifest.json) (empty until assets are published)
+- Format: [`data/manifest.schema.json`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/data/manifest.schema.json) (JSON Schema)
+- Worked example: [`data/manifest.example.json`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/data/manifest.example.json)
+- Live manifest: [`data/manifest.json`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/data/manifest.json) (empty until assets are published)
 
 The manifest is a superset of the two runtime registries:
 
 | Manifest section | Runtime registry |
 | --- | --- |
-| `data` | {data}`raven_python.data._DATA_REGISTRY` |
-| `binaries` | `raven_python.binaries._REGISTRY` |
+| `data` | {data}`raven_toolbox.data._DATA_REGISTRY` |
+| `binaries` | `raven_toolbox.binaries._REGISTRY` |
 
 ```json
 {
@@ -27,15 +27,15 @@ The manifest is a superset of the two runtime registries:
 
 ## Consuming it — Python
 
-Point raven-python at a manifest and the resolvers populate themselves on first use,
+Point raven-toolbox at a manifest and the resolvers populate themselves on first use,
 verifying each download's checksum:
 
 ```bash
-export RAVEN_PYTHON_MANIFEST=https://github.com/SysBioChalmers/raven-python/releases/download/manifest-v1/manifest.json
+export RAVEN_PYTHON_MANIFEST=https://github.com/SysBioChalmers/raven-toolbox/releases/download/manifest-v1/manifest.json
 ```
 
 ```python
-from raven_python import manifest
+from raven_toolbox import manifest
 manifest.load_into_registries()           # or load_into_registries("/path/or/url")
 # now data.ensure_kegg_data() / binaries.ensure_binary("diamond") resolve from the manifest
 ```
@@ -70,18 +70,18 @@ end
 ## Publishing — generating manifest entries
 
 After uploading a release's files, add/update an entry with the maintainer script
-([`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/make_registry_snippet.py)),
+([`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/make_registry_snippet.py)),
 which computes each SHA256 and byte size:
 
 ```bash
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
     --target data --dataset kegg --version kegg116 --dir artefacts \
-    --base-url https://github.com/SysBioChalmers/raven-python/releases/download/kegg-kegg116 \
+    --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/kegg-kegg116 \
     --doi 10.5281/zenodo.0000000 --source https://zenodo.org/records/0000000
 
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
     --target binary --bundle diamond --version 2.1.9 --provides diamond --dir zips \
-    --base-url https://github.com/SysBioChalmers/raven-python/releases/download/diamond-2.1.9 \
+    --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.9 \
     --license GPL-3.0-only
 ```
 

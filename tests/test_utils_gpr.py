@@ -1,8 +1,8 @@
-"""Tests for raven_python.utils.gpr (GPR linting)."""
+"""Tests for raven_toolbox.utils.gpr (GPR linting)."""
 import cobra
 import pytest
 
-from raven_python.utils import GPRIssue, find_non_dnf_grrules, is_dnf
+from raven_toolbox.utils import GPRIssue, find_non_dnf_grrules, is_dnf
 
 
 @pytest.mark.parametrize(

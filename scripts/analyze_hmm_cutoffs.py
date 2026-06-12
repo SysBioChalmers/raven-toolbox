@@ -29,8 +29,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from raven_python.reconstruction.kegg.parse import read_kegg_table
-from raven_python.reconstruction.kegg.query import (
+from raven_toolbox.reconstruction.kegg.parse import read_kegg_table
+from raven_toolbox.reconstruction.kegg.query import (
     assign_kos,
     parse_hmmscan_tblout,
     run_hmmscan,

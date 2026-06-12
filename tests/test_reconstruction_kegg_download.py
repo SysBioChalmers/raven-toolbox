@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from raven_python.reconstruction.kegg.download import (
+from raven_toolbox.reconstruction.kegg.download import (
     _resolve_auth,
     extract_kegg_dump,
 )

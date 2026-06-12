@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.gapfilling import GapFillResult, connect_blocked_reactions
+from raven_toolbox.gapfilling import GapFillResult, connect_blocked_reactions
 
 
 def _met(mid):

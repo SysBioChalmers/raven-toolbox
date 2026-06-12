@@ -6,7 +6,7 @@ the task 'make e[s] from a[s]' becomes feasible again.
 """
 from tinit_oracles import make_test_model, make_test_task
 
-from raven_python.init import TaskFillResult, fill_tasks
+from raven_toolbox.init import TaskFillResult, fill_tasks
 
 
 def _reference_without_exchanges():
@@ -35,7 +35,7 @@ def test_no_fill_when_already_feasible():
 
 
 def test_should_fail_tasks_ignored():
-    from raven_python.tasks import Task
+    from raven_toolbox.tasks import Task
 
     ref = _reference_without_exchanges()
     gapped = ref.copy()

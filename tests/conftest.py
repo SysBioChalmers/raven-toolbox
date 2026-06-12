@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the raven_python test-suite.
+"""Shared pytest fixtures for the raven_toolbox test-suite.
 
 Currently the linear-chain INIT model used by the tINIT/ftINIT scoring tests,
 which several modules previously built independently and identically.

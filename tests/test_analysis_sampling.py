@@ -3,7 +3,7 @@ import cobra
 import numpy as np
 import pytest
 
-from raven_python.analysis import (
+from raven_toolbox.analysis import (
     RandomSamplingResult,
     find_good_reactions,
     random_sampling,

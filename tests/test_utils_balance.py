@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.utils import ElementalBalance, get_elemental_balance
+from raven_toolbox.utils import ElementalBalance, get_elemental_balance
 
 
 @pytest.fixture

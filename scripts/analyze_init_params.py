@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Parameter calibration for (f)tINIT — intrinsic speed/quality sweeps (Phase 4d.7).
 
-Genome-scale benchmark that sweeps the MILP/conditioning parameters of raven_python's
-:func:`raven_python.init.run_ftinit`, :func:`raven_python.init.ftinit`, :func:`run_init`, and
+Genome-scale benchmark that sweeps the MILP/conditioning parameters of raven_toolbox's
+:func:`raven_toolbox.init.run_ftinit`, :func:`raven_toolbox.init.ftinit`, :func:`run_init`, and
 :func:`prep_init_model` and records, for each value, the *intrinsic* trade-off: wall-clock
 solve time, the MILP objective, and how far the result drifts from the tightest-setting
 ("reference") run — both in objective (relative gap) and in the **kept-reaction set**
@@ -46,17 +46,17 @@ from pathlib import Path
 
 import cobra
 
-from raven_python.init import (
+from raven_toolbox.init import (
     ftinit,
     gene_scores_from_expression,
     get_init_model,
     prep_init_model,
     score_reactions_from_genes,
 )
-from raven_python.init.ftinit import run_ftinit
-from raven_python.init.merge import group_rxn_scores
-from raven_python.init.prep import rescale_for_init
-from raven_python.init.steps import get_init_steps
+from raven_toolbox.init.ftinit import run_ftinit
+from raven_toolbox.init.merge import group_rxn_scores
+from raven_toolbox.init.prep import rescale_for_init
+from raven_toolbox.init.steps import get_init_steps
 
 # Sweep grids (first value of each tolerance sweep is the tight "reference").
 MIP_GAPS = (0.0002, 0.001, 0.003, 0.01, 0.03, 0.1)

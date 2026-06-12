@@ -1,11 +1,11 @@
-"""Tests for raven_python.io.excel (exportToExcelFormat port, export only)."""
+"""Tests for raven_toolbox.io.excel (exportToExcelFormat port, export only)."""
 import cobra
 import pytest
 
 openpyxl = pytest.importorskip("openpyxl")
 
-from raven_python.io import export_to_excel
-from raven_python.manipulation import add_reactions_from_equations
+from raven_toolbox.io import export_to_excel
+from raven_toolbox.manipulation import add_reactions_from_equations
 
 
 @pytest.fixture
