@@ -74,7 +74,7 @@ Implemented across [`reconstruction.kegg`](https://github.com/SysBioChalmers/rav
   adjacent (shared locus-tag/numeric prefixes), so they compress far better
   (~78 → 48 MB) and the order matches the by-organism query. Stored as gzip (not
   xz) so MATLAB reads it with built-in `gunzip`, since the same artefact is shared
-  with raven-python; xz would be ~3× smaller but needs an external `unxz`.
+  with raven-toolbox; xz would be ~3× smaller but needs an external `unxz`.
 * **K15** 🐛 — Recalibrate the HMM-query KO-assignment defaults: change
   `cutoff` from `1e-50` to `1e-30` and `min_score_ratio_g` from `0.8` to
   `0.9`. `min_score_ratio_ko` can stay at `0.3` but is empirically inert

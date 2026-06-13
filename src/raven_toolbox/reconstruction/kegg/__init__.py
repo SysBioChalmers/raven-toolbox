@@ -4,21 +4,21 @@ Maintainer build steps: 3b.1 download (:mod:`.download`), 3b.2 dump parsing
 (:mod:`.parse`), 3b.3 HMM libraries (:mod:`.hmm`, :mod:`.taxonomy`). Runtime:
 3b.4 model for a KEGG species (:mod:`.organism`).
 """
-from raven_python.reconstruction.kegg.download import (
+from raven_toolbox.reconstruction.kegg.download import (
     download_kegg_dump,
     extract_kegg_dump,
     fetch_kegg_files,
 )
-from raven_python.reconstruction.kegg.hmm import (
+from raven_toolbox.reconstruction.kegg.hmm import (
     build_hmm_library,
     build_ko_fastas,
     build_ko_hmm,
 )
-from raven_python.reconstruction.kegg.organism import (
+from raven_toolbox.reconstruction.kegg.organism import (
     get_kegg_model_for_organism,
     get_kegg_model_for_organism_from_artefacts,
 )
-from raven_python.reconstruction.kegg.parse import (
+from raven_toolbox.reconstruction.kegg.parse import (
     KeggCompound,
     KeggKO,
     KeggReaction,
@@ -32,14 +32,14 @@ from raven_python.reconstruction.kegg.parse import (
     stream_organism_gene_ko,
     write_kegg_tables,
 )
-from raven_python.reconstruction.kegg.query import (
+from raven_toolbox.reconstruction.kegg.query import (
     assign_kos,
     get_kegg_model_from_sequences,
     get_kegg_model_from_sequences_with_artefacts,
     parse_hmmsearch_tblout,
     run_hmmsearch,
 )
-from raven_python.reconstruction.kegg.taxonomy import (
+from raven_toolbox.reconstruction.kegg.taxonomy import (
     PhylDist,
     organism_domains,
     organisms_in_domain,

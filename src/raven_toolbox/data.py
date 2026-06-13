@@ -1,6 +1,6 @@
 """Fetch and cache published data artefacts (KEGG reference model, tables, HMMs).
 
-The mirror of :mod:`raven_python.binaries` for *data*: a version-pinned registry of
+The mirror of :mod:`raven_toolbox.binaries` for *data*: a version-pinned registry of
 downloadable artefacts, fetched on first use, SHA256-verified, and cached under
 platformdirs so end users never rebuild them from a KEGG dump (that is the
 maintainer's job — see docs/maintaining_kegg_data.md).
@@ -14,8 +14,8 @@ The registry is **empty until the artefacts are published** (same as
 ``binaries._REGISTRY``); until then ``ensure_data_file`` raises an actionable
 error. Cache layout::
 
-    $XDG_CACHE_HOME/raven_python/data/<dataset>-<version>/<filename>
-    (or ~/.cache/raven_python/data/... if XDG_CACHE_HOME is unset)
+    $XDG_CACHE_HOME/raven_toolbox/data/<dataset>-<version>/<filename>
+    (or ~/.cache/raven_toolbox/data/... if XDG_CACHE_HOME is unset)
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ import tarfile
 from pathlib import Path
 from urllib.request import urlopen
 
-from raven_python.binaries import _sha256
+from raven_toolbox.binaries import _sha256
 
 # dataset -> {"version": str, "files": {filename: {"url": str, "sha256": str}}}
 # Mirrors data/manifest.json (the cross-language source of truth); regenerate the
@@ -36,19 +36,19 @@ _DATA_REGISTRY: dict = {
         "version": "kegg116",
         "files": {
             "kegg116_core.tar.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_core.tar.gz",
+                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_core.tar.gz",
                 "sha256": "155d5806d43db2fde5783fb124f8782bbcad390a1dd80879c520d2eac9d780e7",
             },
             "kegg116_eukaryotes.hmm.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",
+                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",
                 "sha256": "2d48bc9935575d0f9ba4178bf2df19279bff866b49c1bf83a8e15787b11d6708",
             },
             "kegg116_prokaryotes.hmm.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",
+                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",
                 "sha256": "d80cb2a22dec9fd8336b3998e3b96ee121672f63f4041cddaf09624fe739f1af",
             },
             "kegg116_taxonomy.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_taxonomy.gz",
+                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_taxonomy.gz",
                 "sha256": "1edc56da94d71433e5f08c133600292c311baaf33279a959518ab08389b0e538",
             },
         },
@@ -70,7 +70,7 @@ CORE_KEGG_FILES = (
 
 def _data_cache_dir() -> Path:
     base = os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")
-    return Path(base) / "raven_python" / "data"
+    return Path(base) / "raven_toolbox" / "data"
 
 
 def _maybe_autoload(registry: dict) -> None:
@@ -78,10 +78,10 @@ def _maybe_autoload(registry: dict) -> None:
 
     Fires only when the caller relies on the default (still-empty) ``_DATA_REGISTRY`` and
     the environment variable points at a manifest. Local import avoids an import cycle with
-    :mod:`raven_python.manifest`.
+    :mod:`raven_toolbox.manifest`.
     """
     if registry is _DATA_REGISTRY and not registry and os.environ.get("RAVEN_PYTHON_MANIFEST"):
-        from raven_python import manifest as _manifest
+        from raven_toolbox import manifest as _manifest
 
         _manifest.load_into_registries()
 
@@ -207,7 +207,7 @@ def ensure_kegg_taxonomy(*, version: str | None = None, registry: dict | None = 
     The gzipped KEGG ``taxonomy`` file is the source for domain classification and for
     regenerating the phylogenetic distance matrix — RAVEN's ``keggPhylDist``, which GECKO
     uses to pick the closest organism for kcat assignment — via
-    :func:`raven_python.reconstruction.kegg.phyl_dist` (which reads ``.gz`` directly). So
+    :func:`raven_toolbox.reconstruction.kegg.phyl_dist` (which reads ``.gz`` directly). So
     that capability needs only this published artefact, no MATLAB ``.mat`` file.
     """
     registry = _DATA_REGISTRY if registry is None else registry

@@ -26,10 +26,10 @@ from pathlib import Path
 import cobra
 import pandas as pd
 
-from raven_python.io.yaml import read_yaml_model
-from raven_python.reconstruction.kegg.assemble import _DOMAINS, assemble_model_from_ko_genes
-from raven_python.reconstruction.kegg.parse import _resolve_artefact, read_kegg_table
-from raven_python.reconstruction.kegg.taxonomy import organisms_in_domain
+from raven_toolbox.io.yaml import read_yaml_model
+from raven_toolbox.reconstruction.kegg.assemble import _DOMAINS, assemble_model_from_ko_genes
+from raven_toolbox.reconstruction.kegg.parse import _resolve_artefact, read_kegg_table
+from raven_toolbox.reconstruction.kegg.taxonomy import organisms_in_domain
 
 _NOTE = "Included by get_kegg_model_for_organism (no HMMs)"
 
@@ -133,16 +133,16 @@ def get_kegg_model_for_organism_from_artefacts(
     Reads ``reference_model.yml.gz`` and the ``ko_reaction``/``organism_gene_ko``/
     ``rxn_flags`` gzipped-TSV tables, then calls :func:`get_kegg_model_for_organism`.
     If ``artefact_dir`` is ``None`` the published artefacts are fetched/cached via
-    :func:`raven_python.data.ensure_kegg_data` (``version`` selects the release).
+    :func:`raven_toolbox.data.ensure_kegg_data` (``version`` selects the release).
 
     For a whole-domain model (``organism_id`` = ``"prokaryotes"``/``"eukaryotes"``)
     the KEGG ``taxonomy`` artefact is resolved automatically — from ``artefact_dir``
-    if present, otherwise fetched via :func:`raven_python.data.ensure_kegg_taxonomy`
+    if present, otherwise fetched via :func:`raven_toolbox.data.ensure_kegg_taxonomy`
     (it is a separate artefact, not part of the core set) — unless an explicit
     ``taxonomy`` path is given.
     """
     if artefact_dir is None:
-        from raven_python.data import ensure_kegg_data
+        from raven_toolbox.data import ensure_kegg_data
 
         artefact_dir = ensure_kegg_data(version=version)
     artefact_dir = Path(artefact_dir)
@@ -150,7 +150,7 @@ def get_kegg_model_for_organism_from_artefacts(
         try:
             taxonomy = _resolve_artefact(artefact_dir, "taxonomy.gz")
         except FileNotFoundError:
-            from raven_python.data import ensure_kegg_taxonomy
+            from raven_toolbox.data import ensure_kegg_taxonomy
 
             taxonomy = ensure_kegg_taxonomy(version=version)
     reference_model = read_yaml_model(_resolve_artefact(artefact_dir, "reference_model.yml.gz"))

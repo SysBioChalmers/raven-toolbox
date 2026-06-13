@@ -25,10 +25,10 @@ from pathlib import Path
 import cobra
 import pandas as pd
 
-from raven_python.binaries import resolve_binary
-from raven_python.io.yaml import read_yaml_model
-from raven_python.reconstruction.kegg.assemble import assemble_model_from_ko_genes
-from raven_python.reconstruction.kegg.parse import _resolve_artefact, read_kegg_table
+from raven_toolbox.binaries import resolve_binary
+from raven_toolbox.io.yaml import read_yaml_model
+from raven_toolbox.reconstruction.kegg.assemble import assemble_model_from_ko_genes
+from raven_toolbox.reconstruction.kegg.parse import _resolve_artefact, read_kegg_table
 
 _NOTE = "Included by get_kegg_model_from_sequences (using HMMs)"
 _MIN_EVALUE = 1e-250  # floor for a reported E-value of 0, to keep logs finite
@@ -231,11 +231,11 @@ def get_kegg_model_from_sequences_with_artefacts(
     """Load reference model + tables from ``artefact_dir`` and run the HMM query.
 
     If ``artefact_dir`` / ``library`` are ``None`` they are fetched/cached via
-    :func:`raven_python.data.ensure_kegg_data` / :func:`raven_python.data.ensure_kegg_hmm_library`
+    :func:`raven_toolbox.data.ensure_kegg_data` / :func:`raven_toolbox.data.ensure_kegg_hmm_library`
     (``domain`` selects the prok/euk library; ``version`` the release).
     """
     if artefact_dir is None or library is None:
-        from raven_python.data import ensure_kegg_data, ensure_kegg_hmm_library
+        from raven_toolbox.data import ensure_kegg_data, ensure_kegg_hmm_library
 
         if artefact_dir is None:
             artefact_dir = ensure_kegg_data(version=version)
