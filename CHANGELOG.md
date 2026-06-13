@@ -4,14 +4,29 @@ Milestones in the raven-toolbox port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
-## Unreleased
+## 0.2.0 — 2026-06-14
 
+Project rename plus KEGG-reconstruction and CI improvements.
+
+* **Project renamed `raven-python` → `raven-toolbox`.** The import package is now
+  `raven_toolbox` (was `raven_python`) and the repository moved to
+  `SysBioChalmers/raven-toolbox`. Update imports and any `raven-python` git/URL
+  references accordingly. (#34)
 * **De-novo KEGG query uses `hmmsearch` instead of `hmmscan`.**
   `get_kegg_model_from_sequences` now runs one `hmmsearch` over the concatenated KO
   library (`-Z` set to the profile count, so E-values and KO assignments are identical
   to the previous `hmmscan` path) — the faster, more parallel search direction.
   `ensure_kegg_hmm_library` no longer runs `hmmpress` (just gunzips); the published
-  `.hmm.gz` artefact is unchanged.
+  `.hmm.gz` artefact is unchanged. (#32)
+* **Domain-mode `get_kegg_model_for_organism_from_artefacts` auto-resolves the
+  taxonomy artefact** from the artefact directory, so `"prokaryotes"` /
+  `"eukaryotes"` no longer require an explicit `taxonomy=` path. (#31)
+* **Test data no longer ships real KEGG records.** The on-disk
+  `tests/data/kegg_dump` is replaced by a session fixture that generates a fully
+  fictional KEGG-format dump at runtime, so no KEGG-derived data is redistributed. (#33)
+* **Removed the visualization stub and the `[visualization]` extra** — an
+  unimplemented placeholder. (#30)
+* **CI on Node 24** — `actions/checkout@v5`, `actions/setup-python@v6`. (#35)
 
 ## 0.1.0 — 2026-06-10
 
