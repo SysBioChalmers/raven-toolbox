@@ -1,4 +1,4 @@
-"""Tests for raven_python.io.yaml's GECKO ec-model support.
+"""Tests for raven_toolbox.io.yaml's GECKO ec-model support.
 
 Covers:
 - model.ec populated from `ec-rxns` / `ec-enzymes` / `gecko_light` sections;
@@ -20,8 +20,9 @@ import pytest
 from cobra.io.yaml import yaml as cobra_yaml
 from scipy import sparse
 
-from raven_python.io import EcData, read_yaml_model, write_yaml_model
-from raven_python.io.yaml import model_from_yaml_data
+from raven_toolbox.io import EcData, read_yaml_model, write_yaml_model
+from raven_toolbox.io.ec_data import _eccodes_to_yaml
+from raven_toolbox.io.yaml import model_from_yaml_data
 
 # --------------------------------------------------------------------------- #
 # Helpers
@@ -131,6 +132,16 @@ def test_load_eccodes_scalar_or_list_both_round_trip(tmp_path):
     doc["ec-rxns"][0]["eccodes"] = ["1.1.1.1", "1.1.99.40"]
     m2 = read_yaml_model(_write_yaml(doc, tmp_path / "m2.yml"))
     assert m2.ec.eccodes == ["1.1.1.1;1.1.99.40"]
+
+
+def test_eccodes_to_yaml_strips_trailing_separator():
+    # The write-path helper must clean the internal `;`-joined form: a single EC
+    # round-trips to a bare scalar, and stray separators never leak into the YAML.
+    assert _eccodes_to_yaml("1.1.1.1") == "1.1.1.1"
+    assert _eccodes_to_yaml("1.1.1.1;") == "1.1.1.1"
+    assert _eccodes_to_yaml(";") == ""
+    assert _eccodes_to_yaml("") == ""
+    assert _eccodes_to_yaml("1.1.1.1;1.1.99.40") == ["1.1.1.1", "1.1.99.40"]
 
 
 # --------------------------------------------------------------------------- #
@@ -346,6 +357,16 @@ def test_load_dangling_enzyme_reference_raises(tmp_path):
     ]
     doc["ec-enzymes"] = [{"genes": "G1", "enzymes": "P1", "mw": 1.0}]
     with pytest.raises(ValueError, match="PGHOST"):
+        read_yaml_model(_write_yaml(doc, tmp_path / "m.yml"))
+
+
+def test_load_all_zero_coupling_matrix_warns(tmp_path):
+    """ec-rxns present but none reference an enzyme -> the coupling matrix is
+    all-zero (likely malformed). Warn rather than build a silently empty model."""
+    doc = _minimal_model_doc()
+    doc["ec-rxns"] = [{"id": "R1", "kcat": 1.0, "enzymes": {}}]
+    doc["ec-enzymes"] = [{"genes": "G1", "enzymes": "P1", "mw": 1.0}]
+    with pytest.warns(UserWarning, match="all-zero"):
         read_yaml_model(_write_yaml(doc, tmp_path / "m.yml"))
 
 

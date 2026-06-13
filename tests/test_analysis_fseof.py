@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.analysis import FSEOFResult, fseof
+from raven_toolbox.analysis import FSEOFResult, fseof
 
 
 @pytest.fixture
@@ -97,7 +97,7 @@ def test_amplify_label_uses_abs_slope_not_endpoint_difference():
     import numpy as np
     import pandas as pd
 
-    from raven_python.analysis.fseof import _classify
+    from raven_toolbox.analysis.fseof import _classify
 
     # Endpoints equal (0), but the |flux| regression slope is clearly positive
     # over the scan — the new classifier picks amplify; the old endpoint code

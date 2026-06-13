@@ -2,8 +2,8 @@
 import cobra
 import pytest
 
-from raven_python.manipulation import add_reactions_from_equations
-from raven_python.utils import ModelIssue, check_model
+from raven_toolbox.manipulation import add_reactions_from_equations
+from raven_toolbox.utils import ModelIssue, check_model
 
 
 def _categories(issues, category):

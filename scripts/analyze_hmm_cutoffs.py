@@ -29,8 +29,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from raven_python.reconstruction.kegg.parse import read_kegg_table
-from raven_python.reconstruction.kegg.query import (
+from raven_toolbox.reconstruction.kegg.parse import read_kegg_table
+from raven_toolbox.reconstruction.kegg.query import (
     assign_kos,
     parse_hmmscan_tblout,
     run_hmmscan,
@@ -50,7 +50,7 @@ def load_ko2rxn(artefacts: Path) -> dict[str, set[str]]:
 
 
 def ground_truth(artefacts: Path, org: str, ko2rxn) -> tuple[set, set]:
-    ogk = read_kegg_table(artefacts / "organism_gene_ko.tsv.xz")
+    ogk = read_kegg_table(artefacts / "organism_gene_ko.tsv.gz")
     rows = ogk[ogk["organism"].str.lower() == org]
     pairs = set(zip(rows["gene"], rows["ko"], strict=True))
     rxns = {r for _, ko in pairs for r in ko2rxn.get(ko, ())}

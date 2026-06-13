@@ -1,30 +1,30 @@
-"""Tests for the KEGG HMM-query path (reconstruction/kegg/query.py, step 3b.5)."""
-from pathlib import Path
+"""Tests for the KEGG HMM-query path (reconstruction/kegg/query.py, step 3b.5).
 
+The ``kegg_dump`` fixture (tests/conftest.py) is a small, fully fictional dump —
+no real KEGG content is committed.
+"""
 import pandas as pd
 import pytest
 
-from raven_python.reconstruction.kegg import (
+from raven_toolbox.reconstruction.kegg import (
     assign_kos,
     build_kegg_tables,
     build_reference_model,
     get_kegg_model_from_sequences,
-    parse_hmmscan_tblout,
+    parse_hmmsearch_tblout,
     parse_kegg_compounds,
     parse_kegg_kos,
     parse_kegg_reactions,
 )
 
-DUMP = Path(__file__).parent / "data" / "kegg_dump"
-
-# A minimal hmmscan --tblout excerpt: target(KO) accession query(gene) ... evalue ...
+# A minimal hmmsearch --tblout excerpt: target(gene) accession query(KO) ... evalue ...
 TBLOUT = """\
 #                                                               --- full sequence ----
 # target name        accession  query name  accession   E-value  score  bias
 #------------------- ---------- ----------- ---------- --------- ------ -----
-K01194               -          gene1       -          1e-120     400.0   0.0
-K01194               -          gene2       -          1e-100     350.0   0.0
-K00002               -          gene1       -          1e-10      40.0    0.0
+gene1                -          K90001      -          1e-120     400.0   0.0
+gene2                -          K90001      -          1e-100     350.0   0.0
+gene1                -          K90002      -          1e-10      40.0    0.0
 """
 
 
@@ -32,32 +32,32 @@ K00002               -          gene1       -          1e-10      40.0    0.0
 # Parsing
 # --------------------------------------------------------------------------- #
 def test_parse_tblout_skips_comments():
-    hits = parse_hmmscan_tblout(TBLOUT)
+    hits = parse_hmmsearch_tblout(TBLOUT)
     assert list(hits.columns) == ["ko", "gene", "evalue"]
     assert len(hits) == 3
-    assert set(hits["ko"]) == {"K01194", "K00002"}
+    assert set(hits["ko"]) == {"K90001", "K90002"}
     assert hits.iloc[0]["evalue"] == 1e-120
 
 
 def test_parse_tblout_empty():
-    assert parse_hmmscan_tblout("# only a header\n").empty
+    assert parse_hmmsearch_tblout("# only a header\n").empty
 
 
 # --------------------------------------------------------------------------- #
 # assign_kos scoring/filters
 # --------------------------------------------------------------------------- #
 def test_cutoff_excludes_weak_hits():
-    hits = parse_hmmscan_tblout(TBLOUT)
-    # gene1->K00002 has evalue 1e-10, above the default cutoff 1e-30: dropped.
+    hits = parse_hmmsearch_tblout(TBLOUT)
+    # gene1->K90002 has evalue 1e-10, above the default cutoff 1e-30: dropped.
     assigned = assign_kos(hits)
-    assert "K00002" not in assigned
-    assert set(assigned["K01194"]) == {"gene1", "gene2"}
+    assert "K90002" not in assigned
+    assert set(assigned["K90001"]) == {"gene1", "gene2"}
 
 
 def test_loose_cutoff_keeps_hit():
-    hits = parse_hmmscan_tblout(TBLOUT)
+    hits = parse_hmmsearch_tblout(TBLOUT)
     assigned = assign_kos(hits, cutoff=1e-5, min_score_ratio_g=0.0, min_score_ratio_ko=0.0)
-    assert assigned.get("K00002") == ["gene1"]
+    assert assigned.get("K90002") == ["gene1"]
 
 
 def test_min_score_ratio_ko_prunes_weak_member():
@@ -95,25 +95,25 @@ def test_cutoff_ge_one_rejected():
 
 
 # --------------------------------------------------------------------------- #
-# Model assembly via the HMM path (hmmscan mocked)
+# Model assembly via the HMM path (hmmsearch mocked)
 # --------------------------------------------------------------------------- #
 @pytest.fixture(scope="module")
-def reference_and_tables():
-    reactions = parse_kegg_reactions(DUMP)
-    compounds = parse_kegg_compounds(DUMP)
+def reference_and_tables(kegg_dump):
+    reactions = parse_kegg_reactions(kegg_dump)
+    compounds = parse_kegg_compounds(kegg_dump)
     linked = {ko for r in reactions for ko in r.kos}
-    kos = parse_kegg_kos(DUMP, keep=linked)
+    kos = parse_kegg_kos(kegg_dump, keep=linked)
     return build_reference_model(reactions, compounds), build_kegg_tables(reactions, kos)
 
 
 def test_get_model_from_sequences(reference_and_tables, monkeypatch):
     model_ref, tables = reference_and_tables
-    # Mock the HMM search: K01194 -> myGeneA/myGeneB (-> R00010).
+    # Mock the HMM search: K90001 -> myGeneA/myGeneB (-> R90010).
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.query.run_hmmscan",
+        "raven_toolbox.reconstruction.kegg.query.run_hmmsearch",
         lambda *a, **k: (
-            "K01194 - myGeneA - 1e-120 400 0\n"
-            "K01194 - myGeneB - 1e-110 380 0\n"
+            "myGeneA - K90001 - 1e-120 400 0\n"
+            "myGeneB - K90001 - 1e-110 380 0\n"
         ),
     )
     model = get_kegg_model_from_sequences(
@@ -125,8 +125,8 @@ def test_get_model_from_sequences(reference_and_tables, monkeypatch):
         model_id="myorg",
     )
     assert model.id == "myorg"
-    r = model.reactions.get_by_id("R00010")
+    r = model.reactions.get_by_id("R90010")
     assert set(r.gene_reaction_rule.split(" or ")) == {"myGeneA", "myGeneB"}
     assert r.notes["note"].endswith("(using HMMs)")
-    # R00200/R00300 had no matched KOs and are not spontaneous -> absent.
-    assert "R00200" not in model.reactions
+    # R90200/R90300 had no matched KOs and are not spontaneous -> absent.
+    assert "R90200" not in model.reactions

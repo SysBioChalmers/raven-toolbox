@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.manipulation import add_reactions_from_equations, merge_models
+from raven_toolbox.manipulation import add_reactions_from_equations, merge_models
 
 
 def _model(mid, mets, reactions):

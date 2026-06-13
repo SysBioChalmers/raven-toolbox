@@ -19,8 +19,8 @@ import importlib
 import cobra
 import pytest
 
-from raven_python.init import ftinit, prep_init_model, run_ftinit, run_init
-from raven_python.tasks import Task, check_tasks
+from raven_toolbox.init import ftinit, prep_init_model, run_ftinit, run_init
+from raven_toolbox.tasks import Task, check_tasks
 
 # Detect which MILP-capable optlang interfaces actually work; skip the rest.
 # We do a real import (not just find_spec) because optlang ships every backend's
@@ -66,22 +66,6 @@ def _met(mid, comp="c"):
     return cobra.Metabolite(mid, name=mid.split("_")[0], compartment=comp)
 
 
-def _toy_init_model() -> cobra.Model:
-    """EX_A → A → B → C → D (r1, r2 good; r3 bad). Same network as test_init.py."""
-    def rxn(rid, lb, ub, mets):
-        r = cobra.Reaction(rid, lower_bound=lb, upper_bound=ub)
-        r.add_metabolites(mets)
-        return r
-    m = cobra.Model("toy")
-    A, B, C, D = (_met(x) for x in ("A_c", "B_c", "C_c", "D_c"))
-    m.add_metabolites([A, B, C, D])
-    m.add_reactions([rxn("EX_A", -1000, 1000, {A: -1}),
-                     rxn("r1", 0, 1000, {A: -1, B: 1}),
-                     rxn("r2", 0, 1000, {B: -1, C: 1}),
-                     rxn("r3", 0, 1000, {C: -1, D: 1})])
-    return m
-
-
 def _toy_ftinit_model() -> cobra.Model:
     """Small flux-consistent network for ftINIT: A→B, B→C, parallel A→C (negative-score)."""
     def rxn(rid, lb, ub, mets):
@@ -101,9 +85,9 @@ def _toy_ftinit_model() -> cobra.Model:
 
 # --------------------------------------------------------------------- tests
 
-def test_run_init_same_verdict(solver):
+def test_run_init_same_verdict(solver, linear_chain_model):
     """tINIT MILP on a small network drops the negative-score reaction with any solver."""
-    m = _toy_init_model()
+    m = linear_chain_model
     m.solver = solver
     res = run_init(m, {"r1": 1.0, "r2": 1.0, "r3": -1.0}, prod_weight=0.0, allow_excretion=True)
     assert "r3" in res.deleted_reactions

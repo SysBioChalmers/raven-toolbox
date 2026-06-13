@@ -21,13 +21,13 @@ companion to the CI-scale `tests/test_init_solvers.py`.
   All our tractability tuning (big-M=100, `rescaleModelForINIT`, `mip_gap`,
   `time_limit`) was done on Gurobi and it pays off.
 * **HiGHS** (`hybrid_interface`) **does not work with cobra at all in this stack** — not
-  raven-python's bug. Cobra sets `model.solver = "hybrid"` which calls
+  raven-toolbox's bug. Cobra sets `model.solver = "hybrid"` which calls
   `optlang.interface.Model.clone()`, which re-applies a stored `lp_method="primal"`
   parameter that the `hybrid_interface.Configuration` rejects (it accepts only
   `auto/simplex/interior point`). This breaks `model.copy()` and any flow that swaps
   the solver — i.e. the whole pipeline. The same failure mode shows up at toy scale in
   `tests/test_init_solvers.py` (5/5 fail), so CI catches it now. Upstream optlang/cobra
-  patch needed; nothing to fix in raven-python.
+  patch needed; nothing to fix in raven-toolbox.
 * **GLPK** loads the model but its MIP solver does **not honor
   `configuration.timeout`** for this problem — we set the 900 s wall limit, GLPK still
   ran 1 h+ at 100 % CPU without producing a solution and had to be killed. GLPK has no
@@ -49,7 +49,7 @@ companion to the CI-scale `tests/test_init_solvers.py`.
      parameter values that the generic clone path emits, or the clone path should drop
      unknown LP-method values gracefully.
   2. GLPK's MIP solve should honor `configuration.timeout`. If upstream won't,
-     raven-python could implement a watchdog (separate thread sending `SIGINT` after the
+     raven-toolbox could implement a watchdog (separate thread sending `SIGINT` after the
      wall limit) specifically when the solver is GLPK.
 
 ## Reproducing

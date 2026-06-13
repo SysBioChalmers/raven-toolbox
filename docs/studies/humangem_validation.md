@@ -1,8 +1,8 @@
-# Human-GEM cell-type model validation: raven-python vs RAVEN
+# Human-GEM cell-type model validation: raven-toolbox vs RAVEN
 
-Validation of raven-python's tINIT/ftINIT against MATLAB RAVEN on a real genome-scale
+Validation of raven-toolbox's tINIT/ftINIT against MATLAB RAVEN on a real genome-scale
 reconstruction (Human-GEM) using the Hart2015 RNA-seq dataset (5 cell lines: DLD1,
-GBM, HCT116, HELA, RPE1). The goal is functional equivalence — do raven-python and RAVEN
+GBM, HCT116, HELA, RPE1). The goal is functional equivalence — do raven-toolbox and RAVEN
 extract the *same* context-specific reaction sets from the same inputs?
 
 ## Method
@@ -10,21 +10,21 @@ extract the *same* context-specific reaction sets from the same inputs?
 * **Template & inputs.** RAVEN built the ftINIT reference model from Human-GEM
   (`prepHumanModelForftINIT`: remove drug/exchange/artificial reactions, set
   spontaneous/custom lists) and exported it as `raven_refModel.xml` (10198 reactions).
-  raven-python builds on that *same* exported model, so the candidate reaction universe is
+  raven-toolbox builds on that *same* exported model, so the candidate reaction universe is
   identical and set comparison is exact.
 * **Scoring.** Gene scores from `log2(TPM+1)`-style expression via
   `gene_scores_from_expression`, mapped to reactions through the GPR
   (`score_reactions_from_genes`), matching RAVEN's `getExprForRxnScore`.
 * **ftINIT.** Series `1+1` (2 staged MILP steps). RAVEN run via `ftINIT.m` with Gurobi;
-  raven-python via `raven_python.init.ftinit` with Gurobi (`mip_gap=0.001`, `time_limit=600`).
-* **tINIT.** raven-python `get_init_model` (classic single-MILP INIT) on HCT116, compared to
+  raven-toolbox via `raven_toolbox.init.ftinit` with Gurobi (`mip_gap=0.001`, `time_limit=600`).
+* **tINIT.** raven-toolbox `get_init_model` (classic single-MILP INIT) on HCT116, compared to
   the ftINIT result for the same cell line.
-* **Tasks.** Two raven-python ftINIT variants: *no-task* (expression only) and
+* **Tasks.** Two raven-toolbox ftINIT variants: *no-task* (expression only) and
   *task-constrained* (essential metabolic tasks, `metabolicTasks_Essential.txt`, force
   task-essential reactions to be kept). RAVEN's reference is task-constrained.
 * **Solver.** Gurobi 13.0.1 for both tools.
 
-## Engineering findings (raven-python tractability)
+## Engineering findings (raven-toolbox tractability)
 
 Getting ftINIT to run at genome scale surfaced three issues, all now fixed and matching
 RAVEN's design:
@@ -50,7 +50,7 @@ comparable to RAVEN.
 
 ### Reaction counts
 
-| cell line | RAVEN ftINIT | raven-python ftINIT (no-task) | raven-python ftINIT (task) |
+| cell line | RAVEN ftINIT | raven-toolbox ftINIT (no-task) | raven-toolbox ftINIT (task) |
 |-----------|-------------:|--------------------------:|-----------------------:|
 | DLD1      | 7782 | 7744 | 7774 |
 | GBM       | 7668 | 7667 | 7680 |
@@ -59,12 +59,12 @@ comparable to RAVEN.
 | RPE1      | 7569 | 7564 | 7570 |
 
 Counts agree within ~0.5 % everywhere; the task-constrained run is closest (e.g. RPE1
-7570 vs 7569, HCT116 7776 vs 7780). raven-python tINIT (HCT116) gives 6024 reactions — a
+7570 vs 7569, HCT116 7776 vs 7780). raven-toolbox tINIT (HCT116) gives 6024 reactions — a
 smaller model, as expected from the different (classic INIT) objective.
 
-### Agreement — raven-python (no-task) ftINIT vs RAVEN ftINIT
+### Agreement — raven-toolbox (no-task) ftINIT vs RAVEN ftINIT
 
-| cell line | shared | only raven-python | only RAVEN | Jaccard |
+| cell line | shared | only raven-toolbox | only RAVEN | Jaccard |
 |-----------|-------:|--------------:|-----------:|--------:|
 | DLD1   | 7667 |  77 | 115 | 0.976 |
 | GBM    | 7562 | 105 | 106 | 0.973 |
@@ -77,9 +77,9 @@ though this run is *expression-only* while RAVEN's reference is task-constrained
 "only RAVEN" surplus (≈99–125) is expected to include task-essential reactions that the
 task-constrained run (below) recovers.
 
-### Agreement — raven-python (task-constrained) ftINIT vs RAVEN ftINIT
+### Agreement — raven-toolbox (task-constrained) ftINIT vs RAVEN ftINIT
 
-| cell line | shared | only raven-python | only RAVEN | Jaccard |
+| cell line | shared | only raven-toolbox | only RAVEN | Jaccard |
 |-----------|-------:|--------------:|-----------:|--------:|
 | DLD1   | 7699 | 75 | 83 | 0.980 |
 | GBM    | 7588 | 92 | 80 | 0.978 |
@@ -88,12 +88,12 @@ task-constrained run (below) recovers.
 | RPE1   | 7493 | 77 | 76 | 0.980 |
 
 Adding the essential metabolic tasks (same task list RAVEN uses) raises agreement to
-**Jaccard 0.978–0.980** and makes the disagreement symmetric (only-raven-python ≈ only-RAVEN
+**Jaccard 0.978–0.980** and makes the disagreement symmetric (only-raven-toolbox ≈ only-RAVEN
 ≈ 80), confirming the prediction: the task constraints recover RAVEN's task-essential
 reactions. The residual ≈80 reactions each way out of ~7700 is at the level expected from
 MIP-gap tolerance (both accept near-optimal incumbents) and alternate optima.
 
-### raven-python tINIT vs ftINIT (HCT116)
+### raven-toolbox tINIT vs ftINIT (HCT116)
 
 tINIT 6024 rxns vs ftINIT 7752; shared 5957, Jaccard 0.762. tINIT is nearly a subset
 (only 67 reactions unique to it) — the two methods agree on a common core, with ftINIT
@@ -102,7 +102,7 @@ This matches the expected tINIT/ftINIT relationship rather than indicating a def
 
 ## Conclusions
 
-From identical inputs on a genome-scale human reconstruction, raven-python reproduces RAVEN's
+From identical inputs on a genome-scale human reconstruction, raven-toolbox reproduces RAVEN's
 ftINIT reaction selection to **97.5 % (no-task) and 98 % (task-constrained) set identity**
 across five cell lines — strong evidence of functional equivalence between the two
 independent implementations. Agreement is symmetric and the residual (~80 reactions each

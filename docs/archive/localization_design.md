@@ -1,6 +1,6 @@
 # Localization (Phase 7) — critical review + redesign
 
-Design note for porting RAVEN's `predictLocalization.m` to raven-python. **Status: proposal,
+Design note for porting RAVEN's `predictLocalization.m` to raven-toolbox. **Status: proposal,
 not yet implemented**; the user-facing API and the algorithmic choices are settled here
 before code lands, because RAVEN's all-or-nothing redistribution doesn't match how the
 function actually gets used.
@@ -55,13 +55,13 @@ reconsidering on a modern stack.
 >   lower) predictor score is its own implicit penalty. Pick a large penalty for
 >   effectively mono-localised genes.
 > * `mergeCompartments` and `copyToComps` are ported separately as
->   `raven_python.manipulation.merge_compartments` / `copy_to_compartment` (they're useful
+>   `raven_toolbox.manipulation.merge_compartments` / `copy_to_compartment` (they're useful
 >   independently of `predict_localization` — for flattening for analysis or building
 >   dual-localised pathways).
 > * `mapCompartments` is **not** ported — its main use case overlaps with
 >   `compare_models`.
 
-## 2. Proposed `predict_localization` for raven-python
+## 2. Proposed `predict_localization` for raven-toolbox
 
 Decompose the function into independent concerns:
 
@@ -197,7 +197,7 @@ we have Gurobi already wired in. The MILP gives:
 * an explicit optimality certificate / gap,
 * faster solves on the small/medium problems this is (≪ 30k binaries even for a
   whole-genome model with 10 compartments),
-* the same well-understood `mip_gap` / `time_limit` controls the rest of raven-python uses,
+* the same well-understood `mip_gap` / `time_limit` controls the rest of raven-toolbox uses,
 * graceful degradation: at the time limit, return the best incumbent rather than the
   "current SA state" with no quality guarantee.
 
@@ -209,7 +209,7 @@ because it's smaller than ftINIT — the per-reaction big-M is at most `|C|`, no
 
 ## 3. Pluggable predictors
 
-The algorithm consumes a `gene × compartment` score table. raven-python ships:
+The algorithm consumes a `gene × compartment` score table. raven-toolbox ships:
 * `load_wolfpsort(path)` — RAVEN-compatible WoLF PSORT output → score table.
 * (later) a thin adapter for **DeepLoc** (TSV with per-class probabilities).
 * The format is open: a user can build the DataFrame from any source.
@@ -231,7 +231,7 @@ absent from the predictor's output (RAVEN's 0.5-everywhere fallback).
 
 ## 5. Open questions to resolve before implementing
 
-1. **How does raven-python mark "uncertain" compartmentalization?** Proposal: a
+1. **How does raven-toolbox mark "uncertain" compartmentalization?** Proposal: a
    `notes['localization'] = 'uncertain'` flag on reactions; or a passed-in set of ids.
    The "auto-pick-what-to-place" mode reads this.
 2. **Multi-compartment gene scoring**: simple multi-counting (the same score in every

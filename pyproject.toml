@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "raven-python"
-version = "0.1.0a1"
+name = "raven-toolbox"
+version = "0.2.0"
 description = "Reconstruction, Analysis and Visualization of Metabolic Networks in Python, a port of the RAVEN Toolbox built on cobrapy"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -49,23 +49,21 @@ dependencies = [
 dev = [
     "pytest>=7",
     "pytest-cov",
-    "ruff>=0.4",
+    "ruff==0.15.15",
+    "mypy>=1.8",
 ]
 excel = [
     "openpyxl>=3.1",
 ]
-plotting = [
-    "matplotlib>=3.5",
-]
 
 [project.urls]
-Homepage = "https://github.com/SysBioChalmers/raven-python"
-Source = "https://github.com/SysBioChalmers/raven-python"
-Issues = "https://github.com/SysBioChalmers/raven-python/issues"
+Homepage = "https://github.com/SysBioChalmers/raven-toolbox"
+Source = "https://github.com/SysBioChalmers/raven-toolbox"
+Issues = "https://github.com/SysBioChalmers/raven-toolbox/issues"
 "RAVEN MATLAB" = "https://github.com/SysBioChalmers/RAVEN"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/raven_python"]
+packages = ["src/raven_toolbox"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -82,3 +80,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/raven_toolbox"]
+# cobra / optlang / scipy / ruamel ship no type stubs; don't error on their imports.
+ignore_missing_imports = true

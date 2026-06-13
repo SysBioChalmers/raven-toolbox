@@ -1,8 +1,8 @@
-"""Tests for raven_python.manipulation.change (changeRxns port)."""
+"""Tests for raven_toolbox.manipulation.change (changeRxns port)."""
 import cobra
 import pytest
 
-from raven_python.manipulation import add_reactions_from_equations, change_reaction_equations
+from raven_toolbox.manipulation import add_reactions_from_equations, change_reaction_equations
 
 
 @pytest.fixture

@@ -1,28 +1,28 @@
 # Context-specific modeling (tINIT / ftINIT)
 
 Extract a tissue- or condition-specific model from a reference GEM plus gene scores derived
-from omics data. Two algorithms are provided in {mod}`raven_python.init`.
+from omics data. Two algorithms are provided in {mod}`raven_toolbox.init`.
 
 ## Scoring
 
 Gene scores drive both algorithms. Build them from expression with
-{func}`raven_python.init.gene_scores_from_expression` and turn them into reaction scores via
-{func}`raven_python.init.score_reactions_from_genes` (a GPR walk shared with the omics
+{func}`raven_toolbox.init.gene_scores_from_expression` and turn them into reaction scores via
+{func}`raven_toolbox.init.score_reactions_from_genes` (a GPR walk shared with the omics
 adapters — see the [omics guide](omics.md)).
 
 ## tINIT
 
-- {func}`raven_python.init.run_init` — the classic INIT MILP (rewritten in optlang).
-- {func}`raven_python.init.get_init_model` — the full tINIT pipeline (dead-end removal →
+- {func}`raven_toolbox.init.run_init` — the classic INIT MILP (rewritten in optlang).
+- {func}`raven_toolbox.init.get_init_model` — the full tINIT pipeline (dead-end removal →
   `run_init`).
 
 ## ftINIT (faster, staged)
 
-- {func}`raven_python.init.run_ftinit` — the single-step ftINIT MILP (continuous indicators
+- {func}`raven_toolbox.init.run_ftinit` — the single-step ftINIT MILP (continuous indicators
   for positive-score reactions; binaries only on negatives — the speedup over `run_init`).
-- {func}`raven_python.init.ftinit` — the full pipeline:
-  {func}`raven_python.init.prep_init_model` → staged `run_ftinit` →
-  {func}`raven_python.init.fill_tasks` → {func}`raven_python.init.remove_low_score_genes`.
+- {func}`raven_toolbox.init.ftinit` — the full pipeline:
+  {func}`raven_toolbox.init.prep_init_model` → staged `run_ftinit` →
+  {func}`raven_toolbox.init.fill_tasks` → {func}`raven_toolbox.init.remove_low_score_genes`.
 
 ## Tasks and defaults
 

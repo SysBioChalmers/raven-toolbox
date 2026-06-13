@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SysBioChalmers/raven-toolbox/manifest.schema.json",
+  "title": "RAVEN data/binary manifest",
+  "description": "Language-agnostic registry of downloadable raven-toolbox / RAVEN data artefacts and external binary bundles. Consumed by the Python resolvers (raven_toolbox.data / raven_toolbox.binaries) and by MATLAB RAVEN. Every file carries a SHA256 so consumers verify integrity after download.",
+  "type": "object",
+  "required": ["manifest_version"],
+  "additionalProperties": false,
+  "properties": {
+    "manifest_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Format version of this manifest document."
+    },
+    "generated": {
+      "type": "string",
+      "description": "ISO-8601 date the manifest was generated (informational)."
+    },
+    "data": {
+      "type": "object",
+      "description": "Data-artefact datasets, keyed by dataset id (e.g. 'kegg'). Maps onto raven_toolbox.data._DATA_REGISTRY.",
+      "additionalProperties": { "$ref": "#/$defs/dataset" }
+    },
+    "binaries": {
+      "type": "object",
+      "description": "External command-line tool bundles, keyed by bundle id (e.g. 'blast', 'diamond', 'hmmer'). Maps onto raven_toolbox.binaries._REGISTRY.",
+      "additionalProperties": { "$ref": "#/$defs/bundle" }
+    }
+  },
+  "$defs": {
+    "file": {
+      "type": "object",
+      "required": ["url", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string", "format": "uri", "description": "Direct download URL (GitHub release asset, Zenodo file, etc.)." },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Lowercase hex SHA256 of the file." },
+        "bytes": { "type": "integer", "minimum": 0, "description": "File size in bytes (informational; for progress bars / sanity checks)." }
+      }
+    },
+    "dataset": {
+      "type": "object",
+      "required": ["version", "files"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string", "description": "Dataset version tag, e.g. 'kegg116'. Used in the cache path." },
+        "description": { "type": "string" },
+        "license": { "type": "string", "description": "SPDX id or free text. NOTE: KEGG-derived artefacts are subject to KEGG's terms — confirm redistribution rights before publishing." },
+        "doi": { "type": "string", "description": "Zenodo (or other) DOI for this dataset version, if archived." },
+        "source": { "type": "string", "format": "uri", "description": "Human-facing page for the release/record (GitHub release or Zenodo landing page)." },
+        "files": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "Artefact files keyed by filename.",
+          "additionalProperties": { "$ref": "#/$defs/file" }
+        }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "required": ["version", "provides", "platforms"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string", "description": "Upstream tool version, e.g. '2.16.0'." },
+        "provides": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Executable names this bundle provides, e.g. ['blastp', 'makeblastdb']."
+        },
+        "description": { "type": "string" },
+        "license": { "type": "string", "description": "Upstream tool license (e.g. DIAMOND is GPL-3.0-only — ship its license text alongside the ZIP)." },
+        "platforms": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "One entry per platform, keyed '<os>-<arch>' (e.g. 'linux-x86_64', 'macos-arm64', 'windows-x86_64'). Matches raven_toolbox.binaries._platform_key().",
+          "additionalProperties": { "$ref": "#/$defs/file" }
+        }
+      }
+    }
+  }
+}

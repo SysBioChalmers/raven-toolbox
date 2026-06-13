@@ -1,9 +1,9 @@
-# `raven_python.utils`
+# `raven_toolbox.utils`
 
 Shared helpers — GPR linting, elemental balance, model curation checks, id sorting.
 
 ```{eval-rst}
-.. automodule:: raven_python.utils
+.. automodule:: raven_toolbox.utils
    :members:
    :imported-members:
 ```
@@ -11,6 +11,6 @@ Shared helpers — GPR linting, elemental balance, model curation checks, id sor
 ## Name / compartment parsing
 
 ```{eval-rst}
-.. automodule:: raven_python.utils.parse
+.. automodule:: raven_toolbox.utils.parse
    :members:
 ```

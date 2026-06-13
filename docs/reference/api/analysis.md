@@ -1,10 +1,10 @@
-# `raven_python.analysis`
+# `raven_toolbox.analysis`
 
 Analyses not in cobrapy's core: Reporter Metabolites (an around-metabolite gene-score test),
 FSEOF (Flux Scanning based on Enforced Objective Flux), and random-objective flux sampling.
 
 ```{eval-rst}
-.. automodule:: raven_python.analysis
+.. automodule:: raven_toolbox.analysis
    :members:
    :imported-members:
 ```

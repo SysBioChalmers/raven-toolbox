@@ -1,11 +1,11 @@
-"""Tests for raven_python.io.excel (exportToExcelFormat port, export only)."""
+"""Tests for raven_toolbox.io.excel (exportToExcelFormat port, export only)."""
 import cobra
 import pytest
 
 openpyxl = pytest.importorskip("openpyxl")
 
-from raven_python.io import export_to_excel
-from raven_python.manipulation import add_reactions_from_equations
+from raven_toolbox.io import export_to_excel
+from raven_toolbox.manipulation import add_reactions_from_equations
 
 
 @pytest.fixture
@@ -76,7 +76,7 @@ def test_mets_sheet(model, tmp_path):
     assert atp["ID"] == "ATP[c]"
     assert atp["NAME"] == "ATP"
     assert atp["InChI"] == "InChI=1S/X"
-    assert atp["COMPOSITION"] is None  # suppressed when InChI present
+    assert atp["COMPOSITION"] == "C10H16N5O13P3"  # formula kept even when InChI present
     assert atp["CHARGE"] == -4
     assert atp["MIRIAM"] == "kegg.compound/C00002"  # smiles excluded
 

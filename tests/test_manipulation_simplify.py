@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.manipulation import (
+from raven_toolbox.manipulation import (
     add_reactions_from_equations,
     constrain_reversible_reactions,
     group_linear_reactions,

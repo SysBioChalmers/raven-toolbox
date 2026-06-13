@@ -4,8 +4,8 @@ Adopted from geckopy's tests/test_expand.py.
 """
 import cobra
 
-from raven_python.manipulation import expand_model
-from raven_python.manipulation.expand import _gpr_to_dnf
+from raven_toolbox.manipulation import expand_model
+from raven_toolbox.manipulation.expand import gpr_to_dnf
 
 # --------------------------------------------------------------------------- #
 # DNF conversion (internal helper, worth testing directly)
@@ -15,7 +15,7 @@ def _dnf_from_gpr_string(gpr_str: str) -> list[list[str]]:
     from cobra.core.gene import GPR
 
     gpr = GPR.from_string(gpr_str)
-    return _gpr_to_dnf(gpr)
+    return gpr_to_dnf(gpr)
 
 
 def test_dnf_empty_gpr():

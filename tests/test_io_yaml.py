@@ -1,11 +1,11 @@
-"""Tests for raven_python.io.yaml against the RAVEN fa281a1 (cobra-native !!omap) schema."""
+"""Tests for raven_toolbox.io.yaml against the RAVEN fa281a1 (cobra-native !!omap) schema."""
 from pathlib import Path
 
 import cobra
 import pytest
 from cobra.io.yaml import yaml as cobra_yaml
 
-from raven_python.io import read_yaml_model, write_yaml_model
+from raven_toolbox.io import read_yaml_model, write_yaml_model
 
 # A model laid out exactly as RAVEN writeYAMLmodel (fa281a1) emits: cobra-native
 # structure, RAVEN-only fields as top-level per-entry keys, smiles/ec-code inside
@@ -165,12 +165,16 @@ def test_gzipped_round_trip(yaml_file, tmp_path):
 
 
 def test_output_is_cobra_readable(yaml_file, tmp_path):
-    # The written file must load with stock cobra (it's cobra's native format).
+    """Cobrapy must be able to parse the file (no syntax error) and
+    recover the metabolites, reactions, and the cobrapy-canonical
+    annotation block. Model-level id / name / version live inside the
+    metaData section (RAVEN convention) — cobrapy doesn't know about
+    metaData, so cobra_model.id is None here. raven_toolbox recovers
+    them; cobrapy ignores them gracefully."""
     model = read_yaml_model(yaml_file)
     out = tmp_path / "out.yml"
     write_yaml_model(model, out)
     cobra_model = cobra.io.load_yaml_model(str(out))
-    assert cobra_model.id == "testModel"
     assert {m.id for m in cobra_model.metabolites} == {"s_0001", "s_0002"}
     # RAVEN-only fields land in cobra notes; smiles in annotation
     assert cobra_model.metabolites.get_by_id("s_0001").annotation["smiles"] == ["C1=NC2"]
@@ -215,3 +219,42 @@ def test_real_yeast_gem_loads():
     assert len(model.reactions) > 1000
     # legacy file: identity comes from metaData
     assert model.id
+
+
+def test_code_built_model_round_trips(tmp_path):
+    """A model built from cobra objects (not parsed from a doc) survives a
+    write->read cycle intact — including the objective, which no other I/O
+    round-trip test asserts is preserved."""
+    m = cobra.Model("built")
+    m.compartments = {"c": "cytoplasm"}
+    a = cobra.Metabolite("a_c", name="A", compartment="c", formula="C6H12O6", charge=0)
+    b = cobra.Metabolite("b_c", name="B", compartment="c", formula="C3H4O3", charge=-1)
+    a.annotation = {"kegg.compound": ["C00031"]}
+    m.add_metabolites([a, b])
+    r = cobra.Reaction("R1", lower_bound=0, upper_bound=1000)
+    r.add_metabolites({a: -1, b: 2})
+    r.gene_reaction_rule = "G1"
+    r.subsystem = "glycolysis"
+    bio = cobra.Reaction("BIOMASS", lower_bound=0, upper_bound=1000)
+    bio.add_metabolites({b: -1})
+    m.add_reactions([r, bio])
+    m.objective = "BIOMASS"
+
+    out = tmp_path / "built.yml"
+    write_yaml_model(m, out)
+    back = read_yaml_model(out)
+
+    assert {x.id for x in back.metabolites} == {"a_c", "b_c"}
+    assert {x.id for x in back.reactions} == {"R1", "BIOMASS"}
+    rr = back.reactions.get_by_id("R1")
+    assert rr.bounds == (0.0, 1000.0)
+    assert rr.get_coefficient("a_c") == -1
+    assert rr.get_coefficient("b_c") == 2
+    assert rr.gene_reaction_rule == "G1"
+    assert rr.subsystem == "glycolysis"
+    ma = back.metabolites.get_by_id("a_c")
+    assert ma.formula == "C6H12O6"
+    assert ma.annotation["kegg.compound"] == ["C00031"]
+    # The objective survives the round-trip (no other I/O test checks this).
+    assert {x.id for x in back.reactions if x.objective_coefficient != 0} == {"BIOMASS"}
+    assert back.reactions.get_by_id("BIOMASS").objective_coefficient == 1.0

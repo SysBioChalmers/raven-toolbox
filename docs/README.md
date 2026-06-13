@@ -6,7 +6,7 @@ The rendered documentation is built with **Sphinx** (MyST Markdown) and hosted o
 Build it locally:
 
 ```bash
-pip install -e ".[excel,plotting]"
+pip install -e ".[excel]"
 pip install -r docs/requirements.txt
 sphinx-build -b html docs docs/_build/html
 # open docs/_build/html/index.html

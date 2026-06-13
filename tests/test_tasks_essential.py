@@ -11,7 +11,7 @@ from tinit_oracles import (
     make_test_task,
 )
 
-from raven_python.tasks import (
+from raven_toolbox.tasks import (
     EssentialReactionsResult,
     Task,
     find_task_essential_reactions,

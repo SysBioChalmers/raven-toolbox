@@ -1,17 +1,21 @@
-"""Tests for KEGG HMM-library construction (taxonomy + hmm, step 3b.3)."""
+"""Tests for KEGG HMM-library construction (taxonomy + hmm, step 3b.3).
+
+The ``kegg_dump`` fixture (tests/conftest.py) is a small, fully fictional dump —
+no real KEGG content is committed.
+"""
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
-from raven_python.reconstruction.kegg import (
+from raven_toolbox.reconstruction.kegg import (
     build_ko_fastas,
     organism_domains,
     organisms_in_domain,
     parse_taxonomy,
 )
-from raven_python.reconstruction.kegg import hmm as hmm_mod
-from raven_python.reconstruction.kegg.hmm import (
+from raven_toolbox.reconstruction.kegg import hmm as hmm_mod
+from raven_toolbox.reconstruction.kegg.hmm import (
     _cdhit_cmd,
     _cdhit_word_size,
     _fasta_stats,
@@ -20,18 +24,16 @@ from raven_python.reconstruction.kegg.hmm import (
     build_ko_hmm,
 )
 
-DUMP = Path(__file__).parent / "data" / "kegg_dump"
-
 
 @pytest.fixture
 def organism_gene_ko():
     return pd.DataFrame(
         [
-            ("bsu", "BSU31050", "K01194"),
-            ("bsu", "BSU31060", "K01194"),
-            ("hsa", "124", "K01194"),
-            ("hsa", "125", "K01194"),
-            ("eco", "b0001", "K00002"),
+            ("aaa", "GENE01", "K90001"),
+            ("aaa", "GENE02", "K90001"),
+            ("ccc", "GENE04", "K90001"),
+            ("ccc", "GENE05", "K90001"),
+            ("bbb", "GENE03", "K90002"),
         ],
         columns=["organism", "gene", "ko"],
     )
@@ -40,24 +42,24 @@ def organism_gene_ko():
 # --------------------------------------------------------------------------- #
 # Taxonomy
 # --------------------------------------------------------------------------- #
-def test_parse_taxonomy_lineages():
-    cats = parse_taxonomy(DUMP / "taxonomy")
-    assert cats["bsu"] == ["Prokaryotes", "Bacteria", "Firmicutes"]
-    assert cats["hsa"][0] == "Eukaryotes"
-    assert cats["eco"][1] == "Bacteria"
+def test_parse_taxonomy_lineages(kegg_dump):
+    cats = parse_taxonomy(kegg_dump / "taxonomy")
+    assert cats["aaa"] == ["Prokaryotes", "Bacteria", "Firmicutes"]
+    assert cats["ccc"][0] == "Eukaryotes"
+    assert cats["bbb"][1] == "Bacteria"
 
 
-def test_organism_domains():
-    assert organism_domains(DUMP / "taxonomy") == {
-        "bsu": "Prokaryotes",
-        "eco": "Prokaryotes",
-        "hsa": "Eukaryotes",
+def test_organism_domains(kegg_dump):
+    assert organism_domains(kegg_dump / "taxonomy") == {
+        "aaa": "Prokaryotes",
+        "bbb": "Prokaryotes",
+        "ccc": "Eukaryotes",
     }
 
 
-def test_organisms_in_domain_prefix_match():
-    assert organisms_in_domain(DUMP / "taxonomy", "prok") == {"bsu", "eco"}
-    assert organisms_in_domain(DUMP / "taxonomy", "Eukaryotes") == {"hsa"}
+def test_organisms_in_domain_prefix_match(kegg_dump):
+    assert organisms_in_domain(kegg_dump / "taxonomy", "prok") == {"aaa", "bbb"}
+    assert organisms_in_domain(kegg_dump / "taxonomy", "Eukaryotes") == {"ccc"}
 
 
 def test_parse_taxonomy_handles_skipped_depth(tmp_path):
@@ -79,29 +81,29 @@ def test_parse_taxonomy_handles_skipped_depth(tmp_path):
 # --------------------------------------------------------------------------- #
 # build_ko_fastas (constructMultiFasta)
 # --------------------------------------------------------------------------- #
-def test_build_ko_fastas_groups_by_ko(organism_gene_ko, tmp_path):
-    written = build_ko_fastas(organism_gene_ko, DUMP / "genes.pep", tmp_path)
-    assert set(written) == {"K01194", "K00002"}
-    k01194 = (tmp_path / "K01194.fa").read_text()
-    assert k01194.count(">") == 4  # bsu x2 + hsa x2
-    assert ">bsu:BSU31050" in k01194
-    assert ">xxx:unused" not in k01194  # gene not in any KO is excluded
+def test_build_ko_fastas_groups_by_ko(organism_gene_ko, kegg_dump, tmp_path):
+    written = build_ko_fastas(organism_gene_ko, kegg_dump / "genes.pep", tmp_path)
+    assert set(written) == {"K90001", "K90002"}
+    k90001 = (tmp_path / "K90001.fa").read_text()
+    assert k90001.count(">") == 4  # aaa x2 + ccc x2
+    assert ">aaa:GENE01" in k90001
+    assert ">zzz:GENE99" not in k90001  # gene not in any KO is excluded
 
 
-def test_build_ko_fastas_domain_filter(organism_gene_ko, tmp_path):
-    prok = organisms_in_domain(DUMP / "taxonomy", "prokaryotes")
-    written = build_ko_fastas(organism_gene_ko, DUMP / "genes.pep", tmp_path, organisms=prok)
-    # Only prokaryote genes: K01194 keeps bsu (2), K00002 keeps eco (1).
-    assert (tmp_path / "K01194.fa").read_text().count(">") == 2
-    assert ">hsa:" not in (tmp_path / "K01194.fa").read_text()
-    assert set(written) == {"K01194", "K00002"}
+def test_build_ko_fastas_domain_filter(organism_gene_ko, kegg_dump, tmp_path):
+    prok = organisms_in_domain(kegg_dump / "taxonomy", "prokaryotes")
+    written = build_ko_fastas(organism_gene_ko, kegg_dump / "genes.pep", tmp_path, organisms=prok)
+    # Only prokaryote genes: K90001 keeps aaa (2), K90002 keeps bbb (1).
+    assert (tmp_path / "K90001.fa").read_text().count(">") == 2
+    assert ">ccc:" not in (tmp_path / "K90001.fa").read_text()
+    assert set(written) == {"K90001", "K90002"}
 
 
-def test_build_ko_fastas_sequences_intact(organism_gene_ko, tmp_path):
-    build_ko_fastas(organism_gene_ko, DUMP / "genes.pep", tmp_path)
-    text = (tmp_path / "K00002.fa").read_text()
-    assert text.startswith(">eco:b0001")
-    assert "MRVLKFGGTSVANAERFLRVADILESNARQGQVATVLSAPAKITNHLVAMIEKTISGQDA" in text
+def test_build_ko_fastas_sequences_intact(organism_gene_ko, kegg_dump, tmp_path):
+    build_ko_fastas(organism_gene_ko, kegg_dump / "genes.pep", tmp_path)
+    text = (tmp_path / "K90002.fa").read_text()
+    assert text.startswith(">bbb:GENE03")
+    assert "MQFKTLVIDEGHKLPSTWYNACRMQFKTLVIDEGHKLPSTWYNACR" in text
 
 
 # --------------------------------------------------------------------------- #
@@ -139,12 +141,12 @@ def test_command_builders():
 # build_ko_hmm orchestration (binaries mocked)
 # --------------------------------------------------------------------------- #
 def test_build_ko_hmm_multi_sequence_runs_full_pipeline(tmp_path, monkeypatch):
-    fasta = tmp_path / "K01194.fa"
+    fasta = tmp_path / "K90001.fa"
     fasta.write_text(">a\nMKV\n>b\nMRV\n")
     calls = []
 
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm.resolve_binary",
+        "raven_toolbox.reconstruction.kegg.hmm.resolve_binary",
         lambda exe, binary=None: binary or exe,
     )
 
@@ -159,8 +161,8 @@ def test_build_ko_hmm_multi_sequence_runs_full_pipeline(tmp_path, monkeypatch):
             Path(cmd[-2]).write_text("HMM\n")
         return ""
 
-    monkeypatch.setattr("raven_python.reconstruction.kegg.hmm._run", fake_run)
-    out = build_ko_hmm(fasta, tmp_path / "K01194.hmm")
+    monkeypatch.setattr("raven_toolbox.reconstruction.kegg.hmm._run", fake_run)
+    out = build_ko_hmm(fasta, tmp_path / "K90001.hmm")
     assert calls == ["cd-hit", "mafft", "hmmbuild"]
     assert out.read_text() == "HMM\n"
 
@@ -170,7 +172,7 @@ def test_build_ko_hmm_single_sequence_skips_align(tmp_path, monkeypatch):
     fasta.write_text(">only\nMKV\n")
     calls = []
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm.resolve_binary",
+        "raven_toolbox.reconstruction.kegg.hmm.resolve_binary",
         lambda exe, binary=None: binary or exe,
     )
 
@@ -180,16 +182,16 @@ def test_build_ko_hmm_single_sequence_skips_align(tmp_path, monkeypatch):
             Path(cmd[-2]).write_text("HMM\n")
         return ""
 
-    monkeypatch.setattr("raven_python.reconstruction.kegg.hmm._run", fake_run)
+    monkeypatch.setattr("raven_toolbox.reconstruction.kegg.hmm._run", fake_run)
     build_ko_hmm(fasta, tmp_path / "K9.hmm")
     assert calls == ["hmmbuild"]  # no cd-hit / mafft for a lone sequence
 
 
 def test_build_ko_hmm_verbose_logs_each_stage(tmp_path, monkeypatch, caplog):
-    fasta = tmp_path / "K01194.fa"
+    fasta = tmp_path / "K90001.fa"
     fasta.write_text(">a\nMKV\n>b\nMRV\n")
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
+        "raven_toolbox.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
     )
 
     def fake_run(cmd, *, stdout_path=None):
@@ -201,31 +203,31 @@ def test_build_ko_hmm_verbose_logs_each_stage(tmp_path, monkeypatch, caplog):
             Path(cmd[-2]).write_text("HMM\n")
         return ""
 
-    monkeypatch.setattr("raven_python.reconstruction.kegg.hmm._run", fake_run)
-    with caplog.at_level("INFO", logger="raven_python.reconstruction.kegg.hmm"):
-        build_ko_hmm(fasta, tmp_path / "K01194.hmm", verbose=True)
+    monkeypatch.setattr("raven_toolbox.reconstruction.kegg.hmm._run", fake_run)
+    with caplog.at_level("INFO", logger="raven_toolbox.reconstruction.kegg.hmm"):
+        build_ko_hmm(fasta, tmp_path / "K90001.hmm", verbose=True)
     text = caplog.text
     # Each stage is logged, labelled with the KO id.
-    assert "[K01194] start: 2 sequences" in text
-    assert "[K01194] CD-HIT" in text
-    assert "[K01194] MAFFT" in text
-    assert "[K01194] hmmbuild: done in" in text
+    assert "[K90001] start: 2 sequences" in text
+    assert "[K90001] CD-HIT" in text
+    assert "[K90001] MAFFT" in text
+    assert "[K90001] hmmbuild: done in" in text
     # Each stage is a single line: the tool/params and the timing together, not split.
     assert "running" not in text
-    assert "[K01194] complete" in text
+    assert "[K90001] complete" in text
 
 
 def test_build_ko_hmm_quiet_by_default(tmp_path, monkeypatch, caplog):
     fasta = tmp_path / "K9.fa"
     fasta.write_text(">only\nMKV\n")
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
+        "raven_toolbox.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
     )
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm._run",
+        "raven_toolbox.reconstruction.kegg.hmm._run",
         lambda cmd, *, stdout_path=None: Path(cmd[-2]).write_text("HMM\n") and "",
     )
-    with caplog.at_level("INFO", logger="raven_python.reconstruction.kegg.hmm"):
+    with caplog.at_level("INFO", logger="raven_toolbox.reconstruction.kegg.hmm"):
         build_ko_hmm(fasta, tmp_path / "K9.hmm")  # verbose defaults False
     assert caplog.text == ""
 
@@ -250,7 +252,7 @@ def test_auto_cost_budget_scales_with_memory(monkeypatch):
 def test_auto_cost_budget_warns_on_low_memory(monkeypatch, caplog):
     hmm_mod._auto_cost_budget.cache_clear()
     monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: 7 * 1024**3)
-    with caplog.at_level("WARNING", logger="raven_python.reconstruction.kegg.hmm"):
+    with caplog.at_level("WARNING", logger="raven_toolbox.reconstruction.kegg.hmm"):
         hmm_mod._auto_cost_budget()
     assert "Limited memory" in caplog.text
     hmm_mod._auto_cost_budget.cache_clear()
@@ -259,7 +261,7 @@ def test_auto_cost_budget_warns_on_low_memory(monkeypatch, caplog):
 def test_auto_cost_budget_falls_back_without_detection(monkeypatch, caplog):
     hmm_mod._auto_cost_budget.cache_clear()
     monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: None)
-    with caplog.at_level("WARNING", logger="raven_python.reconstruction.kegg.hmm"):
+    with caplog.at_level("WARNING", logger="raven_toolbox.reconstruction.kegg.hmm"):
         assert hmm_mod._auto_cost_budget() == hmm_mod._DEFAULT_COST_BUDGET
     assert "Could not detect system memory" in caplog.text
     hmm_mod._auto_cost_budget.cache_clear()

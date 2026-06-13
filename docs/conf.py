@@ -1,4 +1,4 @@
-"""Sphinx configuration for the raven-python documentation.
+"""Sphinx configuration for the raven-toolbox documentation.
 
 Markdown sources are rendered by MyST-Parser, so the docs stay authored in the
 same Markdown used on GitHub. The API reference is generated from the NumPy-style
@@ -20,7 +20,7 @@ sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 def _get_version() -> str:
     try:
-        from raven_python import __version__
+        from raven_toolbox import __version__
 
         return __version__
     except Exception:  # pragma: no cover - docs must still build
@@ -28,7 +28,7 @@ def _get_version() -> str:
 
 
 # -- Project information -----------------------------------------------------
-project = "raven-python"
+project = "raven-toolbox"
 author = "Eduard Kerkhoven"
 copyright = f"{date.today().year}, SysBioChalmers"
 release = _get_version()
@@ -105,10 +105,10 @@ todo_include_todos = True
 
 # -- HTML output -------------------------------------------------------------
 html_theme = "furo"
-html_title = f"raven-python {release}"
+html_title = f"raven-toolbox {release}"
 html_static_path = ["_static"]
 html_theme_options = {
-    "source_repository": "https://github.com/SysBioChalmers/raven-python/",
+    "source_repository": "https://github.com/SysBioChalmers/raven-toolbox/",
     "source_branch": "develop",
     "source_directory": "docs/",
 }

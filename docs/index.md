@@ -1,8 +1,8 @@
-# raven-python
+# raven-toolbox
 
 **Reconstruction, Analysis and Visualisation of Metabolic Networks — in Python.**
 
-`raven-python` is the Python counterpart of the
+`raven-toolbox` is the Python counterpart of the
 [RAVEN Toolbox 2](https://github.com/SysBioChalmers/RAVEN) (MATLAB). It builds on
 [**cobrapy**](https://cobrapy.readthedocs.io) for everything cobrapy already does well
 (simulation, standard analyses, SBML I/O, model manipulation) and adds the functionality
@@ -26,7 +26,7 @@ that is unique to RAVEN:
 The canonical in-memory object is always a {class}`cobra.Model`. There is no parallel
 RAVEN struct and no `ravenCobraWrapper`-style adapter — RAVEN-specific fields that cobra
 doesn't model natively live in cobra's `annotation` / `notes` dictionaries. This keeps
-raven-python interoperable with the wider COBRA ecosystem.
+raven-toolbox interoperable with the wider COBRA ecosystem.
 :::
 
 ## Where to start
@@ -45,7 +45,7 @@ Install, load a model, and run your first reconstruction / ftINIT extraction.
 :link: reference/migration
 :link-type: doc
 
-The function-by-function map from RAVEN to raven-python (and cobrapy).
+The function-by-function map from RAVEN to raven-toolbox (and cobrapy).
 :::
 
 :::{grid-item-card} 📚 User guide
@@ -65,7 +65,7 @@ Every public function and class, generated from the docstrings.
 
 ## Status
 
-raven-python has been validated against MATLAB RAVEN on **Human-GEM** (5 Hart2015 cell-line
+raven-toolbox has been validated against MATLAB RAVEN on **Human-GEM** (5 Hart2015 cell-line
 models, Jaccard 0.975–0.980 — see [the Human-GEM validation study](studies/humangem_validation.md)).
 The functional scope of the original toolbox is covered, with two principled omissions:
 **MetaCyc-based reconstruction** (flagged for removal from MATLAB RAVEN too) and **dynamic

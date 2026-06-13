@@ -51,13 +51,13 @@ from pathlib import Path
 import cobra
 import numpy as np
 
-from raven_python.init import (
+from raven_toolbox.init import (
     ftinit,
     gene_scores_from_expression,
     get_init_model,
     score_reactions_from_genes,
 )
-from raven_python.tasks import check_tasks, parse_task_list
+from raven_toolbox.tasks import check_tasks, parse_task_list
 
 # Degradation grid (severity per kind). A mild and a severe point per kind.
 GRADIENT = {

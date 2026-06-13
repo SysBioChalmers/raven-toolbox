@@ -1,4 +1,4 @@
-# `raven_python.reconstruction`
+# `raven_toolbox.reconstruction`
 
 De novo reconstruction from KEGG and protein homology (BLAST / DIAMOND).
 
@@ -7,7 +7,7 @@ De novo reconstruction from KEGG and protein homology (BLAST / DIAMOND).
 Homology-based reconstruction from template models (`getModelFromHomology`, BLAST / DIAMOND).
 
 ```{eval-rst}
-.. automodule:: raven_python.reconstruction.homology
+.. automodule:: raven_toolbox.reconstruction.homology
    :members:
    :imported-members:
 ```
@@ -18,7 +18,7 @@ KEGG-based draft reconstruction (`getKEGGModelForOrganism` and friends): downloa
 parsing → HMM libraries (maintainer build steps), then the runtime model for a KEGG species.
 
 ```{eval-rst}
-.. automodule:: raven_python.reconstruction.kegg
+.. automodule:: raven_toolbox.reconstruction.kegg
    :members:
    :imported-members:
 ```

@@ -4,7 +4,7 @@ Generated from the package's NumPy-style docstrings. There is one page per subpa
 documents that subpackage's public API (its `__all__`) — the full signature and parameter
 docs for every public function and class.
 
-The canonical object throughout is {class}`cobra.Model`; raven-python adds the
+The canonical object throughout is {class}`cobra.Model`; raven-toolbox adds the
 RAVEN-specific operations on top of it rather than introducing a parallel model type.
 
 ```{toctree}
@@ -23,8 +23,3 @@ analysis
 comparison
 resolvers
 ```
-
-:::{note}
-The `plotting` subpackage is a stub — pathway-map and omics-overlay visualisation
-(Phase 6) is not yet implemented.
-:::

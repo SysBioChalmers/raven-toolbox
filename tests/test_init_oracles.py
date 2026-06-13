@@ -17,7 +17,7 @@ from tinit_oracles import (
     make_test_model5,
 )
 
-from raven_python.init.score import gene_scores_from_expression, score_reactions_from_genes
+from raven_toolbox.init.score import gene_scores_from_expression, score_reactions_from_genes
 
 
 @pytest.mark.parametrize(

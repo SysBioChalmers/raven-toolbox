@@ -1,12 +1,12 @@
 # Installation
 
-raven-python requires **Python ≥ 3.11**.
+raven-toolbox requires **Python ≥ 3.11**.
 
 ## From a source checkout (development)
 
 ```bash
-git clone https://github.com/SysBioChalmers/raven-python
-cd raven-python
+git clone https://github.com/SysBioChalmers/raven-toolbox
+cd raven-toolbox
 pip install -e ".[dev]"
 ```
 
@@ -17,12 +17,11 @@ Some features need extra packages, exposed as optional extras:
 
 | Extra | Pulls in | Needed for |
 | --- | --- | --- |
-| `excel` | `openpyxl` | {func}`raven_python.io.excel.export_to_excel` |
-| `plotting` | `matplotlib` | visualisation (Phase 6, in progress) |
+| `excel` | `openpyxl` | {func}`raven_toolbox.io.excel.export_to_excel` |
 | `dev` | `pytest`, `pytest-cov`, `ruff` | running the test-suite / linting |
 
 ```bash
-pip install -e ".[excel,plotting,dev]"
+pip install -e ".[excel,dev]"
 ```
 
 ## Solvers
@@ -35,7 +34,7 @@ comparison and portability notes.
 ## External binaries
 
 Homology and KEGG-HMM reconstruction shell out to **BLAST+ / DIAMOND / HMMER**. These are
-not Python packages; raven-python resolves them from a version-pinned, SHA256-verified
-release registry (see {mod}`raven_python.binaries`). The
+not Python packages; raven-toolbox resolves them from a version-pinned, SHA256-verified
+release registry (see {mod}`raven_toolbox.binaries`). The
 [binary maintenance guide](maintenance/maintaining_binaries.md) covers building and
 publishing those release ZIPs.

@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.gapfilling import GapFillResult, connect_blocked_reactions
+from raven_toolbox.gapfilling import GapFillResult, connect_blocked_reactions
 
 
 def _met(mid):
@@ -37,6 +37,12 @@ def draft_and_template():
 # --------------------------------------------------------------------------- #
 # Connectivity gap-fill
 # --------------------------------------------------------------------------- #
+def test_non_positive_penalty_rejected(draft_and_template):
+    draft, template = draft_and_template
+    with pytest.raises(ValueError, match="penalty must be"):
+        connect_blocked_reactions(draft, template, penalty=0)
+
+
 def test_fill_gaps_connects_blocked_reaction(draft_and_template):
     draft, template = draft_and_template
     assert "r1" in cobra.flux_analysis.find_blocked_reactions(draft)  # precondition
@@ -46,6 +52,16 @@ def test_fill_gaps_connects_blocked_reaction(draft_and_template):
     assert "r1" in res.newly_connected
     assert set(res.added_reactions) == {"r2", "EX_C"}  # both needed to drain B
     assert "r_unneeded" not in res.added_reactions  # irrelevant template rxn not added
+
+
+def test_fill_gaps_handles_infinite_template_bound(draft_and_template):
+    # A template reaction with an unbounded (inf) bound must not put an infinite
+    # coefficient into the big-M MILP; it is clamped to a finite surrogate.
+    draft, template = draft_and_template
+    template.reactions.get_by_id("r2").upper_bound = float("inf")
+    res = connect_blocked_reactions(draft, template)
+    assert "r1" in res.newly_connected
+    assert "r2" in res.added_reactions
 
 
 def test_fill_gaps_returns_working_model_that_unblocks(draft_and_template):

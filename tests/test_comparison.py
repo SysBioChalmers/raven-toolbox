@@ -4,8 +4,8 @@ from __future__ import annotations
 import cobra
 import pytest
 
-from raven_python.comparison import ModelComparison, compare_models
-from raven_python.tasks import Task
+from raven_toolbox.comparison import ModelComparison, compare_models
+from raven_toolbox.tasks import Task
 
 
 def _mk(model_id: str, reactions: list[tuple[str, dict[str, int], str | None]],

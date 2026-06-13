@@ -1,7 +1,7 @@
 # Maintainer scripts
 
 Release-time tooling. Not part of the installed package — run them from a checkout
-with raven-python installed (`pip install -e .`). End users never need these.
+with raven-toolbox installed (`pip install -e .`). End users never need these.
 
 ## `build_kegg_artefacts.py`
 
@@ -18,18 +18,18 @@ python scripts/build_kegg_artefacts.py --keggdb keggdb --out artefacts --hmms --
 ## `make_registry_snippet.py`
 
 After uploading the files to a release, compute their SHA256 and print the entry
-to merge into the runtime registry — `raven_python.data._DATA_REGISTRY` (data) or
-`raven_python.binaries._REGISTRY` (binary ZIP bundles). The checksum helper is shared
+to merge into the runtime registry — `raven_toolbox.data._DATA_REGISTRY` (data) or
+`raven_toolbox.binaries._REGISTRY` (binary ZIP bundles). The checksum helper is shared
 with the resolvers, so published checksums always match what `ensure_data` /
 `ensure_binary` verify.
 
 ```bash
 # Data artefacts:
 python scripts/make_registry_snippet.py data --dataset kegg --version kegg116 \
-    --dir artefacts --base-url https://github.com/ORG/raven-python/releases/download/kegg-data-kegg116
+    --dir artefacts --base-url https://github.com/ORG/raven-toolbox/releases/download/kegg-data-kegg116
 
 # Binary bundle (ZIPs named <bundle>-<version>-<os>-<arch>.zip):
 python scripts/make_registry_snippet.py binary --bundle blast --version 2.16.0 \
     --provides blastp makeblastdb --dir zips \
-    --base-url https://github.com/ORG/raven-python/releases/download/blast-2.16.0
+    --base-url https://github.com/ORG/raven-toolbox/releases/download/blast-2.16.0
 ```

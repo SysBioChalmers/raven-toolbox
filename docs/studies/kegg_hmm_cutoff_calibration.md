@@ -29,7 +29,7 @@ in three steps:
   recall = |pred ∩ truth| / |truth|, F1. Reaction-level: `rxn_rec` = fraction of
   the organism's true reactions recovered (KO→reaction via `ko_reaction`);
   `rxn_novel` = predicted reactions **not** in the annotation set.
-- Reproduce with [`scripts/analyze_hmm_cutoffs.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/analyze_hmm_cutoffs.py).
+- Reproduce with [`scripts/analyze_hmm_cutoffs.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/analyze_hmm_cutoffs.py).
 
 ### Important caveat
 
@@ -199,5 +199,5 @@ Full reconstruction of *S. cerevisiae* two ways, at the old defaults:
 
 Reaction recall 96.3 % (1305/1355 shared, Jaccard 0.86); gene recall 96.6 %
 (807/835 shared, Jaccard 0.87). The annotation path also exercises the new
-`organism_gene_ko.tsv.xz` artefact (K14). `hmmscan` throughput ≈ 0.1 s/query
+`organism_gene_ko.tsv.gz` artefact (K14). `hmmscan` throughput ≈ 0.1 s/query
 against either library on 12 threads (yeast: 6021 queries in 633 s).
