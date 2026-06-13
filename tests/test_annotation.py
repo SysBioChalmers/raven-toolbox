@@ -1,4 +1,4 @@
-"""Tests for raven_python.annotation (SBO terms + ΔG CSV persistence)."""
+"""Tests for raven_toolbox.annotation (SBO terms + ΔG CSV persistence)."""
 from __future__ import annotations
 
 import math
@@ -6,13 +6,13 @@ import math
 import cobra
 import pandas as pd
 
-from raven_python.annotation import (
+from raven_toolbox.annotation import (
     DEFAULT_BIOMASS_MET_NAMES,
     add_sbo_terms,
     load_delta_g_csv,
     save_delta_g_csv,
 )
-from raven_python.annotation.sbo import _default_transport_detector
+from raven_toolbox.annotation.sbo import _default_transport_detector
 
 # --- shared tiny model -------------------------------------------------
 

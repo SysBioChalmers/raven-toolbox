@@ -1,9 +1,9 @@
-"""Tests for raven_python.manipulation.find_duplicate_reactions."""
+"""Tests for raven_toolbox.manipulation.find_duplicate_reactions."""
 from __future__ import annotations
 
 import cobra
 
-from raven_python.manipulation import find_duplicate_reactions
+from raven_toolbox.manipulation import find_duplicate_reactions
 
 
 def _mk_model() -> cobra.Model:

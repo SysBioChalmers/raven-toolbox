@@ -30,7 +30,7 @@ from pathlib import Path
 
 import cobra
 
-from raven_python.init import ftinit, gene_scores_from_expression, score_reactions_from_genes
+from raven_toolbox.init import ftinit, gene_scores_from_expression, score_reactions_from_genes
 
 _INTERFACES = {"gurobi": "gurobi_interface", "hybrid": "hybrid_interface", "glpk": "glpk_interface"}
 

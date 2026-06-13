@@ -4,7 +4,7 @@ import math
 import cobra
 import pytest
 
-from raven_python.init import (
+from raven_toolbox.init import (
     InitModelResult,
     gene_scores_from_expression,
     get_init_model,

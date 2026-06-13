@@ -1,10 +1,10 @@
-# raven-python
+# raven-toolbox
 
-[![CI](https://github.com/SysBioChalmers/raven-python/actions/workflows/ci.yml/badge.svg)](https://github.com/SysBioChalmers/raven-python/actions/workflows/ci.yml)
+[![CI](https://github.com/SysBioChalmers/raven-toolbox/actions/workflows/ci.yml/badge.svg)](https://github.com/SysBioChalmers/raven-toolbox/actions/workflows/ci.yml)
 
 **Reconstruction, Analysis and Visualisation of Metabolic Networks — in Python.**
 
-`raven-python` is the Python counterpart of the
+`raven-toolbox` is the Python counterpart of the
 [RAVEN Toolbox 2](https://github.com/SysBioChalmers/RAVEN) (MATLAB). It builds on
 [**cobrapy**](https://github.com/opencobra/cobrapy) for everything cobrapy already does
 well (simulation, standard analyses, SBML I/O, model manipulation) and adds the
@@ -32,12 +32,12 @@ The canonical in-memory object is always a [`cobra.Model`](https://cobrapy.readt
 There is no parallel RAVEN struct, no `ravenCobraWrapper`-style adapter. RAVEN-specific
 fields that cobra doesn't model natively (`rxnMiriams`, `metDeltaG`,
 `rxnConfidenceScores`, …) live in cobra's `annotation` / `notes` dictionaries. This
-avoids duplicating cobra's data model and keeps raven-python interoperable with the wider
+avoids duplicating cobra's data model and keeps raven-toolbox interoperable with the wider
 COBRA ecosystem.
 
 ## Status
 
-raven-python has been validated against MATLAB RAVEN on **Human-GEM** (5 Hart2015 cell-line
+raven-toolbox has been validated against MATLAB RAVEN on **Human-GEM** (5 Hart2015 cell-line
 models, Jaccard 0.975–0.980 — see [docs/humangem_validation.md](docs/studies/humangem_validation.md)).
 The functional scope of the original RAVEN toolbox is covered with two principled
 omissions:
@@ -66,12 +66,12 @@ list — they are deliberately out of scope, not pending work.
 ## Installation (development)
 
 ```bash
-git clone https://github.com/SysBioChalmers/raven-python
-cd raven-python
+git clone https://github.com/SysBioChalmers/raven-toolbox
+cd raven-toolbox
 pip install -e ".[dev]"
 ```
 
-raven-python requires Python ≥ 3.11. Genome-scale (f)tINIT MILPs currently require **Gurobi**
+raven-toolbox requires Python ≥ 3.11. Genome-scale (f)tINIT MILPs currently require **Gurobi**
 ([details on solver portability](docs/studies/init_solver_benchmark.md)); toy and unit-test work
 runs on the open-source GLPK.
 
@@ -83,7 +83,7 @@ instructions. (A hosted ReadTheDocs site is not yet published.)
 
 ## Relationship to MATLAB RAVEN
 
-`raven-python` is an independent Python reimplementation of the
+`raven-toolbox` is an independent Python reimplementation of the
 [RAVEN Toolbox 2](https://github.com/SysBioChalmers/RAVEN), released under the permissive
 **MIT** license. If you use it in scientific work, please cite the RAVEN 2 paper:
 

@@ -17,7 +17,7 @@ from tinit_oracles import (
     make_test_model4,
 )
 
-from raven_python.init import group_rxn_scores, merge_linear
+from raven_toolbox.init import group_rxn_scores, merge_linear
 
 
 def test_test_model_group_ids():

@@ -1,9 +1,9 @@
 """Tests for sort_identifiers and write_yaml_model(sort_ids=True)."""
 import cobra
 
-from raven_python.io import read_yaml_model, write_yaml_model
-from raven_python.manipulation import add_reactions_from_equations
-from raven_python.utils import sort_identifiers
+from raven_toolbox.io import read_yaml_model, write_yaml_model
+from raven_toolbox.manipulation import add_reactions_from_equations
+from raven_toolbox.utils import sort_identifiers
 
 
 def _model():

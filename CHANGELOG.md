@@ -1,8 +1,8 @@
 # Changelog
 
-Milestones in the raven-python port. For function-level status see
-[docs/raven_migration.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/migration.md); for open work see
-[docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
+Milestones in the raven-toolbox port. For function-level status see
+[docs/raven_migration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/migration.md); for open work see
+[docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
 ## Unreleased
 
@@ -35,7 +35,7 @@ hardening pass (no behaviour change on well-formed inputs). Highlights:
   `getPhylDist` that regenerates the `keggPhylDist` distance matrix from the
   taxonomy file — so GECKO's organism-distance kcat selection needs no MATLAB
   `.mat`. `ensure_kegg_taxonomy` fetches the artefact.
-* **Packaging:** `raven_python.__version__` now derives from the installed package
+* **Packaging:** `raven_toolbox.__version__` now derives from the installed package
   metadata (`importlib.metadata`) instead of a hard-coded literal that had drifted
   to `0.0.1`; the docs site reported the wrong version. Pinned `ruff==0.15.15` in
   both the `dev` extra and CI so the lint result is reproducible, and fixed two
@@ -71,13 +71,13 @@ RAVEN-style I/O formats (YAML / SIF / Excel). Validated against MATLAB RAVEN on 
 * **Docs:** Sphinx + MyST documentation site (sources under `docs/`).
 * Not yet implemented: visualization (`visualization/`), metabolomics-based (f)tINIT scoring,
   and published binary / KEGG-artefact release bundles. See the README and
-  [docs/todo.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/todo.md).
+  [docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
 The milestone sections below record the incremental development history leading to this release.
 
 ## Infrastructure
 
-* **GitHub Actions CI** ([.github/workflows/ci.yml](https://github.com/SysBioChalmers/raven-python/blob/develop/.github/workflows/ci.yml)) —
+* **GitHub Actions CI** ([.github/workflows/ci.yml](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/.github/workflows/ci.yml)) —
   ruff + pytest matrix over Python 3.11/3.12/3.13. Tests that require Gurobi
   auto-skip (no Gurobi on free runners); the known HiGHS upstream blocker
   (`hybrid_interface.Configuration` rejects `lp_method='primal'`) is marked
@@ -104,7 +104,7 @@ fixes with matching MATLAB back-port proposals in IMPROVEMENTS.md (FS4, B2).
   bug to `check_model`; the actual code is in `balance.py`.
 
 Two new regression tests (F3 in `test_analysis_fseof.py`, F5 in
-`test_utils_balance.py`). [docs/known_issues.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/known_issues.md) now
+`test_utils_balance.py`). [docs/known_issues.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/known_issues.md) now
 fully closed (all sections A–F).
 
 ## Quality sweep — known-issues sections C / D / E
@@ -139,7 +139,7 @@ download (defensive, needs urlopen mocking).
 
 ## Quality sweep — known-issues section B
 
-Closed all four "silent misbehaviour" items from [docs/known_issues.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/known_issues.md):
+Closed all four "silent misbehaviour" items from [docs/known_issues.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/known_issues.md):
 * `merge_models` warns on `formula` / `charge` conflicts when two source models
   share a name[comp] but disagree (used to silently keep the first-seen).
 * `add_reactions_from_equations` warns when creating a metabolite in an
@@ -153,7 +153,7 @@ Four new regression tests cover them.
 
 ## Quality sweep — known-issues section A
 
-Closed all six "latent edge-case bug" items from [docs/known_issues.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/reference/known_issues.md):
+Closed all six "latent edge-case bug" items from [docs/known_issues.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/known_issues.md):
 * `add_reactions_from_equations` no longer misparses `"2 oxoglutarate"` (or any
   leading-number metabolite name) — the resolver tries the full token before
   splitting off a coefficient.
@@ -172,45 +172,45 @@ Six new regression tests cover the user-reachable cases.
 
 ## Phase 7 — Localization
 
-* **Sub-cellular localisation by MILP.** [`localization.predict_localization`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/localization/predict.py)
-  + [`apply_localization`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/localization/predict.py). Deterministic (not simulated
+* **Sub-cellular localisation by MILP.** [`localization.predict_localization`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/predict.py)
+  + [`apply_localization`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/predict.py). Deterministic (not simulated
   annealing); caller-passed `reactions_to_relocate` set with everything else pinned;
   incomplete-model tolerant (no silent reaction removal); `apply=False` returns a diff
   preview; multi-compartment by default with primary-free, extras-penalised scoring.
-* **Predictor loaders.** [`load_wolfpsort`, `load_deeploc`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/localization/scores.py),
+* **Predictor loaders.** [`load_wolfpsort`, `load_deeploc`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py),
   with the `gene × compartment` DataFrame contract open for any predictor.
-* **Compartment helpers** ([`manipulation/compartments.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/compartments.py)):
+* **Compartment helpers** ([`manipulation/compartments.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/manipulation/compartments.py)):
   `merge_compartments`, `copy_to_compartment` — useful standalone for model curation.
-* **Real-data validation on yeast-GEM** ([docs/yeast_localization_benchmark.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/studies/yeast_localization_benchmark.md))
+* **Real-data validation on yeast-GEM** ([docs/yeast_localization_benchmark.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/studies/yeast_localization_benchmark.md))
   — accuracy 0.72 → 0.39 on 298 GPR'd reactions as confident predictor mis-scoring rises
   from 0 % to 50 %; perfect on compartments with disjoint gene sets (c/g/lp/p/v/vm), and
   surfaces a `transport_cost` calibration insight for soft-probability score tables.
 
 ## Phase 5 — Data integration & analysis
 
-* **Reporter metabolites, FSEOF, random sampling** ([`analysis/`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/analysis/)).
-* **HPA omics ingestion** ([`omics.parse_hpa`, `parse_hpa_rna`, `hpa_gene_scores`, `rna_gene_scores`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/omics/hpa.py))
+* **Reporter metabolites, FSEOF, random sampling** ([`analysis/`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/analysis/)).
+* **HPA omics ingestion** ([`omics.parse_hpa`, `parse_hpa_rna`, `hpa_gene_scores`, `rna_gene_scores`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/omics/hpa.py))
   — pandas-tidy DataFrames replace RAVEN's sparse-matrix layout; scoring adapters reuse the
   existing GPR walk.
-* **N-model comparison** ([`comparison.compare_models`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/comparison/compare.py)).
+* **N-model comparison** ([`comparison.compare_models`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/comparison/compare.py)).
 * **Dynamic FBA** is **not ported** — established Python packages cover it (`dfba`,
   `reframed`, `mewpy`).
 
 ## Phase 4d — ftINIT
 
-* **ftINIT pipeline** ([`init.ftinit`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/ftinit.py)) — staged MILP, linear merge,
+* **ftINIT pipeline** ([`init.ftinit`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/init/ftinit.py)) — staged MILP, linear merge,
   task-aware gap-filling, gene pruning.
 * **Validated against MATLAB RAVEN on Human-GEM.** 5 Hart2015 cell-line models;
   Jaccard 0.973–0.977 (no-task) and 0.978–0.980 (task-constrained). See
-  [docs/humangem_validation.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/studies/humangem_validation.md).
-* **Parameter calibration & input-robustness study** ([docs/init_param_calibration.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/studies/init_param_calibration.md))
+  [docs/humangem_validation.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/studies/humangem_validation.md).
+* **Parameter calibration & input-robustness study** ([docs/init_param_calibration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/studies/init_param_calibration.md))
   — `mip_gap=0.01` is the genome-scale full-pipeline sweet spot (~37% faster than 0.001 at
   Jaccard 0.995); pipeline is robust to expression noise (Jaccard 0.92–0.95) but sensitive
   to sparsity (50–70% dropout → Jaccard 0.59–0.71); the task + gap-fill layer keeps the
   essential-task pass-rate at 67–69/69 across the gradient, whereas tINIT-without-it passes
   only 35/69 even on clean data.
-* **Cross-solver portability** ([docs/init_solver_benchmark.md](https://github.com/SysBioChalmers/raven-python/blob/develop/docs/studies/init_solver_benchmark.md))
-  + [`tests/test_init_solvers.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/tests/test_init_solvers.py): Gurobi and GLPK pass at toy
+* **Cross-solver portability** ([docs/init_solver_benchmark.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/studies/init_solver_benchmark.md))
+  + [`tests/test_init_solvers.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/tests/test_init_solvers.py): Gurobi and GLPK pass at toy
   scale; only Gurobi is viable at genome scale today (HiGHS hits an upstream optlang
   `clone()` bug; GLPK ignores `configuration.timeout` on MIP).
 * **Engineering wins surfaced by the genome-scale work:** `check_tasks` and
@@ -220,25 +220,25 @@ Six new regression tests cover the user-reachable cases.
 
 ## Phase 4c — tINIT
 
-* **INIT MILP and the tINIT pipeline** ([`init.run_init`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/init.py),
-  [`init.get_init_model`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/init/build.py)). Clean optlang reformulation;
+* **INIT MILP and the tINIT pipeline** ([`init.run_init`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/init/init.py),
+  [`init.get_init_model`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/init/build.py)). Clean optlang reformulation;
   RNA-seq scoring via `5·ln(level/ref)`-clamped.
 
 ## Phase 4b — Gap-filling
 
-* **Connectivity gap-filling** ([`gapfilling.connect_blocked_reactions`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/gapfilling/fill.py))
+* **Connectivity gap-filling** ([`gapfilling.connect_blocked_reactions`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/gapfilling/fill.py))
   — MILP. Targeted (toward objective) mode delegates to `cobra.gapfill`.
 
 ## Phase 4a — Metabolic tasks
 
-* **Task list parsing + `check_tasks`** ([`tasks/`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/tasks/)).
+* **Task list parsing + `check_tasks`** ([`tasks/`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/tasks/)).
 
 ## Phase 3 — Reconstruction
 
 * **Homology-based draft** from a template GEM + BLAST/DIAMOND wrappers
-  ([`reconstruction/homology/`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/homology/)) — with structured
+  ([`reconstruction/homology/`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/reconstruction/homology/)) — with structured
   improvements over RAVEN's `getModelFromHomology` (see IMPROVEMENTS H1–H6).
-* **KEGG five-step pipeline** ([`reconstruction/kegg/`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/kegg/)):
+* **KEGG five-step pipeline** ([`reconstruction/kegg/`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/reconstruction/kegg/)):
   dump → parser → HMM library builder → species model → HMM-query draft.
 * **MetaCyc reconstruction** **not ported** (and flagged for removal from MATLAB RAVEN —
   see IMPROVEMENTS R-MetaCyc).
@@ -247,17 +247,17 @@ Six new regression tests cover the user-reachable cases.
 
 * **YAML** aligned to cobra's `!!omap` writer + RAVEN-only fields preserved into `.notes`,
   plus geckopy `ec-*` for enzyme-constrained models
-  ([`io/yaml.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/io/yaml.py)).
+  ([`io/yaml.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/io/yaml.py)).
 * **SIF**, **Excel export**, and **Standard-GEM `model/<fmt>/…` git layout**
-  ([`io/`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/io/)). Excel import intentionally excluded.
+  ([`io/`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/io/)). Excel import intentionally excluded.
 
 ## Phase 1 — Foundation
 
-* **GPR / balance / validation / parsing helpers** ([`utils/`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/utils/)) —
+* **GPR / balance / validation / parsing helpers** ([`utils/`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/utils/)) —
   cobra-absent bits only; the rest are cheatsheeted.
-* **Manipulation ergonomic layer** ([`manipulation/`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/)) —
+* **Manipulation ergonomic layer** ([`manipulation/`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/manipulation/)) —
   add/change/remove/transport/transfer/merge/simplify/variance + adopted transforms.
-* **External-binary resolver** ([`binaries.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/binaries.py)) — version-pinned
+* **External-binary resolver** ([`binaries.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/binaries.py)) — version-pinned
   release-ZIP registry, SHA256-verified cache.
 
 ## Phase 0 — Scaffold

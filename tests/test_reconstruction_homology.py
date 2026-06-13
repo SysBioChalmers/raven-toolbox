@@ -3,8 +3,8 @@ import cobra
 import pandas as pd
 import pytest
 
-from raven_python.manipulation import add_reactions_from_equations
-from raven_python.reconstruction.homology import (
+from raven_toolbox.manipulation import add_reactions_from_equations
+from raven_toolbox.reconstruction.homology import (
     HIT_COLUMNS,
     get_model_from_homology,
     make_ortholog_hits,

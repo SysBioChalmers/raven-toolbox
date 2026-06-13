@@ -3,7 +3,7 @@ import cobra
 import pytest
 from cobra.exceptions import OptimizationError
 
-from raven_python.init import InitResult, run_init
+from raven_toolbox.init import InitResult, run_init
 
 
 def _met(mid):

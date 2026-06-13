@@ -1,9 +1,9 @@
-"""Tests for raven_python.manipulation.add (addRxns port)."""
+"""Tests for raven_toolbox.manipulation.add (addRxns port)."""
 import cobra
 import pytest
 
-from raven_python.manipulation import add_reactions_from_equations
-from raven_python.utils.parse import parse_name_comp
+from raven_toolbox.manipulation import add_reactions_from_equations
+from raven_toolbox.utils.parse import parse_name_comp
 
 
 @pytest.fixture

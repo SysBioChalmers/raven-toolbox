@@ -7,7 +7,7 @@ import cobra
 import pandas as pd
 import pytest
 
-from raven_python.reconstruction.kegg import (
+from raven_toolbox.reconstruction.kegg import (
     build_kegg_tables,
     build_reference_model,
     get_kegg_model_for_organism,
@@ -23,7 +23,7 @@ def artefacts(kegg_dump):
     reactions = parse_kegg_reactions(kegg_dump)
     compounds = parse_kegg_compounds(kegg_dump)
     linked = {ko for r in reactions for ko in r.kos}
-    from raven_python.reconstruction.kegg import parse_kegg_kos
+    from raven_toolbox.reconstruction.kegg import parse_kegg_kos
 
     kos = parse_kegg_kos(kegg_dump, keep=linked)
     model = build_reference_model(reactions, compounds)

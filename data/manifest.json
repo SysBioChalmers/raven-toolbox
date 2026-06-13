@@ -6,25 +6,25 @@
       "version": "kegg116",
       "description": "KEGG reference model + KO/reaction tables (core bundle), taxonomy, and prokaryote/eukaryote HMM libraries for getKEGGModelForOrganism.",
       "license": "Derived from the KEGG database; redistributed with permission from KEGG.",
-      "source": "https://github.com/SysBioChalmers/raven-python/releases/tag/v0.1.0",
+      "source": "https://github.com/SysBioChalmers/raven-toolbox/releases/tag/v0.1.0",
       "files": {
         "kegg116_core.tar.gz": {
-          "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_core.tar.gz",
+          "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_core.tar.gz",
           "sha256": "155d5806d43db2fde5783fb124f8782bbcad390a1dd80879c520d2eac9d780e7",
           "bytes": 48955539
         },
         "kegg116_eukaryotes.hmm.gz": {
-          "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",
+          "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",
           "sha256": "2d48bc9935575d0f9ba4178bf2df19279bff866b49c1bf83a8e15787b11d6708",
           "bytes": 134002309
         },
         "kegg116_prokaryotes.hmm.gz": {
-          "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",
+          "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",
           "sha256": "d80cb2a22dec9fd8336b3998e3b96ee121672f63f4041cddaf09624fe739f1af",
           "bytes": 153173750
         },
         "kegg116_taxonomy.gz": {
-          "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_taxonomy.gz",
+          "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_taxonomy.gz",
           "sha256": "1edc56da94d71433e5f08c133600292c311baaf33279a959518ab08389b0e538",
           "bytes": 234693
         }

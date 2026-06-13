@@ -3,7 +3,7 @@ import gzip
 
 import numpy as np
 
-from raven_python.reconstruction.kegg.taxonomy import parse_taxonomy_records, phyl_dist
+from raven_toolbox.reconstruction.kegg.taxonomy import parse_taxonomy_records, phyl_dist
 
 # Tiny taxonomy: two prokaryotes sharing a lineage, a 3-deep mammal, a 2-deep fungus.
 TAXONOMY = (

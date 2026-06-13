@@ -1,9 +1,9 @@
-"""Tests for raven_python.utils.parse helpers."""
+"""Tests for raven_toolbox.utils.parse helpers."""
 from __future__ import annotations
 
 import cobra
 
-from raven_python.utils.parse import parse_name_comp, subsystem_to_str
+from raven_toolbox.utils.parse import parse_name_comp, subsystem_to_str
 
 
 def test_parse_name_comp_basic():
@@ -36,7 +36,7 @@ def test_excel_export_handles_list_subsystem(tmp_path):
     pytest.importorskip("openpyxl")
     from openpyxl import load_workbook
 
-    from raven_python.io.excel import export_to_excel
+    from raven_toolbox.io.excel import export_to_excel
 
     model = cobra.Model("m")
     a = cobra.Metabolite("a_c", compartment="c")

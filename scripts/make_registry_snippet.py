@@ -2,7 +2,7 @@
 """Emit ready-to-paste registry entries for published artefacts / binary ZIPs.
 
 Computes the SHA256 of each file and prints the Python/JSON entry to merge into
-``raven_python.data._DATA_REGISTRY`` (data artefacts) or ``raven_python.binaries._REGISTRY``
+``raven_toolbox.data._DATA_REGISTRY`` (data artefacts) or ``raven_toolbox.binaries._REGISTRY``
 (binary bundles). Run once per release, after uploading the files to the release.
 
 Examples
@@ -11,16 +11,16 @@ Data artefacts (KEGG reference model + tables + HMM libraries) for one release::
 
     python scripts/make_registry_snippet.py data \\
         --dataset kegg --version kegg116 --dir artefacts \\
-        --base-url https://github.com/ORG/raven_python/releases/download/kegg-data-kegg116
+        --base-url https://github.com/ORG/raven_toolbox/releases/download/kegg-data-kegg116
 
 Binary bundle (one ZIP per platform, named ``<bundle>-<version>-<os>-<arch>.zip``)::
 
     python scripts/make_registry_snippet.py binary \\
         --bundle blast --version 2.16.0 --provides blastp makeblastdb --dir zips \\
-        --base-url https://github.com/ORG/raven_python/releases/download/blast-2.16.0
+        --base-url https://github.com/ORG/raven_toolbox/releases/download/blast-2.16.0
 
 Add/update an entry in the shared ``manifest.json`` (the single source of truth read by
-both raven-python and MATLAB RAVEN — see data/manifest.schema.json)::
+both raven-toolbox and MATLAB RAVEN — see data/manifest.schema.json)::
 
     python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \\
         --target data --dataset kegg --version kegg116 --dir artefacts \\
@@ -32,7 +32,7 @@ both raven-python and MATLAB RAVEN — see data/manifest.schema.json)::
         --base-url https://github.com/ORG/raven-data/releases/download/diamond-2.1.9 \\
         --license GPL-3.0-only
 
-The SHA256 helper is shared with the runtime resolvers (``raven_python.binaries``), so
+The SHA256 helper is shared with the runtime resolvers (``raven_toolbox.binaries``), so
 published checksums always match what ``ensure_data`` / ``ensure_binary`` verify.
 """
 from __future__ import annotations
@@ -42,7 +42,7 @@ import json
 import sys
 from pathlib import Path
 
-from raven_python.binaries import _sha256
+from raven_toolbox.binaries import _sha256
 
 
 def _files_in(directory: Path) -> list[Path]:
@@ -134,13 +134,13 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="kind", required=True)
 
-    d = sub.add_parser("data", help="data-artefact registry entry (raven_python.data)")
+    d = sub.add_parser("data", help="data-artefact registry entry (raven_toolbox.data)")
     d.add_argument("--dataset", required=True, help="dataset key, e.g. 'kegg'")
     d.add_argument("--version", required=True)
     d.add_argument("--dir", required=True, type=Path, help="directory of uploaded artefacts")
     d.add_argument("--base-url", required=True, help="release download URL prefix")
 
-    b = sub.add_parser("binary", help="binary-bundle registry entry (raven_python.binaries)")
+    b = sub.add_parser("binary", help="binary-bundle registry entry (raven_toolbox.binaries)")
     b.add_argument("--bundle", required=True, help="bundle key, e.g. 'blast'")
     b.add_argument("--version", required=True)
     b.add_argument("--provides", nargs="+", required=True, help="executables the bundle provides")
@@ -164,13 +164,13 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.kind == "data":
         key, entry = args.dataset, data_entry(args.dataset, args.version, args.base_url, args.dir)
-        target = "raven_python/data.py  _DATA_REGISTRY"
+        target = "raven_toolbox/data.py  _DATA_REGISTRY"
         print(f"# Merge into {target}:", file=sys.stderr)
         print(render(key, entry))
     elif args.kind == "binary":
         key = args.bundle
         entry = binary_entry(args.bundle, args.version, args.provides, args.base_url, args.dir)
-        target = "raven_python/binaries.py  _REGISTRY"
+        target = "raven_toolbox/binaries.py  _REGISTRY"
         print(f"# Merge into {target}:", file=sys.stderr)
         print(render(key, entry))
     else:  # manifest

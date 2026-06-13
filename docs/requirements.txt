@@ -1,5 +1,5 @@
 # Documentation build toolchain (used by ReadTheDocs and `make -C docs html`).
-# The raven-python package itself is installed separately (see .readthedocs.yaml).
+# The raven-toolbox package itself is installed separately (see .readthedocs.yaml).
 sphinx>=7.2
 furo>=2024.1.29
 myst-parser>=2.0

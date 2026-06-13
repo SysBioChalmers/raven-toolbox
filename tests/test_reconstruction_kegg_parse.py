@@ -5,7 +5,7 @@ no real KEGG content is committed.
 """
 import pytest
 
-from raven_python.reconstruction.kegg import (
+from raven_toolbox.reconstruction.kegg import (
     build_kegg_tables,
     build_reference_model,
     parse_kegg_compounds,
@@ -217,7 +217,7 @@ def test_parse_kegg_dump_version_prefixes_filenames(kegg_dump, tmp_path):
 
 def test_stream_organism_gene_ko_external_merge(kegg_dump, tmp_path):
     """A tiny chunk_rows forces multiple sorted runs to be merged; output stays sorted."""
-    from raven_python.reconstruction.kegg.parse import stream_organism_gene_ko
+    from raven_toolbox.reconstruction.kegg.parse import stream_organism_gene_ko
 
     out = tmp_path / "organism_gene_ko.tsv.gz"
     keep = {ko.id for ko in parse_kegg_kos(kegg_dump)}

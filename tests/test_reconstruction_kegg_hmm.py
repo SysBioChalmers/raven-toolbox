@@ -8,14 +8,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from raven_python.reconstruction.kegg import (
+from raven_toolbox.reconstruction.kegg import (
     build_ko_fastas,
     organism_domains,
     organisms_in_domain,
     parse_taxonomy,
 )
-from raven_python.reconstruction.kegg import hmm as hmm_mod
-from raven_python.reconstruction.kegg.hmm import (
+from raven_toolbox.reconstruction.kegg import hmm as hmm_mod
+from raven_toolbox.reconstruction.kegg.hmm import (
     _cdhit_cmd,
     _cdhit_word_size,
     _fasta_stats,
@@ -146,7 +146,7 @@ def test_build_ko_hmm_multi_sequence_runs_full_pipeline(tmp_path, monkeypatch):
     calls = []
 
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm.resolve_binary",
+        "raven_toolbox.reconstruction.kegg.hmm.resolve_binary",
         lambda exe, binary=None: binary or exe,
     )
 
@@ -161,7 +161,7 @@ def test_build_ko_hmm_multi_sequence_runs_full_pipeline(tmp_path, monkeypatch):
             Path(cmd[-2]).write_text("HMM\n")
         return ""
 
-    monkeypatch.setattr("raven_python.reconstruction.kegg.hmm._run", fake_run)
+    monkeypatch.setattr("raven_toolbox.reconstruction.kegg.hmm._run", fake_run)
     out = build_ko_hmm(fasta, tmp_path / "K90001.hmm")
     assert calls == ["cd-hit", "mafft", "hmmbuild"]
     assert out.read_text() == "HMM\n"
@@ -172,7 +172,7 @@ def test_build_ko_hmm_single_sequence_skips_align(tmp_path, monkeypatch):
     fasta.write_text(">only\nMKV\n")
     calls = []
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm.resolve_binary",
+        "raven_toolbox.reconstruction.kegg.hmm.resolve_binary",
         lambda exe, binary=None: binary or exe,
     )
 
@@ -182,7 +182,7 @@ def test_build_ko_hmm_single_sequence_skips_align(tmp_path, monkeypatch):
             Path(cmd[-2]).write_text("HMM\n")
         return ""
 
-    monkeypatch.setattr("raven_python.reconstruction.kegg.hmm._run", fake_run)
+    monkeypatch.setattr("raven_toolbox.reconstruction.kegg.hmm._run", fake_run)
     build_ko_hmm(fasta, tmp_path / "K9.hmm")
     assert calls == ["hmmbuild"]  # no cd-hit / mafft for a lone sequence
 
@@ -191,7 +191,7 @@ def test_build_ko_hmm_verbose_logs_each_stage(tmp_path, monkeypatch, caplog):
     fasta = tmp_path / "K90001.fa"
     fasta.write_text(">a\nMKV\n>b\nMRV\n")
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
+        "raven_toolbox.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
     )
 
     def fake_run(cmd, *, stdout_path=None):
@@ -203,8 +203,8 @@ def test_build_ko_hmm_verbose_logs_each_stage(tmp_path, monkeypatch, caplog):
             Path(cmd[-2]).write_text("HMM\n")
         return ""
 
-    monkeypatch.setattr("raven_python.reconstruction.kegg.hmm._run", fake_run)
-    with caplog.at_level("INFO", logger="raven_python.reconstruction.kegg.hmm"):
+    monkeypatch.setattr("raven_toolbox.reconstruction.kegg.hmm._run", fake_run)
+    with caplog.at_level("INFO", logger="raven_toolbox.reconstruction.kegg.hmm"):
         build_ko_hmm(fasta, tmp_path / "K90001.hmm", verbose=True)
     text = caplog.text
     # Each stage is logged, labelled with the KO id.
@@ -221,13 +221,13 @@ def test_build_ko_hmm_quiet_by_default(tmp_path, monkeypatch, caplog):
     fasta = tmp_path / "K9.fa"
     fasta.write_text(">only\nMKV\n")
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
+        "raven_toolbox.reconstruction.kegg.hmm.resolve_binary", lambda exe, binary=None: binary or exe
     )
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.hmm._run",
+        "raven_toolbox.reconstruction.kegg.hmm._run",
         lambda cmd, *, stdout_path=None: Path(cmd[-2]).write_text("HMM\n") and "",
     )
-    with caplog.at_level("INFO", logger="raven_python.reconstruction.kegg.hmm"):
+    with caplog.at_level("INFO", logger="raven_toolbox.reconstruction.kegg.hmm"):
         build_ko_hmm(fasta, tmp_path / "K9.hmm")  # verbose defaults False
     assert caplog.text == ""
 
@@ -252,7 +252,7 @@ def test_auto_cost_budget_scales_with_memory(monkeypatch):
 def test_auto_cost_budget_warns_on_low_memory(monkeypatch, caplog):
     hmm_mod._auto_cost_budget.cache_clear()
     monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: 7 * 1024**3)
-    with caplog.at_level("WARNING", logger="raven_python.reconstruction.kegg.hmm"):
+    with caplog.at_level("WARNING", logger="raven_toolbox.reconstruction.kegg.hmm"):
         hmm_mod._auto_cost_budget()
     assert "Limited memory" in caplog.text
     hmm_mod._auto_cost_budget.cache_clear()
@@ -261,7 +261,7 @@ def test_auto_cost_budget_warns_on_low_memory(monkeypatch, caplog):
 def test_auto_cost_budget_falls_back_without_detection(monkeypatch, caplog):
     hmm_mod._auto_cost_budget.cache_clear()
     monkeypatch.setattr(hmm_mod, "_total_memory_bytes", lambda: None)
-    with caplog.at_level("WARNING", logger="raven_python.reconstruction.kegg.hmm"):
+    with caplog.at_level("WARNING", logger="raven_toolbox.reconstruction.kegg.hmm"):
         assert hmm_mod._auto_cost_budget() == hmm_mod._DEFAULT_COST_BUDGET
     assert "Could not detect system memory" in caplog.text
     hmm_mod._auto_cost_budget.cache_clear()

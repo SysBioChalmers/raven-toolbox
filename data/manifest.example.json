@@ -6,12 +6,12 @@
       "version": "kegg116",
       "description": "KEGG reference model, KO/reaction tables, and prokaryote/eukaryote HMM libraries for getKEGGModelForOrganism.",
       "license": "Derived from the KEGG database; redistributed with permission from KEGG.",
-      "source": "https://github.com/SysBioChalmers/raven-python/releases/tag/v0.1.0",
+      "source": "https://github.com/SysBioChalmers/raven-toolbox/releases/tag/v0.1.0",
       "files": {
-        "kegg116_core.tar.gz":             { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_core.tar.gz",             "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "kegg116_taxonomy.gz":             { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_taxonomy.gz",             "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "kegg116_prokaryotes.hmm.gz":      { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",      "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "kegg116_eukaryotes.hmm.gz":       { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",       "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
+        "kegg116_core.tar.gz":             { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_core.tar.gz",             "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_taxonomy.gz":             { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_taxonomy.gz",             "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_prokaryotes.hmm.gz":      { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",      "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "kegg116_eukaryotes.hmm.gz":       { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",       "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
       }
     }
   },
@@ -22,9 +22,9 @@
       "description": "DIAMOND protein aligner (homology-based reconstruction).",
       "license": "GPL-3.0-only — ship the upstream COPYING alongside each ZIP.",
       "platforms": {
-        "linux-x86_64":   { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/diamond-2.1.9/diamond-2.1.9-linux-x86_64.zip",   "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "macos-arm64":    { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/diamond-2.1.9/diamond-2.1.9-macos-arm64.zip",    "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "windows-x86_64": { "url": "https://github.com/SysBioChalmers/raven-python/releases/download/diamond-2.1.9/diamond-2.1.9-windows-x86_64.zip", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
+        "linux-x86_64":   { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.9/diamond-2.1.9-linux-x86_64.zip",   "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "macos-arm64":    { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.9/diamond-2.1.9-macos-arm64.zip",    "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "windows-x86_64": { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.9/diamond-2.1.9-windows-x86_64.zip", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
       }
     }
   }

@@ -5,7 +5,7 @@ Exchange reactions are excluded from the split, matching MATLAB behavior.
 """
 import cobra
 
-from raven_python.manipulation import convert_to_irreversible
+from raven_toolbox.manipulation import convert_to_irreversible
 
 
 def _build_model_with_bounds(

@@ -19,8 +19,8 @@ import cobra
 import pytest
 from tinit_oracles import TEST_MODEL_SCORES, expr_for_rxn_score, make_test_model
 
-from raven_python.init import FtInitResult, run_ftinit, run_init
-from raven_python.init.score import gene_scores_from_expression, score_reactions_from_genes
+from raven_toolbox.init import FtInitResult, run_ftinit, run_init
+from raven_toolbox.init.score import gene_scores_from_expression, score_reactions_from_genes
 
 _LOOP = {"R4", "R6", "R9", "R10"}  # the score-optimal subnetwork (8.0)
 

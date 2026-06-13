@@ -6,8 +6,8 @@ import tarfile
 
 import pytest
 
-from raven_python import data
-from raven_python.data import (
+from raven_toolbox import data
+from raven_toolbox.data import (
     ensure_data_file,
     ensure_kegg_data,
     ensure_kegg_hmm_library,
@@ -60,7 +60,7 @@ def served(tmp_path, monkeypatch):
 def test_ensure_data_file_downloads_and_caches(served):
     registry, cache, _ = served
     path = ensure_data_file("kegg", "v1_taxonomy.gz", registry=registry)
-    assert path == cache / "raven_python" / "data" / "kegg-v1" / "v1_taxonomy.gz"
+    assert path == cache / "raven_toolbox" / "data" / "kegg-v1" / "v1_taxonomy.gz"
     assert path.read_bytes() == b"# Prokaryotes\n"
 
 
@@ -79,7 +79,7 @@ def test_sha256_mismatch_rejected(served):
     with pytest.raises(ValueError, match="SHA256 mismatch"):
         ensure_data_file("kegg", "v1_taxonomy.gz", registry=registry)
     # The corrupt partial download must not be left behind.
-    assert not (cache / "raven_python" / "data" / "kegg-v1" / "v1_taxonomy.gz").exists()
+    assert not (cache / "raven_toolbox" / "data" / "kegg-v1" / "v1_taxonomy.gz").exists()
 
 
 def test_unknown_dataset_actionable_error(served):
@@ -97,7 +97,7 @@ def test_unknown_file_lists_available(served):
 def test_ensure_kegg_data_extracts_core_bundle(served):
     registry, cache, core = served
     out = ensure_kegg_data(registry=registry)
-    assert out == cache / "raven_python" / "data" / "kegg-v1"
+    assert out == cache / "raven_toolbox" / "data" / "kegg-v1"
     # The single bundle is fetched and its members extracted into the cache dir.
     for name, payload in core.items():
         member = out / name
@@ -107,7 +107,7 @@ def test_ensure_kegg_data_extracts_core_bundle(served):
 def test_ensure_kegg_taxonomy(served):
     registry, cache, _ = served
     path = ensure_kegg_taxonomy(registry=registry)
-    assert path == cache / "raven_python" / "data" / "kegg-v1" / "v1_taxonomy.gz"
+    assert path == cache / "raven_toolbox" / "data" / "kegg-v1" / "v1_taxonomy.gz"
     assert path.is_file()
 
 

@@ -4,8 +4,8 @@ Adopted from geckopy's tests/test_expand.py.
 """
 import cobra
 
-from raven_python.manipulation import expand_model
-from raven_python.manipulation.expand import gpr_to_dnf
+from raven_toolbox.manipulation import expand_model
+from raven_toolbox.manipulation.expand import gpr_to_dnf
 
 # --------------------------------------------------------------------------- #
 # DNF conversion (internal helper, worth testing directly)

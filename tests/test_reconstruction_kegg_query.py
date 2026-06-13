@@ -6,7 +6,7 @@ no real KEGG content is committed.
 import pandas as pd
 import pytest
 
-from raven_python.reconstruction.kegg import (
+from raven_toolbox.reconstruction.kegg import (
     assign_kos,
     build_kegg_tables,
     build_reference_model,
@@ -110,7 +110,7 @@ def test_get_model_from_sequences(reference_and_tables, monkeypatch):
     model_ref, tables = reference_and_tables
     # Mock the HMM search: K90001 -> myGeneA/myGeneB (-> R90010).
     monkeypatch.setattr(
-        "raven_python.reconstruction.kegg.query.run_hmmsearch",
+        "raven_toolbox.reconstruction.kegg.query.run_hmmsearch",
         lambda *a, **k: (
             "myGeneA - K90001 - 1e-120 400 0\n"
             "myGeneB - K90001 - 1e-110 380 0\n"

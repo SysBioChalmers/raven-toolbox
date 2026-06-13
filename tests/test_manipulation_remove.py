@@ -1,8 +1,8 @@
-"""Tests for raven_python.manipulation.remove (removeMets/removeGenes ports)."""
+"""Tests for raven_toolbox.manipulation.remove (removeMets/removeGenes ports)."""
 import cobra
 import pytest
 
-from raven_python.manipulation import (
+from raven_toolbox.manipulation import (
     add_reactions_from_equations,
     remove_genes,
     remove_metabolites,

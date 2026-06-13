@@ -1,11 +1,11 @@
-"""Tests for raven_python.curation.batch."""
+"""Tests for raven_toolbox.curation.batch."""
 from __future__ import annotations
 
 import cobra
 import pandas as pd
 import pytest
 
-from raven_python.curation import (
+from raven_toolbox.curation import (
     CurationResult,
     batch_curate,
     batch_curate_from_tsv,

@@ -1,6 +1,6 @@
 # Maintaining the KEGG data artefacts
 
-This guide is for the **package maintainer** who rebuilds raven-python's KEGG
+This guide is for the **package maintainer** who rebuilds raven-toolbox's KEGG
 artefacts once per KEGG release. End users never do this — they download the
 published, version-pinned artefacts. The build has two implemented steps so far:
 **3b.1 download** (`reconstruction/kegg/download.py`) and **3b.2 parse**
@@ -45,7 +45,7 @@ different file with `netrc_path=...` (see below); the format is identical.
 With `~/.netrc` in place, no credentials need to be passed in code:
 
 ```python
-from raven_python.reconstruction.kegg import download_kegg_dump
+from raven_toolbox.reconstruction.kegg import download_kegg_dump
 
 # Reads ~/.netrc, fetches the KEGG archives, extracts and arranges them.
 download_kegg_dump("keggdb")
@@ -74,7 +74,7 @@ KEGG release).
 ## Step 3b.2 — parse into the published artefacts
 
 ```python
-from raven_python.reconstruction.kegg import parse_kegg_dump
+from raven_toolbox.reconstruction.kegg import parse_kegg_dump
 
 parse_kegg_dump("keggdb", "artefacts", version="kegg116")
 ```
@@ -98,7 +98,7 @@ searches. This needs **HMMER** (`hmmbuild`, `hmmpress`), **MAFFT**, and
 > matrix in [maintaining_binaries.md](maintaining_binaries.md#native-os-support-per-tool).
 
 ```python
-from raven_python.reconstruction.kegg import build_hmm_library, read_kegg_table
+from raven_toolbox.reconstruction.kegg import build_hmm_library, read_kegg_table
 
 organism_gene_ko = read_kegg_table("artefacts/kegg116_organism_gene_ko.tsv.gz")
 for domain in ("prokaryotes", "eukaryotes"):
@@ -123,13 +123,13 @@ HMMER versions, and lets the same artefact serve MATLAB RAVEN.
 
 ## Building and publishing in one go
 
-[`scripts/build_kegg_artefacts.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md) runs 3b.2 (+ 3b.3 with
+[`scripts/build_kegg_artefacts.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/README.md) runs 3b.2 (+ 3b.3 with
 `--hmms`) and lays the output out as publishable, version-prefixed assets: the core
 model files (reference model + KO/reaction tables) bundled into `<version>_core.tar.gz`
 (which `ensure_kegg_data` extracts), and `<version>_<domain>.hmm.gz` per domain (named
 for `ensure_kegg_hmm_library`). It also publishes
 `<version>_taxonomy.gz` — the domain split plus the source for
-[`phyl_dist`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/reconstruction/kegg/taxonomy.py),
+[`phyl_dist`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/reconstruction/kegg/taxonomy.py),
 which regenerates RAVEN's `keggPhylDist` (used by GECKO) with no `.mat` file:
 
 ```bash
@@ -138,18 +138,18 @@ python scripts/build_kegg_artefacts.py --keggdb keggdb --out artefacts \
 ```
 
 Upload the contents of `artefacts/` to the release, then record the artefacts in
-both the shared `data/manifest.json` and `raven_python.data._DATA_REGISTRY` with
-[`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/README.md)
+both the shared `data/manifest.json` and `raven_toolbox.data._DATA_REGISTRY` with
+[`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/README.md)
 (it computes each file's SHA256 + size):
 
 ```bash
-# shared source of truth (read by raven-python and MATLAB RAVEN):
+# shared source of truth (read by raven-toolbox and MATLAB RAVEN):
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
     --target data --dataset kegg --version kegg116 --dir artefacts \
-    --base-url https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0
+    --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0
 # in-code registry, so end users auto-fetch with no env var (paste into _DATA_REGISTRY):
 python scripts/make_registry_snippet.py data --dataset kegg --version kegg116 \
-    --dir artefacts --base-url https://github.com/SysBioChalmers/raven-python/releases/download/v0.1.0
+    --dir artefacts --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0
 ```
 
 From then on `ensure_data` fetches and verifies the artefacts for end users
@@ -158,8 +158,8 @@ automatically.
 ## End-user paths (3b.4 / 3b.5)
 
 End users do **not** run the steps above — the published artefacts are fetched and
-cached automatically by `ensure_data` (`raven_python.data`) under
-`~/.cache/raven-python/data/kegg-<version>/` on first use, so the entry points below
+cached automatically by `ensure_data` (`raven_toolbox.data`) under
+`~/.cache/raven-toolbox/data/kegg-<version>/` on first use, so the entry points below
 can be called with no local paths at all (pass an explicit `artefact_dir=`/
 `library=` to use your own build instead). Two runtime entry points build a draft
 model from the artefacts:

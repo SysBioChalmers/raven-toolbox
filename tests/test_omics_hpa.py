@@ -5,7 +5,7 @@ from textwrap import dedent
 
 import pytest
 
-from raven_python.omics import (
+from raven_toolbox.omics import (
     HPA_LEVEL_SCORES,
     HPAData,
     HPARnaData,

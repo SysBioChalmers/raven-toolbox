@@ -1,6 +1,6 @@
 # KEGG relational-table storage format
 
-This note records *why* raven-python stores its KEGG-derived relational tables as
+This note records *why* raven-toolbox stores its KEGG-derived relational tables as
 **gzipped TSV**, and what other options we deliberately deferred. It applies to
 the maintainer-built KEGG artefacts described in PLAN.md §2.3b — the `ko_reaction`,
 `organism_gene_ko`, KO-name, and reaction-flag tables.
@@ -11,8 +11,8 @@ tables (the YAML I/O transparently gzips on a `.gz` suffix). On the real KEGG du
 this is ~1.1 MB (vs ~30 MB as SBML) for the full 12k-reaction gene-free model.
 
 End users do not build any of this: the published artefacts are fetched and cached
-under `~/.cache/raven-python/data/kegg-<version>/` by `ensure_data` (see
-`raven_python.data`), mirroring how binaries are provisioned. The core tables and the
+under `~/.cache/raven-toolbox/data/kegg-<version>/` by `ensure_data` (see
+`raven_toolbox.data`), mirroring how binaries are provisioned. The core tables and the
 reference model are distributed together as a single `<version>_core.tar.gz`
 (`ensure_kegg_data` extracts it on first use); the per-file format below is unchanged.
 The HMM libraries and the `taxonomy` file are separate, individually-fetched artefacts.
@@ -51,7 +51,7 @@ read; xz's larger dictionary is not worth a MATLAB toolchain requirement.
 | Format | Python cost | MATLAB cost | Notes |
 | --- | --- | --- | --- |
 | **Gzipped TSV** ✅ | none (stdlib/pandas) | none (`readtable`) | Universal, text, types re-specified on read. Chosen. |
-| Parquet | `pyarrow` or `fastparquet` (~40–60 MB wheel) as a `raven-python[kegg]` extra | needs ≥ R2019a (`parquetread`, native) | Smaller, faster, typed, columnar. Win mainly at scale / repeated random access. |
+| Parquet | `pyarrow` or `fastparquet` (~40–60 MB wheel) as a `raven-toolbox[kegg]` extra | needs ≥ R2019a (`parquetread`, native) | Smaller, faster, typed, columnar. Win mainly at scale / repeated random access. |
 | SQLite | none (stdlib `sqlite3`) | **needs Database Toolbox** | Rejected: the MATLAB-side toolbox requirement breaks the "same files, both languages, no extra deps" goal. |
 
 ## When to revisit
@@ -70,5 +70,5 @@ Reconsider Parquet (or SQLite) if any of these become true:
 
 If revisited, prefer **Parquet** over SQLite (no MATLAB toolbox dependency; MATLAB
 reads Parquet natively from R2019a). It could be offered as an optional
-`raven-python[kegg]` extra (pyarrow) alongside the TSV default, rather than replacing
+`raven-toolbox[kegg]` extra (pyarrow) alongside the TSV default, rather than replacing
 it — keeping the dependency-free path intact for users who don't opt in.

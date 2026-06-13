@@ -1,4 +1,4 @@
-"""Tests for raven_python.conditions.apply (generic condition mechanism)."""
+"""Tests for raven_toolbox.conditions.apply (generic condition mechanism)."""
 from __future__ import annotations
 
 import io
@@ -7,7 +7,7 @@ import cobra
 import pytest
 from ruamel.yaml import YAML
 
-from raven_python.conditions import (
+from raven_toolbox.conditions import (
     apply_condition,
     load_condition,
     set_reaction_bounds,

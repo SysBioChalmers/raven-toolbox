@@ -1,9 +1,9 @@
-"""Tests for raven_python.io.sif (exportModelToSIF port)."""
+"""Tests for raven_toolbox.io.sif (exportModelToSIF port)."""
 import cobra
 import pytest
 
-from raven_python.io import export_model_to_sif
-from raven_python.manipulation import add_reactions_from_equations
+from raven_toolbox.io import export_model_to_sif
+from raven_toolbox.manipulation import add_reactions_from_equations
 
 
 @pytest.fixture

@@ -4,7 +4,7 @@ from __future__ import annotations
 import cobra
 import pytest
 
-from raven_python.manipulation.compartments import copy_to_compartment, merge_compartments
+from raven_toolbox.manipulation.compartments import copy_to_compartment, merge_compartments
 
 
 def _two_compartment_model() -> cobra.Model:

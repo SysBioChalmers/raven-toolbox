@@ -1,10 +1,10 @@
 # yeast-GEM localisation benchmark
 
-Real-data validation of [`localization.predict_localization`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/localization/predict.py)
+Real-data validation of [`localization.predict_localization`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/predict.py)
 on the curated yeast-GEM. The benchmark is end-to-end — model, scoring, MILP — and
 sweeps predictor noise so the failure modes are visible, not just the headline accuracy.
 
-* Driver: [`scripts/benchmark_localization_yeast.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/benchmark_localization_yeast.py)
+* Driver: [`scripts/benchmark_localization_yeast.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/benchmark_localization_yeast.py)
 * Yeast-GEM source: `pcSecYeastSpecies/Model/yeastGEM.xml` (3991 reactions, 1147 genes,
   14 compartments).
 * Run command:
@@ -26,7 +26,7 @@ sweeps predictor noise so the failure modes are visible, not just the headline a
    compartments collapse to 12 placement targets in the truth set (extracellular and
    the lipid particle / vacuolar membrane variants stay distinct).
 2. **Flattening**: the model is squashed into one compartment with
-   [`manipulation.merge_compartments`](https://github.com/SysBioChalmers/raven-python/blob/develop/src/raven_python/manipulation/compartments.py)
+   [`manipulation.merge_compartments`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/manipulation/compartments.py)
    so the predictor cannot lean on metabolite-topology evidence. Without this step
    every GPR'd reaction's "predicted" compartment is just its current one — vacuous.
 3. **Reference scores**: each gene gets `1.0` in every compartment that hosts one of

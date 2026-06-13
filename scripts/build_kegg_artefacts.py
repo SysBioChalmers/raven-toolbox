@@ -7,7 +7,7 @@ Runs the maintainer pipeline against an arranged KEGG dump (see
 * 3b.2 — ``parse_kegg_dump`` → ``reference_model.yml.gz`` + the gzipped-TSV tables;
 * 3b.3 — ``build_hmm_library`` per domain → a gzipped concatenated flatfile
   ``<version>_<domain>.hmm.gz`` (the client decompresses it and searches with
-  ``hmmsearch``), named so :func:`raven_python.data.ensure_kegg_hmm_library` can fetch it.
+  ``hmmsearch``), named so :func:`raven_toolbox.data.ensure_kegg_hmm_library` can fetch it.
 
 Pass ``--version`` (e.g. ``kegg116``) to version-prefix every output filename, matching
 the published release assets. Everything lands in ``--out`` ready to upload; feed that
@@ -32,7 +32,7 @@ import shutil
 import tarfile
 from pathlib import Path
 
-from raven_python.reconstruction.kegg import (
+from raven_toolbox.reconstruction.kegg import (
     build_hmm_library,
     parse_kegg_dump,
     read_kegg_table,

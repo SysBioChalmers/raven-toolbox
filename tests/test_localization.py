@@ -1,4 +1,4 @@
-"""Tests for raven_python.localization — predictor loaders + the MILP + apply (Phase 7)."""
+"""Tests for raven_toolbox.localization — predictor loaders + the MILP + apply (Phase 7)."""
 from __future__ import annotations
 
 from textwrap import dedent
@@ -7,7 +7,7 @@ import cobra
 import pandas as pd
 import pytest
 
-from raven_python.localization import (
+from raven_toolbox.localization import (
     LocalizationProposal,
     LocalizationResult,
     LocalizationScores,

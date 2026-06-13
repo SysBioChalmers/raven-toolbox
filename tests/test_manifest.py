@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from raven_python import binaries, data, manifest
+from raven_toolbox import binaries, data, manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 

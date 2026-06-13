@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.tasks import Task, check_tasks, parse_task_list
+from raven_toolbox.tasks import Task, check_tasks, parse_task_list
 
 TASK_TSV = (
     "ID\tDESCRIPTION\tIN\tIN UB\tOUT\tOUT LB\tEQU\tSHOULD FAIL\n"

@@ -1,4 +1,4 @@
-"""Tests for raven_python.binaries (binary resolution + bundled-ZIP provisioning)."""
+"""Tests for raven_toolbox.binaries (binary resolution + bundled-ZIP provisioning)."""
 import hashlib
 import shutil
 import stat
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from raven_python import binaries
+from raven_toolbox import binaries
 
 
 def test_resolve_explicit_path():

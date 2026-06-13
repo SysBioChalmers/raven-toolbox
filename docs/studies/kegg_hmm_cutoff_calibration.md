@@ -29,7 +29,7 @@ in three steps:
   recall = |pred ∩ truth| / |truth|, F1. Reaction-level: `rxn_rec` = fraction of
   the organism's true reactions recovered (KO→reaction via `ko_reaction`);
   `rxn_novel` = predicted reactions **not** in the annotation set.
-- Reproduce with [`scripts/analyze_hmm_cutoffs.py`](https://github.com/SysBioChalmers/raven-python/blob/develop/scripts/analyze_hmm_cutoffs.py).
+- Reproduce with [`scripts/analyze_hmm_cutoffs.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/analyze_hmm_cutoffs.py).
 
 ### Important caveat
 

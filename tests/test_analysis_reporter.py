@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.analysis import ReporterResult, reporter_metabolites
+from raven_toolbox.analysis import ReporterResult, reporter_metabolites
 
 
 def _met(mid):

@@ -1,11 +1,11 @@
-"""Tests for raven_python.io.yaml against the RAVEN fa281a1 (cobra-native !!omap) schema."""
+"""Tests for raven_toolbox.io.yaml against the RAVEN fa281a1 (cobra-native !!omap) schema."""
 from pathlib import Path
 
 import cobra
 import pytest
 from cobra.io.yaml import yaml as cobra_yaml
 
-from raven_python.io import read_yaml_model, write_yaml_model
+from raven_toolbox.io import read_yaml_model, write_yaml_model
 
 # A model laid out exactly as RAVEN writeYAMLmodel (fa281a1) emits: cobra-native
 # structure, RAVEN-only fields as top-level per-entry keys, smiles/ec-code inside
@@ -169,7 +169,7 @@ def test_output_is_cobra_readable(yaml_file, tmp_path):
     recover the metabolites, reactions, and the cobrapy-canonical
     annotation block. Model-level id / name / version live inside the
     metaData section (RAVEN convention) — cobrapy doesn't know about
-    metaData, so cobra_model.id is None here. raven_python recovers
+    metaData, so cobra_model.id is None here. raven_toolbox recovers
     them; cobrapy ignores them gracefully."""
     model = read_yaml_model(yaml_file)
     out = tmp_path / "out.yml"

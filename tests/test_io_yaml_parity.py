@@ -1,4 +1,4 @@
-"""Parity gate: round-tripping a YAML model through raven_python.io.yaml
+"""Parity gate: round-tripping a YAML model through raven_toolbox.io.yaml
 must produce a file that:
 
   * cobra.io.load_yaml_model can read (the cobrapy-canonical core);
@@ -23,7 +23,7 @@ import cobra.io
 import pytest
 from cobra.io.yaml import yaml as cobra_yaml
 
-from raven_python.io import read_yaml_model, write_yaml_model
+from raven_toolbox.io import read_yaml_model, write_yaml_model
 
 SAMPLE = {
     "metabolites": [
@@ -160,7 +160,7 @@ def test_output_carries_omap_tags(src, tmp_path):
 
 def test_metadata_is_first(src, tmp_path):
     """RAVEN MATLAB emits metaData as the first top-level section.
-    Producing the same layout means RAVEN MATLAB and raven_python
+    Producing the same layout means RAVEN MATLAB and raven_toolbox
     files agree byte-for-byte on top-level ordering."""
     model = read_yaml_model(src)
     out = tmp_path / "out.yml"
@@ -343,7 +343,7 @@ def test_pre_shim_yeast_gem_loads_if_available():
 
 def test_eccodes_round_trip_through_cobra_extras(src, tmp_path):
     """EC codes round-trip as cobra annotation through a
-    raven_python -> cobra -> raven_python loop. They live in
+    raven_toolbox -> cobra -> raven_toolbox loop. They live in
     ``annotation['ec-code']`` — the cobra-native place — so plain
     ``cobra.io`` preserves them with no RAVEN-specific handling, and
     geckopy (which reads ``annotation['ec-code']``) sees them."""

@@ -1,10 +1,10 @@
-"""Tests for raven_python.biomass."""
+"""Tests for raven_toolbox.biomass."""
 from __future__ import annotations
 
 import cobra
 import pytest
 
-from raven_python.biomass import (
+from raven_toolbox.biomass import (
     BiomassComponent,
     BiomassConfig,
     rescale_pseudoreaction,
@@ -12,7 +12,7 @@ from raven_python.biomass import (
     set_gam,
     sum_biomass,
 )
-from raven_python.biomass.scale import _formula_mw
+from raven_toolbox.biomass.scale import _formula_mw
 
 # --- formula MW helper ----------------------------------------------
 

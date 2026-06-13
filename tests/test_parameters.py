@@ -2,7 +2,7 @@
 import cobra
 import pytest
 
-from raven_python.manipulation import add_reactions_from_equations, set_variance_bounds
+from raven_toolbox.manipulation import add_reactions_from_equations, set_variance_bounds
 
 
 @pytest.fixture
