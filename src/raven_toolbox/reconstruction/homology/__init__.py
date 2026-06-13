@@ -4,7 +4,11 @@ from raven_toolbox.reconstruction.homology.blast import (
     run_blast,
     run_diamond,
 )
-from raven_toolbox.reconstruction.homology.hits import HIT_COLUMNS, make_ortholog_hits, validate_hits
+from raven_toolbox.reconstruction.homology.hits import (
+    HIT_COLUMNS,
+    make_ortholog_hits,
+    validate_hits,
+)
 from raven_toolbox.reconstruction.homology.homology import HomologyResult, get_model_from_homology
 
 __all__ = [
