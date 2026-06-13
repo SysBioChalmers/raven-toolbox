@@ -45,12 +45,18 @@ jobs:
       - run: mypy
 
   test:
-    name: pytest (py${{ matrix.python }})
-    runs-on: ubuntu-latest
+    name: pytest (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # Full Python range on Linux; a single Python on macOS/Windows to catch
+        # OS-specific issues (paths, subprocess, file I/O) at low runner cost.
+        os: [ubuntu-latest]
         python: ["3.11", "3.12", "3.13"]
+        include:
+          - { os: macos-latest, python: "3.12" }
+          - { os: windows-latest, python: "3.12" }
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
