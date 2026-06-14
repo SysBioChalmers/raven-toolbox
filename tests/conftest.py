@@ -8,6 +8,14 @@ from pathlib import Path
 import cobra
 import pytest
 
+# cobra's FVA / sampling / gap-filling parallelise with multiprocessing by
+# default. On Linux that uses fork; on macOS and Windows it uses spawn, which
+# re-pickles the model into each worker and deadlocks inside pytest (observed:
+# ftINIT's task-essentiality FVA hangs forever on the macOS/Windows runners).
+# Force single-process for the whole test suite so it is deterministic and
+# hang-free on every platform. Library behaviour for real users is unchanged.
+cobra.Configuration().processes = 1
+
 
 def _linear_chain_model(*, with_genes: bool = False) -> cobra.Model:
     """EX_A -> A -(r1)-> B -(r2)-> C -(r3)-> D.
