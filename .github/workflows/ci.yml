@@ -47,6 +47,7 @@ jobs:
   test:
     name: pytest (${{ matrix.os }}, py${{ matrix.python }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30  # backstop so a hang cannot burn hours of runner time
     strategy:
       fail-fast: false
       matrix:
@@ -69,7 +70,13 @@ jobs:
       # Gurobi is not installable on free runners; the relevant tests
       # skip themselves when ``optlang.gurobi_interface`` cannot import.
       - run: pip install -e ".[dev,excel]"
-      - run: pytest -q --maxfail=5 --durations=20
+      # -v streams each test id as it runs (so a hang is obvious), and
+      # pytest-timeout fails any test stuck >300s with a full thread dump
+      # (thread method works on Windows/macOS) instead of hanging the job.
+      - name: Run pytest
+        run: pytest -v --durations=20 --timeout=300 --timeout-method=thread
+        env:
+          PYTHONUNBUFFERED: "1"
 
   docs:
     name: docs
