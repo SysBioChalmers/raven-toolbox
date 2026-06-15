@@ -34,6 +34,8 @@ import tarfile
 import urllib.request
 from pathlib import Path
 
+from tqdm import tqdm
+
 logger = logging.getLogger(__name__)
 
 KEGG_HOST = "ftp.kegg.net"
@@ -100,6 +102,24 @@ def _build_opener(base_url: str, user: str, password: str) -> urllib.request.Ope
 # --------------------------------------------------------------------------- #
 # Fetch
 # --------------------------------------------------------------------------- #
+def _copy_with_progress(
+    src, dst, *, total: int | None, desc: str, progress: bool, chunk: int = 1 << 20
+) -> None:
+    """Copy ``src`` → ``dst`` in chunks, advancing a tqdm byte bar.
+
+    ``total`` (e.g. from a ``Content-Length`` header) gives the bar a percentage;
+    ``None`` (unknown size) makes it a count-up of bytes with a transfer rate. The
+    bar is suppressed unless ``progress``.
+    """
+    with tqdm(
+        total=total, desc=desc, unit="B", unit_scale=True, unit_divisor=1024,
+        disable=not progress,
+    ) as bar:
+        while buf := src.read(chunk):
+            dst.write(buf)
+            bar.update(len(buf))
+
+
 def fetch_kegg_files(
     dest: str | Path,
     *,
@@ -110,11 +130,14 @@ def fetch_kegg_files(
     netrc_path: str | Path | None = None,
     force: bool = False,
     verbose: bool = True,
+    progress: bool = True,
 ) -> list[Path]:
     """Download the raw KEGG archives into ``dest`` (basenames). Returns the paths.
 
     Existing files are skipped unless ``force=True`` (the script's ``wget -N``
-    intent, simplified to skip-if-present).
+    intent, simplified to skip-if-present). ``progress`` shows a per-file byte
+    download bar (sized from the response ``Content-Length``); ``verbose`` keeps
+    the ``fetching``/``skip`` INFO log lines.
     """
     user, password = _resolve_auth(host, netrc_path=netrc_path, auth=auth)
     opener = _build_opener(base_url, user, password)
@@ -133,7 +156,12 @@ def fetch_kegg_files(
         if verbose:
             logger.info("fetching %s", path)
         with opener.open(url) as resp, open(target, "wb") as handle:
-            shutil.copyfileobj(resp, handle)
+            length = resp.headers.get("Content-Length")
+            _copy_with_progress(
+                resp, handle,
+                total=int(length) if length else None,
+                desc=target.name, progress=progress,
+            )
         out.append(target)
     return out
 
@@ -141,9 +169,11 @@ def fetch_kegg_files(
 # --------------------------------------------------------------------------- #
 # Extract / arrange
 # --------------------------------------------------------------------------- #
-def _gunzip(src: Path, target: Path) -> None:
+def _gunzip(src: Path, target: Path, *, progress: bool = False) -> None:
     with gzip.open(src, "rb") as fh, open(target, "wb") as out:
-        shutil.copyfileobj(fh, out)
+        # Decompressed size is unknown up front, so the bar counts output bytes
+        # with a rate rather than a percentage (the .pep proteomes are large).
+        _copy_with_progress(fh, out, total=None, desc=f"gunzip {src.name}", progress=progress)
 
 
 def _concat(sources: list[Path], target: Path) -> None:
@@ -153,27 +183,29 @@ def _concat(sources: list[Path], target: Path) -> None:
                 shutil.copyfileobj(fh, out)
 
 
-def extract_kegg_dump(dest: str | Path) -> dict[str, Path]:
+def extract_kegg_dump(dest: str | Path, *, progress: bool = False) -> dict[str, Path]:
     """Extract and arrange the downloaded archives into the flat dump layout.
 
     Mirrors ``fetch_keggdb.sh``'s extract step: untar the ``*.tar.gz`` archives,
     gunzip the ``*.pep.gz`` proteomes, lift the needed files out of their
     sub-directories, and concatenate compound+glycan and the two proteomes.
     Tar extraction uses the ``data`` filter (no path traversal). Returns a
-    mapping of logical name -> path for the files produced.
+    mapping of logical name -> path for the files produced. ``progress`` shows a
+    bar over the untar step and a byte bar per proteome gunzip.
 
     Network-free, so this is the unit-tested core; ``download_kegg_dump`` chains
     :func:`fetch_kegg_files` in front of it.
     """
     dest = Path(dest)
 
-    for tar_path in sorted(dest.glob("*.tar.gz")):
+    tars = sorted(dest.glob("*.tar.gz"))
+    for tar_path in tqdm(tars, desc="untar", unit="archive", disable=not progress):
         with tarfile.open(tar_path) as tar:
             tar.extractall(dest, filter="data")
         tar_path.unlink()
 
     for gz_path in sorted(dest.glob("*.gz")):  # only the .pep.gz remain
-        _gunzip(gz_path, gz_path.with_suffix(""))
+        _gunzip(gz_path, gz_path.with_suffix(""), progress=progress)
         gz_path.unlink()
 
     def lift(rel: str, tmp: str) -> Path | None:
@@ -247,12 +279,15 @@ def download_kegg_dump(
     netrc_path: str | Path | None = None,
     force: bool = False,
     verbose: bool = True,
+    progress: bool = True,
 ) -> dict[str, Path]:
     """Fetch and arrange a complete KEGG dump into ``dest``.
 
     Convenience wrapper chaining :func:`fetch_kegg_files` and
     :func:`extract_kegg_dump`. Returns the logical-name -> path mapping of the
     arranged dump, ready for :func:`raven_toolbox.reconstruction.kegg.parse_kegg_dump`.
+    ``progress`` (on by default) shows download/extraction bars; pass
+    ``progress=False`` for non-interactive runs.
     """
     fetch_kegg_files(
         dest,
@@ -263,7 +298,8 @@ def download_kegg_dump(
         netrc_path=netrc_path,
         force=force,
         verbose=verbose,
+        progress=progress,
     )
     if verbose:
         logger.info("Extracting and arranging KEGG dump...")
-    return extract_kegg_dump(dest)
+    return extract_kegg_dump(dest, progress=progress)

@@ -36,6 +36,7 @@ from pathlib import Path
 
 import cobra
 import pandas as pd
+from tqdm import tqdm
 
 from raven_toolbox.io.yaml import write_yaml_model
 
@@ -53,31 +54,47 @@ _NUMERIC = re.compile(r"^\d+(\.\d+)?$")
 # --------------------------------------------------------------------------- #
 # Generic flat-file reader
 # --------------------------------------------------------------------------- #
-def _iter_entries(path: str | Path) -> Iterator[dict[str, list[str]]]:
+def _iter_entries(
+    path: str | Path, *, progress_desc: str | None = None
+) -> Iterator[dict[str, list[str]]]:
     """Yield one ``{field_label: [value_lines]}`` dict per ``///``-delimited entry.
 
     Field labels (columns 1-12) key a list of their value lines in file order;
     continuation lines (12 leading spaces) append to the current field.
+
+    When ``progress_desc`` is set, a tqdm byte-progress bar (total = file size)
+    advances as the file is read — used for the large ``ko`` pass.
     """
     entry: dict[str, list[str]] = {}
     current: str | None = None
-    with open(path, encoding="utf-8") as handle:
-        for raw in handle:
-            line = raw.rstrip("\n")
-            if line.startswith("///"):
-                if entry:
-                    yield entry
-                entry, current = {}, None
-                continue
-            if not line.strip():
-                continue
-            label = line[:_LABEL_WIDTH].strip()
-            value = line[_LABEL_WIDTH:].rstrip()
-            if label:
-                current = label
-                entry.setdefault(current, []).append(value)
-            elif current is not None:
-                entry[current].append(value)
+    bar = (
+        tqdm(total=Path(path).stat().st_size, desc=progress_desc, unit="B", unit_scale=True)
+        if progress_desc is not None
+        else None
+    )
+    try:
+        with open(path, encoding="utf-8") as handle:
+            for raw in handle:
+                if bar is not None:
+                    bar.update(len(raw))  # chars≈bytes (ASCII dump); bar is a guide, not exact
+                line = raw.rstrip("\n")
+                if line.startswith("///"):
+                    if entry:
+                        yield entry
+                    entry, current = {}, None
+                    continue
+                if not line.strip():
+                    continue
+                label = line[:_LABEL_WIDTH].strip()
+                value = line[_LABEL_WIDTH:].rstrip()
+                if label:
+                    current = label
+                    entry.setdefault(current, []).append(value)
+                elif current is not None:
+                    entry[current].append(value)
+    finally:
+        if bar is not None:
+            bar.close()
     if entry:  # tolerate a missing final '///'
         yield entry
 
@@ -513,7 +530,12 @@ def _ogk_sort_key(line: str) -> tuple[str, str]:
 
 
 def stream_organism_gene_ko(
-    kegg_dir: str | Path, keep: set[str], ogk_path: str | Path, *, chunk_rows: int = 1_000_000
+    kegg_dir: str | Path,
+    keep: set[str],
+    ogk_path: str | Path,
+    *,
+    chunk_rows: int = 1_000_000,
+    progress: bool = False,
 ) -> pd.DataFrame:
     """Stream the ``ko`` file to a sorted, gzipped ``organism_gene_ko.tsv.gz``.
 
@@ -529,6 +551,8 @@ def stream_organism_gene_ko(
     memory at a time (sorted runs spooled to gzipped temp files, then merged with
     :func:`heapq.merge`), so peak memory stays flat regardless of KEGG size. Only
     the small ``ko_names`` table (one row per KO) is held in full and returned.
+
+    ``progress`` shows a tqdm byte-progress bar over the (large) ``ko`` read pass.
     """
     ogk_path = Path(ogk_path)
     names: list[tuple[str, str]] = []
@@ -537,7 +561,10 @@ def stream_organism_gene_ko(
 
     with tempfile.TemporaryDirectory(prefix="ogk_sort_", dir=ogk_path.parent) as tmp:
         tmp_dir = Path(tmp)
-        for entry in _iter_entries(Path(kegg_dir) / "ko"):
+        for entry in _iter_entries(
+            Path(kegg_dir) / "ko",
+            progress_desc="organism_gene_ko (ko)" if progress else None,
+        ):
             ko_id = _first_id(entry.get("ENTRY", []))
             if not ko_id or ko_id not in keep:
                 continue
@@ -562,7 +589,11 @@ def stream_organism_gene_ko(
 
 
 def parse_kegg_dump(
-    kegg_dir: str | Path, out_dir: str | Path, *, version: str | None = None
+    kegg_dir: str | Path,
+    out_dir: str | Path,
+    *,
+    version: str | None = None,
+    progress: bool = False,
 ) -> dict[str, Path]:
     """Parse a full KEGG dump into the reference model + tables and write them out.
 
@@ -576,15 +607,22 @@ def parse_kegg_dump(
     When ``version`` is given (e.g. ``"kegg116"``) the output filenames are
     version-prefixed (``<version>_<name>``), matching the published release
     assets; the returned dict keys stay the logical table names.
+
+    ``progress`` reports each stage and shows a byte-progress bar over the
+    dominant ``organism_gene_ko`` (ko) streaming pass.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     prefix = f"{version}_" if version else ""
 
+    if progress:
+        tqdm.write("Parsing reactions and compounds...")
     reactions = parse_kegg_reactions(kegg_dir)
     compounds = parse_kegg_compounds(kegg_dir)
     linked_kos = {ko for r in reactions for ko in r.kos}
 
+    if progress:
+        tqdm.write(f"Building reference model ({len(reactions)} reactions)...")
     model = build_reference_model(reactions, compounds)
 
     small = {
@@ -601,8 +639,10 @@ def parse_kegg_dump(
         for name, p in zip(small, write_kegg_tables(small, out_dir, prefix=prefix), strict=True)
     }
 
+    if progress:
+        tqdm.write("Streaming organism_gene_ko (the large pass)...")
     ogk_path = out_dir / f"{prefix}organism_gene_ko.tsv.gz"
-    ko_names = stream_organism_gene_ko(kegg_dir, linked_kos, ogk_path)
+    ko_names = stream_organism_gene_ko(kegg_dir, linked_kos, ogk_path, progress=progress)
     paths["organism_gene_ko"] = ogk_path
     paths.update(
         zip(
@@ -612,6 +652,8 @@ def parse_kegg_dump(
         )
     )
 
+    if progress:
+        tqdm.write("Writing reference model (YAML)...")
     ref_path = out_dir / f"{prefix}reference_model.yml.gz"
     write_yaml_model(model, ref_path)
     paths["reference_model"] = ref_path

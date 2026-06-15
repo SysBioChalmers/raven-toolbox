@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     prefix = f"{args.version}_" if args.version else ""
     print(">>> Parsing KEGG dump (3b.2)...")
-    paths = parse_kegg_dump(args.keggdb, args.out, version=args.version)
+    paths = parse_kegg_dump(args.keggdb, args.out, version=args.version, progress=True)
     for name, path in paths.items():
         print(f"    {name}: {path}")
 
@@ -102,6 +102,7 @@ def main(argv: list[str] | None = None) -> None:
                 ogk, genes_pep, taxonomy, args.out / f"_hmms-{domain}",
                 domain=domain, seq_identity=args.seq_identity,
                 parttree_residues=args.parttree_residues, threads=args.threads,
+                progress=True,
             )
             published = _publish_library(work, args.out, domain, prefix)
             print(f"    {domain}: {published} ({len(work['hmms'])} profiles)")
