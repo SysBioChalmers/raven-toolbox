@@ -106,6 +106,46 @@ def test_build_ko_fastas_sequences_intact(organism_gene_ko, kegg_dump, tmp_path)
     assert "MQFKTLVIDEGHKLPSTWYNACRMQFKTLVIDEGHKLPSTWYNACR" in text
 
 
+def test_build_ko_fastas_writes_completion_marker(organism_gene_ko, kegg_dump, tmp_path):
+    build_ko_fastas(organism_gene_ko, kegg_dump / "genes.pep", tmp_path)
+    assert (tmp_path / ".ko_fastas_complete").is_file()
+
+
+def test_build_ko_fastas_fast_path_skips_genes_scan(organism_gene_ko, kegg_dump, tmp_path):
+    # A completed run leaves a marker; a second call must return the existing files
+    # WITHOUT re-reading genes.pep (the costly scan).
+    written = build_ko_fastas(organism_gene_ko, kegg_dump / "genes.pep", tmp_path)
+
+    def _boom(*a, **k):  # pragma: no cover - must not be called on the fast path
+        raise AssertionError("genes.pep was re-scanned despite the completion marker")
+
+    monkey_index = hmm_mod._index_fasta
+    hmm_mod._index_fasta = _boom
+    try:
+        again = build_ko_fastas(organism_gene_ko, kegg_dump / "genes.pep", tmp_path)
+    finally:
+        hmm_mod._index_fasta = monkey_index
+    assert set(again) == set(written)
+
+
+def test_build_ko_fastas_resumes_partial(organism_gene_ko, kegg_dump, tmp_path):
+    # Simulate a crash mid-build: one fasta already written, no marker yet.
+    (tmp_path / "K90001.fa").write_bytes(b">stale\nXXX\n")
+    written = build_ko_fastas(organism_gene_ko, kegg_dump / "genes.pep", tmp_path)
+    assert set(written) == {"K90001", "K90002"}
+    # The pre-existing K90001.fa is kept as-is (not rewritten); K90002 is built fresh.
+    assert (tmp_path / "K90001.fa").read_text() == ">stale\nXXX\n"
+    assert (tmp_path / "K90002.fa").read_text().startswith(">bbb:GENE03")
+
+
+def test_build_ko_fastas_force_rebuilds(organism_gene_ko, kegg_dump, tmp_path):
+    (tmp_path / "K90001.fa").write_bytes(b">stale\nXXX\n")
+    build_ko_fastas(organism_gene_ko, kegg_dump / "genes.pep", tmp_path, force=True)
+    # force ignores the stale file and rebuilds it from genes.pep.
+    assert (tmp_path / "K90001.fa").read_text() != ">stale\nXXX\n"
+    assert ">aaa:GENE01" in (tmp_path / "K90001.fa").read_text()
+
+
 # --------------------------------------------------------------------------- #
 # Command builders / CD-HIT word size (pure)
 # --------------------------------------------------------------------------- #
