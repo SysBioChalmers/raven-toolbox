@@ -2,12 +2,15 @@
 
 Writes the five-sheet RAVEN xlsx layout — RXNS, METS, COMPS, GENES, MODEL — pulling
 RAVEN-specific values back out of cobra's ``annotation`` / ``notes`` (where the
-raven_toolbox YAML reader stashes them). Excel *import* is intentionally not provided.
+raven_toolbox YAML reader stashes them). For enzyme-constrained (GECKO) models that
+carry a populated ``model.ec`` substructure, two further sheets are added, ENZYMES
+and ENZRXNS, holding the ec data. Excel *import* is intentionally not provided.
 
 Requires the optional ``openpyxl`` dependency (``pip install raven_toolbox[excel]``).
 """
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import cobra
@@ -49,16 +52,50 @@ def _ec_codes(rxn: cobra.Reaction) -> str:
     return ";".join(codes)
 
 
+def _blank_if_nan(value: float) -> float | None:
+    """Numeric cell value, writing NaN (the EcData "unknown" sentinel) as blank."""
+    value = float(value)
+    return None if math.isnan(value) else value
+
+
+def _blank_if_empty(value: str) -> str | None:
+    """String cell value, writing an empty string as a blank cell."""
+    return value or None
+
+
+def _fmt_count(value: float) -> str:
+    """Subunit count as an integer string when integral, else as-is."""
+    value = float(value)
+    return str(int(value)) if value.is_integer() else f"{value:g}"
+
+
+def _enzyme_pairs(ec, coupling, i: int) -> str | None:
+    """ENZRXNS 'ENZYMES' column: ``enzyme:count;...`` subunit stoichiometry for
+    ec-reaction ``i``, read from the ``rxn_enz_mat`` coupling row. Blank when
+    the reaction has no associated enzymes."""
+    if i >= coupling.shape[0]:
+        return None
+    row = coupling.getrow(i)
+    if row.nnz == 0:
+        return None
+    pairs = sorted(zip(row.indices.tolist(), row.data.tolist(), strict=True))
+    return ";".join(f"{ec.enzymes[j]}:{_fmt_count(v)}" for j, v in pairs)
+
+
 def export_to_excel(
     model: cobra.Model, path: str | Path, *, sort_ids: bool = False
 ) -> None:
     """Write ``model`` to a RAVEN-format ``.xlsx`` file.
 
+    For enzyme-constrained models (a populated :class:`~raven_toolbox.io.EcData`
+    on ``model.ec``), two further export-only sheets are written: ENZYMES (one
+    row per enzyme) and ENZRXNS (one row per ec-reaction).
+
     Parameters
     ----------
     sort_ids
         If True, write reactions/metabolites/genes sorted alphabetically by ID
-        (the model itself is not modified).
+        (the model itself is not modified). The ec sheets are not reordered.
     """
     try:
         from openpyxl import Workbook
@@ -132,5 +169,35 @@ def export_to_excel(
         metadata.get("givenName"), metadata.get("familyName"), metadata.get("email"),
         metadata.get("organization"), metadata.get("note"),
     ])
+
+    # --- ENZYMES / ENZRXNS (enzyme-constrained GECKO models) ---
+    # When the model carries a populated ec substructure (model.ec), write its
+    # contents to two export-only sheets, mirroring RAVEN's exportToExcelFormat.
+    # The YAML format remains the round-trippable format for ecModels; the
+    # enzyme-reaction coupling (ec.rxn_enz_mat) is written in readable form as
+    # the 'enzyme:count' ENZYMES column of the ENZRXNS sheet.
+    ec = getattr(model, "ec", None)
+    if ec is not None and (ec.n_enzymes or ec.n_rxns):
+        ws = wb.create_sheet("ENZYMES")
+        ws.append(["#", "ID", "GENE", "MW", "SEQUENCE", "CONC"])
+        for i in range(ec.n_enzymes):
+            ws.append([
+                None, ec.enzymes[i], ec.genes[i], _blank_if_nan(ec.mw[i]),
+                _blank_if_empty(ec.sequence[i]), _blank_if_nan(ec.concs[i]),
+            ])
+        # MW (column D) shown without decimals, CONC (column F) with 5 decimals
+        for r in range(2, ec.n_enzymes + 2):
+            ws.cell(row=r, column=4).number_format = "0"
+            ws.cell(row=r, column=6).number_format = "0.00000"
+
+        ws = wb.create_sheet("ENZRXNS")
+        ws.append(["#", "ID", "KCAT", "SOURCE", "NOTE", "EC-NUMBER", "ENZYMES"])
+        coupling = ec.rxn_enz_mat.tocsr()
+        for i in range(ec.n_rxns):
+            ws.append([
+                None, ec.rxns[i], _blank_if_nan(ec.kcat[i]),
+                _blank_if_empty(ec.source[i]), _blank_if_empty(ec.notes[i]),
+                _blank_if_empty(ec.eccodes[i]), _enzyme_pairs(ec, coupling, i),
+            ])
 
     wb.save(str(path))
