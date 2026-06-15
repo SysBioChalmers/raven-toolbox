@@ -71,6 +71,9 @@ download_kegg_dump("keggdb", auth=("YOUR_KEGG_USER", "YOUR_KEGG_PASSWORD"))
 Already-downloaded files are skipped; pass `force=True` to re-fetch (for a new
 KEGG release).
 
+Per-file download and extraction progress bars are shown by default; pass
+`progress=False` for non-interactive runs (e.g. logging to a file).
+
 ## Step 3b.2 — parse into the published artefacts
 
 ```python
@@ -85,6 +88,9 @@ every output filename is version-prefixed (e.g. `kegg116_organism_gene_ko.tsv.gz
 matching the published release assets. See
 [kegg_data_format.md](kegg_data_format.md) for what those tables contain and the
 format rationale.
+
+Pass `progress=True` to report each parse stage and show a progress bar over the
+large `organism_gene_ko` (ko) streaming pass.
 
 ## Step 3b.3 — build the HMM libraries
 
@@ -108,6 +114,7 @@ for domain in ("prokaryotes", "eukaryotes"):
         "keggdb/taxonomy",       # domain split, from 3b.1
         f"hmms/{domain}",
         domain=domain,
+        progress=True,           # show an "N of M KOs" bar for the long build
     )
 ```
 

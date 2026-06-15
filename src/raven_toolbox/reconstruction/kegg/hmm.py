@@ -29,9 +29,12 @@ import shutil
 import subprocess
 import tempfile
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 import pandas as pd
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 from raven_toolbox.binaries import resolve_binary
 from raven_toolbox.reconstruction.kegg.taxonomy import organisms_in_domain
@@ -76,13 +79,15 @@ def build_ko_fastas(
     out_dir: str | Path,
     *,
     organisms: set[str] | None = None,
+    progress: bool = False,
 ) -> dict[str, Path]:
     """Write one ``<KO>.fa`` per KO with its member genes' sequences.
 
     but with a stdlib offset index instead
     of the Java-hashtable byte scan. ``organisms`` restricts to a domain's
     organism codes (for the prok/euk split). Empty KOs are skipped (no file).
-    Returns ``{ko: path}`` for the files written.
+    ``progress`` shows a tqdm bar over the per-KO writing pass. Returns
+    ``{ko: path}`` for the files written.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -102,7 +107,9 @@ def build_ko_fastas(
 
     written: dict[str, Path] = {}
     with open(genes_pep, "rb") as src:
-        for ko, ids in ko_to_ids.items():
+        for ko, ids in tqdm(
+            ko_to_ids.items(), desc="multi-FASTA", unit="KO", disable=not progress
+        ):
             present = sorted({i for i in ids if i in index})
             if not present:
                 continue
@@ -403,6 +410,7 @@ def build_hmm_library(
     threads: int = 1,
     fast: bool = True,
     verbose: bool = False,
+    progress: bool = False,
     concatenate: bool = True,
     cdhit: str | Path | None = None,
     mafft: str | Path | None = None,
@@ -417,6 +425,11 @@ def build_hmm_library(
 
     Heavy and binary-dependent — intended for the maintainer, run once per KEGG
     release. Skips KOs that already have an ``.hmm`` (resumable).
+
+    ``progress`` shows tqdm bars for the multi-FASTA and per-KO HMM passes (the
+    headline ``N of M`` counter for the long build); it is independent of
+    ``verbose`` (per-KO INFO logging). With both on, per-KO log lines are routed
+    through ``tqdm.write`` so they don't corrupt the bar.
     """
     out_dir = Path(out_dir)
     fasta_dir = out_dir / "fasta"
@@ -427,18 +440,28 @@ def build_hmm_library(
     if not organisms:
         raise ValueError(f"No organisms found for domain {domain!r} in {taxonomy}.")
 
-    ko_fastas = build_ko_fastas(organism_gene_ko, genes_pep, fasta_dir, organisms=organisms)
+    if progress:
+        tqdm.write(f"Indexing genes and writing per-KO FASTAs for {domain}...")
+    ko_fastas = build_ko_fastas(
+        organism_gene_ko, genes_pep, fasta_dir, organisms=organisms, progress=progress
+    )
 
     hmms: list[Path] = []
-    for ko, fasta in ko_fastas.items():
-        out_hmm = hmm_dir / f"{ko}.hmm"
-        if not out_hmm.exists():
-            build_ko_hmm(
-                fasta, out_hmm, seq_identity=seq_identity,
-                parttree_residues=parttree_residues, threads=threads, fast=fast,
-                verbose=verbose, cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
-            )
-        hmms.append(out_hmm)
+    redirect = logging_redirect_tqdm() if progress else nullcontext()
+    with redirect, tqdm(
+        ko_fastas.items(), total=len(ko_fastas), desc=f"HMM {domain}",
+        unit="KO", disable=not progress,
+    ) as bar:
+        for ko, fasta in bar:
+            bar.set_postfix_str(ko, refresh=False)
+            out_hmm = hmm_dir / f"{ko}.hmm"
+            if not out_hmm.exists():
+                build_ko_hmm(
+                    fasta, out_hmm, seq_identity=seq_identity,
+                    parttree_residues=parttree_residues, threads=threads, fast=fast,
+                    verbose=verbose, cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
+                )
+            hmms.append(out_hmm)
 
     library: Path | None = None
     if concatenate and hmms:
