@@ -29,26 +29,27 @@ from urllib.request import urlopen
 from raven_toolbox.binaries import _sha256
 
 # dataset -> {"version": str, "files": {filename: {"url": str, "sha256": str}}}
-# Mirrors data/manifest.json (the cross-language source of truth); regenerate the
-# block with scripts/make_registry_snippet.py when publishing a new KEGG release.
+# Baked snapshot of data/manifest.json (the cross-language source of truth). Assets
+# are hosted in the raven-data repo's releases. Regenerate this block from the
+# manifest with `python scripts/make_registry_snippet.py sync` (never hand-edit).
 _DATA_REGISTRY: dict = {
     "kegg": {
         "version": "kegg118",
         "files": {
             "kegg118_core.tar.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.3.0/kegg118_core.tar.gz",
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_core.tar.gz",
                 "sha256": "520ba8bb09d6ca479ca1ab84ea70bf7c1d7f82d8f6406b717cee293b7c8609ca",
             },
             "kegg118_eukaryotes.hmm.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.3.0/kegg118_eukaryotes.hmm.gz",
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_eukaryotes.hmm.gz",
                 "sha256": "05999a38f3a1a5186d19d4e415f5029c33af56a08edb75190bd98ea19437765a",
             },
             "kegg118_prokaryotes.hmm.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.3.0/kegg118_prokaryotes.hmm.gz",
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_prokaryotes.hmm.gz",
                 "sha256": "ff9f25389e4c9c1cd58c13ee8d48d68a23152d04761d2e5875a9b5de8051b7b4",
             },
             "kegg118_taxonomy.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.3.0/kegg118_taxonomy.gz",
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_taxonomy.gz",
                 "sha256": "5499c9537ac2697592dd1b484f309027509472e25a9d39d925dc581b9eef46e2",
             },
         },

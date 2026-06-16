@@ -26,8 +26,22 @@ def test_resolve_via_path():
 
 def test_resolve_unresolvable_raises(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda _: None)
+    # 'mafft' has no hosted bundle (only blast/diamond/hmmer are), so resolution
+    # has nothing to download and must raise — hermetic, no network.
     with pytest.raises(FileNotFoundError, match="Could not find"):
-        binaries.resolve_binary("diamond")  # empty registry, not on PATH
+        binaries.resolve_binary("mafft")
+
+
+def test_default_registry_urls_point_at_raven_data():
+    # Guard against a straggler/old host slipping into the baked registries.
+    from raven_toolbox import data as data_mod
+
+    urls = [p["url"] for b in binaries._REGISTRY.values() for p in b["platforms"].values()]
+    urls += [
+        f["url"] for d in data_mod._DATA_REGISTRY.values() for f in d["files"].values()
+    ]
+    assert urls, "registries should not be empty"
+    assert all("/SysBioChalmers/raven-data/releases/download/" in u for u in urls), urls
 
 
 # --------------------------------------------------------------------------- #

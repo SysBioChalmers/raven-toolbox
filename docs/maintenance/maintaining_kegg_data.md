@@ -150,22 +150,25 @@ re-run the *same command* — each stage is skipped when its output already exis
 build resumes where it left off, so finished work is not repeated. Pass `--force`
 to rebuild everything from scratch.
 
-Upload the contents of `artefacts/` to the release, then record the artefacts in
-both the shared `data/manifest.json` and `raven_toolbox.data._DATA_REGISTRY` with
-[`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/README.md)
-(it computes each file's SHA256 + size):
+Then **publish** the artefacts to the `raven-data` release and update the manifest.
+The assets live in [`raven-data`](https://github.com/SysBioChalmers/raven-data), not
+in the code repo — see [Artefact hosting & publishing](artefact_hosting.md) for the
+full workflow. In short:
 
 ```bash
-# shared source of truth (read by raven-toolbox and MATLAB RAVEN):
-# --tag is the release tag; the script builds the …/releases/download/<tag> URL itself.
+# 1. upload to the kegg118 release (idempotent; immutable tag):
+python scripts/publish_to_raven_data.py release --tag kegg118 --dir artefacts
+
+# 2. record them in the shared manifest (computes each file's SHA256 + size):
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
-    --target data --dataset kegg --version kegg116 --dir artefacts --tag v0.1.0
-# in-code registry, so end users auto-fetch with no env var (paste into _DATA_REGISTRY):
-python scripts/make_registry_snippet.py data --dataset kegg --version kegg116 \
-    --dir artefacts --tag v0.1.0
+    --target data --dataset kegg --version kegg118 --dir artefacts \
+    --base-url https://github.com/SysBioChalmers/raven-data/releases/download/kegg118
+
+# 3. regenerate the baked Python registries from the manifest (don't hand-edit):
+python scripts/make_registry_snippet.py sync
 ```
 
-From then on `ensure_data` fetches and verifies the artefacts for end users
+From then on `ensure_data` fetches and SHA256-verifies the artefacts for end users
 automatically.
 
 ## End-user paths (3b.4 / 3b.5)

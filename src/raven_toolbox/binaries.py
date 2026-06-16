@@ -22,11 +22,68 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import urlopen
 
-# Registry of bundled binaries. Empty until release ZIPs are published; populated
-# per docs/maintaining_binaries.md. Keyed by *bundle*; one bundle can provide
-# several executables (e.g. "blast" -> blastp + makeblastdb).
+# Registry of bundled binaries, hosted as release assets in the raven-data repo.
+# Keyed by *bundle*; one bundle can provide several executables (e.g. "blast" ->
+# blastp + makeblastdb). Baked snapshot of data/manifest.json's `binaries` block —
+# regenerate from the manifest with `python scripts/make_registry_snippet.py sync`
+# (never hand-edit). See docs/maintenance/maintaining_binaries.md.
 #   bundle -> {version, provides:[exe...], platforms:{"<os>-<arch>": {url, sha256}}}
-_REGISTRY: dict = {}
+_REGISTRY: dict = {
+    "blast": {
+        "version": "2.17.0",
+        "provides": ["blastp", "makeblastdb"],
+        "platforms": {
+            "linux-x86_64": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/blast-2.17.0/blast-2.17.0-linux-x86_64.zip",
+                "sha256": "c887deae9f3ac85bb5a0bbbf9af254d00f3bebf9764304a9582db39e1c843085",
+            },
+            "macos-arm64": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/blast-2.17.0/blast-2.17.0-macos-arm64.zip",
+                "sha256": "f1ff0b9e718fbb252d240e31e4f85f842f6ef8e99a0e97bf5f66390295c795da",
+            },
+            "windows-x86_64": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/blast-2.17.0/blast-2.17.0-windows-x86_64.zip",
+                "sha256": "b80d6ee1c1f85b8c18ae009e7d2ee844738d1a17338928570f5113ecd16e8326",
+            },
+        },
+    },
+    "diamond": {
+        "version": "2.1.17",
+        "provides": ["diamond"],
+        "platforms": {
+            "linux-x86_64": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/diamond-2.1.17/diamond-2.1.17-linux-x86_64.zip",
+                "sha256": "6e432f8b205fb14c355c330cd4d802acb7decaaf17cfbe90573c614b6dc976c8",
+            },
+            "macos-arm64": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/diamond-2.1.17/diamond-2.1.17-macos-arm64.zip",
+                "sha256": "3f929c151b8d8061391d73510b2011e9c8820fa5e2b6b9ae142c3b4dfccced5d",
+            },
+            "windows-x86_64": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/diamond-2.1.17/diamond-2.1.17-windows-x86_64.zip",
+                "sha256": "daabab3d6072f4a37e701a5e02944f0fbcf8791ae5daa125fb7b5daed4a9be6d",
+            },
+        },
+    },
+    "hmmer": {
+        "version": "3.4.0",
+        "provides": ["hmmsearch"],
+        "platforms": {
+            "windows-x86_64": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/hmmer-3.3.2/hmmer-3.3.2-windows-x86_64.zip",
+                "sha256": "19ce00c5dcdead0cdcb1f89cfafac299521afa79296e9a671baf73a64b7385eb",
+            },
+            "linux-x86_64": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/hmmer-3.4.0/hmmer-3.4.0-linux-x86_64.zip",
+                "sha256": "d60e6b4bead44cf6d0cbd5711f9bda4a11cf72d7db07545ee0a43160b60b9fac",
+            },
+            "macos-arm64": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/hmmer-3.4.0/hmmer-3.4.0-macos-arm64.zip",
+                "sha256": "89596237e4a6a325a5f8526983696a1197e6970b1352db81a9817a165cd62f82",
+            },
+        },
+    },
+}
 
 # Environment variable overrides per executable.
 _ENV_VARS = {
