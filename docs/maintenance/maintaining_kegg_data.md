@@ -144,6 +144,12 @@ python scripts/build_kegg_artefacts.py --keggdb keggdb --out artefacts \
     --version kegg116 --hmms --threads 8
 ```
 
+The build is **idempotent**: if it fails partway (the HMM step can run for hours),
+re-run the *same command* — each stage is skipped when its output already exists
+(parsed tables, taxonomy, per-domain HMM library, core bundle) and the per-KO HMM
+build resumes where it left off, so finished work is not repeated. Pass `--force`
+to rebuild everything from scratch.
+
 Upload the contents of `artefacts/` to the release, then record the artefacts in
 both the shared `data/manifest.json` and `raven_toolbox.data._DATA_REGISTRY` with
 [`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/README.md)
