@@ -39,29 +39,16 @@ COBRA ecosystem.
 
 raven-toolbox has been validated against MATLAB RAVEN on **Human-GEM** (5 Hart2015 cell-line
 models, Jaccard 0.975–0.980 — see [docs/humangem_validation.md](docs/studies/humangem_validation.md)).
-The functional scope of the original RAVEN toolbox is covered with two principled
-omissions:
+The functional scope of the original RAVEN toolbox is covered with three principled
+omissions, all deliberately out of scope rather than pending work:
 
 * **MetaCyc-based reconstruction** is not implemented and is flagged for removal from
   MATLAB RAVEN as well — see [IMPROVEMENTS.md](IMPROVEMENTS.md) under `R-MetaCyc`.
 * **Dynamic FBA** is not implemented — several maintained Python packages already cover
   it ([`dfba`](https://pypi.org/project/dfba/), [`reframed`](https://pypi.org/project/reframed/),
   [`mewpy`](https://pypi.org/project/mewpy/)).
-
-### Not yet implemented
-
-Planned or partial functionality still on the books (full detail in
-**[docs/todo.md](docs/reference/todo.md)**):
-
-- [ ] **Metabolomics-based scoring in tINIT / ftINIT** — passing a non-empty `metabolomics`
-  argument currently raises `NotImplementedError`.
-- [ ] **Published binary release ZIPs** (BLAST / DIAMOND / HMMER) — the resolver in
-  `binaries.py` is ready; the registry is empty until the ZIPs are published as release assets.
-- [ ] **Published KEGG data-artefact releases** — the build pipeline exists; the artefact
-  bundle is not published yet.
-
-The two principled omissions above (MetaCyc reconstruction, dynamic FBA) are **not** on this
-list — they are deliberately out of scope, not pending work.
+* **Metabolomics-based scoring in tINIT / ftINIT** is not implemented — passing a
+  non-empty `metabolomics` argument raises `NotImplementedError`.
 
 ## Installation (development)
 
