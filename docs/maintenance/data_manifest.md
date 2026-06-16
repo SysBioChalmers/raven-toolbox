@@ -71,18 +71,18 @@ end
 
 After uploading a release's files, add/update an entry with the maintainer script
 ([`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/make_registry_snippet.py)),
-which computes each SHA256 and byte size:
+which computes each SHA256 and byte size. Pass `--tag` (the GitHub release tag); the
+script builds the `https://github.com/SysBioChalmers/raven-toolbox/releases/download/<tag>`
+asset URL itself:
 
 ```bash
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
-    --target data --dataset kegg --version kegg116 --dir artefacts \
-    --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/kegg-kegg116 \
+    --target data --dataset kegg --version kegg116 --dir artefacts --tag kegg-kegg116 \
     --doi 10.5281/zenodo.0000000 --source https://zenodo.org/records/0000000
 
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
     --target binary --bundle diamond --version 2.1.9 --provides diamond --dir zips \
-    --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.9 \
-    --license GPL-3.0-only
+    --tag diamond-2.1.9 --license GPL-3.0-only
 ```
 
 ## Where to host

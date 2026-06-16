@@ -52,6 +52,19 @@ def test_binary_entry_no_zips_errors(tmp_path):
         mrs.binary_entry("blast", "2.16.0", ["blastp"], "https://x", tmp_path)
 
 
+def test_release_base_url_builds_releases_download_prefix():
+    # Default repo + an arbitrary tag → the canonical GitHub release-asset prefix.
+    assert (
+        mrs.release_base_url("v0.3.0")
+        == "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.3.0"
+    )
+    # --repo override is honoured; the fixed "releases/download" path is always present.
+    assert (
+        mrs.release_base_url("blast-2.16.0", repo="ORG/raven-data")
+        == "https://github.com/ORG/raven-data/releases/download/blast-2.16.0"
+    )
+
+
 def test_render_is_valid_json_round_trip():
     entry = {"version": "v1", "files": {"a": {"url": "u", "sha256": "s"}}}
     text = mrs.render("kegg", entry)

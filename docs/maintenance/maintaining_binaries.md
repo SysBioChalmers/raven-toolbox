@@ -215,8 +215,7 @@ URLs — with [`scripts/make_registry_snippet.py`](https://github.com/SysBioChal
 
 ```bash
 python scripts/make_registry_snippet.py binary --bundle blast --version 2.16.0 \
-    --provides blastp makeblastdb --dir zips \
-    --base-url https://github.com/ORG/raven-toolbox/releases/download/blast-2.16.0
+    --provides blastp makeblastdb --dir zips --tag blast-2.16.0
 ```
 
 It prints the ready-to-paste `_REGISTRY["blast"]` block; its SHA256 helper is the
