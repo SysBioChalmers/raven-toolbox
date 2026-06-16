@@ -75,6 +75,51 @@ raven-toolbox requires Python ≥ 3.11. Genome-scale (f)tINIT MILPs currently re
 ([details on solver portability](docs/studies/init_solver_benchmark.md)); toy and unit-test work
 runs on the open-source GLPK.
 
+### External command-line tools (BLAST, DIAMOND, HMMER, MAFFT, CD-HIT)
+
+Some workflows shell out to external bioinformatics tools — but the core
+library installs without any of them, and you only need the ones your workflow uses:
+
+| Workflow | Tools |
+|---|---|
+| Homology-based reconstruction | `blastp` + `makeblastdb` **or** `diamond` |
+| KEGG HMM query (de-novo `getKEGGModelForOrganism`) | `hmmsearch` |
+| Building the KEGG HMM libraries (maintainers) | `hmmbuild`, `mafft`, `cd-hit` |
+
+**You don't install these by hand.** For each tool, raven-toolbox resolves a path in order:
+
+```
+explicit path arg  →  RAVEN_PYTHON_<TOOL> env var  →  your PATH (system / conda)
+  →  a version-pinned binary it downloads and caches on first use
+```
+
+So a conda or system install always wins; otherwise raven-toolbox fetches the
+binary itself (verifying its SHA256) — **we distribute the binaries ourselves**, so
+there is nothing extra to `pip install`. To fetch a set up front instead of lazily:
+
+```bash
+raven-toolbox-binaries --set runtime   # blastp, makeblastdb, diamond, hmmsearch
+raven-toolbox-binaries --set build     # hmmbuild, mafft, cd-hit (maintainers)
+raven-toolbox-binaries --list          # show the sets for your platform
+```
+
+Tools already on your PATH are left untouched. To turn the automatic downloads
+**off** entirely (air-gapped or strictly conda/system-managed setups), set
+`RAVEN_PYTHON_AUTOFETCH=0`; resolution then stops at PATH and raises an actionable
+error instead of downloading. You can always install the tools yourself instead —
+e.g. `conda install -c bioconda blast diamond hmmer mafft cd-hit`.
+
+**Operating systems.** Linux and macOS run everything. On **native Windows**, the
+runtime tools work — including a native `hmmsearch` — so homology reconstruction
+and the KEGG species model run without WSL; the HMM-library *build* (MAFFT/CD-HIT
+have no Windows binaries) must run inside **WSL2**. See
+[docs/maintenance/maintaining_binaries.md](docs/maintenance/maintaining_binaries.md)
+for the full platform matrix and how the bundles are published.
+
+> Bundled downloads require the per-release binary assets to be published; until
+> then (this is alpha software), install the tools via conda or your package
+> manager and they'll be picked up from your PATH.
+
 ## Documentation
 
 The documentation is built with Sphinx (MyST Markdown); the source lives in
