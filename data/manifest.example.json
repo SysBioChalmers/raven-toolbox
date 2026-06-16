@@ -16,15 +16,37 @@
     }
   },
   "binaries": {
+    "blast": {
+      "version": "2.17.0",
+      "provides": ["blastp", "makeblastdb"],
+      "description": "NCBI BLAST+ (homology-based reconstruction); same upstream version RAVEN bundles.",
+      "license": "Public domain (NCBI); include NCBI's LICENSE in each ZIP. The Windows ZIP must also bundle nghttp2.dll.",
+      "platforms": {
+        "linux-x86_64":   { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/blast-2.17.0/blast-2.17.0-linux-x86_64.zip",   "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "macos-x86_64":   { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/blast-2.17.0/blast-2.17.0-macos-x86_64.zip",   "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "windows-x86_64": { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/blast-2.17.0/blast-2.17.0-windows-x86_64.zip", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
+      }
+    },
     "diamond": {
-      "version": "2.1.9",
+      "version": "2.1.17",
       "provides": ["diamond"],
-      "description": "DIAMOND protein aligner (homology-based reconstruction).",
+      "description": "DIAMOND protein aligner (homology-based reconstruction); same upstream version RAVEN bundles.",
       "license": "GPL-3.0-only — ship the upstream COPYING alongside each ZIP.",
       "platforms": {
-        "linux-x86_64":   { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.9/diamond-2.1.9-linux-x86_64.zip",   "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "macos-arm64":    { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.9/diamond-2.1.9-macos-arm64.zip",    "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
-        "windows-x86_64": { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.9/diamond-2.1.9-windows-x86_64.zip", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
+        "linux-x86_64":   { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.17/diamond-2.1.17-linux-x86_64.zip",   "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "macos-x86_64":   { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.17/diamond-2.1.17-macos-x86_64.zip",    "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "windows-x86_64": { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.17/diamond-2.1.17-windows-x86_64.zip", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
+      }
+    },
+    "hmmer": {
+      "version": "3.4.0",
+      "provides": ["hmmsearch"],
+      "description": "HMMER hmmsearch for the KEGG HMM query (step 3b.5). Linux/macOS are 3.4.0; the Windows asset is the native 3.3.2 build from RAVEN 2.10.5 (Cygwin — its ZIP must also bundle cygwin1.dll). hmmsearch reads the shared HMMER3/f profile format, so 3.3.2 searches 3.4-built libraries identically (see maintaining_binaries.md). No native-Windows hmmbuild/MAFFT/CD-HIT exist, so the HMM *build* stays Linux/macOS/WSL2-only.",
+      "license": "BSD-3-Clause (HMMER); include its LICENSE in each ZIP.",
+      "platforms": {
+        "linux-x86_64":   { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/hmmer-3.4.0/hmmer-3.4.0-linux-x86_64.zip",     "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "macos-x86_64":   { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/hmmer-3.4.0/hmmer-3.4.0-macos-x86_64.zip",     "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 },
+        "windows-x86_64": { "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/hmmer-3.3.2/hmmer-3.3.2-windows-x86_64.zip",   "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0 }
       }
     }
   }

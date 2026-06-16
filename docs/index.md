@@ -121,6 +121,7 @@ reference/known_issues
 :hidden:
 :caption: Design archive
 
+archive/binary_provisioning_plan
 archive/ftinit_review_and_plan
 archive/localization_design
 archive/plan_get_model_from_homology
