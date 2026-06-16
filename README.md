@@ -114,11 +114,12 @@ runtime tools work — including a native `hmmsearch` — so homology reconstruc
 and the KEGG species model run without WSL; the HMM-library *build* (MAFFT/CD-HIT
 have no Windows binaries) must run inside **WSL2**. See
 [docs/maintenance/maintaining_binaries.md](docs/maintenance/maintaining_binaries.md)
-for the full platform matrix and how the bundles are published.
+for the full platform matrix.
 
-> Bundled downloads require the per-release binary assets to be published; until
-> then (this is alpha software), install the tools via conda or your package
-> manager and they'll be picked up from your PATH.
+The binaries and the KEGG data/HMM libraries are hosted as release assets in the
+[`raven-data`](https://github.com/SysBioChalmers/raven-data) repository and fetched
+(and SHA256-verified) on demand — see
+[artefact hosting](docs/maintenance/artefact_hosting.md).
 
 ## Documentation
 

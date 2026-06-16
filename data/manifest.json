@@ -1,35 +1,112 @@
 {
   "manifest_version": 1,
-  "generated": "2026-06-10",
+  "generated": "2026-06-16",
   "data": {
     "kegg": {
-      "version": "kegg116",
+      "version": "kegg118",
       "description": "KEGG reference model + KO/reaction tables (core bundle), taxonomy, and prokaryote/eukaryote HMM libraries for getKEGGModelForOrganism.",
       "license": "Derived from the KEGG database; redistributed with permission from KEGG.",
-      "source": "https://github.com/SysBioChalmers/raven-toolbox/releases/tag/v0.1.0",
+      "source": "https://github.com/SysBioChalmers/raven-data/releases/tag/kegg118",
       "files": {
-        "kegg116_core.tar.gz": {
-          "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_core.tar.gz",
-          "sha256": "155d5806d43db2fde5783fb124f8782bbcad390a1dd80879c520d2eac9d780e7",
-          "bytes": 48955539
+        "kegg118_core.tar.gz": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_core.tar.gz",
+          "sha256": "520ba8bb09d6ca479ca1ab84ea70bf7c1d7f82d8f6406b717cee293b7c8609ca",
+          "bytes": 49049340
         },
-        "kegg116_eukaryotes.hmm.gz": {
-          "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",
-          "sha256": "2d48bc9935575d0f9ba4178bf2df19279bff866b49c1bf83a8e15787b11d6708",
-          "bytes": 134002309
+        "kegg118_eukaryotes.hmm.gz": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_eukaryotes.hmm.gz",
+          "sha256": "05999a38f3a1a5186d19d4e415f5029c33af56a08edb75190bd98ea19437765a",
+          "bytes": 135087358
         },
-        "kegg116_prokaryotes.hmm.gz": {
-          "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",
-          "sha256": "d80cb2a22dec9fd8336b3998e3b96ee121672f63f4041cddaf09624fe739f1af",
-          "bytes": 153173750
+        "kegg118_prokaryotes.hmm.gz": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_prokaryotes.hmm.gz",
+          "sha256": "ff9f25389e4c9c1cd58c13ee8d48d68a23152d04761d2e5875a9b5de8051b7b4",
+          "bytes": 154511741
         },
-        "kegg116_taxonomy.gz": {
-          "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_taxonomy.gz",
-          "sha256": "1edc56da94d71433e5f08c133600292c311baaf33279a959518ab08389b0e538",
-          "bytes": 234693
+        "kegg118_taxonomy.gz": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_taxonomy.gz",
+          "sha256": "5499c9537ac2697592dd1b484f309027509472e25a9d39d925dc581b9eef46e2",
+          "bytes": 228754
         }
       }
     }
   },
-  "binaries": {}
+  "binaries": {
+    "blast": {
+      "version": "2.17.0",
+      "provides": [
+        "blastp",
+        "makeblastdb"
+      ],
+      "platforms": {
+        "linux-x86_64": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/blast-2.17.0/blast-2.17.0-linux-x86_64.zip",
+          "sha256": "c887deae9f3ac85bb5a0bbbf9af254d00f3bebf9764304a9582db39e1c843085",
+          "bytes": 25262842
+        },
+        "macos-arm64": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/blast-2.17.0/blast-2.17.0-macos-arm64.zip",
+          "sha256": "f1ff0b9e718fbb252d240e31e4f85f842f6ef8e99a0e97bf5f66390295c795da",
+          "bytes": 35244129
+        },
+        "windows-x86_64": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/blast-2.17.0/blast-2.17.0-windows-x86_64.zip",
+          "sha256": "b80d6ee1c1f85b8c18ae009e7d2ee844738d1a17338928570f5113ecd16e8326",
+          "bytes": 13016674
+        }
+      },
+      "description": "NCBI BLAST+ (homology reconstruction). Windows ZIP bundles nghttp2.dll.",
+      "license": "Public domain (NCBI)."
+    },
+    "diamond": {
+      "version": "2.1.17",
+      "provides": [
+        "diamond"
+      ],
+      "platforms": {
+        "linux-x86_64": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/diamond-2.1.17/diamond-2.1.17-linux-x86_64.zip",
+          "sha256": "6e432f8b205fb14c355c330cd4d802acb7decaaf17cfbe90573c614b6dc976c8",
+          "bytes": 8968841
+        },
+        "macos-arm64": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/diamond-2.1.17/diamond-2.1.17-macos-arm64.zip",
+          "sha256": "3f929c151b8d8061391d73510b2011e9c8820fa5e2b6b9ae142c3b4dfccced5d",
+          "bytes": 6476740
+        },
+        "windows-x86_64": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/diamond-2.1.17/diamond-2.1.17-windows-x86_64.zip",
+          "sha256": "daabab3d6072f4a37e701a5e02944f0fbcf8791ae5daa125fb7b5daed4a9be6d",
+          "bytes": 3341980
+        }
+      },
+      "description": "DIAMOND protein aligner (homology reconstruction).",
+      "license": "GPL-3.0-only."
+    },
+    "hmmer": {
+      "version": "3.4.0",
+      "provides": [
+        "hmmsearch"
+      ],
+      "platforms": {
+        "windows-x86_64": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/hmmer-3.3.2/hmmer-3.3.2-windows-x86_64.zip",
+          "sha256": "19ce00c5dcdead0cdcb1f89cfafac299521afa79296e9a671baf73a64b7385eb",
+          "bytes": 1802736
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/hmmer-3.4.0/hmmer-3.4.0-linux-x86_64.zip",
+          "sha256": "d60e6b4bead44cf6d0cbd5711f9bda4a11cf72d7db07545ee0a43160b60b9fac",
+          "bytes": 215961
+        },
+        "macos-arm64": {
+          "url": "https://github.com/SysBioChalmers/raven-data/releases/download/hmmer-3.4.0/hmmer-3.4.0-macos-arm64.zip",
+          "sha256": "89596237e4a6a325a5f8526983696a1197e6970b1352db81a9817a165cd62f82",
+          "bytes": 339284
+        }
+      },
+      "description": "HMMER hmmsearch (KEGG HMM query). Linux/macOS 3.4.0; Windows is the native 3.3.2 build (Cygwin, bundles cygwin1.dll) \u2014 reads the same HMMER3/f format.",
+      "license": "BSD-3-Clause."
+    }
+  }
 }

@@ -8,6 +8,16 @@ to build **minimal-footprint** ZIPs to attach to a GitHub release.
 > or use their own (system/conda) install. This doc is only for whoever publishes
 > the release assets.
 
+> **Hosting & the fast path.** Assets are hosted in the
+> [`raven-data`](https://github.com/SysBioChalmers/raven-data) repo, and the manual
+> ZIP-building steps below (§3–§7) are now **automated**: the current bundles are
+> produced from RAVEN's vetted `software/` binaries by
+> [`scripts/build_binary_bundles.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/build_binary_bundles.py)
+> and published with `publish_to_raven_data.py`. See
+> [Artefact hosting & publishing](artefact_hosting.md) for the end-to-end workflow.
+> §2–§6 below remain the reference for the ZIP **conventions** and the per-platform /
+> licensing matrix.
+
 ---
 
 ## 1. How binary provisioning works
@@ -139,7 +149,7 @@ Example: bump DIAMOND to a new version for Linux x86-64. Repeat per `(os, arch)`
        "platforms": {
          "linux-x86_64": {
            "asset": "diamond-2.1.11-linux-x86_64.zip",
-           "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/binaries-2024.06/diamond-2.1.11-linux-x86_64.zip",
+           "url": "https://github.com/SysBioChalmers/raven-data/releases/download/diamond-2.1.17/diamond-2.1.17-linux-x86_64.zip",
            "sha256": "<sha256>"
          }
        }
@@ -240,7 +250,7 @@ URLs — with [`scripts/make_registry_snippet.py`](https://github.com/SysBioChal
 ```bash
 python scripts/make_registry_snippet.py binary --bundle blast --version 2.16.0 \
     --provides blastp makeblastdb --dir zips \
-    --base-url https://github.com/ORG/raven-toolbox/releases/download/blast-2.16.0
+    --base-url https://github.com/SysBioChalmers/raven-data/releases/download/blast-2.17.0
 ```
 
 It prints the ready-to-paste `_REGISTRY["blast"]` block; its SHA256 helper is the

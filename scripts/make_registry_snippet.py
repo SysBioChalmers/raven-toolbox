@@ -81,6 +81,57 @@ def render(key: str, entry: dict) -> str:
     return json.dumps({key: entry}, indent=4)
 
 
+# --- sync: regenerate the baked Python registries from manifest.json ---------
+# The manifest is the single source of truth; the two baked dicts are derived from
+# it, so `sync` rewrites them in place after a manifest update (kills 3-copy drift).
+
+
+def _render_data_registry(reg: dict) -> str:
+    out = ["_DATA_REGISTRY: dict = {"]
+    for ds, e in reg.items():
+        out += [f'    "{ds}": {{', f'        "version": "{e["version"]}",', '        "files": {']
+        for name, f in e["files"].items():
+            out += [f'            "{name}": {{', f'                "url": "{f["url"]}",',
+                    f'                "sha256": "{f["sha256"]}",', "            },"]
+        out += ["        },", "    },"]
+    out.append("}")
+    return "\n".join(out)
+
+
+def _render_binary_registry(reg: dict) -> str:
+    out = ["_REGISTRY: dict = {"]
+    for bundle, e in reg.items():
+        prov = ", ".join(f'"{x}"' for x in e["provides"])
+        out += [f'    "{bundle}": {{', f'        "version": "{e["version"]}",',
+                f'        "provides": [{prov}],', "        \"platforms\": {"]
+        for key, f in e["platforms"].items():
+            out += [f'            "{key}": {{', f'                "url": "{f["url"]}",',
+                    f'                "sha256": "{f["sha256"]}",', "            },"]
+        out += ["        },", "    },"]
+    out.append("}")
+    return "\n".join(out)
+
+
+def _replace_block(path: Path, varname: str, literal: str) -> None:
+    """Swap the top-level ``<varname>: dict = {...}`` literal in ``path`` for ``literal``."""
+    import re
+
+    text = path.read_text(encoding="utf-8")
+    pat = re.compile(rf"^{re.escape(varname)}: dict = \{{.*?^\}}", re.DOTALL | re.MULTILINE)
+    if not pat.search(text):
+        raise SystemExit(f"could not find `{varname}: dict = {{...}}` in {path}")
+    path.write_text(pat.sub(lambda _: literal, text, count=1), encoding="utf-8")
+
+
+def sync_registries(manifest_path: Path, data_py: Path, binaries_py: Path) -> None:
+    """Regenerate ``_DATA_REGISTRY`` / ``_REGISTRY`` in the .py files from the manifest."""
+    from raven_toolbox.manifest import load_manifest, to_binary_registry, to_data_registry
+
+    m = load_manifest(manifest_path)
+    _replace_block(data_py, "_DATA_REGISTRY", _render_data_registry(to_data_registry(m)))
+    _replace_block(binaries_py, "_REGISTRY", _render_binary_registry(to_binary_registry(m)))
+
+
 # --- manifest.json (shared source of truth) --------------------------------
 
 
@@ -161,7 +212,16 @@ def main(argv: list[str] | None = None) -> None:
     m.add_argument("--doi", help="data: Zenodo (or other) DOI for this version")
     m.add_argument("--source", help="data: human-facing release/record page")
 
+    s = sub.add_parser("sync", help="regenerate the baked Python registries from manifest.json")
+    s.add_argument("--manifest", type=Path, default=Path("data/manifest.json"))
+    s.add_argument("--data-py", type=Path, default=Path("src/raven_toolbox/data.py"))
+    s.add_argument("--binaries-py", type=Path, default=Path("src/raven_toolbox/binaries.py"))
+
     args = parser.parse_args(argv)
+    if args.kind == "sync":
+        sync_registries(args.manifest, args.data_py, args.binaries_py)
+        print(f"Synced _DATA_REGISTRY + _REGISTRY from {args.manifest}", file=sys.stderr)
+        return
     if args.kind == "data":
         key, entry = args.dataset, data_entry(args.dataset, args.version, args.base_url, args.dir)
         target = "raven_toolbox/data.py  _DATA_REGISTRY"
