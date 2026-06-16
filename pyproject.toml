@@ -57,6 +57,9 @@ excel = [
     "openpyxl>=3.1",
 ]
 
+[project.scripts]
+raven-toolbox-binaries = "raven_toolbox.binaries_cli:main"
+
 [project.urls]
 Homepage = "https://github.com/SysBioChalmers/raven-toolbox"
 Source = "https://github.com/SysBioChalmers/raven-toolbox"
