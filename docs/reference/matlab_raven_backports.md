@@ -1,14 +1,16 @@
-# MATLAB RAVEN — proposed back-ports
+# MATLAB RAVEN ↔ raven-toolbox — differences
 
-This is a consolidated list of fixes and improvements that the Python port surfaced
-and that are worth carrying upstream into MATLAB RAVEN. Each item names a RAVEN
-file/function, briefly diagnoses the current behaviour, and proposes the minimal
-MATLAB-side patch. Items are sourced from [IMPROVEMENTS.md](improvements.md)
-(the `MATLAB RAVEN 💡` rows) plus two new items from the section-F quality sweep
-in [docs/known_issues.md](known_issues.md).
+The single record of how MATLAB RAVEN and the Python raven-toolbox differ, in both
+directions:
 
-The matching Python-side implementation is linked for context — in most cases the
-fix is identical in spirit; the patch shape just differs.
+1. **Improvements in raven-toolbox to back-port into MATLAB RAVEN** (most of this
+   file). Each item names a RAVEN file/function, diagnoses the current behaviour, and
+   proposes the minimal MATLAB-side patch. Sourced from [IMPROVEMENTS.md](improvements.md)
+   plus the section-F quality sweep in [known_issues.md](known_issues.md). The matching
+   Python-side implementation is linked for context — usually the fix is identical in
+   spirit; only the patch shape differs.
+2. **Functionality in MATLAB RAVEN that raven-toolbox deliberately does not have**
+   (the final section).
 
 > Status legend used below: 💡 *proposed back-port* · 🐛 *bug* · ⚡ *efficiency* ·
 > 🧹 *ergonomics / readability*.
@@ -246,10 +248,24 @@ Implemented in raventoolbox as [`utils.find_non_dnf_grrules`](https://github.com
   fbc/groups, or a cobra attribute) both projects should migrate. For now
   this is a watching brief.
 
-## R-MetaCyc — removal candidate
+---
 
-Already flagged in `IMPROVEMENTS.md` as a removal target on both sides — the
-MetaCyc reconstruction path is dropped in raventoolbox and proposed for removal
-from MATLAB RAVEN (`external/metacyc/*`). Pasting here for visibility because
-the actual removal still needs to land upstream. See
-[IMPROVEMENTS.md § R-MetaCyc](improvements.md) for the full rationale.
+## Functionality in MATLAB RAVEN not in raven-toolbox
+
+Principled omissions — present in MATLAB RAVEN, deliberately **not** ported to
+raven-toolbox.
+
+* **MetaCyc-based reconstruction** (`external/metacyc/*`, `getMetaCycModelForOrganism`).
+  Not ported, and proposed for **removal from MATLAB RAVEN** as well: MetaCyc's one
+  representative sequence per enzyme gives intrinsically low gene-calling precision
+  (~64 % of reaction assignments wrong at the default cutoff; no cutoff rescues it).
+  Full evidence and the MATLAB removal list in
+  [IMPROVEMENTS.md § R-MetaCyc](improvements.md).
+* **Dynamic FBA.** Not ported — maintained Python packages already cover it
+  ([`dfba`](https://pypi.org/project/dfba/), [`reframed`](https://pypi.org/project/reframed/),
+  [`mewpy`](https://pypi.org/project/mewpy/)).
+* **Metabolomics-based scoring in ftINIT** (the 4d.6 production-bonus block).
+  `ftinit(metabolomics=…)` raises `NotImplementedError`. The linear merge eliminates
+  degree-2 detected metabolites, so it would need RAVEN's producer-group-mapping +
+  `mon`/`vnrbm`/`vnrvm`/`vnim` negative-producer force-flux block — the most intricate
+  MILP in ftINIT, for its least-used input.

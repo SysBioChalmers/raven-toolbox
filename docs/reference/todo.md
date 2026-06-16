@@ -10,13 +10,10 @@ catalogue of raven-toolbox improvements that should also be back-ported into MAT
   dead code from the full-codebase review. None affects correctness on well-formed inputs.
 * [IMPROVEMENTS.md](improvements.md) — items marked 💡 *proposed* are candidates to
   implement (and back-port).
-
-## Not planned
-
-* **Metabolomics-based scoring in tINIT / ftINIT.** Intentionally not implemented;
-  [`init.ftinit`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/init/ftinit.py)
-  raises `NotImplementedError` for a non-empty `metabolomics` argument (the most intricate
-  MILP piece, for the least-used input).
+* [matlab_raven_backports.md](matlab_raven_backports.md) — the MATLAB ↔ raven-toolbox
+  **differences** record: improvements to back-port to MATLAB RAVEN, and functionality
+  MATLAB has that raven-toolbox deliberately doesn't (MetaCyc, dynamic FBA, ftINIT
+  metabolomics scoring).
 
 ## Upstream blockers (not raven-toolbox work, but worth tracking)
 
