@@ -24,12 +24,11 @@ with the resolvers, so published checksums always match what `ensure_data` /
 `ensure_binary` verify.
 
 ```bash
-# Data artefacts:
+# Data artefacts (--tag is the release tag; the asset URL is built from it):
 python scripts/make_registry_snippet.py data --dataset kegg --version kegg116 \
-    --dir artefacts --base-url https://github.com/ORG/raven-toolbox/releases/download/kegg-data-kegg116
+    --dir artefacts --tag v0.3.0
 
 # Binary bundle (ZIPs named <bundle>-<version>-<os>-<arch>.zip):
 python scripts/make_registry_snippet.py binary --bundle blast --version 2.16.0 \
-    --provides blastp makeblastdb --dir zips \
-    --base-url https://github.com/ORG/raven-toolbox/releases/download/blast-2.16.0
+    --provides blastp makeblastdb --dir zips --tag blast-2.16.0
 ```

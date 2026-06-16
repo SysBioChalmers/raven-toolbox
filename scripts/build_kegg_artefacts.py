@@ -189,7 +189,7 @@ def main(argv: list[str] | None = None) -> None:
 
     print(f"\n>>> Done. Upload the contents of {args.out} as release assets, then run:")
     print("    python scripts/make_registry_snippet.py data --dataset kegg "
-          f"--version {args.version or '<VER>'} --dir {args.out} --base-url <RELEASE_URL>")
+          f"--version {args.version or '<VER>'} --dir {args.out} --tag <RELEASE_TAG>")
 
 
 if __name__ == "__main__":

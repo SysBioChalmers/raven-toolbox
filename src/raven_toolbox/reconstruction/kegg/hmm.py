@@ -1,8 +1,9 @@
 """Build per-KO HMM libraries from KEGG sequences (step 3b.3, maintainer-side).
 
 Ports RAVEN ``constructMultiFasta`` plus the clustering/alignment/training stages
-of ``getKEGGModelForOrganism``. Run once per KEGG release to produce the
-``prok90`` / ``euk90`` HMM libraries that the de-novo query path (3b.5) searches.
+of ``getKEGGModelForOrganism``. Run once per KEGG release to produce the per-domain
+(``kegg<version>_prokaryotes`` / ``kegg<version>_eukaryotes``) HMM libraries that the
+de-novo query path (3b.5) searches.
 
 Per KO, within one domain (prokaryote / eukaryote):
 

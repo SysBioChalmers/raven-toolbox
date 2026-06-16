@@ -157,12 +157,12 @@ both the shared `data/manifest.json` and `raven_toolbox.data._DATA_REGISTRY` wit
 
 ```bash
 # shared source of truth (read by raven-toolbox and MATLAB RAVEN):
+# --tag is the release tag; the script builds the …/releases/download/<tag> URL itself.
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
-    --target data --dataset kegg --version kegg116 --dir artefacts \
-    --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0
+    --target data --dataset kegg --version kegg116 --dir artefacts --tag v0.1.0
 # in-code registry, so end users auto-fetch with no env var (paste into _DATA_REGISTRY):
 python scripts/make_registry_snippet.py data --dataset kegg --version kegg116 \
-    --dir artefacts --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0
+    --dir artefacts --tag v0.1.0
 ```
 
 From then on `ensure_data` fetches and verifies the artefacts for end users

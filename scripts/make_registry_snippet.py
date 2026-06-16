@@ -7,30 +7,31 @@ Computes the SHA256 of each file and prints the Python/JSON entry to merge into
 
 Examples
 --------
+Pass ``--tag`` (the GitHub release tag the assets were uploaded to); the script builds the
+``https://github.com/SysBioChalmers/raven-toolbox/releases/download/<tag>`` asset prefix
+itself, so you never hand it a full URL (and can't fumble the ``releases/download`` path).
+
 Data artefacts (KEGG reference model + tables + HMM libraries) for one release::
 
     python scripts/make_registry_snippet.py data \\
-        --dataset kegg --version kegg116 --dir artefacts \\
-        --base-url https://github.com/ORG/raven_toolbox/releases/download/kegg-data-kegg116
+        --dataset kegg --version kegg116 --dir artefacts --tag v0.3.0
 
 Binary bundle (one ZIP per platform, named ``<bundle>-<version>-<os>-<arch>.zip``)::
 
     python scripts/make_registry_snippet.py binary \\
         --bundle blast --version 2.16.0 --provides blastp makeblastdb --dir zips \\
-        --base-url https://github.com/ORG/raven_toolbox/releases/download/blast-2.16.0
+        --tag blast-2.16.0
 
 Add/update an entry in the shared ``manifest.json`` (the single source of truth read by
 both raven-toolbox and MATLAB RAVEN — see data/manifest.schema.json)::
 
     python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \\
-        --target data --dataset kegg --version kegg116 --dir artefacts \\
-        --base-url https://github.com/ORG/raven-data/releases/download/kegg-kegg116 \\
+        --target data --dataset kegg --version kegg116 --dir artefacts --tag v0.3.0 \\
         --doi 10.5281/zenodo.0000000
 
     python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \\
         --target binary --bundle diamond --version 2.1.9 --provides diamond --dir zips \\
-        --base-url https://github.com/ORG/raven-data/releases/download/diamond-2.1.9 \\
-        --license GPL-3.0-only
+        --tag diamond-2.1.9 --license GPL-3.0-only
 
 The SHA256 helper is shared with the runtime resolvers (``raven_toolbox.binaries``), so
 published checksums always match what ``ensure_data`` / ``ensure_binary`` verify.
@@ -43,6 +44,18 @@ import sys
 from pathlib import Path
 
 from raven_toolbox.binaries import _sha256
+
+#: Default GitHub repository whose release assets the registry/manifest point at.
+DEFAULT_REPO = "SysBioChalmers/raven-toolbox"
+
+
+def release_base_url(tag: str, repo: str = DEFAULT_REPO) -> str:
+    """GitHub release-asset download prefix for ``tag`` (e.g. 'v0.3.0').
+
+    Builds the full ``https://github.com/<repo>/releases/download/<tag>`` URL so callers
+    only supply the release tag — the fixed ``releases/download`` path can't be mistyped.
+    """
+    return f"https://github.com/{repo}/releases/download/{tag}"
 
 
 def _files_in(directory: Path) -> list[Path]:
@@ -138,21 +151,21 @@ def main(argv: list[str] | None = None) -> None:
     d.add_argument("--dataset", required=True, help="dataset key, e.g. 'kegg'")
     d.add_argument("--version", required=True)
     d.add_argument("--dir", required=True, type=Path, help="directory of uploaded artefacts")
-    d.add_argument("--base-url", required=True, help="release download URL prefix")
+    d.add_argument("--tag", required=True, help="GitHub release tag the assets were uploaded to")
 
     b = sub.add_parser("binary", help="binary-bundle registry entry (raven_toolbox.binaries)")
     b.add_argument("--bundle", required=True, help="bundle key, e.g. 'blast'")
     b.add_argument("--version", required=True)
     b.add_argument("--provides", nargs="+", required=True, help="executables the bundle provides")
     b.add_argument("--dir", required=True, type=Path, help="directory of uploaded ZIPs")
-    b.add_argument("--base-url", required=True, help="release download URL prefix")
+    b.add_argument("--tag", required=True, help="GitHub release tag the ZIPs were uploaded to")
 
     m = sub.add_parser("manifest", help="add/update an entry in the shared manifest.json")
     m.add_argument("--manifest", required=True, type=Path, help="manifest.json to create/update")
     m.add_argument("--target", required=True, choices=["data", "binary"])
     m.add_argument("--version", required=True)
     m.add_argument("--dir", required=True, type=Path, help="directory of uploaded files")
-    m.add_argument("--base-url", required=True, help="release download URL prefix")
+    m.add_argument("--tag", required=True, help="GitHub release tag the assets were uploaded to")
     m.add_argument("--dataset", help="data: dataset key, e.g. 'kegg'")
     m.add_argument("--bundle", help="binary: bundle key, e.g. 'diamond'")
     m.add_argument("--provides", nargs="+", help="binary: executables the bundle provides")
@@ -162,14 +175,15 @@ def main(argv: list[str] | None = None) -> None:
     m.add_argument("--source", help="data: human-facing release/record page")
 
     args = parser.parse_args(argv)
+    base_url = release_base_url(args.tag)
     if args.kind == "data":
-        key, entry = args.dataset, data_entry(args.dataset, args.version, args.base_url, args.dir)
+        key, entry = args.dataset, data_entry(args.dataset, args.version, base_url, args.dir)
         target = "raven_toolbox/data.py  _DATA_REGISTRY"
         print(f"# Merge into {target}:", file=sys.stderr)
         print(render(key, entry))
     elif args.kind == "binary":
         key = args.bundle
-        entry = binary_entry(args.bundle, args.version, args.provides, args.base_url, args.dir)
+        entry = binary_entry(args.bundle, args.version, args.provides, base_url, args.dir)
         target = "raven_toolbox/binaries.py  _REGISTRY"
         print(f"# Merge into {target}:", file=sys.stderr)
         print(render(key, entry))
@@ -178,7 +192,7 @@ def main(argv: list[str] | None = None) -> None:
             if not args.dataset:
                 parser.error("--dataset is required for --target data")
             entry = manifest_data_entry(
-                args.version, args.base_url, args.dir,
+                args.version, base_url, args.dir,
                 description=args.description, license=args.license, doi=args.doi, source=args.source,
             )
             update_manifest(args.manifest, "data", args.dataset, entry)
@@ -187,7 +201,7 @@ def main(argv: list[str] | None = None) -> None:
             if not (args.bundle and args.provides):
                 parser.error("--bundle and --provides are required for --target binary")
             entry = manifest_binary_entry(
-                args.bundle, args.version, args.provides, args.base_url, args.dir,
+                args.bundle, args.version, args.provides, base_url, args.dir,
                 description=args.description, license=args.license,
             )
             update_manifest(args.manifest, "binaries", args.bundle, entry)
