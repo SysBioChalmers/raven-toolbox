@@ -46,7 +46,10 @@ def set_gam(
         bounds are set to ``(ngam_value, ngam_value)`` (equality
         constraint).
 
-    Returns the (mutated) model for chaining.
+    Returns
+    -------
+    cobra.Model
+        The (mutated) model, for chaining.
     """
     rxn = model.reactions.get_by_id(biomass_rxn)
     cofactor_set = set(cofactor_met_names)
