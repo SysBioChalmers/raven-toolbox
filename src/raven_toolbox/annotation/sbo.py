@@ -32,30 +32,29 @@ def add_sbo_terms(
 ) -> cobra.Model:
     """Assign SBO terms to metabolites and reactions in-place.
 
-    Metabolite SBO assignment
-        - SBO:0000649 (Biomass) for metabolites whose ``name`` is in
-          ``biomass_met_names`` or ends with any of
-          ``biomass_met_suffixes`` (default: ``" backbone"`` / ``" chain"``).
-        - SBO:0000247 (Simple chemical) otherwise.
+    **Metabolite SBO assignment**
 
-    Reaction SBO assignment
-        - SBO:0000176 (Metabolic reaction) default.
-        - Single-reactant reactions (exchange / sink / demand):
-            * extracellular → SBO:0000627 (exchange)
-            * coefficient < 0 → SBO:0000632 (sink)
-            * else → SBO:0000628 (demand)
-        - Transport reactions → SBO:0000655 (default detector: same
-          metabolite name appearing in ≥ 2 compartments).
-        - The reaction whose ``name`` matches ``biomass_rxn_name`` →
-          SBO:0000629.
-        - The reaction whose ``name`` matches ``ngam_rxn_name`` →
-          SBO:0000630.
-        - Other reactions whose ``name`` contains any
-          ``pseudoreaction_name_substrings`` → SBO:0000395.
+    - SBO:0000649 (Biomass) for metabolites whose ``name`` is in
+      ``biomass_met_names`` or ends with any of ``biomass_met_suffixes``
+      (default: ``" backbone"`` / ``" chain"``).
+    - SBO:0000247 (Simple chemical) otherwise.
 
-    "fill" semantic: SBO is written to ``annotation['sbo']`` only when
-    that key is missing or empty — mirrors RAVEN's
-    ``editMiriam(..., 'fill')`` mode.
+    **Reaction SBO assignment**
+
+    - SBO:0000176 (Metabolic reaction) default.
+    - Single-reactant reactions (exchange / sink / demand):
+        * extracellular → SBO:0000627 (exchange)
+        * coefficient < 0 → SBO:0000632 (sink)
+        * else → SBO:0000628 (demand)
+    - Transport reactions → SBO:0000655 (default detector: same
+      metabolite name appearing in ≥ 2 compartments).
+    - The reaction whose ``name`` matches ``biomass_rxn_name`` → SBO:0000629.
+    - The reaction whose ``name`` matches ``ngam_rxn_name`` → SBO:0000630.
+    - Other reactions whose ``name`` contains any ``pseudoreaction_name_substrings``
+      → SBO:0000395.
+
+    "fill" semantic: SBO is written to ``annotation['sbo']`` only when that key is
+    missing or empty — mirrors RAVEN's ``editMiriam(..., 'fill')`` mode.
 
     Parameters
     ----------
