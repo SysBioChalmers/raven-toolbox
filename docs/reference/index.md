@@ -14,6 +14,10 @@ Conceptual and API reference for raven-toolbox.
   ergonomics improvements (the `IMPROVEMENTS.md` master list).
 - **[API reference](api/index.md)** — every public function and class, generated from the
   docstrings.
+- **[Gap-filling algorithms — literature review](gap_filling_algorithms.md)** — survey of
+  published gap-filling methods with formulation, trade-offs, and implementation recommendations.
+- **[COBRA vs RAVEN comparison](cobra_raven_comparison.md)** — feature-by-feature comparison
+  of the COBRA Toolbox and RAVEN Toolbox, identifying gaps and overlap.
 
 ```{toctree}
 :hidden:
@@ -23,4 +27,6 @@ yaml_format
 matlab_raven_backports
 improvements
 api/index
+gap_filling_algorithms
+cobra_raven_comparison
 ```
