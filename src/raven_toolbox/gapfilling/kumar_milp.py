@@ -27,6 +27,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from typing import Any
 
 import cobra
 from cobra.util import linear_reaction_coefficients
@@ -167,7 +168,7 @@ def fill_gaps_kumar_milp(
     obj_terms: list = []
 
     # Reversal candidates: draft reactions that are currently irreversible (lb >= 0)
-    rev_indicators: dict[str, object] = {}
+    rev_indicators: dict[str, Any] = {}
     draft_ids = {r.id for r in model.reactions}
 
     for rxn in list(working.reactions):
@@ -191,7 +192,7 @@ def fill_gaps_kumar_milp(
         extra_cons.append(c)
 
     # Database reaction candidates
-    db_indicators: dict[str, object] = {}
+    db_indicators: dict[str, Any] = {}
     finite_bounds = [
         abs(b)
         for r in working.reactions
