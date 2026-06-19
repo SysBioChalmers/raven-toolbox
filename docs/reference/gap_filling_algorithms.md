@@ -87,8 +87,6 @@ The central trade-off is **exactness vs. tractability**:
 
 ## 3. Algorithm catalogue
 
----
-
 ### 3.1 SMILEY — Reed et al. 2006
 
 **Reference**: Reed JL, Patel TR, Chen KH, Joyce AR, Applebee MK, Herring CD, Betts OT, Chase MF,
