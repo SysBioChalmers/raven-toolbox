@@ -189,7 +189,7 @@ def max_volume_ellipsoid(
     astep = 0.0
     Adx = np.zeros(n)
     converged = False
-    E2 = np.eye(n)
+    E2: np.ndarray = np.eye(n)
 
     for it in range(1, maxiter + 1):
         if it > 1:
@@ -488,8 +488,7 @@ def sample_flux_space(
     """
     if n_samples <= 0:
         raise ValueError("n_samples must be positive.")
-    method = method.lower()
-    if method == "chrr":
+    if method.lower() == "chrr":
         return _sample_chrr(
             model,
             n_samples=n_samples,
@@ -499,7 +498,7 @@ def sample_flux_space(
             tol=tol,
             fixed_width_tol=fixed_width_tol,
         )
-    if method == "achr":
+    if method.lower() == "achr":
         return _sample_achr(
             model, n_samples=n_samples, thinning=thinning, seed=seed
         )
