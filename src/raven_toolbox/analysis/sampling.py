@@ -105,8 +105,7 @@ def random_sampling(
     fixed_width_tol:
         ``chrr`` — a reaction whose FVA range is narrower than this is folded into
         the equality system as fixed (keeps the reduced polytope full-dimensional).
-    n_objectives, good_reactions, replace_max_bound, min_flux,
-    loopless_good_reactions, exclude_reactions, max_attempts, suppress_errors:
+    n_objectives, good_reactions, replace_max_bound, min_flux, loopless_good_reactions, exclude_reactions, max_attempts, suppress_errors:
         ``random_objective`` only — see the method's parameters; ``good_reactions``
         can be passed back from a previous result to skip the one-off FVA.
 

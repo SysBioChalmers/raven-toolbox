@@ -38,7 +38,6 @@ numerics here are the validated reference the MATLAB port mirrors.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import cobra
@@ -194,7 +193,7 @@ def max_volume_ellipsoid(
     astep = 0.0
     Adx = np.zeros(n)
     converged = False
-    E2 = np.eye(n)
+    E2: np.ndarray = np.eye(n)
 
     for it in range(1, maxiter + 1):
         if it > 1:
