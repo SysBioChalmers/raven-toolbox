@@ -11,7 +11,7 @@ import pytest
 from raven_toolbox.analysis import (
     FluxSamplingResult,
     max_volume_ellipsoid,
-    sample_flux_space,
+    random_sampling,
 )
 
 
@@ -133,7 +133,7 @@ def test_chebyshev_center_used_when_x0_none():
 # End-to-end CHRR
 # --------------------------------------------------------------------------- #
 def test_chrr_returns_result_shape(branched_model):
-    res = sample_flux_space(branched_model, method="chrr", n_samples=50, seed=1)
+    res = random_sampling(branched_model, method="chrr", n_samples=50, seed=1)
     assert isinstance(res, FluxSamplingResult)
     assert res.method == "chrr"
     assert res.samples.shape == (50, len(branched_model.reactions))
@@ -141,7 +141,7 @@ def test_chrr_returns_result_shape(branched_model):
 
 
 def test_chrr_samples_are_steady_state(branched_model):
-    res = sample_flux_space(branched_model, method="chrr", n_samples=40, seed=2)
+    res = random_sampling(branched_model, method="chrr", n_samples=40, seed=2)
     Sm = cobra.util.create_stoichiometric_matrix(branched_model)
     ids = [r.id for r in branched_model.reactions]
     resid = Sm @ res.samples[ids].to_numpy().T
@@ -149,7 +149,7 @@ def test_chrr_samples_are_steady_state(branched_model):
 
 
 def test_chrr_samples_respect_bounds(branched_model):
-    res = sample_flux_space(branched_model, method="chrr", n_samples=60, seed=3)
+    res = random_sampling(branched_model, method="chrr", n_samples=60, seed=3)
     for r in branched_model.reactions:
         col = res.samples[r.id].to_numpy()
         assert (col >= r.lower_bound - 1e-6).all()
@@ -157,21 +157,21 @@ def test_chrr_samples_respect_bounds(branched_model):
 
 
 def test_chrr_reproducible_with_seed(branched_model):
-    a = sample_flux_space(branched_model, method="chrr", n_samples=30, seed=42).samples
-    b = sample_flux_space(branched_model, method="chrr", n_samples=30, seed=42).samples
+    a = random_sampling(branched_model, method="chrr", n_samples=30, seed=42).samples
+    b = random_sampling(branched_model, method="chrr", n_samples=30, seed=42).samples
     assert np.allclose(a.to_numpy(), b.to_numpy())
 
 
 def test_chrr_different_seeds_differ(branched_model):
-    a = sample_flux_space(branched_model, method="chrr", n_samples=30, seed=1).samples
-    b = sample_flux_space(branched_model, method="chrr", n_samples=30, seed=2).samples
+    a = random_sampling(branched_model, method="chrr", n_samples=30, seed=1).samples
+    b = random_sampling(branched_model, method="chrr", n_samples=30, seed=2).samples
     assert not np.allclose(a.to_numpy(), b.to_numpy())
 
 
 def test_chrr_explores_the_branch(branched_model):
     # 5 reactions, 3 mass balances of rank 3 -> a 2-D flux polytope (free v_b, v_c,
     # with v_b + v_c = uptake <= 10). Both branches must vary across samples.
-    res = sample_flux_space(branched_model, method="chrr", n_samples=200, seed=7)
+    res = random_sampling(branched_model, method="chrr", n_samples=200, seed=7)
     assert res.n_dimensions == 2
     assert res.samples["v_b"].std() > 1e-3
     assert res.samples["v_c"].std() > 1e-3
@@ -199,7 +199,7 @@ def test_chrr_uniform_marginal_on_a_box():
     rs[3].add_metabolites({B: -1})
     m.add_reactions(rs)
 
-    res = sample_flux_space(m, method="chrr", n_samples=4000, thinning=40, seed=11)
+    res = random_sampling(m, method="chrr", n_samples=4000, thinning=40, seed=11)
     a = res.samples["inA"].to_numpy()
     b = res.samples["inB"].to_numpy()
     # Uniform on [0,10] -> mean 5; on [0,5] -> mean 2.5.
@@ -214,7 +214,7 @@ def test_chrr_uniform_marginal_on_a_box():
 # ACHR wrapper
 # --------------------------------------------------------------------------- #
 def test_achr_returns_result_shape(branched_model):
-    res = sample_flux_space(branched_model, method="achr", n_samples=50, thinning=20, seed=1)
+    res = random_sampling(branched_model, method="achr", n_samples=50, thinning=20, seed=1)
     assert isinstance(res, FluxSamplingResult)
     assert res.method == "achr"
     assert res.samples.shape == (50, len(branched_model.reactions))
@@ -222,7 +222,7 @@ def test_achr_returns_result_shape(branched_model):
 
 
 def test_achr_samples_are_steady_state(branched_model):
-    res = sample_flux_space(branched_model, method="achr", n_samples=40, thinning=20, seed=2)
+    res = random_sampling(branched_model, method="achr", n_samples=40, thinning=20, seed=2)
     Sm = cobra.util.create_stoichiometric_matrix(branched_model)
     ids = [r.id for r in branched_model.reactions]
     resid = Sm @ res.samples[ids].to_numpy().T
@@ -230,8 +230,8 @@ def test_achr_samples_are_steady_state(branched_model):
 
 
 def test_achr_reproducible_with_seed(branched_model):
-    a = sample_flux_space(branched_model, method="achr", n_samples=25, thinning=20, seed=5).samples
-    b = sample_flux_space(branched_model, method="achr", n_samples=25, thinning=20, seed=5).samples
+    a = random_sampling(branched_model, method="achr", n_samples=25, thinning=20, seed=5).samples
+    b = random_sampling(branched_model, method="achr", n_samples=25, thinning=20, seed=5).samples
     assert np.allclose(a.to_numpy(), b.to_numpy())
 
 
@@ -240,9 +240,9 @@ def test_achr_reproducible_with_seed(branched_model):
 # --------------------------------------------------------------------------- #
 def test_unknown_method_raises(branched_model):
     with pytest.raises(ValueError, match="Unknown method"):
-        sample_flux_space(branched_model, method="gibbs")
+        random_sampling(branched_model, method="gibbs")
 
 
 def test_rejects_nonpositive_samples(branched_model):
     with pytest.raises(ValueError, match="n_samples"):
-        sample_flux_space(branched_model, n_samples=0)
+        random_sampling(branched_model, n_samples=0)

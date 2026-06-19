@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
-from dataclasses import dataclass
 
 import cobra
 import numpy as np
@@ -40,21 +39,112 @@ from cobra.exceptions import OptimizationError
 from cobra.flux_analysis import flux_variability_analysis, pfba
 from optlang.symbolics import add
 
+from raven_toolbox.analysis.flux_sampling import (
+    FluxSamplingResult,
+    _sample_achr,
+    _sample_chrr,
+)
+
 logger = logging.getLogger(__name__)
 
+# Backwards-compatible alias. The historical RandomSamplingResult is now the
+# unified FluxSamplingResult returned by every sampling method (its
+# ``good_reactions`` field is populated for method='random_objective' only).
+RandomSamplingResult = FluxSamplingResult
 
-@dataclass
-class RandomSamplingResult:
-    """Output of :func:`random_sampling`.
 
-    ``samples`` is a DataFrame of flux vectors shaped *n_samples × n_reactions*
-    (one sample per row, reaction ids as columns — the ``cobra.sampling`` layout).
-    ``good_reactions`` is the list of reaction ids that were eligible as random
-    objectives; pass it back in to skip the (one-off) FVA on a repeat run.
+def random_sampling(
+    model: cobra.Model,
+    n_samples: int = 1000,
+    *,
+    method: str = "achr",
+    seed: int | None = None,
+    thinning: int = 100,
+    warmup: int = 1000,
+    fixed_width_tol: float = 1e-7,
+    n_objectives: int = 2,
+    good_reactions: Iterable[str] | None = None,
+    replace_max_bound: bool = False,
+    min_flux: bool = False,
+    loopless_good_reactions: bool = True,
+    exclude_reactions: Iterable[str] | None = None,
+    max_attempts: int = 100,
+    suppress_errors: bool = False,
+) -> FluxSamplingResult:
+    """Sample ``model``'s flux space — entry point for all sampling methods.
+
+    Dispatches on ``method``:
+
+    * ``"achr"`` (default) — Artificially Centered Hit-and-Run; near-uniform MCMC
+      sampling of the polytope interior (wraps :class:`cobra.sampling.ACHRSampler`).
+    * ``"chrr"`` — Coordinate Hit-and-Run with Rounding; near-uniform MCMC with
+      maximum-volume-ellipsoid rounding, for better mixing on thin/ill-conditioned
+      polytopes such as enzyme-constrained models.
+    * ``"random_objective"`` — the random-objective vertex method of Bordel et al.
+      (2010): each sample maximises a small random objective, returning a polytope
+      vertex. This was ``random_sampling``'s historical behaviour; it is no longer
+      the default.
+
+    The ``"achr"``/``"chrr"`` methods draw the (near-)uniform interior distribution;
+    ``"random_objective"`` draws diverse vertices. Set any constraints you want to
+    condition on (e.g. a biomass lower bound, measured fluxes, enzyme-usage bounds)
+    on the model before calling.
+
+    Parameters
+    ----------
+    n_samples:
+        Number of flux vectors to return.
+    method:
+        ``"achr"`` (default), ``"chrr"``, or ``"random_objective"``.
+    seed:
+        Seed for reproducible chains/draws.
+    thinning:
+        ``achr``/``chrr`` — Markov-chain steps between recorded samples (default 100).
+    warmup:
+        ``chrr`` — burn-in steps discarded before the first recorded sample.
+    fixed_width_tol:
+        ``chrr`` — a reaction whose FVA range is narrower than this is folded into
+        the equality system as fixed (keeps the reduced polytope full-dimensional).
+    n_objectives, good_reactions, replace_max_bound, min_flux, loopless_good_reactions, exclude_reactions, max_attempts, suppress_errors:
+        ``random_objective`` only — see the method's parameters; ``good_reactions``
+        can be passed back from a previous result to skip the one-off FVA.
+
+    Returns
+    -------
+    FluxSamplingResult
     """
-
-    samples: pd.DataFrame
-    good_reactions: list[str]
+    if n_samples <= 0:
+        raise ValueError("n_samples must be positive.")
+    chosen = method.lower()
+    if chosen == "achr":
+        return _sample_achr(model, n_samples=n_samples, thinning=thinning, seed=seed)
+    if chosen == "chrr":
+        return _sample_chrr(
+            model,
+            n_samples=n_samples,
+            thinning=thinning,
+            warmup=warmup,
+            seed=seed,
+            tol=1e-9,
+            fixed_width_tol=fixed_width_tol,
+        )
+    if chosen in ("random_objective", "objective"):
+        return _random_objective(
+            model,
+            n_samples,
+            n_objectives=n_objectives,
+            good_reactions=good_reactions,
+            replace_max_bound=replace_max_bound,
+            min_flux=min_flux,
+            loopless_good_reactions=loopless_good_reactions,
+            exclude_reactions=exclude_reactions,
+            max_attempts=max_attempts,
+            suppress_errors=suppress_errors,
+            seed=seed,
+        )
+    raise ValueError(
+        f"Unknown method {method!r}; expected 'achr', 'chrr', or 'random_objective'."
+    )
 
 
 def find_good_reactions(
@@ -86,7 +176,7 @@ def find_good_reactions(
     ]
 
 
-def random_sampling(
+def _random_objective(
     model: cobra.Model,
     n_samples: int = 1000,
     *,
@@ -99,7 +189,7 @@ def random_sampling(
     max_attempts: int = 100,
     suppress_errors: bool = False,
     seed: int | None = None,
-) -> RandomSamplingResult:
+) -> FluxSamplingResult:
     """Random-objective sampling of ``model``'s flux space (Bordel et al. 2010).
 
     Each sample maximises ``sum(w_i * v_i)`` over ``n_objectives`` reactions drawn at
@@ -212,7 +302,8 @@ def random_sampling(
                                i, max_attempts)
                 samples[i, :] = sol.fluxes.reindex(reaction_ids).to_numpy()
 
-    return RandomSamplingResult(
+    return FluxSamplingResult(
         samples=pd.DataFrame(samples, columns=reaction_ids),
+        method="random_objective",
         good_reactions=good_reactions,
     )
