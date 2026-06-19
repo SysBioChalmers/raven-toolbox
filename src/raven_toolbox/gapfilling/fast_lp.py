@@ -22,7 +22,6 @@ by reaction id via :func:`~raven_toolbox.manipulation.transfer.add_reactions_fro
 """
 from __future__ import annotations
 
-import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
