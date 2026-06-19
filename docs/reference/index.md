@@ -18,6 +18,8 @@ Conceptual and API reference for raven-toolbox.
   published gap-filling methods with formulation, trade-offs, and implementation recommendations.
 - **[COBRA vs RAVEN comparison](cobra_raven_comparison.md)** — feature-by-feature comparison
   of the COBRA Toolbox and RAVEN Toolbox, identifying gaps and overlap.
+- **[Markov-chain flux sampling — CHRR and ACHR](flux_sampling_algorithms.md)** — algorithm
+  description, implementation notes, and guidance on when to use each method.
 
 ```{toctree}
 :hidden:
@@ -29,4 +31,5 @@ improvements
 api/index
 gap_filling_algorithms
 cobra_raven_comparison
+flux_sampling_algorithms
 ```
