@@ -1,7 +1,8 @@
 """Markov-chain Monte Carlo flux sampling — CHRR and ACHR.
 
 Two near-uniform samplers of the flux polytope ``{v : S v = 0, lb <= v <= ub}``,
-behind one entry point :func:`sample_flux_space`:
+reached through the unified :func:`~raven_toolbox.analysis.sampling.random_sampling`
+entry point (``method="achr"`` default, or ``method="chrr"``):
 
 * **CHRR** — *Coordinate Hit-and-Run with Rounding* (Haraldsdóttir et al. 2017,
   Bioinformatics 33:1741). The polytope is reduced to a full-dimensional body via
@@ -37,8 +38,8 @@ numerics here are the validated reference the MATLAB port mirrors.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Literal
 
 import cobra
 import numpy as np
@@ -51,14 +52,13 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "FluxSamplingResult",
-    "sample_flux_space",
     "max_volume_ellipsoid",
 ]
 
 
 @dataclass
 class FluxSamplingResult:
-    """Output of :func:`sample_flux_space`.
+    """Output of :func:`~raven_toolbox.analysis.sampling.random_sampling`.
 
     Attributes
     ----------
@@ -66,20 +66,26 @@ class FluxSamplingResult:
         Flux vectors shaped *n_samples × n_reactions* (one sample per row, reaction
         ids as columns — the ``cobra.sampling`` layout).
     method:
-        ``"chrr"`` or ``"achr"``.
+        ``"achr"``, ``"chrr"``, or ``"random_objective"``.
+    good_reactions:
+        ``random_objective`` only — reaction ids eligible as random objectives;
+        ``None`` for the MCMC methods.
     n_dimensions:
-        Dimension of the full-dimensional flux polytope sampled (degrees of freedom
-        after fixing implicitly-determined reactions). ``None`` for ACHR.
+        ``chrr`` only — dimension of the full-dimensional flux polytope sampled
+        (degrees of freedom after fixing implicitly-determined reactions).
     mve_converged:
-        Whether the MVE rounding solver reached its tolerance. ``None`` for ACHR.
-        A ``False`` here is not fatal — the last ellipsoid iterate is still a valid
-        rounding — but very elongated results may warrant more thinning.
+        ``chrr`` only — whether the MVE rounding solver reached its tolerance. A
+        ``False`` here is not fatal (the last ellipsoid iterate is still a valid
+        rounding) but very elongated results may warrant more thinning.
     n_warmup:
-        Number of FVA warmup directions (ACHR only).
+        ``achr`` only — number of FVA warmup directions.
+    fixed_reactions:
+        ``chrr`` only — reactions folded into the equality system as fixed.
     """
 
     samples: pd.DataFrame
     method: str
+    good_reactions: list[str] | None = None
     n_dimensions: int | None = None
     mve_converged: bool | None = None
     n_warmup: int | None = None
@@ -188,7 +194,7 @@ def max_volume_ellipsoid(
     astep = 0.0
     Adx = np.zeros(n)
     converged = False
-    E2: np.ndarray = np.eye(n)
+    E2 = np.eye(n)
 
     for it in range(1, maxiter + 1):
         if it > 1:
@@ -430,75 +436,5 @@ def _sample_achr(
     )
 
 
-# --------------------------------------------------------------------------- #
-# Public dispatcher
-# --------------------------------------------------------------------------- #
-def sample_flux_space(
-    model: cobra.Model,
-    *,
-    method: Literal["chrr", "achr"] = "chrr",
-    n_samples: int = 1000,
-    thinning: int = 100,
-    warmup: int = 1000,
-    seed: int | None = None,
-    tol: float = 1e-9,
-    fixed_width_tol: float = 1e-7,
-) -> FluxSamplingResult:
-    """Near-uniform MCMC sampling of ``model``'s flux space.
-
-    Draws ``n_samples`` flux vectors approximately uniformly from the polytope
-    ``{v : S v = 0, lb <= v <= ub}``. Set any constraints you want to condition on
-    (e.g. a biomass lower bound, measured exchange fluxes, enzyme-usage bounds)
-    *on the model* before calling — the sampler respects whatever bounds it is given.
-
-    Parameters
-    ----------
-    method:
-        ``"chrr"`` (default) — Coordinate Hit-and-Run with Rounding. Recommended for
-        enzyme-constrained (ecModel + proteomics) and flux-measured models, whose
-        feasible set is a thin, ill-conditioned slab that defeats unrounded chains.
-        ``"achr"`` — Artificially Centered Hit-and-Run via :class:`cobra.sampling.ACHRSampler`;
-        lighter on well-conditioned models, no rounding.
-    n_samples:
-        Number of flux vectors to return.
-    thinning:
-        Markov-chain steps taken between recorded samples (higher → less
-        autocorrelation, more cost). 100 is the cobrapy default.
-    warmup:
-        CHRR only: burn-in steps discarded before the first recorded sample.
-    seed:
-        Seed for reproducible chains.
-    tol:
-        General feasibility tolerance.
-    fixed_width_tol:
-        CHRR only: a reaction whose FVA range is narrower than this is treated as
-        stoichiometrically fixed and folded into the equality system, keeping the
-        reduced polytope full-dimensional (required for a non-singular MVE solve).
-
-    Returns
-    -------
-    FluxSamplingResult
-
-    Examples
-    --------
-    >>> res = sample_flux_space(model, method="chrr", n_samples=500, seed=1)
-    >>> res.samples.shape
-    (500, ...)
-    """
-    if n_samples <= 0:
-        raise ValueError("n_samples must be positive.")
-    if method.lower() == "chrr":
-        return _sample_chrr(
-            model,
-            n_samples=n_samples,
-            thinning=thinning,
-            warmup=warmup,
-            seed=seed,
-            tol=tol,
-            fixed_width_tol=fixed_width_tol,
-        )
-    if method.lower() == "achr":
-        return _sample_achr(
-            model, n_samples=n_samples, thinning=thinning, seed=seed
-        )
-    raise ValueError(f"Unknown method {method!r}; expected 'chrr' or 'achr'.")
+# The public entry point that dispatches to these samplers is
+# :func:`raven_toolbox.analysis.sampling.random_sampling` (method="achr"|"chrr").

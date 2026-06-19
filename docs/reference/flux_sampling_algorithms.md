@@ -1,9 +1,11 @@
 # Markov-chain flux sampling — CHRR and ACHR
 
 This document describes the two Markov-chain Monte Carlo (MCMC) flux samplers added to
-both raven-toolbox (`raven_toolbox.analysis.sample_flux_space`) and MATLAB RAVEN
-(`sampleFluxSpace`): **CHRR** (Coordinate Hit-and-Run with Rounding) and **ACHR**
-(Artificially Centered Hit-and-Run). It explains what each samples, why rounding matters,
+both raven-toolbox and MATLAB RAVEN. They are reached through the unified sampling entry
+point in each — `raven_toolbox.analysis.random_sampling(method="achr"|"chrr")` and RAVEN's
+`randomSampling(..., 'method', 'achr'|'chrr')` — alongside the historical random-objective
+method. The samplers are **CHRR** (Coordinate Hit-and-Run with Rounding) and **ACHR**
+(Artificially Centered Hit-and-Run). This explains what each samples, why rounding matters,
 and which to use for enzyme-constrained and tissue-specific models.
 
 ---
@@ -155,15 +157,16 @@ gives chains that look converged but are not.
 
 ## 7. Relationship to `randomSampling` / `random_sampling` {#7-relationship-to-random-sampling}
 
-RAVEN's existing `randomSampling` (and raven-toolbox's `random_sampling`) implement the
-**random-objective** method (Bordel et al. 2010): each sample maximises a small random linear
-objective, returning a polytope **vertex**. That is a different statistical object — a robust,
-fast spread of diverse *optimal* states, well-behaved on large or tightly constrained models
-where MCMC mixing is hard. It does **not** approximate the uniform interior distribution.
+The **random-objective** method (Bordel et al. 2010) — `method="random_objective"` — is also
+dispatched from the same `random_sampling` / `randomSampling` entry: each sample maximises a
+small random linear objective, returning a polytope **vertex**. That is a different statistical
+object — a robust, fast spread of diverse *optimal* states, well-behaved on large or tightly
+constrained models where MCMC mixing is hard. It does **not** approximate the uniform interior
+distribution.
 
-Use `sample_flux_space` / `sampleFluxSpace` (CHRR/ACHR) when you need the (near-)uniform flux
-distribution; use `random_sampling` / `randomSampling` when you want diverse vertices. They
-complement each other.
+So one entry point exposes all three methods: `method="achr"` (default) and `method="chrr"`
+for the (near-)uniform interior distribution, and `method="random_objective"` for diverse
+vertices.
 
 ---
 
@@ -171,7 +174,7 @@ complement each other.
 
 | Component | MATLAB RAVEN | raven-toolbox (Python) |
 |---|---|---|
-| Dispatcher | `sampleFluxSpace.m` | `analysis.sample_flux_space` |
+| Entry point | `randomSampling.m` (`method='achr'|'chrr'`) | `analysis.random_sampling(method=...)` |
 | CHRR | `sampleCHRR.m` | `analysis.flux_sampling._sample_chrr` |
 | ACHR | `sampleACHR.m` + `sampleWarmupPoints.m` | wraps `cobra.sampling.ACHRSampler` |
 | MVE solver | `sampleMaxVolEllipse.m` | `analysis.max_volume_ellipsoid` |
@@ -179,7 +182,7 @@ complement each other.
 
 **Does cobrapy already have these?** cobrapy ships a mature **ACHR** (`ACHRSampler`, plus the
 parallel `OptGPSampler`), so the Python side **wraps** it rather than reimplementing — both
-methods are reachable through the one `sample_flux_space` entry point and return the same
+methods are reachable through the one `random_sampling` entry point and return the same
 `FluxSamplingResult`. cobrapy has **no CHRR** (no rounding sampler), so the Python CHRR is a
 genuine addition. MATLAB RAVEN had neither, so both are implemented there from scratch.
 
