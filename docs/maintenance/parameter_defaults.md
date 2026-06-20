@@ -12,21 +12,33 @@ Last evaluated: 2026-06-20 against MATLAB RAVEN at
 ## Evaluation methodology
 
 A default value is *well-chosen* when a user who does not read the docstring gets a
-result that is correct and useful for the most common case. The following criteria
-apply in rough priority order:
+result that is correct and useful for the most common case.
 
-1. **MATLAB RAVEN parity.** Where a function ports a MATLAB RAVEN function, the Python
-   default must reproduce RAVEN's behaviour unless there is a documented, intentional
-   improvement.
-2. **Literature anchor.** Algorithm-specific numerical parameters (tolerances, scoring
-   weights, iteration counts) should match the value used in the original paper or the
-   most-cited open-source implementation (cobrapy, COBRA Toolbox).
-3. **Fail-safe on realistic models.** Run the function with the default on at least one
-   large model (Yeast9, Human-GEM) and one small model (iJO1366 or similar). The default
-   must not crash, produce NaN/Inf, or return an obviously wrong answer.
-4. **Sensitivity envelope.** If varying the parameter by ±50 % changes the result by
-   more than 5–10 %, the default should be documented with a stronger note, and the
-   sensitivity test result should be recorded here.
+**On MATLAB RAVEN parity:** MATLAB RAVEN defaults were never systematically validated;
+many were chosen by trial-and-error, copied from earlier tools, or simply never
+reconsidered. A MATLAB default is a useful *prior* (it reflects years of practical use)
+but it is not a gold standard. Where Python and MATLAB differ, the right response is to
+run both and measure — not to assume MATLAB is correct.
+
+The following criteria apply in rough priority order:
+
+1. **Empirical correctness on real models.** Run the function with the candidate default
+   on at least one large model (Yeast9, Human-GEM) and one small model (iJO1366 or
+   similar). Compare the result against a known-good answer (a published reconstruction,
+   a literature flux distribution, a validated gene-essentiality set). The default must
+   produce a result that is meaningfully better than any reasonable alternative, or at
+   least no worse.
+2. **Sensitivity envelope.** Vary the parameter by ±1 order of magnitude (or ±50 % for
+   non-log-scale values) and measure result change. If output is insensitive across the
+   range, the exact default value matters little — document that and move on. If output
+   is highly sensitive, the default must land in a plateau region (neither too loose nor
+   too tight) and must be documented with the sensitivity profile.
+3. **Literature anchor.** Algorithm-specific numerical parameters should match the value
+   used in the original paper or the most-cited open-source implementation (cobrapy,
+   COBRA Toolbox). Treat this as corroborating evidence, not authority.
+4. **MATLAB RAVEN cross-check.** Where a function ports a MATLAB RAVEN function, note
+   what MATLAB uses. A difference is a question to investigate empirically, not
+   automatically a bug in either direction.
 5. **User expectation alignment.** Prefer values that match what a competent user would
    supply without thinking (e.g., `verbose=True` for long-running MILP, `sort_ids=False`
    for round-trip-safe export).
@@ -37,30 +49,37 @@ apply in rough priority order:
 
 ```
 1. Read the current docstring — does it explain *why* this value?
-2. Find the MATLAB RAVEN equivalent (if any) and compare values.
-3. Find the source paper / reference implementation and compare values.
-4. Run the benchmark suite (or a quick FBA sanity check) with default and ±50 % variants.
-5. Record finding in the "Status" column below: ✓ validated / ⚠ needs change / ? unknown.
-6. If ⚠: open an issue, propose a new default and rationale, update this table.
+2. Identify candidate values: current default, MATLAB default (if any), paper value
+   (if any), and at least two plausible alternatives (e.g., 1 order of magnitude up/down).
+3. Run all candidates on iJO1366 (fast) and Yeast9 or Human-GEM (realistic).
+   Record: result quality metric, wall time, any solver/numerical warnings.
+4. Compute the sensitivity envelope: how much does the result metric change across the
+   candidate range? If the function is a reconstruction method, use a curated gene-
+   essentiality set or a held-out growth condition as the benchmark.
+5. Record finding in the "Status" column below: ✓ validated / ⚠ change proposed / ? not yet tested.
+6. If ⚠: open an issue, state the proposed new value, quote the test that supports it,
+   and update this table.
 ```
 
 ---
 
-## Summary of issues found
+## Questions requiring empirical testing
 
-Issues identified during the 2026-06-20 evaluation pass. Each is expanded in the
-relevant section below.
+The 2026-06-20 comparison pass flagged the following parameters as needing real-world
+tests before a decision can be made. Where Python and MATLAB differ, this does **not**
+mean MATLAB is correct — both should be tested. Each is expanded in the relevant section
+below.
 
-| # | Severity | Parameter | Finding |
+| # | Priority | Parameter | Question |
 |---|---|---|---|
-| 1 | **High** | `random_sampling.replace_max_bound` | Python default `False`; MATLAB default `True` — migration hazard |
-| 2 | **High** | `run_blast / run_diamond.evalue` | Python `1e-5`; MATLAB `1e-4` — Python 10× more stringent, misses valid hits |
-| 3 | **Medium** | `get_init_model.allow_excretion` | `True` here, `False` in `run_init` and `run_ftinit` — internal inconsistency |
-| 4 | **Medium** | `fseof.flux_eps` | Python `1e-6`; MATLAB implicit `1e-8` — Python includes near-zero "targets" |
-| 5 | **Medium** | `run_blast / run_diamond / run_hmmsearch.threads` | Python `1`; MATLAB auto-detects cores — silent performance trap |
-| 6 | **Medium** | `remove_genes.blocked_reactions` | Python removes blocked reactions; MATLAB keeps them |
-| 7 | **Low** | `predict_localization.time_limit` | MATLAB caps at 15 min; Python has no default cap |
-| 8 | **Low** | `run_init / run_ftinit` MIP gap | MATLAB hardcodes `0.0004`; Python `mip_gap=None` (solver default) |
+| 1 | **High** | `random_sampling.replace_max_bound` | Python `False`, MATLAB `True`. Does replacing big-M bounds with ±inf produce meaningfully different or more representative samples on ecModels? Test on ecYeast9 with ACHR/CHRR. |
+| 2 | **High** | `run_blast / run_diamond.evalue` | Python `1e-5`, MATLAB `1e-4`. Does the stricter Python cutoff discard valid hits? Run on a proteome with known KO assignments, count true/false positives at both thresholds. |
+| 3 | **Medium** | `get_init_model.allow_excretion` | `True` here, `False` in `run_init` / `run_ftinit`. Internal inconsistency — decide on one value backed by reconstruction quality on a test proteome. |
+| 4 | **Medium** | `fseof.flux_eps` | Python `1e-6`, MATLAB implicit `1e-8`. Does the looser cutoff produce spurious low-flux targets? Run FSEOF on iJO1366 and compare the target reaction lists. |
+| 5 | **Medium** | `run_blast / run_diamond / run_hmmsearch.threads` | Python `1`, MATLAB auto-detects. This is a performance issue, not a correctness one — fix is to default to available cores, but first establish that results are reproducible across thread counts. |
+| 6 | **Medium** | `remove_genes.blocked_reactions` | Python removes, MATLAB keeps. Which default produces more useful models? Test by removing a known non-essential gene from iJO1366 and checking network integrity. |
+| 7 | **Low** | `predict_localization.time_limit` | MATLAB caps at 15 min. Does omitting the cap cause unbounded solves on large models? Profile on Human-GEM. |
+| 8 | **Low** | `run_init / run_ftinit` MIP gap | MATLAB `0.0004`, Python `None` (solver default ≈ `1e-4`). Does the MATLAB value give meaningfully different reconstructions? Compare on a medium-size proteome. |
 
 ---
 
@@ -95,7 +114,8 @@ bounds (1000) with `Inf` by default so that the sampling polytope is not artific
 truncated at RAVEN's conventional big-M bound. Python defaults to `False` (no
 replacement), which means enzyme-constrained or bounded models will have their sampling
 polytope clipped at the big-M boundary — producing biased samples without any warning.
-**Proposed fix:** change Python default to `True` and document why, matching MATLAB.
+**Open question:** Does `True` actually produce better samples on real models? Run on
+ecYeast9 with both values; compare sample variance and feasibility rate. See action item #1.
 
 ### `raven_toolbox.analysis.sampling` — `find_good_reactions`
 
@@ -124,8 +144,8 @@ polytope clipped at the big-M boundary — producing biased samples without any 
 **Issue #4 — `flux_eps`:** MATLAB uses an implicit tolerance of `1e-8` when classifying
 reactions with near-zero flux as non-targets. Python's `1e-6` is 100× looser and may
 classify reactions carrying negligible flux as targets or knockdowns.
-**Proposed fix:** tighten to `1e-8` (or document the intentional difference if the looser
-value was chosen for numerical robustness with certain solvers).
+**Open question:** Do the two values produce different target lists on realistic models?
+Run FSEOF on iJO1366 and Yeast9 at `1e-6`, `1e-7`, `1e-8` and compare. See action item #4.
 
 ---
 
@@ -173,14 +193,16 @@ value was chosen for numerical robustness with certain solvers).
 and passes its own `allow_excretion=False` through, the `get_init_model` default is
 overridden in normal usage — but direct calls to `get_init_model` behave differently.
 This is confusing and error-prone.
-**Proposed fix:** change `get_init_model` default to `False` to match the higher-level
-wrappers.
+**Open question:** Which value produces better reconstructions? Run `get_init_model`
+directly on a test proteome with both values; compare feasibility and gene-essentiality
+agreement. Once settled, align both wrappers. See action item #3.
 
 **Issue #8 — MIP solver parameters:** MATLAB hardcodes `MIPGap=0.0004` and
 `TimeLimit=5000 ms` per step inside the INIT algorithm. Python exposes these as `None`
 (solver defaults), which on most solvers means `MIPGap=1e-4` and no time limit. The
-MATLAB time limit prevents runaway solves on difficult models. Document the MATLAB
-values explicitly as recommended starting points.
+MATLAB time limit prevents runaway solves on difficult models.
+**Open question:** Do MATLAB's specific values give meaningfully different reconstruction
+quality? Benchmark on a medium-size proteome. See action item #8.
 
 ### `raven_toolbox.init.score` — `gene_scores_from_expression` / `rna_gene_scores`
 
@@ -270,19 +292,19 @@ values explicitly as recommended starting points.
 | `sensitivity` (diamond) | `'--more-sensitive'` | `'--more-sensitive'` | Diamond docs | ✓ |
 
 **Issue #2 — BLAST/Diamond e-value:** MATLAB's `getBlast` uses `10e-5 = 1e-4`; Python
-uses `1e-5`. Python is 10× more stringent, meaning it will silently drop valid
-low-confidence homologs that MATLAB would include. This changes reconstruction results
-for distantly related organisms.
-**Proposed fix:** change Python default to `1e-4` to match MATLAB, or document the
-intentional tightening with a clear rationale and migration note.
+uses `1e-5`. Python is 10× more stringent and will drop low-confidence homologs that
+MATLAB includes — possibly the right call (fewer false positives), possibly not (misses
+valid hits for distantly related organisms).
+**Open question:** On a proteome with known KO assignments, do the dropped hits at
+`1e-5` correspond to true positives or noise? Report precision/recall at both thresholds.
+See action item #2.
 
 **Issue #5 — `threads=1`:** MATLAB detects available cores and uses them all. Python's
-`threads=1` silently runs single-threaded, which makes BLAST/Diamond/HMMER
-dramatically slower on multi-core machines. This is a silent performance trap with no
-warning.
-**Proposed fix:** default to `max(1, os.cpu_count() - 1)` or add a package-level
-`raven_toolbox.config.threads` setting, and warn if `threads=1` is used on a machine
-with more cores.
+`threads=1` silently runs single-threaded, making BLAST/Diamond/HMMER dramatically
+slower. This is a performance issue, not a correctness issue.
+**Next step:** Verify results are identical across thread counts (BLAST is deterministic;
+HMMER bit-scores may differ marginally between thread counts — check). If deterministic,
+change default to `max(1, os.cpu_count() - 1)`. See action item #5.
 
 ### `raven_toolbox.reconstruction.kegg.query` — `assign_kos` / `get_kegg_model_from_sequences`
 
@@ -331,8 +353,9 @@ with more cores.
 
 **Issue #7 — `time_limit`:** MATLAB caps the localization MILP at 15 minutes. Python has
 no default cap, meaning large models can run indefinitely.
-**Proposed fix:** document the MATLAB value in the docstring as a recommended starting
-point; optionally default to `900` (seconds) for large models.
+**Open question:** How long does localization actually take on Human-GEM? Profile and
+check whether the MATLAB 15-min cap is ever hit. If solves routinely complete in well
+under 15 min, leaving `None` is fine; if not, add a cap. See action item #7.
 
 ---
 
@@ -367,10 +390,10 @@ point; optionally default to `900` (seconds) for large models.
 
 **Issue #6 — `remove_genes` blocked reactions:** MATLAB's `removeGenes` keeps reactions
 that become gene-less (`removeBlockedRxns=false`); Python deletes them by default
-(`blocked_reactions='remove'`). Both behaviours are defensible but the difference will
-silently change model size for users porting MATLAB workflows.
-**Proposed fix:** add a migration note in the docstring and consider whether `'keep'`
-should be the default to match MATLAB.
+(`blocked_reactions='remove'`). Both behaviours are defensible.
+**Open question:** Which produces models with better predictive accuracy for gene
+essentiality? Test on iJO1366 with a known essential-gene set; compare predictions
+under `'remove'` vs `'keep'`. See action item #6.
 
 ---
 
@@ -397,16 +420,16 @@ should be the default to match MATLAB.
 
 ## Action items
 
-Issues to resolve (in priority order):
+Tests to run before deciding on defaults (in priority order):
 
-- [ ] **#1** `replace_max_bound`: change default to `True`; add migration note.
-- [ ] **#2** `evalue` (BLAST/Diamond): align with MATLAB (`1e-4`) or document the tightening.
-- [ ] **#3** `allow_excretion` in `get_init_model`: change to `False`.
-- [ ] **#4** `flux_eps` in `fseof`: tighten to `1e-8` or document the looser value.
-- [ ] **#5** `threads`: default to `os.cpu_count() - 1` or add package-level config.
-- [ ] **#6** `remove_genes` blocked policy: add migration note; reconsider default.
-- [ ] **#7** `time_limit` in `predict_localization`: document MATLAB's 15-min cap.
-- [ ] **#8** `mip_gap` / `time_limit` in init: document MATLAB's `0.0004` / 5 s as guidance.
+- [ ] **#1** `replace_max_bound`: run `random_sampling` on ecYeast9 with `False` and `True`; compare sample variance and distribution of objective function values. Decide based on results.
+- [ ] **#2** `evalue` (BLAST/Diamond): compare reconstruction coverage at `1e-5` vs `1e-4` on a proteome with a published KO annotation (e.g., a well-studied yeast or bacterium). Report precision/recall at each threshold.
+- [ ] **#3** `allow_excretion` in `get_init_model`: run `run_init` with an expression dataset; compare model size and flux feasibility with `True` vs `False`. Pick the value that gives more biologically reasonable models, then make both wrappers consistent.
+- [ ] **#4** `flux_eps` in `fseof`: run FSEOF on iJO1366 at `1e-6`, `1e-7`, `1e-8`; compare target reaction lists and check whether reactions at `1e-6`–`1e-8` range are biologically meaningful.
+- [ ] **#5** `threads`: verify results are identical across thread counts (BLAST is deterministic, HMMER may vary); then change default to `max(1, os.cpu_count() - 1)`.
+- [ ] **#6** `remove_genes` blocked policy: test on a model where a non-essential gene deletion is known; check whether removing vs keeping blocked reactions changes growth predictions.
+- [ ] **#7** `time_limit` in `predict_localization`: run on Human-GEM and measure wall time; if solve completes in <15 min reliably, leave at `None` and document; otherwise add a default cap.
+- [ ] **#8** `mip_gap` / `time_limit` in init: compare reconstruction outputs on a medium proteome with MATLAB's `0.0004`/`5000 ms` vs solver defaults; report solution quality and solve time.
 
 ## Evaluation checklist — remaining work
 
