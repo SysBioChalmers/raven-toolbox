@@ -111,6 +111,11 @@ def predict_localization(
     the primary) still exceeds the penalty — no hard cutoff, just an explicit
     score-vs-penalty trade-off. Set ``multi_compartment_penalty`` very large for
     effectively mono-localised genes.
+
+    ``time_limit``: cap the MILP in seconds (``None`` = no cap). For genome-scale
+    models with more than ~5000 gene-associated reactions or with ambiguous
+    localisation scores, consider ``time_limit=900`` (15 min, matching MATLAB RAVEN)
+    to prevent runaway solves on hard instances.
     """
     # ---- 1. Scope: which reactions move, which are pinned. -----------------
     to_relocate = set(reactions_to_relocate)

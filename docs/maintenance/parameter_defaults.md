@@ -481,8 +481,8 @@ Code changes to implement:
 - [x] **#4 `flux_eps`:** Python default `1e-6` confirmed correct — no change needed. `1e-8` picks up solver noise as false-positive targets.
 - [x] **#5 `threads`:** Changed default to `max(1, os.cpu_count()-1)` in `run_blast`, `run_diamond` (blast.py), `run_hmmsearch`, `get_kegg_model_from_sequences` (query.py), `build_ko_hmm`, `build_hmm_library` (hmm.py). Pure performance fix; BLAST is documented as deterministic across threads.
 - [x] **#6 `remove_genes`:** Python default `'remove'` confirmed correct — no change needed. `'keep'` breaks essentiality predictions. Add migration note in docstring.
-- [ ] **#7 `time_limit` (localization):** Leave `None`. Add docstring note: recommend `time_limit=900` for Human-GEM scale.
-- [ ] **#8 `mip_gap`/`time_limit` (init):** Leave `None`. Add docstring note: MATLAB uses `0.0004`/`5000 ms` as recommended starting points for genome-scale models.
+- [x] **#7 `time_limit` (localization):** Added docstring note to `predict_localization` recommending `time_limit=900` for Human-GEM scale models (>5000 gene-associated reactions).
+- [x] **#8 `mip_gap`/`time_limit` (init):** Added docstring note to `run_init` and `run_ftinit` documenting MATLAB's `0.0004`/`5.0` as starting points for genome-scale bottlenecks.
 
 ## Remaining work
 

@@ -102,6 +102,11 @@ def run_ftinit(
     per-step "simple metabolite" removal, e.g. H2O/H+). See the module docstring for
     the formulation. This is the single-step variant; the staged schedule
     (:func:`raven_toolbox.init.ftinit`) calls it per step.
+
+    ``mip_gap`` / ``time_limit``: the default ``None`` uses the solver's own
+    defaults (Gurobi: MIPGap≈1e-4, no time cap). For genome-scale models where
+    solver time is a bottleneck, ``mip_gap=0.0004`` and ``time_limit=5.0``
+    (MATLAB RAVEN values) are a reasonable starting point.
     """
     scores = dict(rxn_scores or {})
     essential = set(essential_rxns or [])
