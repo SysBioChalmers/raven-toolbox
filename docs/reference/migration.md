@@ -101,6 +101,7 @@ standard plus the geckopy enzyme-constrained extension, so ecModels round-trip.
 | `parseScores('deeploc')` | ✅ [`localization.load_deeploc`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py) | DeepLoc 2 per-protein CSV (Protein_ID / Localizations / Signals + one column per compartment). `compartment_map` (e.g. `DEFAULT_COMPARTMENT_MAP`) renames labels to model ids. |
 | — (new) | ✅ [`localization.load_mulocdeep`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py) | MULocDeep wide table (id + per-compartment probabilities); auto-detects delimiter. |
 | — (new) | ✅ [`localization.load_compartments`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py) | COMPARTMENTS (jensenlab.org) channel TSV; aggregates per gene×compartment, `min_confidence` filters weak annotations. |
+| — (new) | ✅ [`localization.load_uniprot`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py) | Curated UniProtKB `Subcellular location [CC]` TSV export; qualitative (1.0 per annotated compartment). For yeast-GEM use the ordered-locus id column. |
 
 ## Things deliberately not ported
 

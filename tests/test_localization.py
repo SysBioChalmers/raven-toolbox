@@ -16,6 +16,7 @@ from raven_toolbox.localization import (
     load_compartments,
     load_deeploc,
     load_mulocdeep,
+    load_uniprot,
     predict_localization,
 )
 
@@ -79,6 +80,37 @@ def test_load_compartments_tsv(tmp_path):
     s2 = load_compartments(p, compartment_map=DEFAULT_COMPARTMENT_MAP, min_confidence=3.0)
     assert "c" not in s2.compartments
     assert s2.df.loc["YGL001C", "m"] == pytest.approx(1.0)
+
+
+def test_load_uniprot(tmp_path):
+    # UniProtKB TSV export (accession / primary / ordered-locus / Subcellular location [CC])
+    p = tmp_path / "uniprot.tsv"
+    p.write_text(
+        "Entry\tGene Names (primary)\tGene Names (ordered locus)\tSubcellular location [CC]\n"
+        "P00890\tCIT1\tYNR001C\tSUBCELLULAR LOCATION: Mitochondrion matrix {ECO:0000269|PubMed:1}.\n"
+        "P12345\tGENEX\tYAL001C\tSUBCELLULAR LOCATION: Cytoplasm. Nucleus {ECO:0000255}. "
+        "Note=Shuttles to the mitochondrion under stress.\n"
+        "P99999\tNOLOC\tYBR002C\t\n"
+    )
+    # use the ordered-locus column so ids match yeast-GEM ORF gene ids
+    s = load_uniprot(p, id_column="Gene Names (ordered locus)")
+    assert s.df.loc["YNR001C", "m"] == pytest.approx(1.0)
+    assert s.df.loc["YAL001C", "c"] == pytest.approx(1.0)
+    assert s.df.loc["YAL001C", "n"] == pytest.approx(1.0)
+    # the "mitochondrion" mention inside Note=… is stripped, so YAL001C is not placed in m
+    assert s.df.loc["YAL001C", "m"] == 0.0
+    # a protein with no annotation is absent (treated as "no signal" downstream)
+    assert "YBR002C" not in s.genes
+
+
+def test_load_uniprot_autodetects_location_column(tmp_path):
+    p = tmp_path / "u.tsv"
+    p.write_text(
+        "Entry\tSubcellular location [CC]\n"
+        "P1\tSUBCELLULAR LOCATION: Peroxisome.\n"
+    )
+    s = load_uniprot(p)               # id_column defaults to first col, location col auto-detected
+    assert s.df.loc["P1", "p"] == pytest.approx(1.0)
 
 
 def test_load_compartments_collapses_synonyms(tmp_path):

@@ -20,6 +20,7 @@ supersede older single-label callers, so no loader for those is provided.
 """
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +33,7 @@ __all__ = [
     "load_deeploc",
     "load_mulocdeep",
     "load_compartments",
+    "load_uniprot",
 ]
 
 
@@ -167,6 +169,10 @@ def load_compartments(path: str | Path, *,
     column 4 = GO compartment term name, last column = confidence score. Rows are aggregated per
     (gene, compartment) by the maximum confidence; ``min_confidence`` drops weak annotations
     (the integrated/text-mining channels score 0–5).
+
+    The per-organism files (e.g. ``yeast_compartment_integrated_full.tsv``) are at
+    https://download.jensenlab.org/ — fetch them there if the COMPARTMENTS *Downloads* web page
+    is unavailable.
     """
     raw = pd.read_csv(path, sep="\t", header=None, dtype=str)
     if raw.shape[1] < 5:
@@ -183,6 +189,53 @@ def load_compartments(path: str | Path, *,
     wide = _apply_map(wide, compartment_map)
     wide.index.name = "gene_id"
     return _normalise_rows(LocalizationScores(wide))
+
+
+# --------------------------------------------------------------------- UniProt
+
+def load_uniprot(path: str | Path, *,
+                 compartment_map: Mapping[str, str] = DEFAULT_COMPARTMENT_MAP,
+                 id_column: str | None = None,
+                 location_column: str | None = None,
+                 sep: str = "\t") -> LocalizationScores:
+    """Parse a UniProtKB export into a normalised :class:`LocalizationScores`.
+
+    UniProt's curated ``Subcellular location [CC]`` annotation is qualitative — a set of
+    compartments, not probabilities — so each annotated compartment gets score ``1.0`` (a
+    multi-location protein lands in several). The annotation text is scanned for the labels in
+    ``compartment_map`` (which therefore doubles as the vocabulary), mapping them to your model's
+    compartment ids; evidence ``{ECO:…}`` braces and ``Note=…`` free text are stripped first so
+    incidental compartment mentions there are ignored.
+
+    Export from https://rest.uniprot.org with ``fields=accession,gene_oln,cc_subcellular_location``
+    (TSV). Pick ``id_column`` to match your model's gene ids — for yeast-GEM that is the
+    ordered-locus column (``Gene Names (ordered locus)``, the ORF id like ``YNR001C``), not the
+    default accession.
+    """
+    df = pd.read_csv(path, sep=sep, dtype=str).fillna("")
+    id_col = id_column if id_column is not None else df.columns[0]
+    if location_column is None:
+        cands = [c for c in df.columns if "subcellular" in str(c).lower()]
+        if not cands:
+            raise ValueError(f"{path}: no 'Subcellular location' column in {list(df.columns)}")
+        location_column = cands[0]
+    vocab = {str(k).strip().lower(): v for k, v in (compartment_map or {}).items()}
+    if not vocab:
+        raise ValueError("load_uniprot needs a non-empty compartment_map (the term vocabulary)")
+
+    rows: dict[str, dict[str, float]] = {}
+    for gid, text in zip(df[id_col].astype(str), df[location_column].astype(str), strict=True):
+        gid = gid.strip()
+        if not gid:
+            continue
+        clean = re.sub(r"\{[^}]*\}", " ", text)              # drop evidence braces
+        clean = re.sub(r"note=.*", " ", clean, flags=re.IGNORECASE | re.DOTALL).lower()
+        hits = {code for label, code in vocab.items() if label in clean}
+        if hits:
+            rows.setdefault(gid, {}).update({c: 1.0 for c in hits})
+    out = pd.DataFrame.from_dict(rows, orient="index").fillna(0.0)
+    out.index.name = "gene_id"
+    return _normalise_rows(LocalizationScores(out))
 
 
 # ----------------------------------------------------------------------- helpers

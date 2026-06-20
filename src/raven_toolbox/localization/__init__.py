@@ -17,6 +17,7 @@ from raven_toolbox.localization.scores import (
     load_compartments,
     load_deeploc,
     load_mulocdeep,
+    load_uniprot,
 )
 
 __all__ = [
@@ -28,5 +29,6 @@ __all__ = [
     "load_compartments",
     "load_deeploc",
     "load_mulocdeep",
+    "load_uniprot",
     "predict_localization",
 ]

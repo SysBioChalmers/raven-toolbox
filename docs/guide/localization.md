@@ -6,8 +6,9 @@
 1. **Load predictor/database scores** into the `gene × compartment`
    {class}`raven_toolbox.localization.LocalizationScores` frame:
    {func}`raven_toolbox.localization.load_deeploc` (DeepLoc 2 per-protein CSV),
-   {func}`raven_toolbox.localization.load_mulocdeep` (MULocDeep wide table), or
-   {func}`raven_toolbox.localization.load_compartments` (COMPARTMENTS evidence database).
+   {func}`raven_toolbox.localization.load_mulocdeep` (MULocDeep wide table),
+   {func}`raven_toolbox.localization.load_compartments` (COMPARTMENTS evidence database), or
+   {func}`raven_toolbox.localization.load_uniprot` (curated UniProtKB `Subcellular location`).
    Pass {data}`raven_toolbox.localization.DEFAULT_COMPARTMENT_MAP` to rename predictor labels
    to your model's compartment ids. raven-toolbox does **not** shell out to the predictor — run
    it separately and feed in its output.

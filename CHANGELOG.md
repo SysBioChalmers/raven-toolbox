@@ -6,11 +6,12 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
-* **Localisation loaders modernised.** Added `load_mulocdeep` (MULocDeep wide tables) and
-  `load_compartments` (the COMPARTMENTS evidence database), plus `DEFAULT_COMPARTMENT_MAP` to
-  rename predictor labels to model compartment ids and collapse synonyms. `load_deeploc` gained a
-  `compartment_map` argument. **Removed `load_wolfpsort`** — modern multi-label predictors and
-  the COMPARTMENTS database supersede the single-label WoLF PSORT caller.
+* **Localisation loaders modernised.** Added `load_mulocdeep` (MULocDeep wide tables),
+  `load_compartments` (the COMPARTMENTS evidence database) and `load_uniprot` (curated UniProtKB
+  `Subcellular location` exports), plus `DEFAULT_COMPARTMENT_MAP` to rename predictor labels to
+  model compartment ids and collapse synonyms. `load_deeploc` gained a `compartment_map`
+  argument. **Removed `load_wolfpsort`** — modern multi-label predictors, the COMPARTMENTS
+  database and UniProt supersede the single-label WoLF PSORT caller.
 
 ## 0.2.0 — 2026-06-14
 
