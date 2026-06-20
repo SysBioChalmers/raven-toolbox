@@ -100,6 +100,12 @@ def random_sampling(
         Seed for reproducible chains/draws.
     thinning:
         ``achr``/``chrr`` — Markov-chain steps between recorded samples (default 100).
+        The default is calibrated for small models (~200–500 reactions). On genome-scale
+        models (>2000 reactions) lag-1 autocorrelation remains high even at thinning=100
+        (measured: 0.926 on yeast-GEM with 4102 reactions), giving roughly 12 effective
+        samples from 300 stored samples (ESS ≈ n × (1−ρ)/(1+ρ)). For genome-scale
+        analyses either increase thinning substantially (≥1000), increase n_samples to
+        compensate, or use an ESS diagnostic to assess sample quality.
     warmup:
         ``chrr`` — burn-in steps discarded before the first recorded sample.
     fixed_width_tol:

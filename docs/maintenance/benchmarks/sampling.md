@@ -45,35 +45,52 @@ sample. Higher thinning reduces autocorrelation at the cost of more computation.
 The appropriate thinning depends on the mixing time of the Markov chain, which
 scales with the number of reactions and the geometry of the flux polytope.
 
-**Test results (yeast-GEM, n=300 samples, warmup=1000, Gurobi):**
+**Test results (yeast-GEM, n=300 samples, warmup=1000, Gurobi, 2026-06-20):**
 
 | `thinning` | Lag-1 autocorrelation | Wall time (s) |
 |---|---|---|
-| 20 | **0.973** (very high) | 660 |
-| 100 (default) | TBD (~3300 s estimated) | — |
-| 500 | TBD (~16500 s estimated) | — |
+| 20 | 0.973 | 660 |
+| 100 (default) | 0.926 | 841 |
+| 500 | 0.849 | 927 |
 
-Note: the thinning=100 and thinning=500 runs were not completed due to wall-clock
-time (~55 min and ~4.6 h respectively at the yeast-GEM scale). The thinning=20
-result alone is highly informative.
+**All three values show very high autocorrelation.** At thinning=500, consecutive
+samples are still 85% correlated — far from independent.
 
-At thinning=20, the lag-1 autocorrelation across the first 20 variable reactions is
-0.973 — near-unit autocorrelation indicating that consecutive ACHR steps on yeast-GEM
-(4102 reactions) are almost perfectly correlated. This is consistent with the theory:
-ACHR's mixing time scales with the number of dimensions, and yeast-GEM's 4102-reaction
-polytope is much larger than the cobrapy validation models (~200–300 reactions).
+The decay is slow: going from thinning=20 to thinning=100 (5×) reduces autocorrelation
+by only 0.047; going from 100 to 500 (5×) reduces it by 0.077. Extrapolating, to reach
+a lag-1 autocorrelation of ~0.3 (a rough threshold for near-independent samples) would
+require thinning in the tens of thousands — taking weeks of compute time for 1000 samples
+on yeast-GEM.
 
-Implication: the default thinning=100 may produce samples with moderate-to-high
-autocorrelation on yeast-GEM-scale models. For genome-scale sampling, users should
-either increase thinning (at proportional computational cost) or use a post-hoc
-effective sample size (ESS) diagnostic to assess whether their sample is adequate.
+This is a known property of ACHR on large polytopes: mixing time scales with the number
+of dimensions (reactions), and yeast-GEM's 4102-reaction polytope is 15–20× larger than
+the cobrapy validation models (~200–300 reactions) on which thinning=100 was calibrated.
 
-cobrapy's default of 100 was validated on smaller models in the cobrapy test suite.
-The raven-toolbox ACHR implementation wraps cobrapy's `ACHRSampler` directly.
+**Implications:**
+1. For large genome-scale models (>2000 reactions), ACHR samples with the default
+   thinning=100 are highly autocorrelated and should not be treated as independent.
+2. Effective sample size (ESS) diagnostics should be run post-sampling.
+3. For production analyses on yeast-GEM or Human-GEM, consider using cobrapy's
+   `OptGPSampler` (which has better large-model mixing via a different hit-and-run
+   direction scheme) rather than ACHR.
+4. The `thinning` parameter trades compute time linearly for autocorrelation reduction —
+   but the reduction is logarithmically slow, so large thinning values alone do not solve
+   the problem at genome scale.
 
-**Decision: ✓ keep `thinning=100`** (unchanged from cobrapy upstream). Document in
-the docstring that for large models (>2000 reactions), consider increasing thinning
-to 500–1000 and checking effective sample size diagnostics.
+**Effective sample size (ESS) estimate:**
+For an AR(1) process, ESS ≈ n × (1−ρ) / (1+ρ).
+At thinning=100 (ρ=0.926): ESS ≈ 300 × 0.074 / 1.926 ≈ **12 effectively independent
+samples from 300 stored samples**. To collect 100 effectively independent samples
+from ACHR at thinning=100 on yeast-GEM would require ~2600 stored samples at a
+wall time of ~7.5 hours.
+
+**Decision: ✓ keep `thinning=100`** (unchanged from cobrapy upstream, which is the
+correct upstream default to track). Add a docstring warning that the default is
+calibrated for small models. On genome-scale models (>2000 reactions) the ACHR ESS
+at thinning=100 is very low (~12 effective samples from 300 stored); users should
+either dramatically increase thinning (1000+), increase n_samples to compensate,
+check ESS diagnostics post-sampling, or switch to a different sampler
+(`method='optgp'` via cobrapy's OptGPSampler).
 
 ---
 

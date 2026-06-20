@@ -19,7 +19,7 @@ e_coli_core 95 rxns, synthetic toy models. Binaries: BLAST 2.17.0.
 | `random_sampling` | `n_samples` | `1000` | 1000 | ✓ keep |
 | `random_sampling` | `method` | `'achr'` | `'random_objective'` | ✓ keep (ACHR is preferred) |
 | `random_sampling` | `seed` | `None` | unseeded | ✓ keep |
-| `random_sampling` | `thinning` | `100` | N/A | ✓ keep (cobrapy default; see `sampling.md`) |
+| `random_sampling` | `thinning` | `100` | N/A | ⚠ keep value but add docstring warning: yeast-GEM gives ESS≈12 from 300 samples; ~12 effective samples. Use `n_samples≥2600` or switch sampler for genome scale. |
 | `random_sampling` | `warmup` | `1000` | N/A | ✓ keep (cobrapy default) |
 | `random_sampling` | `n_objectives` | `2` | 2 | ✓ keep (Bordel 2010) |
 | `random_sampling` | `replace_max_bound` | `False` | `True` | ✓ keep `False` (MATLAB `True` → solver unbounded) |
