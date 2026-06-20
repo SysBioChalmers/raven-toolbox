@@ -113,6 +113,39 @@ def test_load_uniprot_autodetects_location_column(tmp_path):
     assert s.df.loc["P1", "p"] == pytest.approx(1.0)
 
 
+def test_fetch_uniprot_localization(monkeypatch):
+    import urllib.request
+
+    from raven_toolbox.localization import fetch_uniprot_localization
+
+    tsv = (
+        "Entry\tGene Names (primary)\tGene Names (ordered locus)\tSubcellular location [CC]\n"
+        "P00890\tCIT1\tYNR001C\tSUBCELLULAR LOCATION: Mitochondrion matrix {ECO:1}.\n"
+    )
+    captured = {}
+
+    class _Resp:
+        def read(self):
+            return tsv.encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def _fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        return _Resp()
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    s = fetch_uniprot_localization(559292)            # default id_field=gene_oln → ORF ids
+    assert s.df.loc["YNR001C", "m"] == pytest.approx(1.0)
+    # query was built correctly (organism filter + reviewed-only by default)
+    assert "organism_id" in captured["url"] and "559292" in captured["url"]
+    assert "reviewed" in captured["url"]
+
+
 def test_load_compartments_collapses_synonyms(tmp_path):
     # Lysosome and Vacuole both map to 'v' → collapsed by max
     p = tmp_path / "c.tsv"

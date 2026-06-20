@@ -20,7 +20,10 @@ supersede older single-label callers, so no loader for those is provided.
 """
 from __future__ import annotations
 
+import io
 import re
+import urllib.parse
+import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +37,7 @@ __all__ = [
     "load_mulocdeep",
     "load_compartments",
     "load_uniprot",
+    "fetch_uniprot_localization",
 ]
 
 
@@ -213,15 +217,64 @@ def load_uniprot(path: str | Path, *,
     default accession.
     """
     df = pd.read_csv(path, sep=sep, dtype=str).fillna("")
+    return _uniprot_scores(df, id_column=id_column, location_column=location_column,
+                           compartment_map=compartment_map)
+
+
+#: UniProt field name → its column header in a TSV export.
+_UNIPROT_ID_COLUMN = {
+    "accession": "Entry",
+    "gene_primary": "Gene Names (primary)",
+    "gene_oln": "Gene Names (ordered locus)",
+}
+
+
+def fetch_uniprot_localization(organism: int | str, *,
+                               compartment_map: Mapping[str, str] = DEFAULT_COMPARTMENT_MAP,
+                               id_field: str = "gene_oln",
+                               reviewed: bool = True,
+                               extra_query: str | None = None,
+                               timeout: float = 120.0) -> LocalizationScores:
+    """Query the UniProtKB REST API for an organism's subcellular locations → normalised
+    :class:`LocalizationScores` (no manual export needed).
+
+    ``organism`` is a UniProt organism/taxon id (e.g. ``559292`` for *S. cerevisiae* S288C).
+    ``id_field`` picks which identifier becomes the gene id — ``"gene_oln"`` (ordered locus, the
+    ORF name like ``YNR001C``) matches yeast-GEM; also ``"accession"`` or ``"gene_primary"``.
+    ``reviewed=True`` restricts to curated Swiss-Prot entries; ``extra_query`` is ANDed into the
+    UniProt query string. Parsing matches :func:`load_uniprot`.
+    """
+    if id_field not in _UNIPROT_ID_COLUMN:
+        raise ValueError(f"id_field must be one of {list(_UNIPROT_ID_COLUMN)}")
+    query = f"organism_id:{organism}"
+    if reviewed:
+        query += " AND reviewed:true"
+    if extra_query:
+        query += f" AND ({extra_query})"
+    params = {"query": query, "format": "tsv",
+              "fields": "accession,gene_primary,gene_oln,cc_subcellular_location"}
+    url = "https://rest.uniprot.org/uniprotkb/stream?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": "raven-toolbox"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 — fixed https host
+        text = resp.read().decode("utf-8")
+    df = pd.read_csv(io.StringIO(text), sep="\t", dtype=str).fillna("")
+    return _uniprot_scores(df, id_column=_UNIPROT_ID_COLUMN[id_field],
+                           location_column="Subcellular location [CC]",
+                           compartment_map=compartment_map)
+
+
+def _uniprot_scores(df: pd.DataFrame, *, id_column, location_column,
+                    compartment_map) -> LocalizationScores:
+    """Shared UniProt parser: scan the location annotation for known compartment terms."""
     id_col = id_column if id_column is not None else df.columns[0]
     if location_column is None:
         cands = [c for c in df.columns if "subcellular" in str(c).lower()]
         if not cands:
-            raise ValueError(f"{path}: no 'Subcellular location' column in {list(df.columns)}")
+            raise ValueError(f"no 'Subcellular location' column in {list(df.columns)}")
         location_column = cands[0]
     vocab = {str(k).strip().lower(): v for k, v in (compartment_map or {}).items()}
     if not vocab:
-        raise ValueError("load_uniprot needs a non-empty compartment_map (the term vocabulary)")
+        raise ValueError("UniProt parsing needs a non-empty compartment_map (the term vocabulary)")
 
     rows: dict[str, dict[str, float]] = {}
     for gid, text in zip(df[id_col].astype(str), df[location_column].astype(str), strict=True):
