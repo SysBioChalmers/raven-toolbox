@@ -17,7 +17,7 @@ functionality that's unique to RAVEN:
 * **Connectivity gap-filling** against template models.
 * **Omics integration** — Human Protein Atlas (proteomics + RNA-seq) ingestion.
 * **Sub-cellular localisation** prediction by MILP, with partial-update mode and
-  pluggable predictors (WoLF PSORT, DeepLoc, …).
+  pluggable evidence sources (DeepLoc 2, MULocDeep, COMPARTMENTS, …).
 * **N-model comparison**; **reporter metabolites**; **FSEOF**; **flux sampling**.
 * **YAML I/O** following the cobra standard, plus geckopy's `ec-*` enzyme-constrained
   fields. **SIF** export. **RAVEN-style Excel** export.

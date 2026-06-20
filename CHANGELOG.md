@@ -4,6 +4,14 @@ Milestones in the raven-toolbox port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
+## Unreleased
+
+* **Localisation loaders modernised.** Added `load_mulocdeep` (MULocDeep wide tables) and
+  `load_compartments` (the COMPARTMENTS evidence database), plus `DEFAULT_COMPARTMENT_MAP` to
+  rename predictor labels to model compartment ids and collapse synonyms. `load_deeploc` gained a
+  `compartment_map` argument. **Removed `load_wolfpsort`** — modern multi-label predictors and
+  the COMPARTMENTS database supersede the single-label WoLF PSORT caller.
+
 ## 0.2.0 — 2026-06-14
 
 Project rename plus KEGG-reconstruction and CI improvements.

@@ -97,8 +97,10 @@ standard plus the geckopy enzyme-constrained extension, so ecModels round-trip.
 | RAVEN | raven-toolbox | Notes |
 |---|---|---|
 | `predictLocalization` | ✅ [`localization.predict_localization`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/predict.py) | Deterministic MILP (not simulated annealing). Caller-passed `reactions_to_relocate` set (everything else pinned). Multi-compartment by default: primary "free", extras pay `multi_compartment_penalty`. Tolerates incomplete models (no silent reaction removal). `apply=False` returns a `LocalizationProposal` diff. Real-data validation against curated yeast-GEM in [yeast_localization_benchmark.md](../studies/yeast_localization_benchmark.md). |
-| `getWoLFScores`, `parseScores('wolf')` | ✅ [`localization.load_wolfpsort`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py) | Parses WoLF PSORT summary output (RAVEN-compatible); row-normalised. Does not shell out to the WoLF PSORT binary — run that separately and feed in the output. |
-| `parseScores('deeploc')` | ✅ [`localization.load_deeploc`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py) | DeepLoc 2 per-protein CSV (Protein_ID / Localizations / Signals + one column per compartment). |
+| `getWoLFScores`, `parseScores('wolf')` | ➖ Not ported (dropped) | WoLF PSORT is superseded by modern multi-label predictors and the COMPARTMENTS evidence database; use `load_deeploc` / `load_mulocdeep` / `load_compartments` instead. |
+| `parseScores('deeploc')` | ✅ [`localization.load_deeploc`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py) | DeepLoc 2 per-protein CSV (Protein_ID / Localizations / Signals + one column per compartment). `compartment_map` (e.g. `DEFAULT_COMPARTMENT_MAP`) renames labels to model ids. |
+| — (new) | ✅ [`localization.load_mulocdeep`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py) | MULocDeep wide table (id + per-compartment probabilities); auto-detects delimiter. |
+| — (new) | ✅ [`localization.load_compartments`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/localization/scores.py) | COMPARTMENTS (jensenlab.org) channel TSV; aggregates per gene×compartment, `min_confidence` filters weak annotations. |
 
 ## Things deliberately not ported
 

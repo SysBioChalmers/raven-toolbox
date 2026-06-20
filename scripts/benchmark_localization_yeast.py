@@ -10,8 +10,8 @@ The reference score table is derived directly from yeast-GEM (each gene scores 1
 the compartments where its reactions actually live). Noise can be added — a configurable
 fraction of genes have a random other compartment swapped in as the best score — to see
 how the algorithm degrades with imperfect predictor evidence. With ``--scores-csv`` the
-reference table is replaced by a real predictor output (WoLF PSORT / DeepLoc / hand-built
-``gene_id × compartment`` CSV).
+reference table is replaced by a real predictor output (DeepLoc 2 / MULocDeep / COMPARTMENTS /
+hand-built ``gene_id × compartment`` CSV).
 
 Outputs a per-noise-level accuracy summary and, optionally, a markdown table to a doc.
 

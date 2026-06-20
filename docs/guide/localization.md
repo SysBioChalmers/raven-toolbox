@@ -3,11 +3,14 @@
 {mod}`raven_toolbox.localization` assigns reactions to compartments by MILP — deterministic
 (not simulated annealing), predictor-agnostic, and partial-update friendly.
 
-1. **Load predictor scores** into the `gene × compartment`
+1. **Load predictor/database scores** into the `gene × compartment`
    {class}`raven_toolbox.localization.LocalizationScores` frame:
-   {func}`raven_toolbox.localization.load_wolfpsort` (WoLF PSORT summary output) or
-   {func}`raven_toolbox.localization.load_deeploc` (DeepLoc 2 per-protein CSV). raven-toolbox
-   does **not** shell out to the predictor — run it separately and feed in its output.
+   {func}`raven_toolbox.localization.load_deeploc` (DeepLoc 2 per-protein CSV),
+   {func}`raven_toolbox.localization.load_mulocdeep` (MULocDeep wide table), or
+   {func}`raven_toolbox.localization.load_compartments` (COMPARTMENTS evidence database).
+   Pass {data}`raven_toolbox.localization.DEFAULT_COMPARTMENT_MAP` to rename predictor labels
+   to your model's compartment ids. raven-toolbox does **not** shell out to the predictor — run
+   it separately and feed in its output.
 2. **Predict / apply:** {func}`raven_toolbox.localization.predict_localization` is the MILP
    entry point. Pass the set of reactions to relocate (everything else is pinned); extra
    compartments beyond a reaction's primary one pay a `multi_compartment_penalty`. With
