@@ -15,6 +15,8 @@ rebuild and release them.
 - **[Parameter defaults — inventory and evaluation plan](parameter_defaults.md)** — full
   inventory of optional parameters with current defaults and a methodology for deciding
   whether each default is well-chosen.
+- **[Parameter benchmarks](benchmarks/index.md)** — per-function benchmark results and
+  master to-do list of parameters to change or keep.
 
 ```{toctree}
 :hidden:
@@ -25,4 +27,5 @@ maintaining_kegg_data
 maintaining_binaries
 data_manifest
 parameter_defaults
+benchmarks/index
 ```

@@ -43,7 +43,7 @@ def get_init_model(
     essential_rxns: Iterable[str] | None = None,
     present_mets: Iterable[str] | None = None,
     prod_weight: float = 0.5,
-    allow_excretion: bool = True,
+    allow_excretion: bool = False,
     no_rev_loops: bool = False,
     remove_dead_ends: bool = True,
     eps: float = 1.0,
@@ -58,6 +58,10 @@ def get_init_model(
     that cannot carry flux (with exchanges open) are removed first unless
     ``remove_dead_ends=False``; ``essential_rxns`` are kept regardless. The remaining
     model is passed to :func:`run_init`.
+
+    ``allow_excretion`` only has an effect when ``prod_weight=0``; at the default
+    ``prod_weight=0.5`` the INIT sink variables absorb net metabolite production
+    regardless of this flag.
     """
     if (rxn_scores is None) == (gene_scores is None):
         raise ValueError("Provide exactly one of rxn_scores or gene_scores.")

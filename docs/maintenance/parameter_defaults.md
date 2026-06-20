@@ -476,10 +476,10 @@ note in the docstring for users porting MATLAB workflows that expect the `'keep'
 Code changes to implement:
 
 - [x] **#1 `replace_max_bound`:** Python default `False` confirmed correct — no change needed. MATLAB `True` causes solver unbounded on yeast-GEM.
-- [ ] **#2 `evalue`:** Leave at `1e-5` (matches BLAST default). Open a follow-up issue for a proteome precision/recall benchmark when BLAST is available.
-- [ ] **#3 `allow_excretion`:** Change `get_init_model` default to `False` (match `run_init`/`run_ftinit`). Add docstring note that the flag only has effect when `prod_weight=0`.
+- [x] **#2 `evalue`:** Benchmarked with BLAST 2.17.0 (hanpo vs sce). See `docs/maintenance/benchmarks/reconstruction_homology.md`. Leave at `1e-5` (matches BLAST default).
+- [x] **#3 `allow_excretion`:** Changed `get_init_model` default to `False` in `src/raven_toolbox/init/build.py`. Added docstring note.
 - [x] **#4 `flux_eps`:** Python default `1e-6` confirmed correct — no change needed. `1e-8` picks up solver noise as false-positive targets.
-- [ ] **#5 `threads`:** Change default to `max(1, os.cpu_count() - 1)` in `run_blast`, `run_diamond`, `run_hmmsearch`, `build_ko_hmm`. Pure performance fix; BLAST is documented as deterministic.
+- [x] **#5 `threads`:** Changed default to `max(1, os.cpu_count()-1)` in `run_blast`, `run_diamond` (blast.py), `run_hmmsearch`, `get_kegg_model_from_sequences` (query.py), `build_ko_hmm`, `build_hmm_library` (hmm.py). Pure performance fix; BLAST is documented as deterministic across threads.
 - [x] **#6 `remove_genes`:** Python default `'remove'` confirmed correct — no change needed. `'keep'` breaks essentiality predictions. Add migration note in docstring.
 - [ ] **#7 `time_limit` (localization):** Leave `None`. Add docstring note: recommend `time_limit=900` for Human-GEM scale.
 - [ ] **#8 `mip_gap`/`time_limit` (init):** Leave `None`. Add docstring note: MATLAB uses `0.0004`/`5000 ms` as recommended starting points for genome-scale models.

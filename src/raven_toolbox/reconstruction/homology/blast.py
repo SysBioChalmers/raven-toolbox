@@ -7,6 +7,7 @@ located via :func:`raven_toolbox.binaries.resolve_binary` (arg → env → PATH 
 from __future__ import annotations
 
 import io
+import os
 import subprocess
 import tempfile
 from collections.abc import Sequence
@@ -54,7 +55,7 @@ def run_blast(
     ref_fastas: Sequence[str | Path],
     *,
     evalue: float = 1e-5,
-    threads: int = 1,
+    threads: int = max(1, (os.cpu_count() or 2) - 1),
     blastp: str | Path | None = None,
     makeblastdb: str | Path | None = None,
 ) -> pd.DataFrame:
@@ -98,7 +99,7 @@ def run_diamond(
     ref_fastas: Sequence[str | Path],
     *,
     evalue: float = 1e-5,
-    threads: int = 1,
+    threads: int = max(1, (os.cpu_count() or 2) - 1),
     sensitivity: str = "--more-sensitive",
     diamond: str | Path | None = None,
 ) -> pd.DataFrame:

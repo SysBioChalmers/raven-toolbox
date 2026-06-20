@@ -19,6 +19,7 @@ pure and unit-tested; running the search needs HMMER (``hmmsearch``).
 from __future__ import annotations
 
 import math
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -49,7 +50,7 @@ def run_hmmsearch(
     fasta: str | Path,
     library: str | Path,
     *,
-    threads: int = 1,
+    threads: int = max(1, (os.cpu_count() or 2) - 1),
     hmmsearch: str | Path | None = None,
 ) -> str:
     """Search the profile ``library`` against proteome ``fasta``; return tblout text.
@@ -189,7 +190,7 @@ def get_kegg_model_from_sequences(
     keep_undefined_stoich: bool = True,
     keep_incomplete: bool = True,
     keep_general: bool = False,
-    threads: int = 1,
+    threads: int = max(1, (os.cpu_count() or 2) - 1),
     hmmsearch: str | Path | None = None,
 ) -> cobra.Model:
     """Reconstruct a draft model for a proteome by HMM-searching the KO library.
