@@ -31,7 +31,7 @@ sweeps predictor noise so the failure modes are visible, not just the headline a
    every GPR'd reaction's "predicted" compartment is just its current one — vacuous.
 3. **Reference scores**: each gene gets `1.0` in every compartment that hosts one of
    its reactions in the original (multi-compartment) model. This is the
-   *perfect-predictor* upper bound; real WoLF PSORT / DeepLoc output will be noisier.
+   *perfect-predictor* upper bound; real DeepLoc 2 / MULocDeep output will be noisier.
 4. **Noise injection**: at noise level `p` each gene independently has probability
    `p` of having a confidently *wrong* compartment grafted in as the new top score
    (the true compartment is demoted to half its score). This simulates a predictor
@@ -111,7 +111,7 @@ reaction shares its genes with cytosolic reactions, and the algorithm picks `c`)
   correct) lose to `c` because their genes are *also* annotated to cytosolic
   reactions. The algorithm sees gene `X` with score `1.0` in both `c` and `mm`,
   and `c` wins on the larger pool of co-localised reactions. This is faithful to
-  the predictor evidence — a real WoLF PSORT / DeepLoc score table that distinguishes
+  the predictor evidence — a real DeepLoc 2 / MULocDeep score table that distinguishes
   inner-membrane from matrix would do better here, but the
   derive-scores-from-the-model harness can't see that distinction.
 * **Membrane / non-membrane pairs split correctly.** `erm` vs `er`, `gm` vs `g` —

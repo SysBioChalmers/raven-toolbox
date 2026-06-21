@@ -1,8 +1,9 @@
 """Sub-cellular localisation — predictor-agnostic, partial-update friendly.
 
-:func:`predict_localization` is the MILP entry point;
-:func:`load_wolfpsort` / :func:`load_deeploc` parse predictor outputs into the
-``gene × compartment`` :class:`LocalizationScores` DataFrame the algorithm consumes.
+:func:`predict_localization` is the MILP entry point; :func:`load_deeploc`,
+:func:`load_mulocdeep` and :func:`load_compartments` parse modern predictor / evidence-database
+outputs into the ``gene × compartment`` :class:`LocalizationScores` DataFrame the algorithm
+consumes (pass :data:`DEFAULT_COMPARTMENT_MAP` to map labels to your model's compartment ids).
 """
 from raven_toolbox.localization.predict import (
     LocalizationProposal,
@@ -11,17 +12,25 @@ from raven_toolbox.localization.predict import (
     predict_localization,
 )
 from raven_toolbox.localization.scores import (
+    DEFAULT_COMPARTMENT_MAP,
     LocalizationScores,
+    fetch_uniprot_localization,
+    load_compartments,
     load_deeploc,
-    load_wolfpsort,
+    load_mulocdeep,
+    load_uniprot,
 )
 
 __all__ = [
+    "DEFAULT_COMPARTMENT_MAP",
     "LocalizationProposal",
     "LocalizationResult",
     "LocalizationScores",
     "apply_localization",
+    "fetch_uniprot_localization",
+    "load_compartments",
     "load_deeploc",
-    "load_wolfpsort",
+    "load_mulocdeep",
+    "load_uniprot",
     "predict_localization",
 ]

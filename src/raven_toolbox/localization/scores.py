@@ -1,22 +1,44 @@
-"""Loaders for gene → compartment localisation predictors (WoLF PSORT, DeepLoc, …).
+"""Loaders for gene → compartment localisation predictors (DeepLoc 2, MULocDeep, COMPARTMENTS).
 
 The localisation algorithm in :mod:`raven_toolbox.localization.predict` consumes a
 *gene × compartment* score table (:class:`LocalizationScores`) where higher = stronger
-evidence. Each predictor produces this differently; loaders here normalise them. The
-format is open — a user can build a :class:`LocalizationScores` from any source by
+evidence. Each predictor/database produces this differently; the loaders here normalise them.
+The format is open — a user can build a :class:`LocalizationScores` from any source by
 constructing the :class:`pandas.DataFrame` directly.
 
-Each loader normalises each gene's row so the best compartment is 1.0 (RAVEN's
-``parseScores`` convention), which lets transport costs be set on a comparable scale.
+Predictors label compartments with their own names (``Mitochondrion``, ``Cytoplasm``, …).
+Pass ``compartment_map`` (e.g. :data:`DEFAULT_COMPARTMENT_MAP`) to rename them to your model's
+compartment ids and collapse synonyms; labels absent from the map are dropped. Without a map the
+predictor's own labels are kept (use :meth:`LocalizationScores.with_compartments` to rename later).
+
+Each loader normalises every gene's row so the best compartment is 1.0 (RAVEN's ``parseScores``
+convention), which lets transport costs be set on a comparable scale.
+
+Sequence-based predictors are external tools; run them yourself and pass their output files here.
+Modern multi-label predictors (DeepLoc 2, MULocDeep) and the COMPARTMENTS evidence database
+supersede older single-label callers, so no loader for those is provided.
 """
 from __future__ import annotations
 
+import io
 import re
+import urllib.parse
+import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
+
+__all__ = [
+    "LocalizationScores",
+    "DEFAULT_COMPARTMENT_MAP",
+    "load_deeploc",
+    "load_mulocdeep",
+    "load_compartments",
+    "load_uniprot",
+    "fetch_uniprot_localization",
+]
 
 
 @dataclass
@@ -51,56 +73,222 @@ class LocalizationScores:
         return LocalizationScores(self.df.rename(columns=dict(mapping)))
 
 
-# ----------------------------------------------------------------------- WoLF PSORT
+# --------------------------------------------------------------------- compartment mapping
 
-# WoLF PSORT summary lines look like:
-#     PROTEIN_ID cyto 13, nucl 7, mito 4
-# with comments starting '#' and noisy 'treating ...' lines (which we drop).
-_WOLF_COMMA = re.compile(r"[,]\s*")
+#: Default predictor/database compartment label → model compartment id. Keys are matched
+#: case-insensitively. Tuned for yeast/fungal models (e.g. yeast-GEM codes); override per model.
+#: Labels not present here (e.g. ``Plastid`` for fungi) are dropped when this map is used.
+DEFAULT_COMPARTMENT_MAP: dict[str, str] = {
+    "cytoplasm": "c",
+    "cytosol": "c",
+    "nucleus": "n",
+    "nucleoplasm": "n",
+    "mitochondrion": "m",
+    "mitochondria": "m",
+    "mitochondrial": "m",
+    "peroxisome": "p",
+    "endoplasmic reticulum": "er",
+    "golgi apparatus": "g",
+    "golgi": "g",
+    "vacuole": "v",
+    "lysosome/vacuole": "v",
+    "lysosome": "v",
+    "extracellular": "e",
+    "extracellular space": "e",
+    "extracellular region": "e",
+    "secreted": "e",
+    "cell membrane": "ce",
+    "plasma membrane": "ce",
+    "cell envelope": "ce",
+    "lipid particle": "lp",
+    "lipid droplet": "lp",
+}
 
 
-def load_wolfpsort(path: str | Path) -> LocalizationScores:
-    """Parse WoLF PSORT summary output (``runWolfPsortSummary``) into a normalised
-    :class:`LocalizationScores`. Rows like ``PROT: treating N X's as ...`` are skipped."""
-    rows: dict[str, dict[str, float]] = {}
-    for line in Path(path).read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "treating " in line:
-            continue
-        tokens = _WOLF_COMMA.sub(" ", line).split()
-        if len(tokens) < 3 or (len(tokens) - 1) % 2 != 0:
-            continue  # malformed; skip
-        gene = tokens[0]
-        comp_scores: dict[str, float] = {}
-        for comp, score in zip(tokens[1::2], tokens[2::2], strict=True):
-            try:
-                comp_scores[comp] = float(score)
-            except ValueError:
-                continue
-        if comp_scores:
-            rows[gene] = comp_scores
-    df = pd.DataFrame.from_dict(rows, orient="index").fillna(0.0)
-    df.index.name = "gene_id"
-    return _normalise_rows(LocalizationScores(df))
+def _apply_map(df: pd.DataFrame, compartment_map: Mapping[str, str] | None) -> pd.DataFrame:
+    """Rename compartment columns to model ids and collapse synonyms (max). Columns whose label
+    is not in ``compartment_map`` are dropped. ``None`` leaves the columns untouched."""
+    if not compartment_map:
+        return df
+    lower = {str(k).strip().lower(): v for k, v in compartment_map.items()}
+    renamed = {col: lower[str(col).strip().lower()]
+               for col in df.columns if str(col).strip().lower() in lower}
+    sub = df[list(renamed)].rename(columns=renamed)
+    if sub.shape[1] == 0:
+        return sub
+    # collapse duplicate target ids (e.g. Lysosome + Vacuole → v) taking the strongest evidence
+    return sub.T.groupby(level=0).max().T
 
 
-# ----------------------------------------------------------------------- DeepLoc
+# --------------------------------------------------------------------- DeepLoc 2 / MULocDeep
 
-def load_deeploc(path: str | Path) -> LocalizationScores:
+def _load_wide(df: pd.DataFrame, *, id_column, compartment_map, source: str) -> LocalizationScores:
+    """Engine for wide *id + per-compartment-probability* tables. Non-numeric metadata columns
+    are detected and dropped automatically."""
+    id_col = id_column if id_column is not None else df.columns[0]
+    wide = df.set_index(id_col).apply(pd.to_numeric, errors="coerce").dropna(axis=1, how="all")
+    if wide.shape[1] == 0:
+        raise ValueError(f"{source}: no numeric compartment columns found in {list(df.columns)}")
+    wide = _apply_map(wide.fillna(0.0), compartment_map)
+    wide.index.name = "gene_id"
+    return _normalise_rows(LocalizationScores(wide))
+
+
+def load_deeploc(path: str | Path, *,
+                 compartment_map: Mapping[str, str] | None = None) -> LocalizationScores:
     """Parse DeepLoc 2 CSV output into a normalised :class:`LocalizationScores`.
 
-    DeepLoc 2's per-protein CSV has columns ``Protein_ID, Localizations, Signals,
-    <Compartment1>, <Compartment2>, ...`` where columns 4+ are per-class probabilities.
-    The first three metadata columns are dropped; the rest become compartment columns.
+    DeepLoc 2's per-protein CSV has ``Protein_ID, Localizations, Signals`` then one probability
+    column per compartment. The first column is the gene id; non-numeric metadata columns
+    (``Localizations``, ``Signals``) are dropped automatically.
     """
-    df = pd.read_csv(path)
-    if df.shape[1] < 4:
-        raise ValueError(f"{path}: expected ≥4 columns from DeepLoc, got {list(df.columns)}")
-    gene_col = df.columns[0]            # Protein_ID
-    comp_cols = list(df.columns[3:])    # cols 0-2 are Protein_ID/Localizations/Signals metadata
-    scores = df.set_index(gene_col)[comp_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0)
-    scores.index.name = "gene_id"
-    return _normalise_rows(LocalizationScores(scores))
+    return _load_wide(pd.read_csv(path), id_column=None,
+                      compartment_map=compartment_map, source=str(path))
+
+
+def load_mulocdeep(path: str | Path, *,
+                   compartment_map: Mapping[str, str] | None = None,
+                   id_column: str | None = None,
+                   sep: str | None = None) -> LocalizationScores:
+    """Parse MULocDeep output into a normalised :class:`LocalizationScores`.
+
+    Expects a wide table: a protein/gene id column plus one numeric probability column per major
+    subcellular compartment (MULocDeep predicts 10). ``sep=None`` auto-detects the delimiter;
+    pass ``id_column`` if the id is not the first column.
+    """
+    df = (pd.read_csv(path, sep=None, engine="python") if sep is None
+          else pd.read_csv(path, sep=sep))
+    return _load_wide(df, id_column=id_column, compartment_map=compartment_map, source=str(path))
+
+
+# --------------------------------------------------------------------- COMPARTMENTS database
+
+def load_compartments(path: str | Path, *,
+                      compartment_map: Mapping[str, str] | None = None,
+                      min_confidence: float = 0.0) -> LocalizationScores:
+    """Parse a COMPARTMENTS (jensenlab.org) channel file into a normalised
+    :class:`LocalizationScores`.
+
+    Targets the tidy ``*_<channel>_full.tsv`` layout (no header): column 1 = protein/gene id,
+    column 4 = GO compartment term name, last column = confidence score. Rows are aggregated per
+    (gene, compartment) by the maximum confidence; ``min_confidence`` drops weak annotations
+    (the integrated/text-mining channels score 0–5).
+
+    The per-organism files (e.g. ``yeast_compartment_integrated_full.tsv``) are at
+    https://download.jensenlab.org/ — fetch them there if the COMPARTMENTS *Downloads* web page
+    is unavailable.
+    """
+    raw = pd.read_csv(path, sep="\t", header=None, dtype=str)
+    if raw.shape[1] < 5:
+        raise ValueError(f"{path}: expected a COMPARTMENTS full TSV (>=5 columns), "
+                         f"got {raw.shape[1]}")
+    long = pd.DataFrame({
+        "gene_id": raw[0].astype(str),
+        "compartment": raw[3].astype(str),
+        "score": pd.to_numeric(raw[raw.columns[-1]], errors="coerce"),
+    }).dropna(subset=["score"])
+    long = long[long["score"] >= min_confidence]
+    wide = (long.pivot_table(index="gene_id", columns="compartment", values="score",
+                             aggfunc="max").fillna(0.0))
+    wide = _apply_map(wide, compartment_map)
+    wide.index.name = "gene_id"
+    return _normalise_rows(LocalizationScores(wide))
+
+
+# --------------------------------------------------------------------- UniProt
+
+def load_uniprot(path: str | Path, *,
+                 compartment_map: Mapping[str, str] = DEFAULT_COMPARTMENT_MAP,
+                 id_column: str | None = None,
+                 location_column: str | None = None,
+                 sep: str = "\t") -> LocalizationScores:
+    """Parse a UniProtKB export into a normalised :class:`LocalizationScores`.
+
+    UniProt's curated ``Subcellular location [CC]`` annotation is qualitative — a set of
+    compartments, not probabilities — so each annotated compartment gets score ``1.0`` (a
+    multi-location protein lands in several). The annotation text is scanned for the labels in
+    ``compartment_map`` (which therefore doubles as the vocabulary), mapping them to your model's
+    compartment ids; evidence ``{ECO:…}`` braces and ``Note=…`` free text are stripped first so
+    incidental compartment mentions there are ignored.
+
+    Export from https://rest.uniprot.org with ``fields=accession,gene_oln,cc_subcellular_location``
+    (TSV). Pick ``id_column`` to match your model's gene ids — for yeast-GEM that is the
+    ordered-locus column (``Gene Names (ordered locus)``, the ORF id like ``YNR001C``), not the
+    default accession.
+    """
+    df = pd.read_csv(path, sep=sep, dtype=str).fillna("")
+    return _uniprot_scores(df, id_column=id_column, location_column=location_column,
+                           compartment_map=compartment_map)
+
+
+#: UniProt field name → its column header in a TSV export.
+_UNIPROT_ID_COLUMN = {
+    "accession": "Entry",
+    "gene_primary": "Gene Names (primary)",
+    "gene_oln": "Gene Names (ordered locus)",
+}
+
+
+def fetch_uniprot_localization(organism: int | str, *,
+                               compartment_map: Mapping[str, str] = DEFAULT_COMPARTMENT_MAP,
+                               id_field: str = "gene_oln",
+                               reviewed: bool = True,
+                               extra_query: str | None = None,
+                               timeout: float = 120.0) -> LocalizationScores:
+    """Query the UniProtKB REST API for an organism's subcellular locations → normalised
+    :class:`LocalizationScores` (no manual export needed).
+
+    ``organism`` is a UniProt organism/taxon id (e.g. ``559292`` for *S. cerevisiae* S288C).
+    ``id_field`` picks which identifier becomes the gene id — ``"gene_oln"`` (ordered locus, the
+    ORF name like ``YNR001C``) matches yeast-GEM; also ``"accession"`` or ``"gene_primary"``.
+    ``reviewed=True`` restricts to curated Swiss-Prot entries; ``extra_query`` is ANDed into the
+    UniProt query string. Parsing matches :func:`load_uniprot`.
+    """
+    if id_field not in _UNIPROT_ID_COLUMN:
+        raise ValueError(f"id_field must be one of {list(_UNIPROT_ID_COLUMN)}")
+    query = f"organism_id:{organism}"
+    if reviewed:
+        query += " AND reviewed:true"
+    if extra_query:
+        query += f" AND ({extra_query})"
+    params = {"query": query, "format": "tsv",
+              "fields": "accession,gene_primary,gene_oln,cc_subcellular_location"}
+    url = "https://rest.uniprot.org/uniprotkb/stream?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": "raven-toolbox"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 — fixed https host
+        text = resp.read().decode("utf-8")
+    df = pd.read_csv(io.StringIO(text), sep="\t", dtype=str).fillna("")
+    return _uniprot_scores(df, id_column=_UNIPROT_ID_COLUMN[id_field],
+                           location_column="Subcellular location [CC]",
+                           compartment_map=compartment_map)
+
+
+def _uniprot_scores(df: pd.DataFrame, *, id_column, location_column,
+                    compartment_map) -> LocalizationScores:
+    """Shared UniProt parser: scan the location annotation for known compartment terms."""
+    id_col = id_column if id_column is not None else df.columns[0]
+    if location_column is None:
+        cands = [c for c in df.columns if "subcellular" in str(c).lower()]
+        if not cands:
+            raise ValueError(f"no 'Subcellular location' column in {list(df.columns)}")
+        location_column = cands[0]
+    vocab = {str(k).strip().lower(): v for k, v in (compartment_map or {}).items()}
+    if not vocab:
+        raise ValueError("UniProt parsing needs a non-empty compartment_map (the term vocabulary)")
+
+    rows: dict[str, dict[str, float]] = {}
+    for gid, text in zip(df[id_col].astype(str), df[location_column].astype(str), strict=True):
+        gid = gid.strip()
+        if not gid:
+            continue
+        clean = re.sub(r"\{[^}]*\}", " ", text)              # drop evidence braces
+        clean = re.sub(r"note=.*", " ", clean, flags=re.IGNORECASE | re.DOTALL).lower()
+        hits = {code for label, code in vocab.items() if label in clean}
+        if hits:
+            rows.setdefault(gid, {}).update({c: 1.0 for c in hits})
+    out = pd.DataFrame.from_dict(rows, orient="index").fillna(0.0)
+    out.index.name = "gene_id"
+    return _normalise_rows(LocalizationScores(out))
 
 
 # ----------------------------------------------------------------------- helpers
