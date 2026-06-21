@@ -13,22 +13,32 @@ Date: 2026-06-20. No MATLAB equivalent for most parameters
 
 **Parameter:** `eps=1.0` (Python default, no MATLAB equivalent)
 
-`eps` is the minimum flux that a reaction must carry in the gapfilled model to
-be considered "connected". The LP minimises the number of database reactions added
-subject to `v_target ≥ eps` for each previously blocked reaction.
+`eps` serves two roles: (1) it filters which blocked reactions are gap-fillable —
+only reactions whose maximum feasible flux (after merging the template) exceeds `eps`
+are targeted; (2) it sets the minimum flux the reaction must carry after gap-filling
+(`lower_bound = eps`). The comparison is strict (`fva.max > eps`).
 
-A higher `eps` requires a stronger flux signal, potentially identifying more
-specific gapfills but at the risk of infeasibility when only small fluxes are
-achievable. A lower `eps` is more permissive but may add unnecessary reactions.
+**Benchmark (2026-06-21): synthetic model — supply-limited gap**
 
-**Status: untested.** The return type is `GapFillResult` (not a list); a proper
-sensitivity analysis requires building a model with a realistic blocked reaction
-scenario (e.g., a gap in yeast-GEM's amino acid biosynthesis) and checking whether
-the added reactions are biochemically sensible.
+Model: A import (max 0.5 units), A→B (irreversible, blocked: B dead-end).
+Template: EX_B (B export). Max feasible flux through R_AB with template = 0.5.
 
-Proposed test: introduce a known gap in iJO1366's TCA cycle, then run
-`connect_blocked_reactions` at `eps` ∈ {0.01, 0.1, 1.0, 10.0}. Assess
-(a) whether the correct reaction is added, (b) whether extra reactions are added.
+| `eps` | Gap filled? | Added reactions | FVA_max > eps? |
+|---|---|---|---|
+| `0.01` | ✓ yes | `['EX_B']` | 0.5 > 0.01 ✓ |
+| `0.1` | ✓ yes | `['EX_B']` | 0.5 > 0.1 ✓ |
+| `0.5` | ✗ no | `[]` | 0.5 > 0.5 ✗ (strict) |
+| `1.0` | ✗ no | `[]` | 0.5 > 1.0 ✗ |
+
+The condition is strictly greater than (`>`), so a reaction at exactly `eps` capacity
+is NOT targeted.
+
+**Decision: ✓ keep `eps=1.0`.** For RAVEN-convention models where exchange reactions
+are unconstrained (bounds ±1000) and all real metabolic fluxes easily exceed 1.0,
+eps=1.0 is a reliable noise filter. Edge case: if nutrient supply exchanges are
+tightly constrained to < 1 mmol/gDW/h (experimental flux constraints, enzyme-
+constrained models), eps=1.0 will incorrectly skip gap-fillable reactions. In that
+case lower eps to 0.01 or 0.001.
 
 ---
 
@@ -63,18 +73,40 @@ The paper uses `epsilon = 1e-4`.
 
 ## `fill_gaps_kumar_milp` — `weights` and `big_m`
 
-**`weights=(1.0, 2.0)`** — Kumar et al. 2007: `w_rev=1` for reversing existing
-reactions, `w_add=2` for adding new database reactions. Penalising additions more
-than reversals reflects the prior that the existing model topology is more likely
-to be correct than the direction assignments.
+**Benchmark (2026-06-21): synthetic model — two equi-capacity repair options**
 
-**`big_m=1000.0`** — used in the MILP binary indicator formulation. The conventional
-big-M of 1000 matches the standard RAVEN upper bound for reaction fluxes. Must be
-≥ maximum expected flux; for yeast-GEM this is satisfied.
+Model: A import (max 10 units), R1: A→B, R2: C→B (irreversible), biomass: C→{}.
+Biomass blocked because C has no source. Two repairs:
+- **Reversal of R2** (B→C): A→B→C→biomass via R2 reversed. Cost = `w_rev`.
+- **Add EX_C** (C import, max 10): C→biomass directly. Cost = `w_db`.
 
-**Status: untested on realistic gapfilling scenarios.** Both values are taken
-directly from the Kumar et al. 2007 paper without empirical modification.
+Both repairs give max biomass = 10. min_growth auto-set to 1.0 (10% of FBA max).
 
-Proposed test: run `fill_gaps_kumar_milp` on a subset of yeast-GEM with a
-simulated gap and compare the added reactions at different weight ratios
-(e.g., `(1.0, 1.0)`, `(1.0, 2.0)`, `(1.0, 5.0)`).
+### `weights=(w_rev, w_db)` — reversal vs DB-addition cost ratio
+
+| `weights` | Repair chosen | Biomass |
+|---|---|---|
+| `(1.0, 2.0)` (default) | R2 reversal | 10.0 |
+| `(2.0, 1.0)` | EX_C addition | 10.0 |
+| `(1.0, 1.0)` | R2 reversal (tie-break) | 10.0 |
+
+**Decision: ✓ keep `weights=(1.0, 2.0)`.** Correctly implements Kumar 2007 preference
+ordering: reversals (weaker biochemical assumption) are preferred over adding entirely
+new reactions. The 2:1 ratio ensures a clear preference in ambiguous cases.
+
+### `big_m=1000.0` — reversal capacity cap
+
+The big-M controls how much flux a reversed reaction can carry: `rxn.lower_bound`
+is set to `-big_m` when the reversal binary is 1. Same synthetic model, EX_A capped
+at 10, so correct reversal capacity requires `big_m ≥ 10`.
+
+| `big_m` | Repair chosen | Biomass |
+|---|---|---|
+| `5.0` (too small) | R2 reversal | 5.0 (capped: `big_m < 10`) |
+| `10.0` (exact) | R2 reversal | 10.0 |
+| `1000.0` (default) | R2 reversal | 10.0 |
+
+**Decision: ✓ keep `big_m=1000.0`.** Matches RAVEN-convention model bounds (±1000),
+ensuring reversed reactions are not artificially capped below their real capacity.
+Note: for enzyme-constrained models where reaction bounds exceed ±1000, `big_m`
+must be increased to match the model's maximum bound magnitude.

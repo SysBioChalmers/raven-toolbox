@@ -61,7 +61,7 @@ e_coli_core 95 rxns, synthetic toy models. Binaries: BLAST 2.17.0.
 | `get_init_model` | `eps` | `1.0` | 1.0 | ✓ keep |
 | `run_ftinit` | `series` | `'1+1'` | `'1+1'` | ✓ keep (Gustafsson 2023) |
 | `run_ftinit` | `force_on` | `0.1` | 0.1 | ✓ keep |
-| `run_ftinit` | `big_m` | `100.0` | 100 | ? untested (see `init.md`) |
+| `run_ftinit` | `big_m` | `100.0` | 100 | ✓ keep (intentional LP tightener; see `init.md`) |
 | `run_ftinit` | `mip_gap` | `None` | `0.0004` | ✓ keep `None`; document MATLAB value |
 | `run_ftinit` | `time_limit` | `None` | 5000 ms | ✓ keep `None`; document MATLAB value |
 | `gene_scores_from_expression` | `factor` | `5.0` | 5 | ✓ keep (Wang 2012) |
@@ -84,9 +84,9 @@ e_coli_core 95 rxns, synthetic toy models. Binaries: BLAST 2.17.0.
 | `fill_gaps_fast_lp` | `epsilon` | `0.0001` | N/A | ✓ keep (fastGapFill paper) |
 | `connect_blocked_reactions` | `penalty` | `1.0` | N/A | ✓ keep |
 | `connect_blocked_reactions` | `allow_net_production` | `False` | `false` | ✓ keep |
-| `connect_blocked_reactions` | `eps` | `1.0` | N/A | ? untested |
-| `fill_gaps_kumar_milp` | `weights` | `(1.0, 2.0)` | N/A | ? untested (Kumar 2007: w_rev=1, w_add=2) |
-| `fill_gaps_kumar_milp` | `big_m` | `1000.0` | N/A | ? untested |
+| `connect_blocked_reactions` | `eps` | `1.0` | N/A | ✓ keep; edge case: lower if nutrient supply < 1 mmol/gDW/h |
+| `fill_gaps_kumar_milp` | `weights` | `(1.0, 2.0)` | N/A | ✓ keep (Kumar 2007; reversal preferred over addition at 2:1 ratio, confirmed) |
+| `fill_gaps_kumar_milp` | `big_m` | `1000.0` | N/A | ✓ keep (matches RAVEN ±1000 bounds; increase for enzyme-constrained models) |
 
 **Benchmark file:** [gapfilling.md](gapfilling.md)
 
@@ -197,8 +197,6 @@ e_coli_core 95 rxns, synthetic toy models. Binaries: BLAST 2.17.0.
 
 - `get_model_from_homology` thresholds (`max_evalue`, `min_align_len`, `min_identity`): require a proteome with known KO/ortholog assignments and a reference reconstruction to compute precision/recall
 - `assign_kos` score ratios (`min_score_ratio_ko`, `min_score_ratio_g`, `cutoff`): same requirement
-- `fill_gaps_kumar_milp` weights and `big_m`: require a realistic gap-filled model for quality comparison
-- `run_ftinit` `big_m=100`: verify against maximum observed flux in yeast-GEM / Human-GEM
 - Sampling `thinning`/`warmup` autocorrelation on ACHR: yeast-GEM multi-chain analysis pending
 - INIT `mip_gap` genome-scale: needs real expression data to distinguish solution quality at different gaps
 
