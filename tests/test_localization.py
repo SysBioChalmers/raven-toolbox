@@ -331,3 +331,90 @@ def test_predict_high_penalty_forces_mono_localisation():
     # With penalty so high, every gene gets exactly one compartment.
     for g, comps in res.gene_compartments.items():
         assert len(comps) == 1, f"{g} landed in {comps} with prohibitive penalty"
+
+
+# --------------------------------------------------- sequence input prep (DeepLoc 2.1 FASTA)
+def _fake_urlopen_returning(text):
+    class _Resp:
+        def read(self):
+            return text.encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def _open(req, timeout=None):
+        _open.url = req.full_url
+        return _Resp()
+
+    return _open
+
+
+def test_write_fasta_basic(tmp_path):
+    from raven_toolbox.localization import write_fasta
+    p = tmp_path / "in.fasta"
+    paths = write_fasta({"YAL001C": "MKVLAA", "YBR002W": "MQT"}, p, wrap=4)
+    assert paths == [p]
+    assert p.read_text() == ">YAL001C\nMKVL\nAA\n>YBR002W\nMQT\n"   # wrapped at 4 residues
+
+
+def test_write_fasta_chunks_for_web_limit(tmp_path):
+    from raven_toolbox.localization import write_fasta
+    seqs = {f"G{i}": "AAAAAAAAAA" for i in range(5)}
+    paths = write_fasta(seqs, tmp_path / "in.fasta", max_records_per_file=2)
+    assert [p.name for p in paths] == ["in_001.fasta", "in_002.fasta", "in_003.fasta"]
+    assert paths[0].read_text().count(">") == 2 and paths[2].read_text().count(">") == 1
+
+
+def test_write_fasta_rejects_whitespace_id(tmp_path):
+    from raven_toolbox.localization import write_fasta
+    with pytest.raises(ValueError, match="whitespace"):
+        write_fasta({"bad id": "AAAAAAAAAA"}, tmp_path / "x.fasta")
+
+
+def test_fetch_protein_sequences(monkeypatch):
+    import urllib.request
+
+    from raven_toolbox.localization import fetch_protein_sequences
+    tsv = (
+        "Entry\tGene Names (primary)\tGene Names (ordered locus)\tSequence\n"
+        "P1\tCIT1\tYNR001C\tMSEQUENCEAA\n"               # 11 aa -> kept
+        "P2\tGENEB\tYBR002W YBR002W-A\tMQTPROTEINX\n"    # two ordered-locus tokens, both map
+        "P3\tTINY\tYTI001C\tSHORT\n"                     # 5 aa -> dropped by min_length=10
+    )
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen_returning(tsv))
+    seqs = fetch_protein_sequences(559292, min_length=10)
+    assert seqs["YNR001C"] == "MSEQUENCEAA"
+    assert seqs["YBR002W"] == "MQTPROTEINX" and seqs["YBR002W-A"] == "MQTPROTEINX"
+    assert "YTI001C" not in seqs                          # below DeepLoc's 10-aa minimum
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen_returning(tsv))
+    only = fetch_protein_sequences(559292, genes=["YNR001C"], min_length=10)
+    assert set(only) == {"YNR001C"}                       # restricted to requested genes
+
+
+def test_prepare_deeploc_input_from_model(monkeypatch, tmp_path):
+    import urllib.request
+
+    from raven_toolbox.localization import prepare_deeploc_input
+    tsv = (
+        "Entry\tGene Names (primary)\tGene Names (ordered locus)\tSequence\n"
+        "P1\tA\tYAL001C\tMAAAAAAAAAA\n"
+        "P2\tB\tYBR002W\tMBBBBBBBBBB\n"
+    )
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen_returning(tsv))
+    # a cobra model exposes .genes; YDR999W has no UniProt entry -> reported missing, not dropped
+    model = cobra.Model("toy")
+    r = cobra.Reaction("r1")
+    r.gene_reaction_rule = "YAL001C or YBR002W or YDR999W"
+    model.add_reactions([r])
+
+    res = prepare_deeploc_input(model, 559292, tmp_path / "yeast.fasta")
+    assert res.n_requested == 3 and res.n_written == 2
+    assert res.missing == ["YDR999W"]
+    assert len(res.paths) == 1                            # 2 seqs < 500 web limit -> single file
+    fasta = res.paths[0].read_text()
+    # headers are the model's gene ids -> they become DeepLoc's Protein_ID and load_deeploc lines up
+    assert ">YAL001C" in fasta and ">YBR002W" in fasta and "YDR999W" not in fasta

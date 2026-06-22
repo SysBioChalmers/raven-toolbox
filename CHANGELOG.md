@@ -6,6 +6,12 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Prepare sequence-predictor input.** Added `prepare_deeploc_input` (plus `fetch_protein_sequences`
+  and `write_fasta`) to write a DeepLoc-2.1-ready protein FASTA for a model's genes — sequences
+  fetched from UniProtKB, headers set to the gene ids so the predictor output lines up with the model
+  and `load_deeploc`. DeepLoc 2.1 has no batch API; the FASTA is chunked at the web server's
+  500-sequence limit, and genes without a reviewed sequence are reported. Script:
+  `scripts/prepare_deeploc_yeast.py`.
 * **Localisation loaders modernised.** Added `load_mulocdeep` (MULocDeep wide tables),
   `load_compartments` (the COMPARTMENTS evidence database), `load_uniprot` (curated UniProtKB
   `Subcellular location` exports) and `fetch_uniprot_localization` (the same via the UniProt REST

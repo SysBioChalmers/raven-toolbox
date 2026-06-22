@@ -24,3 +24,30 @@
 The defaults and accuracy (including a predictor-noise sweep) are validated against curated
 yeast-GEM in the
 [yeast localization benchmark](../studies/yeast_localization_benchmark.md).
+
+## Preparing input for a sequence predictor (DeepLoc 2.1)
+
+Sequence predictors take a protein **FASTA** and emit the per-protein table the loaders read back.
+{func}`raven_toolbox.localization.prepare_deeploc_input` writes that FASTA for your model's genes —
+sequences fetched from UniProtKB, headers set to the **gene ids** so the predictor's output lines up
+with the model (and with {func}`raven_toolbox.localization.load_deeploc`) without remapping:
+
+```python
+from raven_toolbox.localization import prepare_deeploc_input, load_deeploc, DEFAULT_COMPARTMENT_MAP
+
+# yeast-GEM gene ids are ORF names (e.g. YNR001C) = UniProt ordered-locus, the default key
+res = prepare_deeploc_input(model, 559292, "deeploc_yeast.fasta")  # 559292 = S. cerevisiae
+print(res)                 # "1142/1156 sequences → deeploc_yeast_001.fasta, … (14 missing)"
+print(res.missing)         # genes with no reviewed UniProt sequence — chase these separately
+
+# ... run DeepLoc 2.1 on res.paths yourself, then:
+scores = load_deeploc("deeploc_results.csv", compartment_map=DEFAULT_COMPARTMENT_MAP)
+```
+
+**DeepLoc 2.1 has no public batch API**, so run it yourself on the FASTA:
+the [web server](https://services.healthtech.dtu.dk/services/DeepLoc-2.1/) (max **500 sequences** per
+submission — `prepare_deeploc_input` chunks the FASTA at that limit into `…_001.fasta`, `…_002.fasta`,
+…) or the downloadable standalone (no limit; pass `max_records_per_file=None`). Sequences must be
+≥ 10 aa (enforced). {func}`raven_toolbox.localization.fetch_protein_sequences` and
+{func}`raven_toolbox.localization.write_fasta` are the underlying building blocks if you need finer
+control. A ready-to-run script is `scripts/prepare_deeploc_yeast.py`.
