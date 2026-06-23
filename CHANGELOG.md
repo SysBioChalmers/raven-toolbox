@@ -12,6 +12,14 @@ Milestones in the raven-toolbox port. For function-level status see
   compartment, multi-localised), each with a plain-English reason, so a curator knows where to look.
   Returns a `ReviewReport`. `load_deeploc` gained `keep_raw_confidence=True` and `LocalizationScores`
   a `raw_confidence` field (per-gene normalisation otherwise discards the confidence the triage needs).
+* **Optional raw DeepLoc probabilities.** `load_deeploc` gained `normalise=False` to keep DeepLoc's
+  calibrated probabilities instead of rescaling each gene's best compartment to 1.0. A whole-model
+  yeast-GEM benchmark ([study](docs/studies/deeploc_normalisation_benchmark.md)) finds normalisation
+  is **accuracy-neutral** for compartment assignment (raw does not rescue the contested or
+  high-confidence calls); the only reproducible difference is that raw assigns fewer genes to
+  multiple compartments — a re-scaling of the existing `transport_cost`/`multi_compartment_penalty`
+  knobs, not new signal. So normalisation stays the **default** and `normalise=False` is an opt-in
+  for callers wanting the calibrated magnitudes (e.g. the `triage_localization` confidence signal).
 * **Fuse and tune localisation evidence.** Added `combine_scores` (weighted-sum consensus of several
   `LocalizationScores`, so agreement across DeepLoc / UniProt / COMPARTMENTS is reinforced), and gave
   `load_deeploc` / `load_mulocdeep` a `min_confidence=` gate (drop unreliable low-confidence genes)

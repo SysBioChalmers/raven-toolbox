@@ -15,6 +15,9 @@ its equivalence claims against MATLAB RAVEN.
 - **[DeepLoc 2.1 yeast-GEM benchmark](deeploc_yeast_benchmark.md)** — real DeepLoc 2.1
   predictions vs curated yeast-GEM compartments; whether membrane-type recovers the
   lumen/membrane split, and an organelle-collapsed run.
+- **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
+  (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
+  accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
 - **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
 
@@ -26,5 +29,6 @@ init_param_calibration
 init_solver_benchmark
 yeast_localization_benchmark
 deeploc_yeast_benchmark
+deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
 ```

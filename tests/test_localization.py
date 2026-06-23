@@ -105,6 +105,25 @@ def test_load_deeploc_keep_raw_confidence(tmp_path):
     assert load_deeploc(p).raw_confidence is None              # off by default (back-compat)
 
 
+def test_load_deeploc_normalise_false_keeps_raw_probabilities(tmp_path):
+    # normalise=False leaves DeepLoc's probabilities as-is (no top->1.0 rescale), so a confident
+    # gene and a shaky one keep their different magnitudes for a downstream assignment to weigh.
+    p = tmp_path / "d.csv"
+    p.write_text(dedent("""\
+        Protein_ID,Localizations,Signals,Cytoplasm,Mitochondrion
+        G_conf,Cytoplasm,,0.95,0.02
+        G_shaky,Cytoplasm,,0.40,0.30
+    """))
+    raw = load_deeploc(p, normalise=False)
+    assert raw.df.loc["G_conf", "Cytoplasm"] == pytest.approx(0.95)   # raw prob kept
+    assert raw.df.loc["G_shaky", "Cytoplasm"] == pytest.approx(0.40)  # not lifted to 1.0
+    norm = load_deeploc(p)                                            # default normalises both tops
+    assert norm.df.loc["G_conf", "Cytoplasm"] == pytest.approx(1.0)
+    assert norm.df.loc["G_shaky", "Cytoplasm"] == pytest.approx(1.0)
+    # argmax is identical either way -- normalisation only changes magnitude, not the call.
+    assert raw.df.loc["G_shaky"].idxmax() == norm.df.loc["G_shaky"].idxmax()
+
+
 def _proposal(gene_compartments, unplaced=()):
     import types
     return types.SimpleNamespace(gene_compartments=dict(gene_compartments),

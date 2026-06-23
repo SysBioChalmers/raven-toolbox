@@ -19,8 +19,11 @@
    agree only ~90% on yeast-GEM — see the [DeepLoc benchmark](../studies/deeploc_yeast_benchmark.md)),
    {func}`raven_toolbox.localization.combine_scores` merges several `LocalizationScores` into a
    consensus (agreement reinforced). `load_deeploc` also takes `min_confidence=` (drop unreliable
-   low-confidence genes — DeepLoc's probability is well calibrated) and `membrane_split={"m":"mm"}`
-   (route mitochondrion to its membrane sub-compartment using the transmembrane signal; mito only).
+   low-confidence genes — DeepLoc's probability is well calibrated), `membrane_split={"m":"mm"}`
+   (route mitochondrion to its membrane sub-compartment using the transmembrane signal; mito only),
+   and `normalise=False` (keep raw probabilities instead of rescaling each gene's best compartment
+   to 1.0 — [accuracy-neutral for assignment](../studies/deeploc_normalisation_benchmark.md), so the
+   default normalises; opt out when you want the calibrated magnitudes, e.g. for triage).
 2. **Predict / apply:** {func}`raven_toolbox.localization.predict_localization` is the MILP
    entry point. Pass the set of reactions to relocate (everything else is pinned); extra
    compartments beyond a reaction's primary one pay a `multi_compartment_penalty`. With

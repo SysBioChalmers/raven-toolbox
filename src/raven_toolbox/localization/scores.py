@@ -141,11 +141,13 @@ def _wide_mapped(df: pd.DataFrame, *, id_column, compartment_map, source: str) -
     return wide
 
 
-def _finalise(wide: pd.DataFrame, *, min_confidence: float) -> LocalizationScores:
-    """Drop genes whose top (pre-normalisation) score is below ``min_confidence``, then normalise."""
+def _finalise(wide: pd.DataFrame, *, min_confidence: float,
+              normalise: bool = True) -> LocalizationScores:
+    """Drop genes whose top (pre-normalisation) score is below ``min_confidence``, then
+    optionally normalise each gene's row so its best compartment is 1.0."""
     if min_confidence > 0:
         wide = wide.loc[wide.max(axis=1) >= min_confidence]
-    return _normalise_rows(LocalizationScores(wide))
+    return _normalise_rows(LocalizationScores(wide)) if normalise else LocalizationScores(wide)
 
 
 def load_deeploc(path: str | Path, *,
@@ -153,7 +155,8 @@ def load_deeploc(path: str | Path, *,
                  min_confidence: float = 0.0,
                  membrane_split: Mapping[str, str] | None = None,
                  membrane_threshold: float = 0.5,
-                 keep_raw_confidence: bool = False) -> LocalizationScores:
+                 keep_raw_confidence: bool = False,
+                 normalise: bool = True) -> LocalizationScores:
     """Parse DeepLoc 2 CSV output into a normalised :class:`LocalizationScores`.
 
     DeepLoc 2's per-protein CSV has ``Protein_ID, Localizations, Signals`` then one probability
@@ -174,6 +177,12 @@ def load_deeploc(path: str | Path, *,
     ``keep_raw_confidence=True`` attaches the per-gene *pre-normalisation* top probability to
     :attr:`LocalizationScores.raw_confidence` (normalisation otherwise forces every top to 1.0). It
     is the strongest signal for :func:`triage_localization`.
+
+    ``normalise=False`` keeps DeepLoc's raw probabilities instead of rescaling every gene's best
+    compartment to 1.0. The raw probabilities are calibrated (a 0.97 call is far more reliable than
+    a 0.40 one), so leaving them un-normalised lets a downstream assignment weight confident genes
+    more heavily; the default ``True`` preserves the RAVEN ``parseScores`` convention and keeps
+    multi-source scales comparable. See ``docs/studies/deeploc_normalisation_benchmark.md``.
     """
     raw = pd.read_csv(path)
     wide = _wide_mapped(raw, id_column=None, compartment_map=compartment_map, source=str(path))
@@ -188,7 +197,7 @@ def load_deeploc(path: str | Path, *,
             wide[membrane_id] = wide[lumen_id].where(is_membrane, 0.0)
             wide[lumen_id] = wide[lumen_id].where(~is_membrane, 0.0)
     raw_conf = wide.max(axis=1) if keep_raw_confidence else None
-    scores = _finalise(wide, min_confidence=min_confidence)
+    scores = _finalise(wide, min_confidence=min_confidence, normalise=normalise)
     if raw_conf is not None:
         scores.raw_confidence = raw_conf.reindex(scores.df.index)
     return scores
