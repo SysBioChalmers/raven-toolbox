@@ -13,6 +13,11 @@ Each FASTA header is the **gene id** (ORF / ordered-locus name, e.g. `YNR001C`),
 `Protein_ID` output column lines up with the model — and with
 `raven_toolbox.localization.load_deeploc` — directly, no remapping.
 
+The **DeepLoc 2.1 results** for these sequences are committed alongside (`yeast-GEM_deeploc_001.csv`,
+`…_002.csv`, `…_003.csv` — one per FASTA chunk) and benchmarked against yeast-GEM's curated
+compartments in [`docs/studies/deeploc_yeast_benchmark.md`](../../docs/studies/deeploc_yeast_benchmark.md)
+(regenerate with `scripts/benchmark_deeploc_yeast.py`).
+
 ## How to use
 
 1. Upload each file to the [DeepLoc 2.1 web server](https://services.healthtech.dtu.dk/services/DeepLoc-2.1/)

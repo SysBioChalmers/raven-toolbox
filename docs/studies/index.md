@@ -12,6 +12,9 @@ its equivalence claims against MATLAB RAVEN.
   genome-scale ftINIT.
 - **[Yeast localization benchmark](yeast_localization_benchmark.md)** —
   `predict_localization` against curated yeast-GEM, with a predictor-noise sweep.
+- **[DeepLoc 2.1 yeast-GEM benchmark](deeploc_yeast_benchmark.md)** — real DeepLoc 2.1
+  predictions vs curated yeast-GEM compartments; whether membrane-type recovers the
+  lumen/membrane split, and an organelle-collapsed run.
 - **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
 
@@ -22,5 +25,6 @@ humangem_validation
 init_param_calibration
 init_solver_benchmark
 yeast_localization_benchmark
+deeploc_yeast_benchmark
 kegg_hmm_cutoff_calibration
 ```
