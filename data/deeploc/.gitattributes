@@ -1,0 +1,2 @@
+# Keep prepared FASTA inputs as LF on every platform (they are data artefacts for upload).
+*.fasta text eol=lf
