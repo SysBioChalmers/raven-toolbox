@@ -56,5 +56,7 @@ prepared for two independent non-yeast eukaryotes (run DeepLoc on these too, the
 
 * [`aracore/`](aracore/) — *Arabidopsis* AraCore: a fully independent plant model that exercises the
   **chloroplast/plastid** yeast lacked (stringent: plant is far from DeepLoc's training).
+* [`icre1355/`](icre1355/) — *Chlamydomonas* iCre1355: an independent green-alga model with the
+  richest organelle set (chloroplast, thylakoid, flagellum, eyespot, …) — a second clean plastid test.
 * [`humangem/`](humangem/) — Human-GEM: a human positive control. **Note the circularity caveat** —
   15% of its gene compartments were assigned by DeepLoc2 and must be excluded.
