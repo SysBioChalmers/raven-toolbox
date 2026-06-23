@@ -31,13 +31,20 @@ from raven_toolbox.localization.sequences import (
     prepare_deeploc_input,
     write_fasta,
 )
+from raven_toolbox.localization.triage import (
+    DEEPLOC_COMPARTMENT_TRUST,
+    ReviewReport,
+    triage_localization,
+)
 
 __all__ = [
     "DEFAULT_COMPARTMENT_MAP",
+    "DEEPLOC_COMPARTMENT_TRUST",
     "LocalizationProposal",
     "LocalizationResult",
     "LocalizationScores",
     "PreparedFasta",
+    "ReviewReport",
     "apply_localization",
     "combine_scores",
     "fetch_protein_sequences",
@@ -48,5 +55,6 @@ __all__ = [
     "load_uniprot",
     "prepare_deeploc_input",
     "predict_localization",
+    "triage_localization",
     "write_fasta",
 ]

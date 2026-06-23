@@ -19,6 +19,7 @@ from raven_toolbox.localization import (
     load_mulocdeep,
     load_uniprot,
     predict_localization,
+    triage_localization,
 )
 
 # --------------------------------------------------------------------- loaders
@@ -89,6 +90,59 @@ def test_combine_scores_reinforces_agreement(tmp_path):
     assert s.df.loc["g1", "c"] == pytest.approx(1.0)
     assert s.df.loc["g1", "n"] == pytest.approx(0.25)
     assert s.df.loc["g3", "n"] == pytest.approx(1.0)
+
+
+def test_load_deeploc_keep_raw_confidence(tmp_path):
+    p = tmp_path / "d.csv"
+    p.write_text(dedent("""\
+        Protein_ID,Localizations,Signals,Cytoplasm,Mitochondrion
+        G1,Cytoplasm,,0.8,0.1
+    """))
+    s = load_deeploc(p, keep_raw_confidence=True)
+    assert s.raw_confidence is not None
+    assert s.raw_confidence["G1"] == pytest.approx(0.8)        # pre-normalisation top prob preserved
+    assert s.df.loc["G1", "Cytoplasm"] == pytest.approx(1.0)   # df still row-normalised
+    assert load_deeploc(p).raw_confidence is None              # off by default (back-compat)
+
+
+def _proposal(gene_compartments, unplaced=()):
+    import types
+    return types.SimpleNamespace(gene_compartments=dict(gene_compartments),
+                                 unplaced_reactions=list(unplaced))
+
+
+def test_triage_ranks_shaky_above_confident():
+    df = pd.DataFrame({"c": [1.0, 1.0], "m": [0.2, 0.95]}, index=["g_conf", "g_shaky"])
+    scores = LocalizationScores(df, raw_confidence=pd.Series({"g_conf": 0.95, "g_shaky": 0.45}))
+    rep = triage_localization(_proposal({"g_conf": ["c"], "g_shaky": ["c"]}), scores)
+    assert rep.items.iloc[0]["id"] == "g_shaky"                # low conf + near-tie -> top of the list
+    assert "low_confidence" in rep.items.iloc[0]["signals"]
+    assert "borderline" in rep.items.iloc[0]["signals"]
+    assert rep.items.iloc[0]["uncertainty"] > rep.items.iloc[1]["uncertainty"]
+
+
+def test_triage_no_evidence_saturates():
+    scores = LocalizationScores(pd.DataFrame({"c": [1.0]}, index=["g1"]))
+    rep = triage_localization(_proposal({"g_noscore": ["c"]}, unplaced=["r_orphan"]), scores)
+    sub = rep.items.set_index("id")
+    assert sub.loc["g_noscore", "uncertainty"] == 1.0 and "no_evidence" in sub.loc["g_noscore", "signals"]
+    assert sub.loc["r_orphan", "level"] == "reaction"          # unplaced reaction surfaces too
+
+
+def test_triage_weak_compartment_and_source_conflict():
+    df = pd.DataFrame({"c": [1.0], "m": [0.5]}, index=["g1"])
+    scores = LocalizationScores(df, raw_confidence=pd.Series({"g1": 0.9}))
+    sources = {"DeepLoc": LocalizationScores(pd.DataFrame({"c": [1.0]}, index=["g1"])),
+               "UniProt": LocalizationScores(pd.DataFrame({"m": [1.0]}, index=["g1"]))}
+    m = cobra.Model("t")
+    r = cobra.Reaction("r1")
+    r.gene_reaction_rule = "g1"
+    m.add_reactions([r])
+    # g1 assigned to vacuole (low-trust) and the two sources disagree (c vs m)
+    rep = triage_localization(_proposal({"g1": ["v"]}), scores, sources=sources, model=m)
+    row = rep.items.iloc[0]
+    assert "weak_compartment" in row["signals"] and "source_conflict" in row["signals"]
+    assert row["reactions"] == ["r1"]                          # model adds the gated reactions
 
 
 def test_load_mulocdeep_wide(tmp_path):

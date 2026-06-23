@@ -6,6 +6,12 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Curation triage for localisation.** Added `triage_localization` — an optional companion to
+  compartment assignment that ranks the genes/reactions whose localisation is shakiest (low DeepLoc
+  confidence, borderline top-two margin, multi-source disagreement, no evidence, low-trust
+  compartment, multi-localised), each with a plain-English reason, so a curator knows where to look.
+  Returns a `ReviewReport`. `load_deeploc` gained `keep_raw_confidence=True` and `LocalizationScores`
+  a `raw_confidence` field (per-gene normalisation otherwise discards the confidence the triage needs).
 * **Fuse and tune localisation evidence.** Added `combine_scores` (weighted-sum consensus of several
   `LocalizationScores`, so agreement across DeepLoc / UniProt / COMPARTMENTS is reinforced), and gave
   `load_deeploc` / `load_mulocdeep` a `min_confidence=` gate (drop unreliable low-confidence genes)

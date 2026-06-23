@@ -27,6 +27,12 @@
    `apply=False` you get a {class}`raven_toolbox.localization.LocalizationProposal` diff to
    inspect before committing; {func}`raven_toolbox.localization.apply_localization` applies a
    result.
+3. **Triage for curation (optional):** {func}`raven_toolbox.localization.triage_localization` takes
+   the proposal + scores and returns a {class}`raven_toolbox.localization.ReviewReport` ranking the
+   genes/reactions whose localisation is shakiest (low confidence, near-ties, source disagreement,
+   no evidence, low-trust compartment, multi-localisation), each with a reason — so a curator knows
+   where to look. Pass `load_deeploc(..., keep_raw_confidence=True)` so the (strongest) confidence
+   signal survives normalisation.
 
 The defaults and accuracy (including a predictor-noise sweep) are validated against curated
 yeast-GEM in the

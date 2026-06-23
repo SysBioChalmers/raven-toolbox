@@ -49,9 +49,16 @@ class LocalizationScores:
 
     Genes absent from ``df`` and NaN entries are treated as "no signal" by
     :func:`raven_toolbox.localization.predict_localization` (uniform prior contribution).
+
+    ``raw_confidence`` (optional) is a per-gene Series of the predictor's *pre-normalisation* top
+    probability — the loaders normalise every gene's best compartment to 1.0, which discards how
+    confident the call was. :func:`load_deeploc` populates it with ``keep_raw_confidence=True`` so
+    downstream consumers (notably :func:`raven_toolbox.localization.triage_localization`) can tell a
+    0.97 call from a 0.40 one.
     """
 
     df: pd.DataFrame
+    raw_confidence: pd.Series | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.df.index, pd.Index) or self.df.index.name not in (None, "gene_id"):
@@ -145,7 +152,8 @@ def load_deeploc(path: str | Path, *,
                  compartment_map: Mapping[str, str] | None = None,
                  min_confidence: float = 0.0,
                  membrane_split: Mapping[str, str] | None = None,
-                 membrane_threshold: float = 0.5) -> LocalizationScores:
+                 membrane_threshold: float = 0.5,
+                 keep_raw_confidence: bool = False) -> LocalizationScores:
     """Parse DeepLoc 2 CSV output into a normalised :class:`LocalizationScores`.
 
     DeepLoc 2's per-protein CSV has ``Protein_ID, Localizations, Signals`` then one probability
@@ -162,6 +170,10 @@ def load_deeploc(path: str | Path, *,
     compartment ids (post-``compartment_map``). **Only the mitochondrial split (`m`/`mm`) is supported
     by the evidence** (matrix-vs-membrane AUC ~0.92); DeepLoc does *not* separate ER lumen from
     membrane, so do not add `er`/`erm`. See ``docs/studies/deeploc_yeast_benchmark.md``.
+
+    ``keep_raw_confidence=True`` attaches the per-gene *pre-normalisation* top probability to
+    :attr:`LocalizationScores.raw_confidence` (normalisation otherwise forces every top to 1.0). It
+    is the strongest signal for :func:`triage_localization`.
     """
     raw = pd.read_csv(path)
     wide = _wide_mapped(raw, id_column=None, compartment_map=compartment_map, source=str(path))
@@ -175,7 +187,11 @@ def load_deeploc(path: str | Path, *,
                 continue
             wide[membrane_id] = wide[lumen_id].where(is_membrane, 0.0)
             wide[lumen_id] = wide[lumen_id].where(~is_membrane, 0.0)
-    return _finalise(wide, min_confidence=min_confidence)
+    raw_conf = wide.max(axis=1) if keep_raw_confidence else None
+    scores = _finalise(wide, min_confidence=min_confidence)
+    if raw_conf is not None:
+        scores.raw_confidence = raw_conf.reindex(scores.df.index)
+    return scores
 
 
 def load_mulocdeep(path: str | Path, *,
