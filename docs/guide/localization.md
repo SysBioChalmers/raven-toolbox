@@ -37,7 +37,7 @@ from raven_toolbox.localization import prepare_deeploc_input, load_deeploc, DEFA
 
 # yeast-GEM gene ids are ORF names (e.g. YNR001C) = UniProt ordered-locus, the default key
 res = prepare_deeploc_input(model, 559292, "deeploc_yeast.fasta")  # 559292 = S. cerevisiae
-print(res)                 # "1142/1156 sequences → deeploc_yeast_001.fasta, … (14 missing)"
+print(res)                 # "1143/1143 sequences -> deeploc_yeast_001.fasta, ... (0 missing)"
 print(res.missing)         # genes with no reviewed UniProt sequence — chase these separately
 
 # ... run DeepLoc 2.1 on res.paths yourself, then:

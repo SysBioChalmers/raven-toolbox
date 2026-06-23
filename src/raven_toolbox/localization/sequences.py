@@ -112,9 +112,9 @@ class PreparedFasta:
     n_written: int                         # genes with a sequence written
     missing: list[str] = field(default_factory=list)  # requested genes with no reviewed sequence
 
-    def __str__(self) -> str:              # pragma: no cover - convenience
+    def __str__(self) -> str:
         files = ", ".join(p.name for p in self.paths)
-        return (f"{self.n_written}/{self.n_requested} sequences → {files}"
+        return (f"{self.n_written}/{self.n_requested} sequences -> {files}"
                 f" ({len(self.missing)} missing)")
 
 
@@ -148,7 +148,7 @@ def write_fasta(sequences: Mapping[str, str], path: str | Path, *,
     for n, chunk in enumerate(chunks, start=1):
         target = path.with_name(f"{path.stem}_{n:03d}{path.suffix}") if multi else path
         target.write_text("".join(_fasta_record(gid, seq, wrap) for gid, seq in chunk),
-                          encoding="utf-8")
+                          encoding="utf-8", newline="")   # LF on every platform (FASTA convention)
         written.append(target)
     return written
 

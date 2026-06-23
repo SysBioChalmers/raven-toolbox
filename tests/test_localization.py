@@ -358,6 +358,7 @@ def test_write_fasta_basic(tmp_path):
     paths = write_fasta({"YAL001C": "MKVLAA", "YBR002W": "MQT"}, p, wrap=4)
     assert paths == [p]
     assert p.read_text() == ">YAL001C\nMKVL\nAA\n>YBR002W\nMQT\n"   # wrapped at 4 residues
+    assert b"\r" not in p.read_bytes()                              # LF on every platform
 
 
 def test_write_fasta_chunks_for_web_limit(tmp_path):
@@ -418,3 +419,4 @@ def test_prepare_deeploc_input_from_model(monkeypatch, tmp_path):
     fasta = res.paths[0].read_text()
     # headers are the model's gene ids -> they become DeepLoc's Protein_ID and load_deeploc lines up
     assert ">YAL001C" in fasta and ">YBR002W" in fasta and "YDR999W" not in fasta
+    assert str(res).isascii()                            # printable on cp1252 stdout (Windows)

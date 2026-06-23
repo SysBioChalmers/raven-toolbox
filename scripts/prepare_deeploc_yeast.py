@@ -57,7 +57,7 @@ def main() -> None:
     if res.missing:
         print(f"{len(res.missing)} gene(s) had no reviewed UniProt sequence, e.g. "
               f"{', '.join(res.missing[:10])}"
-              f"{' …' if len(res.missing) > 10 else ''}")
+              f"{' ...' if len(res.missing) > 10 else ''}")
         print("  (try --include-unreviewed, or fetch those sequences from SGD/another source)")
     print("\nNext: run DeepLoc 2.1 on the FASTA, then "
           "load_deeploc(<output.csv>, compartment_map=DEFAULT_COMPARTMENT_MAP).")
