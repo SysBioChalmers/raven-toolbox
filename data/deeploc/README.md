@@ -14,9 +14,10 @@ Each FASTA header is the **gene id** (ORF / ordered-locus name, e.g. `YNR001C`),
 `raven_toolbox.localization.load_deeploc` — directly, no remapping.
 
 The **DeepLoc 2.1 results** for these sequences are committed alongside (`yeast-GEM_deeploc_001.csv`,
-`…_002.csv`, `…_003.csv` — one per FASTA chunk) and benchmarked against yeast-GEM's curated
-compartments in [`docs/studies/deeploc_yeast_benchmark.md`](../../docs/studies/deeploc_yeast_benchmark.md)
-(regenerate with `scripts/benchmark_deeploc_yeast.py`).
+`…_002.csv`, `…_003.csv` — one per FASTA chunk; the **slow / high-quality ProtT5** model) and
+benchmarked against yeast-GEM's curated compartments in
+[`docs/studies/deeploc_yeast_benchmark.md`](../../docs/studies/deeploc_yeast_benchmark.md)
+(regenerate with `scripts/benchmark_deeploc.py --species yeast`).
 
 ## How to use
 
@@ -52,11 +53,16 @@ Regenerate against a newer model or organism with that script (see
 ## Cross-species inputs (generalisation tests)
 
 To check the yeast-GEM result is not an artefact of yeast-GEM's curation, the same pipeline is
-prepared for two independent non-yeast eukaryotes (run DeepLoc on these too, then benchmark):
+prepared for three independent non-yeast eukaryotes:
 
 * [`aracore/`](aracore/) — *Arabidopsis* AraCore: a fully independent plant model that exercises the
-  **chloroplast/plastid** yeast lacked (stringent: plant is far from DeepLoc's training).
+  **chloroplast/plastid** yeast lacked (stringent: plant is far from DeepLoc's training). **Done** —
+  results committed (`AraCore_deeploc_00{1,2}.csv`) and benchmarked (80.3%, plastid 89.9%) in
+  [`docs/studies/deeploc_aracore_benchmark.md`](../../docs/studies/deeploc_aracore_benchmark.md)
+  (`scripts/benchmark_deeploc.py --species aracore`).
 * [`icre1355/`](icre1355/) — *Chlamydomonas* iCre1355: an independent green-alga model with the
   richest organelle set (chloroplast, thylakoid, flagellum, eyespot, …) — a second clean plastid test.
+  *Run DeepLoc on its FASTAs, then benchmark.*
 * [`humangem/`](humangem/) — Human-GEM: a human positive control. **Note the circularity caveat** —
-  15% of its gene compartments were assigned by DeepLoc2 and must be excluded.
+  15% of its gene compartments were assigned by DeepLoc2 and must be excluded. *Run DeepLoc, then
+  benchmark.*
