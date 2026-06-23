@@ -54,6 +54,20 @@ SPECIES: dict[str, dict] = {
                 "Peroxisome": ("p", None), "Plastid": ("h", None)},
         "comp_order": ["c", "h", "m", "p", "l", "i"],
     },
+    "icre1355": {
+        "label": "iCre1355",
+        # Chlamydomonas (green alga) genome-scale model. Plastid->chloroplast (h), peroxisome->the
+        # algal glyoxysome (x). The model has no ER / lysosome-vacuole / plasma-membrane compartment,
+        # so those DeepLoc labels map to nothing (count as misses). Thylakoid lumen (u), flagellum
+        # (f), eyespot (s) and the inner-mito space (i) are out of DeepLoc's scope. NB the SBML keeps
+        # GPRs in legacy notes, so cobra's ``model.genes`` has junk entries -- but ``reaction.genes``
+        # still resolves to clean Cre ids (1368/1368 match DeepLoc), which is all the benchmark uses.
+        "org": {"Cytoplasm": ("c", None), "Mitochondrion": ("m", None),
+                "Plastid": ("h", None), "Peroxisome": ("x", None),
+                "Nucleus": ("n", None), "Golgi apparatus": ("g", None),
+                "Extracellular": ("e", None)},
+        "comp_order": ["c", "h", "m", "x", "n", "g", "e", "u", "f", "s", "i"],
+    },
 }
 
 

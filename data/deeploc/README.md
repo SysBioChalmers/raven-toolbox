@@ -61,8 +61,12 @@ prepared for three independent non-yeast eukaryotes:
   [`docs/studies/deeploc_aracore_benchmark.md`](../../docs/studies/deeploc_aracore_benchmark.md)
   (`scripts/benchmark_deeploc.py --species aracore`).
 * [`icre1355/`](icre1355/) — *Chlamydomonas* iCre1355: an independent green-alga model with the
-  richest organelle set (chloroplast, thylakoid, flagellum, eyespot, …) — a second clean plastid test.
-  *Run DeepLoc on its FASTAs, then benchmark.*
-* [`humangem/`](humangem/) — Human-GEM: a human positive control. **Note the circularity caveat** —
-  15% of its gene compartments were assigned by DeepLoc2 and must be excluded. *Run DeepLoc, then
-  benchmark.*
+  richest organelle set (chloroplast, thylakoid, flagellum, eyespot, …). **Done** — results committed
+  (`iCre1355_deeploc_00{1,2,3}.csv`) and benchmarked (chloroplast 78%, cytosol/mito poor) in
+  [`docs/studies/deeploc_icre1355_benchmark.md`](../../docs/studies/deeploc_icre1355_benchmark.md)
+  (`scripts/benchmark_deeploc.py --species icre1355`).
+* [`humangem/`](humangem/) — Human-GEM: a human positive control. **Done** — results committed
+  (`Human-GEM_deeploc_00{1..6}.csv`) and benchmarked **gene-level, excluding the 439 DeepLoc2-sourced
+  compartments** (84.7% addressable) in
+  [`docs/studies/deeploc_humangem_benchmark.md`](../../docs/studies/deeploc_humangem_benchmark.md)
+  (`scripts/benchmark_deeploc_humangem.py`).

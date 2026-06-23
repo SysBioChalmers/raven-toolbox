@@ -17,6 +17,10 @@ its equivalence claims against MATLAB RAVEN.
   lumen/membrane split, and an organelle-collapsed run (slow model: 64.6% collapsed).
 - **[DeepLoc 2.1 AraCore benchmark](deeploc_aracore_benchmark.md)** — cross-kingdom
   generalisation on an independent *Arabidopsis* plant model (80.3% overall, chloroplast 89.9%).
+- **[DeepLoc 2.1 iCre1355 benchmark](deeploc_icre1355_benchmark.md)** — the most training-distant
+  test, the green alga *Chlamydomonas* (chloroplast 78%, but cytosol/mito poor on an auto-model).
+- **[DeepLoc 2.1 Human-GEM benchmark](deeploc_humangem_benchmark.md)** — human positive control
+  (84.7% addressable) and a circularity lesson: 15% of its compartments are DeepLoc-derived.
 - **[Localisation finetuning](localization_finetuning.md)** — tuning the DeepLoc-loading
   hyperparameters (`membrane_threshold`, `min_confidence`, triage trust) on the slow yeast run.
 - **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
@@ -34,6 +38,8 @@ init_solver_benchmark
 yeast_localization_benchmark
 deeploc_yeast_benchmark
 deeploc_aracore_benchmark
+deeploc_icre1355_benchmark
+deeploc_humangem_benchmark
 localization_finetuning
 deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
