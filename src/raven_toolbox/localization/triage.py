@@ -35,13 +35,16 @@ from raven_toolbox.localization.scores import LocalizationScores
 
 __all__ = ["ReviewReport", "triage_localization", "DEEPLOC_COMPARTMENT_TRUST", "confidence_bin"]
 
-#: Per-compartment reliability of a DeepLoc 2.1 organelle call, from the yeast-GEM benchmark
-#: (``docs/studies/deeploc_yeast_benchmark.md``). Yeast/DeepLoc-specific — override via
+#: Per-compartment reliability of a DeepLoc 2.1 organelle call, finetuned on the slow (ProtT5)
+#: yeast-GEM run (organelle-collapsed accuracy; ``docs/studies/localization_finetuning.md``,
+#: regenerate with ``scripts/finetune_localization_yeast.py``). ``mm`` inherits ``m`` because the
+#: mitochondrial split is the one validated routing (AUC ~0.93); the other organelle membranes and
+#: ``ce``/``lp`` stay 0 — DeepLoc cannot reach them reliably. Yeast/DeepLoc-specific — override via
 #: ``compartment_trust=`` for other models/predictors. Compartments absent here are trusted (1.0).
 DEEPLOC_COMPARTMENT_TRUST: dict[str, float] = {
-    "er": 0.92, "p": 0.82, "e": 0.78, "c": 0.76, "m": 0.67,
-    "g": 0.23, "n": 0.16, "v": 0.14, "ce": 0.0, "lp": 0.0,
-    "mm": 0.0, "erm": 0.0, "gm": 0.0, "vm": 0.0,
+    "er": 0.88, "m": 0.86, "mm": 0.86, "p": 0.83, "c": 0.79, "e": 0.78,
+    "v": 0.36, "n": 0.18, "ce": 0.11, "g": 0.01,
+    "lp": 0.0, "erm": 0.0, "gm": 0.0, "vm": 0.0,
 }
 
 _DEFAULT_WEIGHTS = {"confidence": 0.35, "disagreement": 0.25, "margin": 0.20,

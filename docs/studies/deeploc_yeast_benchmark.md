@@ -127,17 +127,19 @@ runs 54% -> 67% -> 88% -> **97%** across confidence bins `[0,0.5) [0.5,0.7) [0.7
 
 ## 5. Finetuning the pipeline (and the overfitting guard)
 
-> Computed on the earlier fast (ESM1b) DeepLoc run; pending a slow refresh.
-
 Because no single source is authoritative, finetune toward the **consensus**, not yeast-GEM alone.
-Three data-backed levers, all added to `raven_toolbox.localization`:
+Data-backed levers, all in `raven_toolbox.localization`:
 
-| lever | how | effect (real data) |
+| lever | how | effect |
 |---|---|---|
-| `combine_scores([deeploc, uniprot, …])` | weighted-sum consensus, agreement reinforced | DeepLoc+UniProt vs independent yeast-GEM: 75.3% -> **78.7%** |
-| `load_deeploc(min_confidence=0.7)` | drop low-confidence genes | kept-set corroboration 82.5% -> **89.7%** |
-| `load_deeploc(membrane_split={"m":"mm"})` | route Mitochondrion->mm when transmembrane | `mm` 0% -> **33%** recovered, costing 6% of `m` |
+| `combine_scores([deeploc, uniprot, …])` | weighted-sum consensus, agreement reinforced | DeepLoc+UniProt vs independent yeast-GEM: 75.3% -> **78.7%** (fast; multi-source) |
+| `load_deeploc(min_confidence=0.7)` | drop low-confidence genes | corroboration 82.4% -> **88.3%**, keeps 80% of genes (slow) |
+| `load_deeploc(membrane_split={"m":"mm"})` | route Mitochondrion->mm when transmembrane | mm recall ~100% among correctly-placed mito reactions (slow); threshold-optimal at 0.55 |
 
-The membrane split is **mito-only** by design (ER's AUC ~0.39 means routing `er`/`erm` would only
-relabel the majority class). Validate any tuning against the consensus or a held-out reference — never
-against yeast-GEM alone, or you fit its ~10% curation noise.
+The slow refresh of `min_confidence` and `membrane_split`, plus the finetuned triage
+`DEEPLOC_COMPARTMENT_TRUST` (mitochondrion 0.67 -> 0.86), is in the dedicated
+[localisation finetuning study](localization_finetuning.md). The membrane split is **mito-only** by
+design (ER's AUC ~0.39 means routing `er`/`erm` would only relabel the majority class). Validate any
+tuning against the consensus or a held-out reference — never against yeast-GEM alone, or you fit its
+~10% curation noise (the `combine_scores` row is the one lever still on the fast run, pending a
+multi-source slow rerun).

@@ -12,6 +12,12 @@ Milestones in the raven-toolbox port. For function-level status see
   compartment, multi-localised), each with a plain-English reason, so a curator knows where to look.
   Returns a `ReviewReport`. `load_deeploc` gained `keep_raw_confidence=True` and `LocalizationScores`
   a `raw_confidence` field (per-gene normalisation otherwise discards the confidence the triage needs).
+* **Finetuned localisation hyperparameters on the slow yeast run.** Refreshed the triage
+  `DEEPLOC_COMPARTMENT_TRUST` table from the slow (ProtT5) data (mitochondrion 0.67 → 0.86, `mm` now
+  trustworthy via the validated split, Golgi 0.23 → 0.01) and re-validated the `min_confidence` gate
+  (0.7 → 88.3% corroboration, 80% kept) and `membrane_threshold` (0.50 is inside the optimal plateau)
+  in a new [finetuning study](docs/studies/localization_finetuning.md)
+  (`scripts/finetune_localization_yeast.py`).
 * **Cross-species DeepLoc benchmark.** Generalised the predictor benchmark to any curated model
   (`scripts/benchmark_deeploc.py --species {yeast,aracore}`, a per-species compartment config) and
   added an independent *Arabidopsis* test ([AraCore study](docs/studies/deeploc_aracore_benchmark.md)):

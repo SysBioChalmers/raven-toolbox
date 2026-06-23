@@ -17,6 +17,8 @@ its equivalence claims against MATLAB RAVEN.
   lumen/membrane split, and an organelle-collapsed run (slow model: 64.6% collapsed).
 - **[DeepLoc 2.1 AraCore benchmark](deeploc_aracore_benchmark.md)** — cross-kingdom
   generalisation on an independent *Arabidopsis* plant model (80.3% overall, chloroplast 89.9%).
+- **[Localisation finetuning](localization_finetuning.md)** — tuning the DeepLoc-loading
+  hyperparameters (`membrane_threshold`, `min_confidence`, triage trust) on the slow yeast run.
 - **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
   (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
@@ -32,6 +34,7 @@ init_solver_benchmark
 yeast_localization_benchmark
 deeploc_yeast_benchmark
 deeploc_aracore_benchmark
+localization_finetuning
 deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
 ```
