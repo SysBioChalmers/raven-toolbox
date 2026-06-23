@@ -2,6 +2,10 @@
 
 Model `yeastGEM_develop`, 1143 DeepLoc predictions; 2207 single-compartment GPR reactions (867 genes covered). DeepLoc 2.1 predicts 9 organelles and has no label for the organelle membranes (erm/mm/gm/vm) or the lipid particle (lp).
 
+> Sections 1–3 reproduce with `scripts/benchmark_deeploc_yeast.py`; the UniProt cross-check (§4) and
+> finetuning validation (§5) with `scripts/compare_localization_sources.py` and the
+> `load_deeploc` / `combine_scores` options they motivate.
+
 ## 1. As-is (organelle call vs curation)
 
 ### Per-compartment accuracy
@@ -62,4 +66,40 @@ Collapsing also turns lumen/membrane-spanning reactions (previously multi-compar
 * **DeepLoc reproduces the major metabolic organelles well** - ER, cytoplasm, peroxisome, extracellular and mitochondrion are recovered at 50-90%. It is weak on nucleus, Golgi and vacuole, **never** predicts the cell envelope (`ce` 0/110), and has no label for the lipid particle (`lp`).
 * **Membrane-type helps for the mitochondrial membrane, but not the ER.** Given the correct organelle, DeepLoc's membrane signal separates mitochondrial matrix from membrane cleanly (AUC ~0.92), so `Mitochondrion + transmembrane -> mm` is a usable rule. For the ER it does **not** discriminate (AUC ~0.41): DeepLoc flags almost all ER proteins as membrane-associated, so it cannot tell `er` lumen from `erm` membrane. A naive membrane-routing rule only *looks* good on ER because `erm` is the majority class.
 * **Collapsing the organelle membranes into their lumen is the fair organelle-level target** and lifts overall accuracy from 39.5% to 54.6%, by removing the four structurally-unpredictable membrane rows. The residual gaps are `ce`, `lp` and the under-recalled nucleus/Golgi/vacuole - predictor limits, not modelling ones.
+
+## 4. Cross-check against UniProt — yeast-GEM is not gold truth
+
+yeast-GEM's curation is a *fair indication*, not ground truth, so we triangulate with a second curated
+source (UniProtKB `Subcellular location`). Gene-level, organelle-collapsed:
+
+| comparison | agreement |
+|---|---|
+| DeepLoc -> yeast-GEM | 78.6% (687/874) |
+| DeepLoc -> UniProt | 80.8% (678/839) |
+| **UniProt <-> yeast-GEM** (two curated sources) | **89.8% (574/639)** |
+
+The two curated sources agree only ~90%, so a yeast-GEM benchmark carries ~10% baked-in noise. On the
+639 genes annotated by all three, DeepLoc's top organelle agrees with **both** 74.5% of the time;
+another **9.4%** agree with UniProt but not yeast-GEM (DeepLoc likely right, yeast-GEM the outlier),
+3.3% agree with yeast-GEM only, and **12.8%** agree with neither (DeepLoc's true errors). So DeepLoc's
+effective error is ~13%, not the ~21% the yeast-GEM benchmark alone implies. The two curated sources
+themselves agree worst on `ce` (60%) and `v` (65%) — genuinely hard compartments.
+
+DeepLoc's own confidence is well calibrated: corroboration (top organelle in yeast-GEM **or** UniProt)
+runs 54% -> 67% -> 88% -> **97%** across confidence bins `[0,0.5) [0.5,0.7) [0.7,0.9) [0.9,1]`.
+
+## 5. Finetuning the pipeline (and the overfitting guard)
+
+Because no single source is authoritative, finetune toward the **consensus**, not yeast-GEM alone.
+Three data-backed levers, all added to `raven_toolbox.localization`:
+
+| lever | how | effect (real data) |
+|---|---|---|
+| `combine_scores([deeploc, uniprot, …])` | weighted-sum consensus, agreement reinforced | DeepLoc+UniProt vs independent yeast-GEM: 75.3% -> **78.7%** |
+| `load_deeploc(min_confidence=0.7)` | drop low-confidence genes | kept-set corroboration 82.5% -> **89.7%** |
+| `load_deeploc(membrane_split={"m":"mm"})` | route Mitochondrion->mm when transmembrane | `mm` 0% -> **33%** recovered, costing 6% of `m` |
+
+The membrane split is **mito-only** by design (ER's AUC 0.41 means routing `er`/`erm` would only relabel
+the majority class). Validate any tuning against the consensus or a held-out reference — never against
+yeast-GEM alone, or you fit its ~10% curation noise.
 

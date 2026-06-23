@@ -14,6 +14,13 @@
    Pass {data}`raven_toolbox.localization.DEFAULT_COMPARTMENT_MAP` to rename predictor labels
    to your model's compartment ids. raven-toolbox does **not** shell out to the predictor — run
    it separately and feed in its output.
+
+   **Fuse and tune the evidence.** Since no single source is authoritative (two curated sources
+   agree only ~90% on yeast-GEM — see the [DeepLoc benchmark](../studies/deeploc_yeast_benchmark.md)),
+   {func}`raven_toolbox.localization.combine_scores` merges several `LocalizationScores` into a
+   consensus (agreement reinforced). `load_deeploc` also takes `min_confidence=` (drop unreliable
+   low-confidence genes — DeepLoc's probability is well calibrated) and `membrane_split={"m":"mm"}`
+   (route mitochondrion to its membrane sub-compartment using the transmembrane signal; mito only).
 2. **Predict / apply:** {func}`raven_toolbox.localization.predict_localization` is the MILP
    entry point. Pass the set of reactions to relocate (everything else is pinned); extra
    compartments beyond a reaction's primary one pay a `multi_compartment_penalty`. With

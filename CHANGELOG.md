@@ -6,6 +6,12 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Fuse and tune localisation evidence.** Added `combine_scores` (weighted-sum consensus of several
+  `LocalizationScores`, so agreement across DeepLoc / UniProt / COMPARTMENTS is reinforced), and gave
+  `load_deeploc` / `load_mulocdeep` a `min_confidence=` gate (drop unreliable low-confidence genes)
+  plus, for `load_deeploc`, `membrane_split={"m":"mm"}` (route mitochondrion to its membrane
+  sub-compartment using the transmembrane signal — mito only; ER is not separable). Motivated and
+  validated by the [DeepLoc 2.1 yeast-GEM benchmark](docs/studies/deeploc_yeast_benchmark.md).
 * **Prepare sequence-predictor input.** Added `prepare_deeploc_input` (plus `fetch_protein_sequences`
   and `write_fasta`) to write a DeepLoc-2.1-ready protein FASTA for a model's genes — sequences
   fetched from UniProtKB, headers set to the gene ids so the predictor output lines up with the model
