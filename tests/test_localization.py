@@ -13,6 +13,7 @@ from raven_toolbox.localization import (
     LocalizationResult,
     LocalizationScores,
     apply_localization,
+    combine_scores,
     load_compartments,
     load_deeploc,
     load_mulocdeep,
@@ -47,6 +48,47 @@ def test_load_deeploc_with_compartment_map(tmp_path):
     # predictor labels mapped to model ids; Plastid (unmapped, no fungal equivalent) dropped
     assert set(s.compartments) == {"c", "n", "m"}
     assert s.df.loc["G1", "c"] == pytest.approx(1.0)
+
+
+def test_load_deeploc_min_confidence(tmp_path):
+    # G2's top probability (0.45) is below the gate; it is dropped as unreliable, G1 (0.8) kept.
+    p = tmp_path / "deeploc.csv"
+    p.write_text(dedent("""\
+        Protein_ID,Localizations,Signals,Cytoplasm,Nucleus,Mitochondrion
+        G1,Cytoplasm,,0.8,0.1,0.05
+        G2,,,0.45,0.4,0.3
+    """))
+    s = load_deeploc(p, min_confidence=0.5)
+    assert list(s.df.index) == ["G1"]                       # G2 gated out
+    assert load_deeploc(p).df.shape[0] == 2                 # default keeps both
+
+
+def test_load_deeploc_membrane_split(tmp_path):
+    # Mitochondrion routes to mm when membrane-associated (1-Soluble >= threshold), else stays m.
+    p = tmp_path / "deeploc.csv"
+    p.write_text(dedent("""\
+        Protein_ID,Localizations,Signals,Cytoplasm,Mitochondrion,Soluble
+        G_matrix,Mitochondrion,,0.1,0.9,0.85
+        G_membrane,Mitochondrion,,0.1,0.9,0.10
+    """))
+    s = load_deeploc(p, compartment_map=DEFAULT_COMPARTMENT_MAP, membrane_split={"m": "mm"})
+    assert s.df.loc["G_matrix", "m"] == pytest.approx(1.0)      # soluble -> matrix
+    assert "mm" not in s.compartments or s.df.loc["G_matrix"].get("mm", 0.0) == pytest.approx(0.0)
+    assert s.df.loc["G_membrane", "mm"] == pytest.approx(1.0)   # membrane -> mito membrane
+    assert s.df.loc["G_membrane", "m"] == pytest.approx(0.0)
+
+
+def test_combine_scores_reinforces_agreement(tmp_path):
+    # two sources; compartment supported by both is reinforced; union of genes/compartments.
+    a = LocalizationScores(pd.DataFrame({"c": [1.0, 1.0], "m": [0.0, 0.0]}, index=["g1", "g2"]))
+    b = LocalizationScores(pd.DataFrame({"c": [1.0, 0.0], "n": [0.5, 1.0]}, index=["g1", "g3"]))
+    s = combine_scores([a, b])
+    assert set(s.df.index) == {"g1", "g2", "g3"}               # union of genes
+    assert set(s.df.columns) >= {"c", "m", "n"}               # union of compartments
+    # g1: c summed 2.0 (both) vs n 0.5 (one) -> after normalise c=1.0, n=0.25
+    assert s.df.loc["g1", "c"] == pytest.approx(1.0)
+    assert s.df.loc["g1", "n"] == pytest.approx(0.25)
+    assert s.df.loc["g3", "n"] == pytest.approx(1.0)
 
 
 def test_load_mulocdeep_wide(tmp_path):

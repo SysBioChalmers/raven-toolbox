@@ -18,6 +18,7 @@ from raven_toolbox.localization.predict import (
 from raven_toolbox.localization.scores import (
     DEFAULT_COMPARTMENT_MAP,
     LocalizationScores,
+    combine_scores,
     fetch_uniprot_localization,
     load_compartments,
     load_deeploc,
@@ -38,6 +39,7 @@ __all__ = [
     "LocalizationScores",
     "PreparedFasta",
     "apply_localization",
+    "combine_scores",
     "fetch_protein_sequences",
     "fetch_uniprot_localization",
     "load_compartments",
