@@ -107,14 +107,46 @@ objective — only network functionality is.
 * **Guaranteed functionality by default** (hard biomass+ATPM), a stronger default than our optional
   ε-flux mode.
 
+## Can we benchmark the assignment head-to-head? (why it needs the real MILP)
+
+We tried the cheap route — emulate CarveFungi's assignment as "place each reaction in every
+compartment whose DeepLoc score clears a cutoff" and compare to ours on yeast-GEM — and an
+adversarial source-checked review (3 independent reviewers) **rejected it as a strawman**. The
+emulation makes CarveFungi look like it over-multi-localises (≈4.5 compartments/reaction), but that is
+an artefact of three mechanisms it omits, each verified against the code:
+
+1. **Candidate set.** CarveFungi has a binary only for (reaction, compartment) pairs that *exist in its
+   universal model*. `bigModelv2.21b.sbml` instantiates each enzymatic reaction in a mean of **2.16
+   compartments (max 4)**, drawn almost entirely from {cytosol, mitochondrion, peroxisome, ER}. A
+   reaction simply cannot be placed where no copy exists, so the emulation's 4.5 comps/rxn over the
+   full 9-compartment yeast-GEM is structurally impossible in CarveFungi, and 5 of those 9
+   compartments hold ~zero enzymatic copies.
+2. **Connectivity.** The ε-flux indicator coupling + hard biomass/ATPM under `S·v=0`
+   (`CarveMeFuncPool.py`) keeps a copy only if it carries ≥ ε flux in a connected, growing network;
+   transporters are themselves scored reactions (~1e-11) that must be co-selected, so transport is not
+   free. Above-cutoff copies that cannot be wired up are pruned — the emulation kept them all.
+3. **Score sign.** The default reaction score is −1.0 and a below-cutoff copy gets a *negative* score
+   (`(SCALE − ec_score)·(prob − cutoff)`), so `max Σ score·y` actively switches copies **off**.
+   CarveFungi's objective already pushes toward fewer, higher-evidence compartments — it is not the
+   parsimony-indifferent objective the emulation assumed.
+
+The lesson: a fair head-to-head on the *assignment* requires running CarveFungi's **actual** MILP (a
+Gurobi port of `minmax_reduction` on its universal DB, fed by its shipped yeast scoring) and comparing
+on its real candidate set, **not** a thresholding shortcut on yeast-GEM. That is feasible (we have the
+universal DB, the scoring code, the shipped *S. cerevisiae* inputs, and Gurobi) but substantial, and
+it still carries a gold-reference caveat (mapping universal-DB reactions to curated yeast-GEM
+compartments is only partial via EC/KEGG) and conflates assignment with CarveFungi's reaction-carving.
+
 ## Bottom line for the paper
 
 Cite CarveFungi as the contemporary network-aware compartmentalisation method, but position it as
 *different in kind*: a carve-for-functionality reconstruction with a bundled fungal predictor and an
 ensemble output, versus our predictor-agnostic, transport-minimising, deterministic, multi-
 localisation-sound **assignment** that generalises across kingdoms. Borrow its functionality-coupling
-and confidence-weighting ideas. The head-to-head benchmark belongs with `predictLocalization` (same
-task, same lineage); CarveFungi is related work, not a same-objective baseline.
+and confidence-weighting ideas. The clean head-to-head benchmark belongs with `predictLocalization`
+(same task, same lineage — see [the comparison study](predictlocalization_comparison.md)); CarveFungi
+is related work, not a same-objective baseline, and a fair empirical comparison needs its real MILP
+(above), not a cheap emulation.
 
 Source read: `bin/CarveMeFuncPool.py` (MILP), `bin/EggNogScoring.py` (scoring),
 `bin/compartmentPrediction/predict.py` (predictor), `bin/CreateModelEggNogPool.py` (pipeline) at
