@@ -27,6 +27,9 @@ its equivalence claims against MATLAB RAVEN.
   vs RAVEN's stochastic `predictLocalization` on identical inputs (determinism + accuracy + runtime).
 - **[CarveFungi analysis](carvefungi_analysis.md)** — how the contemporary carve-a-universal-model
   method works and how our transport-minimising assignment differs.
+- **[CarveFungi assignment head-to-head](carvefungi_milp_benchmark.md)** — a faithful port of its
+  carve-MILP with our objective swapped in; the tractability wall (tight gap needs CPLEX) and the one
+  robust finding (~4.5× fewer transports).
 - **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
   (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
@@ -47,6 +50,7 @@ deeploc_humangem_benchmark
 localization_finetuning
 predictlocalization_comparison
 carvefungi_analysis
+carvefungi_milp_benchmark
 deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
 ```

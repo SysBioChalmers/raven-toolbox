@@ -6,6 +6,14 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Faithful CarveFungi assignment harness.** A Gurobi port of CarveFungi's `minmax_reduction`
+  carve-MILP that swaps in our transport-minimising objective on its real universal-DB candidate set +
+  its DeepLoc-injected scores ([study](docs/studies/carvefungi_milp_benchmark.md),
+  `scripts/benchmark_carvefungi_milp.py`); adversarially verified faithful. Two honest findings: the
+  carve doesn't reach a tight optimality gap in Gurobi (so the *accuracy* head-to-head needs CPLEX — a
+  reproducible recipe is documented), and a gap-robust one — our transport cost yields ~4.5× fewer
+  inter-compartment transports per reaction. Also surfaced that CarveFungi's *shipped* yeast
+  localisation file is inert (RefSeq vs ORF id mismatch).
 * **Head-to-head vs RAVEN predictLocalization + CarveFungi positioning.** Benchmarked the
   deterministic compartment-assignment MILP against RAVEN's stochastic `predictLocalization` on
   identical yeast-GEM + DeepLoc inputs ([study](docs/studies/predictlocalization_comparison.md),
