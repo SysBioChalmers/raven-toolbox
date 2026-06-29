@@ -23,6 +23,10 @@ its equivalence claims against MATLAB RAVEN.
   (84.7% addressable) and a circularity lesson: 15% of its compartments are DeepLoc-derived.
 - **[Localisation finetuning](localization_finetuning.md)** — tuning the DeepLoc-loading
   hyperparameters (`membrane_threshold`, `min_confidence`, triage trust) on the slow yeast run.
+- **[predictLocalization head-to-head](predictlocalization_comparison.md)** — the deterministic MILP
+  vs RAVEN's stochastic `predictLocalization` on identical inputs (determinism + accuracy + runtime).
+- **[CarveFungi analysis](carvefungi_analysis.md)** — how the contemporary carve-a-universal-model
+  method works and how our transport-minimising assignment differs.
 - **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
   (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
@@ -41,6 +45,8 @@ deeploc_aracore_benchmark
 deeploc_icre1355_benchmark
 deeploc_humangem_benchmark
 localization_finetuning
+predictlocalization_comparison
+carvefungi_analysis
 deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
 ```

@@ -6,6 +6,14 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Head-to-head vs RAVEN predictLocalization + CarveFungi positioning.** Benchmarked the
+  deterministic compartment-assignment MILP against RAVEN's stochastic `predictLocalization` on
+  identical yeast-GEM + DeepLoc inputs ([study](docs/studies/predictlocalization_comparison.md),
+  `scripts/compare_predictlocalization.py` + `scripts/run_predictlocalization.m`): on the common gene
+  set the MILP is ~7 pp more accurate (83.9% vs 76.8%), deterministic (vs 35% of genes flipping
+  between SA runs), and faster (90 s vs a multi-minute budget). Also a source-level
+  [analysis of CarveFungi](docs/studies/carvefungi_analysis.md), the contemporary
+  carve-a-universal-model method, showing how our transport-minimising assignment differs.
 * **Curation triage for localisation.** Added `triage_localization` — an optional companion to
   compartment assignment that ranks the genes/reactions whose localisation is shakiest (low DeepLoc
   confidence, borderline top-two margin, multi-source disagreement, no evidence, low-trust
