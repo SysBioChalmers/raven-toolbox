@@ -168,52 +168,68 @@ The fix follows directly: make the transport cost *evidence-aware*, so the reduc
 evidence. This mirrors how the localisation module already scores *metabolic* reactions by gene
 localisation; it simply extends the same predictor-agnostic, sequence-derived evidence to transport.
 
-**Evidence sources** (cheapest/most-available first):
+**Evidence sources — every carrier, every membrane.** All four are sequence-, HMM-, or
+orthology-derived, so they cover *any* transporter family across *any* membrane (the dropped transports
+span c↔mito 27, c↔extracellular 20, c↔ER 7, c↔peroxisome 7 — the scoring must not privilege one
+membrane):
 
-* **Membrane localisation (already in-pipeline).** DeepLoc 2.x predicts membrane association and
-  membrane type; the triage module already tracks membrane compartments. A gene at membrane *M* is a
-  candidate transporter for the boundary *M* separates. Caveat from our finetuning: membrane-type
-  trust is only reliable for the **mito** membrane (`mm` ≈ 0.86); `erm`/`gm`/`vm` ≈ 0 — so DeepLoc
-  membrane evidence alone is weak except for mitochondria.
-* **Transporter family (Pfam / hmmer).** The **mitochondrial carrier family** (MCF, Pfam `PF00153`,
-  SLC25) encodes exactly the cytosol↔mito carriers Arm B wrongly dropped (malate/2-OG/citrate/OAA/
-  aspartate–glutamate); major-facilitator (MFS), ABC and amino-acid-permease families give substrate
-  hints. Family evidence is more reliable than DeepLoc membrane type, across all membranes.
-* **Transporter classification (TCDB, via DIAMOND/BLAST).** A TC number gives substrate class **and**
-  mechanism (uni/sym/antiport) — the substrate-specific gold standard.
-* **Orthology (already available).** The EggNOG/KEGG orthology used for metabolic scoring also flags
-  transporter orthogroups with substrate and direction.
+* **Transporter family (Pfam / hmmer) — the backbone.** One `hmmscan` against the transporter clans
+  flags carrier genes of all families: the mitochondrial carrier family (MCF, `PF00153`/SLC25 — the
+  c↔mito carriers Arm B dropped), major facilitator (MFS), ABC, amino-acid/sugar permeases,
+  aquaporins, P-type ATPases, and so on. Family identity also gives a coarse substrate class.
+* **Transporter classification (TCDB, via DIAMOND).** A `diamond blastp` against TCDB assigns a TC
+  number → substrate class **and** mechanism (uni/sym/antiport): the substrate-specific gold standard.
+* **Compartment placement (DeepLoc, already in-pipeline).** *Which* membrane a carrier sits on follows
+  from the gene's predicted **compartment** — the reliable organelle outputs (trust 0.78–0.88), *not*
+  the noisy membrane-*type* output (`mm` ≈ 0.86 but `erm`/`gm`/`vm` ≈ 0). A carrier-family gene
+  predicted in compartment *X* supports transports across *X*'s boundary; this generalises to every
+  compartment.
+* **Orthology (already available).** EggNOG/KEGG orthogroups flag transporter orthologs with
+  substrate/direction.
 
 **Scoring.** Replace the constant `transport_cost` with a per-transport cost. For a candidate transport
 *t* moving metabolite *m* across membrane *M* = {c₁,c₂}:
 
 ```
-evidence(t)       = max over genes g of  conf_transporter(g) · membrane_match(g, M) · substrate_match(g, m)
+evidence(t)       = max over genes g of  conf_transporter(g) · compartment_match(g, M) · substrate_match(g, m)
 transport_cost(t) = base_cost · (1 − evidence(t))      # supported → cheap; unsupported → full prior
 ```
 
-This drops straight into the assignment MILP objective (the transport term becomes per-reaction), and
-is symmetric with the existing per-gene localisation scoring.
+`conf_transporter` from the Pfam/TCDB hit strength, `compartment_match` from the DeepLoc compartment,
+`substrate_match` from the TC/family substrate class vs *m*'s class. It drops straight into the
+assignment MILP objective (the transport term becomes per-reaction), symmetric with the existing
+per-gene localisation scoring, and recovers today's constant −0.3 when `evidence = 0`.
 
-**Phased implementation** (cheap → comprehensive):
+**Organism-agnostic by design.** None of the evidence is a species-specific transporter table — they
+are universal HMMs (Pfam), a cross-organism sequence DB (TCDB), cross-species orthogroups (EggNOG/KEGG),
+and a eukaryote-wide predictor (DeepLoc). The only per-organism input is the **proteome FASTA**; the
+compartment set comes from the target model (the module already maps cross-kingdom compartments, e.g.
+plastid for plants). So the same pipeline runs unchanged on any eukaryote — consistent with the
+module's cross-kingdom DeepLoc validation (yeast, *Arabidopsis*, *Chlamydomonas*, human). yeast-GEM is
+only the *benchmark* here, not a dependency.
 
-1. **Mito carriers from in-pipeline signals** — combine the one reliable DeepLoc membrane signal (`mm`)
-   with MCF detection. This alone targets the worst damage: 27 of the 66 dropped transports were
-   cytosol↔mito.
-2. **Pfam transporter-family scan** (hmmer): MCF/MFS/ABC/permeases → family-level transporter ID +
-   coarse substrate class, all membranes.
-3. **TCDB search** (DIAMOND): TC-number substrate specificity + mechanism → full substrate-matched
-   scoring.
+**Phased implementation** (by evidence maturity — all-carrier from the start, not membrane-by-membrane):
 
-**Validation.** Reuse this study's benchmark — curated-yeast-GEM transport precision/recall plus the
-functional (essentiality) test — before vs after. Success criteria: the kept-transport curated-match
-rate rises *above* the dropped rate (the cut becomes selective), and the 5 individually-essential
-transports above are retained.
+1. **Family scan** (Pfam/hmmer) over all transporter clans → per-gene "is a carrier" + coarse substrate
+   + compartment placement from DeepLoc. Covers every membrane immediately.
+2. **TCDB** (DIAMOND) → TC-number substrate specificity + mechanism → substrate-matched scoring.
+3. **Consensus/refinement** — combine family + TCDB + orthology + DeepLoc, add transport
+   directionality, resolve conflicts.
+
+Mitochondria are merely the cleanest *validation* exemplar (the one membrane where DeepLoc's
+membrane-type output independently corroborates, and whose curated essential carriers — malate/2-OG/
+citrate — are textbook); the scoring itself is membrane- and organism-agnostic.
+
+**Validation.** Reuse this study's benchmark — curated transport precision/recall plus the functional
+(essentiality) test — before vs after. Success criteria: the kept-transport curated-match rate rises
+*above* the dropped rate (the cut becomes selective), the 5 individually-essential transports are
+retained, and the gains reproduce on a **non-fungal** model (e.g. AraCore) to confirm
+organism-agnosticism.
 
 **Design caveats.** Substrate matching (metabolite → substrate class) is the hard part; start coarse
 (sugars / amino acids / organic acids / ions / nucleotides / lipids). Absence of evidence ≠ absence of
-a transporter (annotation is incomplete), so keep a *mild* prior on unsupported transports — never
-hard-forbid. For non-mito membranes, lean on family/TCDB rather than DeepLoc membrane type.
+a transporter, and annotation completeness varies by organism — so keep a *mild, tunable* prior on
+unsupported transports; never hard-forbid.
 
 ## What this does and doesn't show
 
