@@ -11,6 +11,8 @@ MILP can and cannot support.
     — runs CarveFungi's **own** `minmax_reduction` (CPLEX), unmodified; the definitive comparison.
   * [`scripts/benchmark_carvefungi_milp.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/benchmark_carvefungi_milp.py)
     — an independent Gurobi re-implementation, used to study the formulation (tighter indicator coupling).
+  * [`scripts/analyse_carvefungi_transports.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/analyse_carvefungi_transports.py)
+    — the transport-fidelity investigation below (curated match, functional impact, connectivity).
 * CarveFungi: [github.com/SandraCastilloPriego/CarveFungi](https://github.com/SandraCastilloPriego/CarveFungi),
   bioRxiv [2023.08.23.554328](https://doi.org/10.1101/2023.08.23.554328).
 
@@ -98,6 +100,121 @@ Two takeaways, scoped to what the data supports:
   statement is *"no detectable accuracy gain or loss from our objective"*, not a neutral tie. 93.1% of
   the placements the two arms share are identical.
 
+"Free" here means *in compartment-assignment accuracy*. Whether the leaner transport network is also
+*biologically better* is a separate question — investigated next.
+
+## Is less better? A transport-fidelity investigation
+
+Arm B drops 66 of Arm A's 138 transports (72 are shared, 9 are B-only), concentrated on
+cytosol↔mito (27), cytosol↔extracellular (20, mostly sugar/polyol export), cytosol↔ER (7) and
+cytosol↔peroxisome (7). The cargo includes textbook shuttles — citrate, (S)-malate, oxaloacetate,
+2-oxoglutarate (the malate–aspartate and citrate shuttles), plus trehalose/fructose/mannose export.
+Three checks ask whether dropping them is an improvement. Driver:
+[`scripts/analyse_carvefungi_transports.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/analyse_carvefungi_transports.py).
+
+**1. The reduction is *not selective.*** Match each carved transport (metabolite + compartment pair)
+against the curated, literature-backed yeast-GEM transportome. If the cut were "smart", dropped
+transports would match curation *less* than kept ones. They don't:
+
+| transport set | matches a curated yeast-GEM transport |
+|---|--:|
+| shared (both arms keep) | 39% |
+| **dropped by Arm B** | **42%** |
+| kept by Arm A (all) | 41% |
+
+Arm B sheds real and spurious transports at the same rate (classifiable n = 46/59/105; these are
+qualitative rates, not a significance test). This is expected: the carve has **no transporter-level
+evidence** (transport scores are ~1e-11), so a blanket −0.3 penalty just removes whatever the network
+can do without while keeping biomass feasible.
+
+**2. The dropped transports are functionally load-bearing.** Map the dropped transports to their
+curated counterparts (31 yeast-GEM reactions) and delete them from yeast-GEM — a *proper* model with
+GPRs and validated growth (baseline 0.081). Growth collapses to **0**, and **5 are individually
+essential**: 2-oxoadipate/2-oxoglutarate, 2-dehydropantoate (a CoA precursor), NADP⁺, NADPH, and
+serine transport. The *shared* (kept-by-both) transports are equally load-bearing — their 24 curated
+counterparts also collapse growth when removed, with 3 individually essential — so essential transports
+are spread across kept and dropped alike. That is precisely the **indiscriminate** point: Arm B's cut
+is not concentrated on the dispensable ones. This measures importance in *curated* biology — Arm B
+itself stays feasible (biomass ≥ 0.1 by construction; the carve routes around the cuts), so the finding
+is that its network *diverges* from curated yeast, not that it fails to grow. (Gene essentiality cannot
+be tested on the carved models themselves — the universal DB has 0 GPRs — which is why this uses
+yeast-GEM.)
+
+**3. Connectivity barely changes — the carve re-routes through exchanges.** Structurally (internal
+network, exchanges excluded; the carve guarantees *flux*-connectivity *with* exchanges by its ε-flux
+coupling, so this exposes the latent gaps exchanges otherwise hide):
+
+| | Arm A | Arm B |
+|---|--:|--:|
+| connected components | 2 (giant + a 3-rxn island) | 2 (giant + the same island) |
+| dead-end metabolites | 186 (17.3%) | 194 (18.6%) |
+
+Dropping transports does **not** fragment the network into isolated sub-networks. It does strand
+modestly more metabolites: 19 are mass-balanced in A but dead-end in B (vs 8 the other way), localised
+to cytosol (8), mito (7), peroxisome (3), ER (1) — exactly the dropped-transport cargo (2-dehydro-
+pantoate, formate, butyrate, peroxisomal citrate/ammonium…). These then lean on boundary exchanges
+(secrete/import) rather than internal transport to stay balanced — feasible, but less biologically
+self-contained.
+
+**Verdict: less is more *parsimonious*, not more *correct*.** The reduction is indiscriminate, removes
+functionally essential curated transports, and modestly raises dead-ends — though it does not break
+global connectivity, because the carve re-routes via the (artificial) environment. The root cause is
+that the transport penalty is a blanket prior applied **without transporter-level evidence.**
+
+## Toward evidence-aware transport scoring
+
+The fix follows directly: make the transport cost *evidence-aware*, so the reduction becomes selective
+— penalise transports with **no** transporter support while retaining those with sequence-level
+evidence. This mirrors how the localisation module already scores *metabolic* reactions by gene
+localisation; it simply extends the same predictor-agnostic, sequence-derived evidence to transport.
+
+**Evidence sources** (cheapest/most-available first):
+
+* **Membrane localisation (already in-pipeline).** DeepLoc 2.x predicts membrane association and
+  membrane type; the triage module already tracks membrane compartments. A gene at membrane *M* is a
+  candidate transporter for the boundary *M* separates. Caveat from our finetuning: membrane-type
+  trust is only reliable for the **mito** membrane (`mm` ≈ 0.86); `erm`/`gm`/`vm` ≈ 0 — so DeepLoc
+  membrane evidence alone is weak except for mitochondria.
+* **Transporter family (Pfam / hmmer).** The **mitochondrial carrier family** (MCF, Pfam `PF00153`,
+  SLC25) encodes exactly the cytosol↔mito carriers Arm B wrongly dropped (malate/2-OG/citrate/OAA/
+  aspartate–glutamate); major-facilitator (MFS), ABC and amino-acid-permease families give substrate
+  hints. Family evidence is more reliable than DeepLoc membrane type, across all membranes.
+* **Transporter classification (TCDB, via DIAMOND/BLAST).** A TC number gives substrate class **and**
+  mechanism (uni/sym/antiport) — the substrate-specific gold standard.
+* **Orthology (already available).** The EggNOG/KEGG orthology used for metabolic scoring also flags
+  transporter orthogroups with substrate and direction.
+
+**Scoring.** Replace the constant `transport_cost` with a per-transport cost. For a candidate transport
+*t* moving metabolite *m* across membrane *M* = {c₁,c₂}:
+
+```
+evidence(t)       = max over genes g of  conf_transporter(g) · membrane_match(g, M) · substrate_match(g, m)
+transport_cost(t) = base_cost · (1 − evidence(t))      # supported → cheap; unsupported → full prior
+```
+
+This drops straight into the assignment MILP objective (the transport term becomes per-reaction), and
+is symmetric with the existing per-gene localisation scoring.
+
+**Phased implementation** (cheap → comprehensive):
+
+1. **Mito carriers from in-pipeline signals** — combine the one reliable DeepLoc membrane signal (`mm`)
+   with MCF detection. This alone targets the worst damage: 27 of the 66 dropped transports were
+   cytosol↔mito.
+2. **Pfam transporter-family scan** (hmmer): MCF/MFS/ABC/permeases → family-level transporter ID +
+   coarse substrate class, all membranes.
+3. **TCDB search** (DIAMOND): TC-number substrate specificity + mechanism → full substrate-matched
+   scoring.
+
+**Validation.** Reuse this study's benchmark — curated-yeast-GEM transport precision/recall plus the
+functional (essentiality) test — before vs after. Success criteria: the kept-transport curated-match
+rate rises *above* the dropped rate (the cut becomes selective), and the 5 individually-essential
+transports above are retained.
+
+**Design caveats.** Substrate matching (metabolite → substrate class) is the hard part; start coarse
+(sugars / amino acids / organic acids / ions / nucleotides / lipids). Absence of evidence ≠ absence of
+a transporter (annotation is incomplete), so keep a *mild* prior on unsupported transports — never
+hard-forbid. For non-mito membranes, lean on family/TCDB rather than DeepLoc membrane type.
+
 ## What this does and doesn't show
 
 * **Not proven optima.** Each arm is a stable, deterministic incumbent at 18–27% gap, not a certified
@@ -115,9 +232,12 @@ Two takeaways, scoped to what the data supports:
 
 Running CarveFungi's **own** carve MILP, adding our transport-minimisation term yields a materially
 leaner transport network (~1.6× fewer transports per reaction, 41% fewer overall) with **no detectable
-assignment-accuracy cost** and 93% identical placements — i.e. transport parsimony essentially for
-free. The carve's big-M formulation is hard enough that neither CPLEX nor a tighter Gurobi port proves
-optimality, so these are deterministic near-optimal incumbents, reported with their gaps. The clean,
-*tight-gap* same-task head-to-head for the paper remains
+assignment-accuracy cost** and 93% identical placements. But "leaner" is not automatically "better":
+the cut is **indiscriminate** — it drops curated, functionally essential transports (≥5 individually
+essential in yeast-GEM) at the same rate as spurious ones, because the carve has no transporter-level
+evidence. The actionable conclusion is the **evidence-aware transport scoring** proposed above:
+penalise only *unsupported* transports. The carve's big-M formulation is hard enough that neither CPLEX
+nor a tighter Gurobi port proves optimality, so these are deterministic near-optimal incumbents,
+reported with their gaps. The clean, *tight-gap* same-task head-to-head for the paper remains
 [`predictLocalization`](predictlocalization_comparison.md) (same lineage, solves fast, deterministic);
 CarveFungi is related work of a different kind, and this is a faithful, honest comparison against it.
