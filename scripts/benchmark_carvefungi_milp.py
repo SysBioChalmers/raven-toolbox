@@ -20,14 +20,15 @@ So the connectivity, candidate set and score sign the adversarial review flagged
 only the objective's parsimony terms differ. Needs Gurobi (CarveFungi uses CPLEX, unavailable here).
 Scores come from `--scores` (CarveFungi's yeast scoring, produced separately). ASCII-only output.
 
-**Tractability caveat (important).** The carve is a hard MILP. With native indicator coupling Gurobi
-reaches only ~10-14% optimality gap in ~600 s/arm; the multi-localisation-penalty variant is far
-worse. At those gaps the *accuracy* comparison (agreement with curated compartments) is gap-sensitive
-and unstable across runs, so it is NOT reported as a finding. The one gap-robust observation is the
-transport rate (our transport cost dwarfs CarveFungi's ~1e-11 transport scores). For a definitive,
-tight-gap (CPLEX 0.1% pool) head-to-head, run CarveFungi's own ``minmax_reduction`` in a CPLEX-enabled
-Python 3.11/3.12 env (this repo's env is 3.14, which CPLEX does not support) -- see
-``docs/studies/carvefungi_analysis.md``.
+**Status / tractability.** This Gurobi re-implementation was the *formulation* study: with native
+indicator coupling (tighter than CarveFungi's big-M) Gurobi reaches ~10-14% optimality gap in ~600
+s/arm. The carve is a hard MILP and does not reach a tight gap. The **definitive** comparison instead
+runs CarveFungi's *own* ``minmax_reduction`` (CPLEX) via ``scripts/run_carvefungi_cplex.py`` -- and
+confirms the carve is hard for CPLEX too (its big-M leaves an 18-27% gap), so neither solver proves
+optimality; both arms are deterministic, time-budget-stable near-optimal incumbents. The robust finding
+(both here and in CPLEX) is the transport rate: our transport cost (which dwarfs CarveFungi's ~1e-11
+transport scores) yields a much leaner transport network at no detectable accuracy cost. See
+``docs/studies/carvefungi_milp_benchmark.md`` for the CPLEX numbers.
 """
 from __future__ import annotations
 

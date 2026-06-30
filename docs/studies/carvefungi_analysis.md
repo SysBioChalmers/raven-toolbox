@@ -130,12 +130,14 @@ an artefact of three mechanisms it omits, each verified against the code:
    CarveFungi's objective already pushes toward fewer, higher-evidence compartments — it is not the
    parsimony-indifferent objective the emulation assumed.
 
-The lesson: a fair head-to-head on the *assignment* requires running CarveFungi's **actual** MILP (a
-Gurobi port of `minmax_reduction` on its universal DB, fed by its shipped yeast scoring) and comparing
-on its real candidate set, **not** a thresholding shortcut on yeast-GEM. That is feasible (we have the
-universal DB, the scoring code, the shipped *S. cerevisiae* inputs, and Gurobi) but substantial, and
-it still carries a gold-reference caveat (mapping universal-DB reactions to curated yeast-GEM
-compartments is only partial via EC/KEGG) and conflates assignment with CarveFungi's reaction-carving.
+The lesson: a fair head-to-head on the *assignment* requires running CarveFungi's **actual** MILP on
+its real candidate set, **not** a thresholding shortcut on yeast-GEM. We did exactly that — running
+CarveFungi's own `minmax_reduction` (CPLEX, unmodified) with our transport term swapped into its
+objective — in [the CarveFungi head-to-head study](carvefungi_milp_benchmark.md): our transport cost
+gives ~1.6× fewer transports per reaction (41% fewer) at no detectable assignment-accuracy cost. It
+still carries a gold-reference caveat (mapping universal-DB reactions to curated yeast-GEM compartments
+is only partial via EC/KEGG), and the big-M carve does not prove optimality, so the numbers are
+deterministic, time-budget-stable near-optimal incumbents rather than certified optima.
 
 ## Bottom line for the paper
 

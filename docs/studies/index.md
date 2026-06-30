@@ -27,9 +27,10 @@ its equivalence claims against MATLAB RAVEN.
   vs RAVEN's stochastic `predictLocalization` on identical inputs (determinism + accuracy + runtime).
 - **[CarveFungi analysis](carvefungi_analysis.md)** — how the contemporary carve-a-universal-model
   method works and how our transport-minimising assignment differs.
-- **[CarveFungi assignment head-to-head](carvefungi_milp_benchmark.md)** — a faithful port of its
-  carve-MILP with our objective swapped in; the tractability wall (tight gap needs CPLEX) and the one
-  robust finding (~4.5× fewer transports).
+- **[CarveFungi assignment head-to-head](carvefungi_milp_benchmark.md)** — our transport cost added to
+  CarveFungi's *own* carve MILP (CPLEX): ~1.6× fewer transports per reaction (41% fewer) at no
+  detectable assignment-accuracy cost; deterministic near-optimal incumbents (the big-M carve does not
+  prove optimality).
 - **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
   (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
