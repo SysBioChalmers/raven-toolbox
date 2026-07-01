@@ -23,6 +23,9 @@ Conceptual and API reference for raven-toolbox.
 - **[Evidence-aware transport scoring — design & plan](transport_evidence_scoring.md)** — a cross-repo
   (RAVEN + raven-toolbox) plan to replace the blanket transport penalty in localisation with
   transporter-evidence-weighted costs; carrier-general, organism-agnostic, local-binary-based.
+- **[Sound reaction-level multi-localisation — design](multi_localization_design.md)** — why naive
+  multi-localisation admits *dead* placements, and the ε-flux activity-coupling formulation
+  `assign_compartments` uses to forbid them (solver-independent).
 
 ```{toctree}
 :hidden:
@@ -36,4 +39,5 @@ gap_filling_algorithms
 cobra_raven_comparison
 flux_sampling_algorithms
 transport_evidence_scoring
+multi_localization_design
 ```

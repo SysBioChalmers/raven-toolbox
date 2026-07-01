@@ -6,6 +6,13 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Consolidated `assign_compartments` into raven-toolbox.** The functionality-constrained
+  compartment-assignment MILP — biomass/growth floor + big-M flux gating + optional gap-fill + sound
+  reaction-level multi-localisation — moves from the standalone `edkerk/assignCompartments` repo into
+  `localization/` (as `assign_compartments`/`apply_assignment`/`AssignmentProposal`), coexisting with
+  the score-driven `predict_localization` ([design](docs/reference/multi_localization_design.md),
+  [yeast-GEM benchmark](docs/studies/assign_compartments_yeast_gem.md)). The MATLAB port is tracked in
+  [MATLAB back-ports](docs/reference/matlab_raven_backports.md).
 * **CarveFungi assignment head-to-head on its own MILP.** Ran CarveFungi's *own* `minmax_reduction`
   carve-MILP (CPLEX, unmodified) with our transport-minimising term swapped into its objective, on its
   real universal-DB candidate set + DeepLoc-injected scores

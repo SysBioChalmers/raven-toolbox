@@ -36,6 +36,9 @@ its equivalence claims against MATLAB RAVEN.
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
 - **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
+- **[assign_compartments on yeast-GEM](assign_compartments_yeast_gem.md)** — the
+  functionality-constrained MILP reproducing curated yeast-GEM compartmentalisation from UniProt
+  evidence alone, and whether the result still grows.
 
 ```{toctree}
 :hidden:
@@ -54,4 +57,5 @@ carvefungi_analysis
 carvefungi_milp_benchmark
 deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
+assign_compartments_yeast_gem
 ```
