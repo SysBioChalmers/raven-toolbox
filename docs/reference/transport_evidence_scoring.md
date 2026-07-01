@@ -172,6 +172,14 @@ transportCost = scoreTransportEvidence(model, annotation, geneComps, varargin)
 3. **Consensus / refinement** — combine family + TCDB + orthology (EggNOG/KEGG, already computed in
    reconstruction) + DeepLoc; add directionality; resolve conflicts.
 
+**Status.** The scoring core and the bring-your-own-annotation path are **implemented** in
+`raven_toolbox.localization.transport_evidence`: `evidence_aware_transport_cost` (produces the
+per-metabolite `transport_cost` mapping both assignment functions already accept),
+`annotate_transporters` (parse any per-gene transporter table into `TransporterAnnotation`). The
+`hmmsearch` (Pfam families) and `diamond` (TCDB) annotation back-ends — which need the transporter
+databases provisioned in raven-data — are the next increment; until then, feed a table from any tool
+via the bring-your-own path.
+
 ## Validation
 
 Reuse this study's own benchmark

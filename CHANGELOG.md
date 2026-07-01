@@ -6,6 +6,14 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Evidence-aware transport scoring (first increment).** New `localization.transport_evidence` turns
+  per-gene transporter evidence into the per-metabolite `transport_cost` mapping the assignment MILPs
+  already accept, so a transport is cheap when a transporter gene supports it (right substrate, right
+  membrane) and pays the full prior otherwise: `evidence_aware_transport_cost`
+  (`cost = base·(1−evidence)`), `annotate_transporters` (bring-your-own annotation table), and
+  `TransporterAnnotation`. Carrier-general and organism-agnostic; the `hmmsearch` (Pfam) / `diamond`
+  (TCDB) annotation back-ends are the next increment
+  ([plan](docs/reference/transport_evidence_scoring.md)).
 * **Consolidated `assign_compartments` into raven-toolbox.** The functionality-constrained
   compartment-assignment MILP — biomass/growth floor + big-M flux gating + optional gap-fill + sound
   reaction-level multi-localisation — moves from the standalone `edkerk/assignCompartments` repo into
