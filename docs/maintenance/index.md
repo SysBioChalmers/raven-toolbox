@@ -12,9 +12,6 @@ rebuild and release them.
   (BLAST / DIAMOND / HMMER) ZIPs and the per-platform / licensing matrix.
 - **[Data & binary manifest](data_manifest.md)** — the shared manifest format
   (consumed by raven-toolbox and MATLAB RAVEN) and the optional GitHub→Zenodo mirror.
-- **[Parameter defaults — inventory and evaluation plan](parameter_defaults.md)** — full
-  inventory of optional parameters with current defaults and a methodology for deciding
-  whether each default is well-chosen.
 
 ```{toctree}
 :hidden:
@@ -24,5 +21,4 @@ kegg_data_format
 maintaining_kegg_data
 maintaining_binaries
 data_manifest
-parameter_defaults
 ```
