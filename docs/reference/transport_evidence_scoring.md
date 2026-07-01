@@ -183,11 +183,13 @@ transportCost = scoreTransportEvidence(model, annotation, geneComps, varargin)
   the curated `transporter_tables`. `annotate_transporters` still takes a pre-computed table.
 * `default_substrate_of` — the **model-side** coarse classifier (metabolite name → substrate class),
   so a metabolite and a transporter meet in the shared vocabulary.
+* `SubstrateOntology` + `substrate_chebi` — the **specific-substrate layer**: TCDB's curated
+  `TC-ID → substrate ChEBI` table + the ChEBI `is_a`/protonation graph give a graded
+  metabolite→substrate roll-up (exact 1.0, decaying by hop) that `evidence_aware_transport_cost`
+  layers on top of the coarse class; `annotate_proteome` fills `TransporterAnnotation.substrate_chebi`.
 
-Databases are built by `scripts/build_transporter_data.py` (24 Pfam families + TCDB), and the
-coarse-first pipeline is **validated** on yeast-GEM (see *Validation → Result* below). The **next
-increment** is the substrate-specific ChEBI layer (TCDB substrate table + ChEBI-ontology roll-up on
-both sides, replacing the coarse keyword match) to lift recall further.
+Databases are built by `scripts/build_transporter_data.py` (Pfam HMMs + TCDB DB + the TCDB-substrate
+and ChEBI-ontology tables) and the pipeline is **validated** on yeast-GEM (see *Validation → Result*).
 
 ## Validation
 
@@ -208,9 +210,20 @@ the evidence keeps cheap (387), **70 %** are curated yeast-GEM transports, versu
 the unsupported set the full prior would drop — where a blanket penalty treats both alike at the 48 %
 base rate. Every essential cytosol↔mito shuttle checked — (S)-malate, citrate, 2-oxoglutarate,
 oxaloacetate, NADP(+)/NADPH, L-serine, 2-dehydropantoate, pyruvate, PEP — is fully evidenced (cost 0,
-retained). Coarse-stage recall is 42 % (a keyword-unmatched metabolite gets no class, so no support);
-lifting it is exactly what the ChEBI increment targets. The non-fungal reproduction (AraCore) remains
-to run.
+retained). Coarse-stage recall is 42 % — but most of that miss is **gene-detection / localisation**
+bound rather than substrate-bound (see the ChEBI-layer note). The non-fungal reproduction (AraCore)
+remains to run.
+
+**ChEBI layer (yeast-GEM).** Adding the graded ChEBI roll-up on top of the coarse class moves the
+selective cut by ~1 pt (kept 387→396, recall 42→43 %, precision steady at 70 %). The gain is small
+*here* for a diagnosable reason: yeast's transporter recall is bounded by gene detection + membrane
+localisation — ~58 % of curated transports have no detected, correctly-localised carrier of matching
+cargo, and substrate precision cannot conjure one. Forcing the ChEBI verdict (dropping the coarse
+rescue) *removes* correct matches without raising precision, confirming the coarse classes already fit
+yeast's promiscuous MFS/MCF/ABC families. The layer is kept because it never regresses
+(strongest-evidence-wins) and it exposes each carrier's *specific* curated substrate ChEBIs — which
+matters for curation and for models with **narrow-specificity transporters**, where a coarse class
+collapses cargo the ChEBI roll-up keeps distinct.
 
 ## Open questions / risks
 

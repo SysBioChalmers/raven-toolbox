@@ -31,6 +31,7 @@ import pandas as pd  # noqa: E402
 
 from raven_toolbox.localization import (  # noqa: E402
     DEFAULT_COMPARTMENT_MAP,
+    SubstrateOntology,
     annotate_proteome,
     default_substrate_of,
     evidence_aware_transport_cost,
@@ -53,6 +54,19 @@ def _gene_compartments(deeploc_dir: Path, keep: set[str]) -> dict[str, set[str]]
     return {g: {sdf.loc[g].astype(float).idxmax()} for g in sdf.index if g in keep}
 
 
+def _report(cost: dict[str, float], label: str, curated: set[str], base_cost: float) -> None:
+    """Selective-cut line: kept (evidenced) vs dropped, each with its curated-transport rate + recall."""
+    allm = set(cost)
+    cur = curated & allm
+    keep = {b for b, c in cost.items() if c < base_cost}   # evidenced -> cheap -> kept
+    drop = allm - keep                                     # unsupported -> full prior -> dropped
+    keep_rate = len(keep & cur) / max(1, len(keep))
+    drop_rate = len(drop & cur) / max(1, len(drop))
+    recall = len(keep & cur) / max(1, len(cur))
+    print(f"  [{label:14s}] kept {len(keep):4d} (curated {keep_rate:.0%})  "
+          f"dropped {len(drop):4d} (curated {drop_rate:.0%})  recall {recall:.0%}")
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -72,39 +86,31 @@ def main(argv: list[str] | None = None) -> None:
     proteome.unlink(missing_ok=True)
     print(f"transporter genes annotated: {len(ann)} (from {len(fastas)} proteome chunk(s))")
 
-    # 2. carrier compartments from DeepLoc + evidence-aware cost (name-keyed metabolites)
+    # 2. carrier compartments from DeepLoc; score coarse-only vs coarse+ChEBI (name-keyed metabolites)
     gene_comps = _gene_compartments(args.data_dir, set(ann))
     model = cobra.io.read_sbml_model(str(args.model))
-    name_of = {m.name: m for m in model.metabolites}
-    cost = evidence_aware_transport_cost(model, ann, gene_comps, substrate_of=default_substrate_of,
-                                         base_cost=args.base_cost, base_metabolite=lambda m: m.name)
+    kw = dict(base_cost=args.base_cost, base_metabolite=lambda m: m.name)
+    cost_coarse = evidence_aware_transport_cost(model, ann, gene_comps,
+                                                substrate_of=default_substrate_of, **kw)
+    ontology = SubstrateOntology.load()
+    cost_chebi = evidence_aware_transport_cost(model, ann, gene_comps,
+                                               substrate_of=default_substrate_of, ontology=ontology, **kw)
 
     # 3. essential carriers -- cost should be ~0 (evidenced, retained)
     print(f"\n=== essential carriers (base_cost {args.base_cost}; lower = more evidence, retained) ===")
     for name in ESSENTIAL_CARRIERS:
-        if name in cost:
-            cls = sorted(default_substrate_of(name_of[name]))
-            flag = "retained" if cost[name] < args.base_cost else "NOT evidenced"
-            print(f"  {name:22s} cost={cost[name]:.3f}  [{flag}]  classes={cls}")
+        if name in cost_chebi:
+            flag = "retained" if cost_chebi[name] < args.base_cost else "NOT evidenced"
+            print(f"  {name:22s} cost={cost_chebi[name]:.3f}  [{flag}]")
 
-    # 4. selective-cut metric: curated-transport rate among would-keep vs would-drop metabolites
+    # 4. selective-cut metric: coarse classes alone vs coarse + ChEBI roll-up
     curated = {m.name for r in model.reactions if not r.boundary
                and len({mm.compartment for mm in r.metabolites}) > 1 for m in r.metabolites}
-    allm = set(cost)
-    curated &= allm
-    keep = {b for b, c in cost.items() if c < args.base_cost}   # evidenced -> cheap -> kept
-    drop = allm - keep                                          # unsupported -> full prior -> dropped
-    keep_rate = len(keep & curated) / max(1, len(keep))
-    drop_rate = len(drop & curated) / max(1, len(drop))
-    base_rate = len(curated) / max(1, len(allm))
-    print("\n=== selective cut (curated transports = ground truth) ===")
-    print(f"metabolites={len(allm)}  curated-transported={len(curated)} ({base_rate:.0%} baseline)")
-    print(f"  kept  (evidenced, cost<{args.base_cost}): {len(keep):4d}  curated-rate {keep_rate:.0%}")
-    print(f"  dropped (unsupported, full cost):       {len(drop):4d}  curated-rate {drop_rate:.0%}")
-    print(f"  --> selective: kept {keep_rate:.0%} vs dropped {drop_rate:.0%} "
-          f"(blanket penalty would treat both at {base_rate:.0%})")
-    print(f"  precision(kept are curated)={keep_rate:.0%}  "
-          f"recall(curated are kept)={len(keep & curated)/max(1,len(curated)):.0%}")
+    base_rate = len(curated & set(cost_chebi)) / max(1, len(set(cost_chebi)))
+    print("\n=== selective cut (curated transports = ground truth; blanket penalty would treat all "
+          f"at {base_rate:.0%}) ===")
+    _report(cost_coarse, "coarse classes", curated, args.base_cost)
+    _report(cost_chebi, "coarse + ChEBI", curated, args.base_cost)
 
 
 if __name__ == "__main__":
