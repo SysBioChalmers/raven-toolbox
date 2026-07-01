@@ -38,6 +38,7 @@ __all__ = [
     "load_compartments",
     "load_uniprot",
     "fetch_uniprot_localization",
+    "combine_scores",
 ]
 
 
@@ -48,9 +49,16 @@ class LocalizationScores:
 
     Genes absent from ``df`` and NaN entries are treated as "no signal" by
     :func:`raven_toolbox.localization.predict_localization` (uniform prior contribution).
+
+    ``raw_confidence`` (optional) is a per-gene Series of the predictor's *pre-normalisation* top
+    probability — the loaders normalise every gene's best compartment to 1.0, which discards how
+    confident the call was. :func:`load_deeploc` populates it with ``keep_raw_confidence=True`` so
+    downstream consumers (notably :func:`raven_toolbox.localization.triage_localization`) can tell a
+    0.97 call from a 0.40 one.
     """
 
     df: pd.DataFrame
+    raw_confidence: pd.Series | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.df.index, pd.Index) or self.df.index.name not in (None, "gene_id"):
@@ -122,43 +130,122 @@ def _apply_map(df: pd.DataFrame, compartment_map: Mapping[str, str] | None) -> p
 
 # --------------------------------------------------------------------- DeepLoc 2 / MULocDeep
 
-def _load_wide(df: pd.DataFrame, *, id_column, compartment_map, source: str) -> LocalizationScores:
-    """Engine for wide *id + per-compartment-probability* tables. Non-numeric metadata columns
-    are detected and dropped automatically."""
+def _wide_mapped(df: pd.DataFrame, *, id_column, compartment_map, source: str) -> pd.DataFrame:
+    """Mapped, *un-normalised* gene x model-compartment table (numeric metadata cols dropped)."""
     id_col = id_column if id_column is not None else df.columns[0]
     wide = df.set_index(id_col).apply(pd.to_numeric, errors="coerce").dropna(axis=1, how="all")
     if wide.shape[1] == 0:
         raise ValueError(f"{source}: no numeric compartment columns found in {list(df.columns)}")
     wide = _apply_map(wide.fillna(0.0), compartment_map)
     wide.index.name = "gene_id"
-    return _normalise_rows(LocalizationScores(wide))
+    return wide
+
+
+def _finalise(wide: pd.DataFrame, *, min_confidence: float,
+              normalise: bool = True) -> LocalizationScores:
+    """Drop genes whose top (pre-normalisation) score is below ``min_confidence``, then
+    optionally normalise each gene's row so its best compartment is 1.0."""
+    if min_confidence > 0:
+        wide = wide.loc[wide.max(axis=1) >= min_confidence]
+    return _normalise_rows(LocalizationScores(wide)) if normalise else LocalizationScores(wide)
 
 
 def load_deeploc(path: str | Path, *,
-                 compartment_map: Mapping[str, str] | None = None) -> LocalizationScores:
+                 compartment_map: Mapping[str, str] | None = None,
+                 min_confidence: float = 0.0,
+                 membrane_split: Mapping[str, str] | None = None,
+                 membrane_threshold: float = 0.5,
+                 keep_raw_confidence: bool = False,
+                 normalise: bool = True) -> LocalizationScores:
     """Parse DeepLoc 2 CSV output into a normalised :class:`LocalizationScores`.
 
     DeepLoc 2's per-protein CSV has ``Protein_ID, Localizations, Signals`` then one probability
     column per compartment. The first column is the gene id; non-numeric metadata columns
     (``Localizations``, ``Signals``) are dropped automatically.
+
+    ``min_confidence`` drops genes whose top compartment probability (before per-gene normalisation)
+    is below it — DeepLoc's probability is well calibrated, so low-confidence calls are unreliable
+    and best left to other evidence (benchmark: ~67% corroborated below 0.7 vs ~97% above 0.9).
+
+    ``membrane_split`` (e.g. ``{"m": "mm"}``) routes an organelle's probability to its **membrane**
+    sub-compartment when the protein is membrane-associated (``1 - P(Soluble) >= membrane_threshold``,
+    using DeepLoc's ``Soluble`` column), else it stays in the lumen. Keys/values are your model's
+    compartment ids (post-``compartment_map``). **Only the mitochondrial split (`m`/`mm`) is supported
+    by the evidence** (matrix-vs-membrane AUC ~0.92); DeepLoc does *not* separate ER lumen from
+    membrane, so do not add `er`/`erm`. See ``docs/studies/deeploc_yeast_benchmark.md``.
+
+    ``keep_raw_confidence=True`` attaches the per-gene *pre-normalisation* top probability to
+    :attr:`LocalizationScores.raw_confidence` (normalisation otherwise forces every top to 1.0). It
+    is the strongest signal for :func:`triage_localization`.
+
+    ``normalise=False`` keeps DeepLoc's raw probabilities instead of rescaling every gene's best
+    compartment to 1.0. The raw probabilities are calibrated (a 0.97 call is far more reliable than
+    a 0.40 one), so leaving them un-normalised lets a downstream assignment weight confident genes
+    more heavily; the default ``True`` preserves the RAVEN ``parseScores`` convention and keeps
+    multi-source scales comparable. See ``docs/studies/deeploc_normalisation_benchmark.md``.
     """
-    return _load_wide(pd.read_csv(path), id_column=None,
-                      compartment_map=compartment_map, source=str(path))
+    raw = pd.read_csv(path)
+    wide = _wide_mapped(raw, id_column=None, compartment_map=compartment_map, source=str(path))
+    if membrane_split:
+        if "Soluble" not in raw.columns:
+            raise ValueError("membrane_split needs DeepLoc's 'Soluble' column (membrane-type output)")
+        sol = pd.to_numeric(raw.set_index(raw.columns[0])["Soluble"], errors="coerce").fillna(1.0)
+        is_membrane = ((1.0 - sol).reindex(wide.index).fillna(0.0) >= membrane_threshold)
+        for lumen_id, membrane_id in membrane_split.items():
+            if lumen_id not in wide.columns:
+                continue
+            wide[membrane_id] = wide[lumen_id].where(is_membrane, 0.0)
+            wide[lumen_id] = wide[lumen_id].where(~is_membrane, 0.0)
+    raw_conf = wide.max(axis=1) if keep_raw_confidence else None
+    scores = _finalise(wide, min_confidence=min_confidence, normalise=normalise)
+    if raw_conf is not None:
+        scores.raw_confidence = raw_conf.reindex(scores.df.index)
+    return scores
 
 
 def load_mulocdeep(path: str | Path, *,
                    compartment_map: Mapping[str, str] | None = None,
                    id_column: str | None = None,
-                   sep: str | None = None) -> LocalizationScores:
+                   sep: str | None = None,
+                   min_confidence: float = 0.0) -> LocalizationScores:
     """Parse MULocDeep output into a normalised :class:`LocalizationScores`.
 
     Expects a wide table: a protein/gene id column plus one numeric probability column per major
     subcellular compartment (MULocDeep predicts 10). ``sep=None`` auto-detects the delimiter;
-    pass ``id_column`` if the id is not the first column.
+    pass ``id_column`` if the id is not the first column. ``min_confidence`` works as in
+    :func:`load_deeploc`.
     """
     df = (pd.read_csv(path, sep=None, engine="python") if sep is None
           else pd.read_csv(path, sep=sep))
-    return _load_wide(df, id_column=id_column, compartment_map=compartment_map, source=str(path))
+    wide = _wide_mapped(df, id_column=id_column, compartment_map=compartment_map, source=str(path))
+    return _finalise(wide, min_confidence=min_confidence)
+
+
+def combine_scores(sources: list[LocalizationScores], *,
+                   weights: list[float] | None = None) -> LocalizationScores:
+    """Merge several :class:`LocalizationScores` into a **consensus** by weighted sum.
+
+    Genes and compartments are the union across sources; absent entries count as 0. Scores are
+    summed per ``(gene, compartment)`` (optionally weighted) and the result is per-gene normalised
+    (best -> 1.0), so a compartment supported by **several** sources is reinforced relative to a
+    lone-source call. Use this to fuse complementary evidence (e.g. DeepLoc + curated UniProt +
+    COMPARTMENTS) instead of trusting one reference — robust when no single source is authoritative
+    (two curated sources agree only ~90% on yeast-GEM).
+    """
+    sources = list(sources)
+    if not sources:
+        raise ValueError("combine_scores needs at least one LocalizationScores")
+    weights = [1.0] * len(sources) if weights is None else list(weights)
+    if len(weights) != len(sources):
+        raise ValueError(f"weights ({len(weights)}) must match the number of sources ({len(sources)})")
+    total: pd.DataFrame | None = None
+    for s, w in zip(sources, weights, strict=True):
+        df = s.df.mul(float(w))
+        total = df.copy() if total is None else total.add(df, fill_value=0.0)
+    assert total is not None
+    total = total.fillna(0.0)
+    total.index.name = "gene_id"
+    return _normalise_rows(LocalizationScores(total))
 
 
 # --------------------------------------------------------------------- COMPARTMENTS database

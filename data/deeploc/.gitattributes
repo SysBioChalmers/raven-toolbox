@@ -1,0 +1,3 @@
+# Keep prepared FASTA inputs and DeepLoc result CSVs as LF on every platform (data artefacts).
+*.fasta text eol=lf
+*.csv text eol=lf

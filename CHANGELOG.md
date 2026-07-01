@@ -6,6 +6,38 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Curation triage for localisation.** Added `triage_localization` — an optional companion to
+  compartment assignment that ranks the genes/reactions whose localisation is shakiest (low DeepLoc
+  confidence, borderline top-two margin, multi-source disagreement, no evidence, low-trust
+  compartment, multi-localised), each with a plain-English reason, so a curator knows where to look.
+  Returns a `ReviewReport`. `load_deeploc` gained `keep_raw_confidence=True` and `LocalizationScores`
+  a `raw_confidence` field (per-gene normalisation otherwise discards the confidence the triage needs).
+* **Finetuned localisation hyperparameters on the slow yeast run.** Refreshed the triage
+  `DEEPLOC_COMPARTMENT_TRUST` table from the slow (ProtT5) data (mitochondrion 0.67 → 0.86, `mm` now
+  trustworthy via the validated split, Golgi 0.23 → 0.01) and re-validated the `min_confidence` gate
+  (0.7 → 88.3% corroboration, 80% kept) and `membrane_threshold` (0.50 is inside the optimal plateau)
+  in a new [finetuning study](docs/studies/localization_finetuning.md)
+  (`scripts/finetune_localization_yeast.py`).
+* **Optional raw DeepLoc probabilities.** `load_deeploc` gained `normalise=False` to keep DeepLoc's
+  calibrated probabilities instead of rescaling each gene's best compartment to 1.0. A whole-model
+  yeast-GEM benchmark ([study](docs/studies/deeploc_normalisation_benchmark.md)) finds normalisation
+  is **accuracy-neutral** for compartment assignment (raw does not rescue the contested or
+  high-confidence calls); the only reproducible difference is that raw assigns fewer genes to
+  multiple compartments — a re-scaling of the existing `transport_cost`/`multi_compartment_penalty`
+  knobs, not new signal. So normalisation stays the **default** and `normalise=False` is an opt-in
+  for callers wanting the calibrated magnitudes (e.g. the `triage_localization` confidence signal).
+* **Fuse and tune localisation evidence.** Added `combine_scores` (weighted-sum consensus of several
+  `LocalizationScores`, so agreement across DeepLoc / UniProt / COMPARTMENTS is reinforced), and gave
+  `load_deeploc` / `load_mulocdeep` a `min_confidence=` gate (drop unreliable low-confidence genes)
+  plus, for `load_deeploc`, `membrane_split={"m":"mm"}` (route mitochondrion to its membrane
+  sub-compartment using the transmembrane signal — mito only; ER is not separable). Motivated and
+  validated by the [DeepLoc 2.1 yeast-GEM benchmark](docs/studies/deeploc_yeast_benchmark.md).
+* **Prepare sequence-predictor input.** Added `prepare_deeploc_input` (plus `fetch_protein_sequences`
+  and `write_fasta`) to write a DeepLoc-2.1-ready protein FASTA for a model's genes — sequences
+  fetched from UniProtKB, headers set to the gene ids so the predictor output lines up with the model
+  and `load_deeploc`. DeepLoc 2.1 has no batch API; the FASTA is chunked at the web server's
+  500-sequence limit, and genes without a reviewed sequence are reported. Script:
+  `scripts/prepare_deeploc_yeast.py`.
 * **Localisation loaders modernised.** Added `load_mulocdeep` (MULocDeep wide tables),
   `load_compartments` (the COMPARTMENTS evidence database), `load_uniprot` (curated UniProtKB
   `Subcellular location` exports) and `fetch_uniprot_localization` (the same via the UniProt REST
