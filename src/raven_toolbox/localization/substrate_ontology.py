@@ -53,9 +53,11 @@ class SubstrateOntology:
     scoring a whole model reuses each metabolite ChEBI's roll-up.
     """
 
-    def __init__(self, edges: dict[str, set[str]], tc_substrates: dict[str, frozenset[str]]):
+    def __init__(self, edges: dict[str, set[str]], tc_substrates: dict[str, frozenset[str]],
+                 alt: dict[str, str] | None = None):
         self._edges = edges
         self._tc = tc_substrates
+        self._alt = alt or {}  # secondary/deprecated ChEBI id -> connected primary id
         self._reach_cache: dict[str, dict[str, int]] = {}
 
     @classmethod
@@ -68,13 +70,17 @@ class SubstrateOntology:
         relations_path = (relations_path if relations_path is not None
                           else ensure_data_file("transporters", "chebi_relations.tsv.gz"))
         edges: dict[str, set[str]] = defaultdict(set)
+        alt: dict[str, str] = {}
         with gzip.open(relations_path, "rt", encoding="utf-8") as fh:
             for line in fh:
                 child, rel, parent = line.rstrip("\n").split("\t")
+                if rel == "alt_id":
+                    alt[child] = parent  # secondary -> primary; applied before any graph walk
+                    continue
                 edges[child].add(parent)
                 if rel in _SYMMETRIC:
                     edges[parent].add(child)
-        return cls(dict(edges), load_tc_substrates(substrates_path))
+        return cls(dict(edges), load_tc_substrates(substrates_path), alt)
 
     def substrates_of(self, tc_ids: Iterable[str]) -> frozenset[str]:
         """Union of curated substrate ChEBIs over a set of (full 5-level) TCDB TC-IDs."""
@@ -85,6 +91,7 @@ class SubstrateOntology:
 
     def _reach(self, chebi: str) -> dict[str, int]:
         """``{reachable ChEBI: min hop}`` within the hop budget (self at hop 0), memoised."""
+        chebi = self._alt.get(chebi, chebi)  # normalise a secondary id onto its connected primary
         cached = self._reach_cache.get(chebi)
         if cached is not None:
             return cached
@@ -103,7 +110,7 @@ class SubstrateOntology:
     def match(self, metabolite_chebis: Iterable[str], substrate_chebis: Iterable[str]) -> float:
         """Graded [0, 1] match: the strongest (nearest) roll-up from any metabolite ChEBI to any of the
         transporter's curated substrate ChEBIs; 0 when none is within the hop budget."""
-        subs = frozenset(substrate_chebis)
+        subs = frozenset(self._alt.get(s, s) for s in substrate_chebis)  # normalise secondary ids
         if not subs:
             return 0.0
         best = 0.0

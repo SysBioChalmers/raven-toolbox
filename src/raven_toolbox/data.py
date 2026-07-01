@@ -71,7 +71,7 @@ _DATA_REGISTRY: dict = {
             },
             "chebi_relations.tsv.gz": {
                 "url": "https://github.com/SysBioChalmers/raven-data/releases/download/transporters-2026-07-01/chebi_relations.tsv.gz",
-                "sha256": "5791fc5bdd21174f7a9583afcafb9ecca2959b721e91ed9be8392a5ecaacc0e2",
+                "sha256": "b6910bf9c7a405e4f1fc112030123dd79c982112b8f460cebefd9235c621d192",
             },
         },
     },

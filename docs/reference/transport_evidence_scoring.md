@@ -214,23 +214,29 @@ retained). Coarse-stage recall is 42 % — but most of that miss is **gene-detec
 bound rather than substrate-bound (see the ChEBI-layer note). The non-fungal reproduction (AraCore)
 remains to run.
 
-**ChEBI layer (yeast-GEM).** Adding the graded ChEBI roll-up on top of the coarse class moves the
-selective cut by ~1 pt (kept 387→396, recall 42→43 %, precision steady at 70 %). The gain is small
-*here* for a diagnosable reason: yeast's transporter recall is bounded by gene detection + membrane
-localisation — ~58 % of curated transports have no detected, correctly-localised carrier of matching
-cargo, and substrate precision cannot conjure one. Forcing the ChEBI verdict (dropping the coarse
-rescue) *removes* correct matches without raising precision, confirming the coarse classes already fit
+**ChEBI layer (yeast-GEM).** Adding the graded ChEBI roll-up on top of the coarse class lifts the
+selective cut's **recall from 42 % to 47 %** (kept 387→426) at steady 70 % precision. Two details make
+it work: the roll-up is graded by hop distance (a metabolite that *is* the curated substrate scores
+1.0, a subtype or protonation/tautomer variant less), and — essential — TCDB annotates substrates with
+*secondary/deprecated* ChEBI ids that carry no `is_a` edges of their own, so they are **normalised onto
+their connected primary id** (~19 k `alt_id` mappings shipped in `chebi_relations.tsv.gz`) before any
+walk; without that, even glucose↔glucose scored 0 and only 17 % of assigned substrates reached a model
+metabolite (51 % after). The remaining miss is **gene-detection / membrane-localisation** bound, not
+substrate-bound: ~58 % of curated transports have no detected, correctly-localised carrier of matching
+cargo, so substrate precision cannot conjure one — forcing the ChEBI verdict (`strict`, no coarse
+rescue) *cuts* recall to 31 % without raising precision, confirming the coarse classes already fit
 yeast's promiscuous MFS/MCF/ABC families. The layer is kept because it never regresses
-(strongest-evidence-wins) and it exposes each carrier's *specific* curated substrate ChEBIs — which
-matters for curation and for models with **narrow-specificity transporters**, where a coarse class
-collapses cargo the ChEBI roll-up keeps distinct.
+(strongest-evidence-wins) and it exposes each carrier's *specific* substrate ChEBIs — decisive for
+models with **narrow-specificity transporters**, where a coarse class collapses cargo the roll-up keeps
+distinct (a curated *hexose* carrier scores D-glucose 0.80, D-galactose 0.90, D-fructose/D-mannose 0.65
+— all of which one "sugar" class treats alike).
 
 **Substrate discrimination (intrinsic, model-free —
 [`analyse_substrate_discrimination.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/analyse_substrate_discrimination.py)).**
 Where that payoff comes from, isolated from the detection/localisation confound: within each coarse
 TCDB family, sibling transport systems carry *different* specific substrates. Over every (curated
-substrate, same-family system) pair, the ChEBI roll-up **rules out ~100 %** of the non-carriers —
-unrelated cargo scores 0, and even the rare chemically-related sibling scores only ~0.73 (vs 1.00 for a
+substrate, same-family system) pair, the ChEBI roll-up **rules out ~99 %** of the non-carriers —
+unrelated cargo scores 0, and even the chemically-related siblings score only ~0.78 (vs 1.00 for a
 true carrier) — whereas the coarse class, shared across the whole family, rules out **0 %** (it scores
 every sibling identically). So the layer supplies exactly the substrate resolution a coarse class
 cannot: latent on yeast's broad MFS/MCF/ABC families, decisive on a proteome of narrow-specificity

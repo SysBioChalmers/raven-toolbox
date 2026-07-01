@@ -158,6 +158,7 @@ def test_substrate_ontology_graded_match(tmp_path):
         fh.write("CHEBI:2\tis_a\tCHEBI:1\n")                    # 2 is_a 1
         fh.write("CHEBI:3\tis_a\tCHEBI:2\n")                    # 3 is_a 2 is_a 1
         fh.write("CHEBI:5\tis_conjugate_base_of\tCHEBI:4\n")    # 5 <-> 4 (symmetric bridge)
+        fh.write("CHEBI:99\talt_id\tCHEBI:3\n")                 # 99 is a secondary/deprecated id of 3
     sub = tmp_path / "sub.tsv"
     sub.write_text("2.A.1.1.1\tCHEBI:1;CHEBI:4\n", encoding="utf-8")
     onto = SubstrateOntology.load(relations_path=rel, substrates_path=sub)
@@ -167,6 +168,8 @@ def test_substrate_ontology_graded_match(tmp_path):
     assert onto.match(["CHEBI:2"], ["CHEBI:1"]) == 0.9          # 1 hop up
     assert onto.match(["CHEBI:3"], ["CHEBI:1"]) == 0.8          # 2 hops up (nearest wins)
     assert onto.match(["CHEBI:5"], ["CHEBI:4"]) == 0.9          # conjugate bridge is bidirectional
+    assert onto.match(["CHEBI:99"], ["CHEBI:1"]) == 0.8         # secondary id normalised to 3 first
+    assert onto.match(["CHEBI:3"], ["CHEBI:99"]) == 1.0         # normalised on the substrate side too
     assert onto.match(["CHEBI:9"], ["CHEBI:1"]) == 0.0          # unrelated
     assert onto.match(["CHEBI:1"], []) == 0.0                   # gene has no curated substrate
 

@@ -132,7 +132,12 @@ def build_tcdb_substrates(out_dir: Path) -> Path:
 
 
 def build_chebi_relations(out_dir: Path) -> Path:
-    """Distil chebi_lite.obo to the child->related edges (is_a + protonation/tautomer) for roll-up."""
+    """Distil chebi_lite.obo to child->related edges (is_a + protonation/tautomer) + alt_id normalisation.
+
+    The ``alt_id`` rows (``secondary  alt_id  primary``) are essential: source databases such as TCDB
+    annotate substrates with *secondary/deprecated* ChEBI ids, which carry no ``is_a`` edges of their
+    own and would never match. Mapping them to the connected primary id makes the roll-up work.
+    """
     obo = _get(CHEBI_OBO, timeout=300).decode("utf-8", "replace")
     out = out_dir / "chebi_relations.tsv.gz"
     cur: str | None = None
@@ -147,6 +152,9 @@ def build_chebi_relations(out_dir: Path) -> Path:
                 continue
             elif line.startswith("is_a: CHEBI:"):
                 fh.write(f"{cur}\tis_a\t{line[6:].split('!', 1)[0].strip()}\n")
+                n += 1
+            elif line.startswith("alt_id: CHEBI:"):
+                fh.write(f"{line[8:].strip()}\talt_id\t{cur}\n")  # secondary -> primary
                 n += 1
             elif line.startswith("relationship: "):
                 parts = line.split(maxsplit=3)
