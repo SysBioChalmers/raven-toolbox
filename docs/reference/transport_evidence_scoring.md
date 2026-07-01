@@ -225,6 +225,17 @@ yeast's promiscuous MFS/MCF/ABC families. The layer is kept because it never reg
 matters for curation and for models with **narrow-specificity transporters**, where a coarse class
 collapses cargo the ChEBI roll-up keeps distinct.
 
+**Substrate discrimination (intrinsic, model-free —
+[`analyse_substrate_discrimination.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/analyse_substrate_discrimination.py)).**
+Where that payoff comes from, isolated from the detection/localisation confound: within each coarse
+TCDB family, sibling transport systems carry *different* specific substrates. Over every (curated
+substrate, same-family system) pair, the ChEBI roll-up **rules out ~100 %** of the non-carriers —
+unrelated cargo scores 0, and even the rare chemically-related sibling scores only ~0.73 (vs 1.00 for a
+true carrier) — whereas the coarse class, shared across the whole family, rules out **0 %** (it scores
+every sibling identically). So the layer supplies exactly the substrate resolution a coarse class
+cannot: latent on yeast's broad MFS/MCF/ABC families, decisive on a proteome of narrow-specificity
+transporters (specific sugar/amino-acid permeases, ion channels).
+
 ## Open questions / risks
 
 * **Substrate matching** (metabolite → coarse class, and TC/family descriptor → the same class) is the
