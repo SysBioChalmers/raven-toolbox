@@ -40,6 +40,7 @@ from raven_toolbox.localization.sequences import (
 )
 from raven_toolbox.localization.transport_evidence import (
     TransporterAnnotation,
+    annotate_proteome,
     annotate_transporters,
     evidence_aware_transport_cost,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "PreparedFasta",
     "ReviewReport",
     "TransporterAnnotation",
+    "annotate_proteome",
     "annotate_transporters",
     "apply_assignment",
     "apply_localization",

@@ -1,4 +1,6 @@
 """Tests for evidence-aware transport scoring: annotation parsing + the per-metabolite cost."""
+import pathlib
+
 import cobra
 import pandas as pd
 
@@ -83,3 +85,36 @@ def test_output_is_a_valid_transport_cost_mapping():
         _model(), ann, {"CARR1": {"m"}}, substrate_of=_substrate_of)
     assert set(costs) == {"mal", "glc"}
     assert costs["mal"] == 0.0 and costs["glc"] == 0.5
+
+
+# --------------------------------------------------------------------------- coarse tables
+def test_family_tables_use_valid_classes():
+    from raven_toolbox.localization.transporter_tables import (
+        COARSE_CLASSES,
+        PFAM_TRANSPORTERS,
+        TC_FAMILY_CLASS,
+    )
+    for _name, classes in PFAM_TRANSPORTERS.values():
+        assert classes <= COARSE_CLASSES
+    for classes in TC_FAMILY_CLASS.values():
+        assert classes <= COARSE_CLASSES
+
+
+# ----------------------------------------------------------- annotation back-end (integration)
+def test_annotate_proteome_finds_yeast_transporters():
+    """hmmsearch + diamond backend on a real yeast proteome. Skips offline / without the binaries."""
+    import pytest
+
+    from raven_toolbox.localization import annotate_proteome
+
+    fasta = pathlib.Path("data/deeploc/yeast-GEM_proteins_001.fasta")
+    if not fasta.exists():
+        pytest.skip("yeast proteome FASTA not present")
+    try:
+        ann = annotate_proteome(fasta, threads=2)
+    except Exception as exc:  # binaries / db download unavailable (e.g. offline CI)  # noqa: BLE001
+        pytest.skip(f"transporter backend unavailable: {exc}")
+    assert len(ann) > 20  # a genome-scale proteome has many transporters
+    assert any("sugar" in a.substrate_classes for a in ann.values())        # HXT sugar transporters
+    mcf = [a for a in ann.values() if "PF00153" in a.families]              # mitochondrial carriers
+    assert mcf and any("carboxylate" in a.substrate_classes for a in mcf)
