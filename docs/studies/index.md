@@ -15,6 +15,12 @@ its equivalence claims against MATLAB RAVEN.
 - **[DeepLoc 2.1 yeast-GEM benchmark](deeploc_yeast_benchmark.md)** — real DeepLoc 2.1
   predictions vs curated yeast-GEM compartments; whether membrane-type recovers the
   lumen/membrane split, and an organelle-collapsed run (slow model: 64.6% collapsed).
+- **[DeepLoc 2.1 AraCore benchmark](deeploc_aracore_benchmark.md)** — cross-kingdom
+  generalisation on an independent *Arabidopsis* plant model (80.3% overall, chloroplast 89.9%).
+- **[DeepLoc 2.1 iCre1355 benchmark](deeploc_icre1355_benchmark.md)** — the most training-distant
+  test, the green alga *Chlamydomonas* (chloroplast 78%, but cytosol/mito poor on an auto-model).
+- **[DeepLoc 2.1 Human-GEM benchmark](deeploc_humangem_benchmark.md)** — human positive control
+  (84.7% addressable) and a circularity lesson: 15% of its compartments are DeepLoc-derived.
 - **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
   (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
@@ -31,6 +37,9 @@ init_param_calibration
 init_solver_benchmark
 yeast_localization_benchmark
 deeploc_yeast_benchmark
+deeploc_aracore_benchmark
+deeploc_icre1355_benchmark
+deeploc_humangem_benchmark
 deeploc_normalisation_benchmark
 localization_finetuning
 kegg_hmm_cutoff_calibration
