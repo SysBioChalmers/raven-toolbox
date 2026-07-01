@@ -38,6 +38,11 @@ from raven_toolbox.localization.sequences import (
     prepare_deeploc_input,
     write_fasta,
 )
+from raven_toolbox.localization.transport_evidence import (
+    TransporterAnnotation,
+    annotate_transporters,
+    evidence_aware_transport_cost,
+)
 from raven_toolbox.localization.triage import (
     DEEPLOC_COMPARTMENT_TRUST,
     ReviewReport,
@@ -53,10 +58,13 @@ __all__ = [
     "LocalizationScores",
     "PreparedFasta",
     "ReviewReport",
+    "TransporterAnnotation",
+    "annotate_transporters",
     "apply_assignment",
     "apply_localization",
     "assign_compartments",
     "combine_scores",
+    "evidence_aware_transport_cost",
     "fetch_protein_sequences",
     "fetch_uniprot_localization",
     "load_compartments",
