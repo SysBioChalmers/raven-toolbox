@@ -34,6 +34,15 @@ _WEIGHT_BY_HOP: tuple[float, ...] = (1.0, 0.9, 0.8, 0.65, 0.5)
 _MAX_HOPS = len(_WEIGHT_BY_HOP) - 1
 
 
+def _sibling_decay(dist: int) -> float:
+    """Weight for two ChEBIs meeting ``dist`` hops apart through their nearest common ancestor.
+
+    Used only for the optional sibling credit: unlike a direct roll-up (where the substrate *is* an
+    ancestor of the metabolite), a sibling path climbs to a shared ancestor and back down, so it decays
+    over the combined distance (min 2, for two 1-hop children of one parent) and stays gentle."""
+    return max(0.0, 1.0 - (dist - 1) / (2 * _MAX_HOPS))
+
+
 def load_tc_substrates(path: str | Path | None = None) -> dict[str, frozenset[str]]:
     """Load ``tcdb_substrates.tsv`` -> ``{TC-ID: frozenset(ChEBI)}`` (auto-downloaded if ``path`` is None)."""
     path = ensure_data_file("transporters", "tcdb_substrates.tsv") if path is None else Path(path)
@@ -107,20 +116,39 @@ class SubstrateOntology:
         self._reach_cache[chebi] = reach
         return reach
 
-    def match(self, metabolite_chebis: Iterable[str], substrate_chebis: Iterable[str]) -> float:
-        """Graded [0, 1] match: the strongest (nearest) roll-up from any metabolite ChEBI to any of the
-        transporter's curated substrate ChEBIs; 0 when none is within the hop budget."""
+    def match(self, metabolite_chebis: Iterable[str], substrate_chebis: Iterable[str],
+              *, sibling_weight: float = 0.0) -> float:
+        """Graded [0, 1] match from a metabolite's ChEBI(s) to a transporter's curated substrate ChEBIs.
+
+        The **direct** score rolls the metabolite up its is_a / protonation ancestry to a curated
+        substrate (or the substrate itself): 1.0 for an exact hit, decaying by hop distance. With
+        ``sibling_weight > 0`` a metabolite that is under *no* substrate but shares a near common
+        ancestor with one — a chemical *relative* of the cargo (fructose to a glucose-only carrier) —
+        also earns ``sibling_weight`` scaled by that meeting distance, always capped below a direct hit
+        (it trades specificity for recall, so it is opt-in). 0 when nothing connects in the hop budget.
+        """
         subs = frozenset(self._alt.get(s, s) for s in substrate_chebis)  # normalise secondary ids
         if not subs:
             return 0.0
         best = 0.0
         for cm in metabolite_chebis:
-            reach = self._reach(cm)
-            hits = [reach[s] for s in subs if s in reach]
-            if hits:
-                weight = _WEIGHT_BY_HOP[min(hits)]
-                if weight > best:
-                    best = weight
-                    if best >= 1.0:
-                        return 1.0
+            reach_m = self._reach(cm)
+            for s in subs:  # direct: the substrate is the metabolite itself or one of its ancestors
+                hop = reach_m.get(s)
+                if hop is not None and _WEIGHT_BY_HOP[hop] > best:
+                    best = _WEIGHT_BY_HOP[hop]
+            if best >= 1.0:
+                return 1.0
+            if sibling_weight <= 0.0:
+                continue
+            for s in subs:  # sibling: metabolite and substrate meet at a shared ancestor
+                if s in reach_m:
+                    continue  # already covered by the (stronger) direct score
+                reach_s = self._reach(s)
+                common = reach_m.keys() & reach_s.keys()
+                if common:
+                    dist = min(reach_m[a] + reach_s[a] for a in common)
+                    score = sibling_weight * _sibling_decay(dist)
+                    if score > best:
+                        best = score
         return best

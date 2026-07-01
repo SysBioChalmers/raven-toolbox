@@ -185,8 +185,9 @@ transportCost = scoreTransportEvidence(model, annotation, geneComps, varargin)
   so a metabolite and a transporter meet in the shared vocabulary.
 * `SubstrateOntology` + `substrate_chebi` — the **specific-substrate layer**: TCDB's curated
   `TC-ID → substrate ChEBI` table + the ChEBI `is_a`/protonation graph give a graded
-  metabolite→substrate roll-up (exact 1.0, decaying by hop) that `evidence_aware_transport_cost`
-  layers on top of the coarse class; `annotate_proteome` fills `TransporterAnnotation.substrate_chebi`.
+  metabolite→substrate roll-up (exact 1.0, decaying by hop; an optional `sibling_weight` also credits
+  chemical *relatives* of the cargo) that `evidence_aware_transport_cost` layers on top of the coarse
+  class; `annotate_proteome` fills `TransporterAnnotation.substrate_chebi`.
 
 Databases are built by `scripts/build_transporter_data.py` (Pfam HMMs + TCDB DB + the TCDB-substrate
 and ChEBI-ontology tables) and the pipeline is **validated** on yeast-GEM (see *Validation → Result*).
@@ -213,6 +214,23 @@ oxaloacetate, NADP(+)/NADPH, L-serine, 2-dehydropantoate, pyruvate, PEP — is f
 retained). Coarse-stage recall is 42 % — but most of that miss is **gene-detection / localisation**
 bound rather than substrate-bound (see the ChEBI-layer note). The non-fungal reproduction (AraCore)
 remains to run.
+
+**Head-to-head vs the blanket penalty.** Reproducing the reference study's finding
+([carvefungi_milp_benchmark](../studies/carvefungi_milp_benchmark.md)) on yeast-GEM, the same script
+contrasts the transport cut three ways (base rate 48 %):
+
+| approach | kept curated | dropped curated | recall | selective? |
+|---|--:|--:|--:|:--|
+| blanket penalty (no evidence) | 48 % | 48 % | — | no (indiscriminate) |
+| evidence: coarse | 70 % | 39 % | 42 % | yes |
+| evidence: + ChEBI | 70 % | 37 % | 47 % | yes |
+| evidence: + ChEBI + `sibling_weight` 0.5 | 52 % | 38 % | 75 % | recall-tilted |
+
+The blanket penalty (the reference approach) sheds real and spurious transports alike — its kept and
+dropped sets are both ~48 % curated, matching that study's measured 39 % / 42 %. Evidence weighting
+makes the kept set ~1.8× more curated than the dropped set and retains **all** the individually
+essential carriers the blanket cut dropped (cost 0). `sibling_weight` trades specificity for recall
+(precision 70 → 52 %, recall 47 → 75 %) and is off by default.
 
 **ChEBI layer (yeast-GEM).** Adding the graded ChEBI roll-up on top of the coarse class lifts the
 selective cut's **recall from 42 % to 47 %** (kept 387→426) at steady 70 % precision. Two details make

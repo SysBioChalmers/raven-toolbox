@@ -8,12 +8,16 @@ curated model whose transport reactions are the ground truth.
 
 It annotates the organism's proteome (``annotate_proteome`` -> hmmsearch + diamond), scores every
 metabolite's transport cost (``evidence_aware_transport_cost`` with ``default_substrate_of`` and
-DeepLoc-derived carrier compartments), then reports:
+DeepLoc-derived carrier compartments), then runs the head-to-head:
 
-* the essential mitochondrial-shuttle carriers a blanket penalty wrongly drops -- their cost should be
-  ~0 (fully evidenced, retained);
-* the **selective-cut** metric: the curated-transport rate among *evidenced* (would-keep) metabolites
-  vs among *unsupported* (would-drop) ones. Evidence is selective when keep-rate > drop-rate.
+* the essential carriers a blanket transport penalty drops -- the study in
+  docs/studies/carvefungi_milp_benchmark.md showed a uniform penalty drops these curated, individually
+  essential shuttles (2-oxoglutarate, 2-dehydropantoate, NADP(+)/NADPH, serine); their evidence-aware
+  cost should be ~0 (retained);
+* the **selective-cut** metric vs the blanket penalty: curated-transport rate among *evidenced*
+  (would-keep) vs *unsupported* (would-drop) metabolites, across the evidence layers (coarse ->
+  +ChEBI -> +sibling). A blanket penalty is indiscriminate (keep-rate == drop-rate == base rate);
+  evidence is selective when keep-rate > drop-rate.
 
 The proteome + DeepLoc predictions ship under ``data/deeploc/``; pass the curated model with ``--model``.
 Usage: ``python scripts/validate_transport_evidence.py --model path/to/yeast-GEM.xml``. ASCII-only.
@@ -74,6 +78,8 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--data-dir", type=Path, default=Path("data/deeploc"),
                     help="dir with *_proteins_*.fasta + *_deeploc_*.csv (default: data/deeploc)")
     ap.add_argument("--base-cost", type=float, default=0.5)
+    ap.add_argument("--sibling-weight", type=float, default=0.5,
+                    help="ChEBI sibling credit (0=off; >0 trades specificity for recall)")
     ap.add_argument("--threads", type=int, default=4)
     args = ap.parse_args(argv)
 
@@ -86,7 +92,7 @@ def main(argv: list[str] | None = None) -> None:
     proteome.unlink(missing_ok=True)
     print(f"transporter genes annotated: {len(ann)} (from {len(fastas)} proteome chunk(s))")
 
-    # 2. carrier compartments from DeepLoc; score coarse-only vs coarse+ChEBI (name-keyed metabolites)
+    # 2. carrier compartments from DeepLoc; score under the blanket approach vs evidence-aware variants
     gene_comps = _gene_compartments(args.data_dir, set(ann))
     model = cobra.io.read_sbml_model(str(args.model))
     kw = dict(base_cost=args.base_cost, base_metabolite=lambda m: m.name)
@@ -95,22 +101,28 @@ def main(argv: list[str] | None = None) -> None:
     ontology = SubstrateOntology.load()
     cost_chebi = evidence_aware_transport_cost(model, ann, gene_comps,
                                                substrate_of=default_substrate_of, ontology=ontology, **kw)
+    cost_sib = evidence_aware_transport_cost(model, ann, gene_comps, substrate_of=default_substrate_of,
+                                             ontology=ontology, sibling_weight=args.sibling_weight, **kw)
 
-    # 3. essential carriers -- cost should be ~0 (evidenced, retained)
-    print(f"\n=== essential carriers (base_cost {args.base_cost}; lower = more evidence, retained) ===")
+    # 3. the carriers a blanket penalty drops but curated yeast-GEM marks essential -- evidence-aware
+    #    should retain them (cost ~ 0); a blanket penalty, having no evidence, cannot tell them apart.
+    print(f"\n=== essential carriers a blanket penalty drops (base_cost {args.base_cost}; "
+          "lower = evidenced, retained) ===")
     for name in ESSENTIAL_CARRIERS:
         if name in cost_chebi:
             flag = "retained" if cost_chebi[name] < args.base_cost else "NOT evidenced"
             print(f"  {name:22s} cost={cost_chebi[name]:.3f}  [{flag}]")
 
-    # 4. selective-cut metric: coarse classes alone vs coarse + ChEBI roll-up
+    # 4. head-to-head: is the transport cut selective? (curated yeast-GEM transports = ground truth)
     curated = {m.name for r in model.reactions if not r.boundary
                and len({mm.compartment for mm in r.metabolites}) > 1 for m in r.metabolites}
     base_rate = len(curated & set(cost_chebi)) / max(1, len(set(cost_chebi)))
-    print("\n=== selective cut (curated transports = ground truth; blanket penalty would treat all "
-          f"at {base_rate:.0%}) ===")
-    _report(cost_coarse, "coarse classes", curated, args.base_cost)
-    _report(cost_chebi, "coarse + ChEBI", curated, args.base_cost)
+    print("\n=== transport-cut selectivity vs a blanket penalty (curated yeast-GEM = ground truth) ===")
+    print(f"  [{'blanket (no evidence)':14s}] kept-curated == dropped-curated == {base_rate:.0%}  "
+          "(indiscriminate -- the reference-approach behaviour)")
+    _report(cost_coarse, "coarse", curated, args.base_cost)
+    _report(cost_chebi, "+ChEBI", curated, args.base_cost)
+    _report(cost_sib, f"+ChEBI+sib{args.sibling_weight:g}", curated, args.base_cost)
 
 
 if __name__ == "__main__":

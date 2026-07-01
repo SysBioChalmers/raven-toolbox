@@ -174,6 +174,27 @@ def test_substrate_ontology_graded_match(tmp_path):
     assert onto.match(["CHEBI:1"], []) == 0.0                   # gene has no curated substrate
 
 
+def test_substrate_ontology_sibling_credit(tmp_path):
+    import gzip
+
+    from raven_toolbox.localization import SubstrateOntology
+
+    rel = tmp_path / "rel.tsv.gz"
+    with gzip.open(rel, "wt", encoding="utf-8") as fh:
+        fh.write("CHEBI:2\tis_a\tCHEBI:1\n")
+        fh.write("CHEBI:3\tis_a\tCHEBI:2\n")    # 3 is_a 2
+        fh.write("CHEBI:4\tis_a\tCHEBI:2\n")    # 4 is_a 2  => 3 and 4 are siblings (meet at 2)
+    sub = tmp_path / "sub.tsv"
+    sub.write_text("x\tCHEBI:3\n", encoding="utf-8")
+    onto = SubstrateOntology.load(relations_path=rel, substrates_path=sub)
+
+    # metabolite 4 is under no substrate but is a sibling of the substrate 3 (both children of 2)
+    assert onto.match(["CHEBI:4"], ["CHEBI:3"]) == 0.0                        # off by default
+    sib = onto.match(["CHEBI:4"], ["CHEBI:3"], sibling_weight=0.5)
+    assert 0.0 < sib < 1.0                                                    # partial, capped credit
+    assert onto.match(["CHEBI:3"], ["CHEBI:3"], sibling_weight=0.5) == 1.0    # direct hit still 1.0
+
+
 def test_evidence_uses_chebi_when_coarse_class_missing(tmp_path):
     import gzip
 

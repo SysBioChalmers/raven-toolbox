@@ -144,6 +144,7 @@ def evidence_aware_transport_cost(
     substrate_of: Callable[[cobra.Metabolite], Iterable[str]] | None = None,
     ontology: SubstrateOntology | None = None,
     metabolite_chebi: Callable[[cobra.Metabolite], Iterable[str]] | None = None,
+    sibling_weight: float = 0.0,
     base_cost: float = 0.5,
     base_metabolite: Callable[[cobra.Metabolite], str] | None = None,
 ) -> dict[str, float]:
@@ -174,6 +175,10 @@ def evidence_aware_transport_cost(
     metabolite_chebi:
         metabolite -> its ChEBI id(s) for that match (default: :func:`default_metabolite_chebi`, which
         reads the ``chebi`` annotation).
+    sibling_weight:
+        if > 0, also credit a metabolite that is a *chemical relative* of a curated substrate (shares a
+        near ChEBI ancestor, not under it) at this fraction of a direct hit — trades specificity for
+        recall (0 = off, the default).
     base_cost:
         the flat cost for an unsupported transport (recovers today's constant behaviour when no gene
         supports the metabolite).
@@ -215,7 +220,7 @@ def evidence_aware_transport_cost(
                 # roll-up adds credit where the coarse class is absent or too broad. Strongest wins.
                 match = 1.0 if (classes & subs) else 0.0
                 if ontology is not None and match < 1.0:
-                    match = max(match, ontology.match(mchebi, gsub_chebi))
+                    match = max(match, ontology.match(mchebi, gsub_chebi, sibling_weight=sibling_weight))
             if match <= 0.0:
                 continue  # substrate mismatch
             evidence = conf * match
