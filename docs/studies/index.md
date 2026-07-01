@@ -21,18 +21,24 @@ its equivalence claims against MATLAB RAVEN.
   test, the green alga *Chlamydomonas* (chloroplast 78%, but cytosol/mito poor on an auto-model).
 - **[DeepLoc 2.1 Human-GEM benchmark](deeploc_humangem_benchmark.md)** — human positive control
   (84.7% addressable) and a circularity lesson: 15% of its compartments are DeepLoc-derived.
-- **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
-  (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
-  accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
 - **[Localisation finetuning](localization_finetuning.md)** — tuning the DeepLoc-loading
   hyperparameters (`membrane_threshold`, `min_confidence`, triage trust) on the slow yeast run.
 - **[predictLocalization head-to-head](predictlocalization_comparison.md)** — the deterministic MILP
   vs RAVEN's stochastic `predictLocalization` on identical inputs (determinism + accuracy + runtime).
+- **[CarveFungi analysis](carvefungi_analysis.md)** — how the contemporary carve-a-universal-model
+  method works and how our transport-minimising assignment differs.
+- **[CarveFungi assignment head-to-head](carvefungi_milp_benchmark.md)** — our transport cost added to
+  CarveFungi's *own* carve MILP (CPLEX): ~1.6× fewer transports per reaction (41% fewer) at no
+  detectable assignment-accuracy cost; deterministic near-optimal incumbents (the big-M carve does not
+  prove optimality).
+- **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
+  (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
+  accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
+- **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
+  score-ratio sensitivity for the KEGG HMM-query reconstruction path.
 - **[assign_compartments on yeast-GEM](assign_compartments_yeast_gem.md)** — the
   functionality-constrained MILP reproducing curated yeast-GEM compartmentalisation from UniProt
   evidence alone, and whether the result still grows.
-- **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
-  score-ratio sensitivity for the KEGG HMM-query reconstruction path.
 
 ```{toctree}
 :hidden:
@@ -45,9 +51,11 @@ deeploc_yeast_benchmark
 deeploc_aracore_benchmark
 deeploc_icre1355_benchmark
 deeploc_humangem_benchmark
-deeploc_normalisation_benchmark
 localization_finetuning
 predictlocalization_comparison
-assign_compartments_yeast_gem
+carvefungi_analysis
+carvefungi_milp_benchmark
+deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
+assign_compartments_yeast_gem
 ```
