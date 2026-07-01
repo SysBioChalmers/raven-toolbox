@@ -232,6 +232,14 @@ makes the kept set ~1.8× more curated than the dropped set and retains **all** 
 essential carriers the blanket cut dropped (cost 0). `sibling_weight` trades specificity for recall
 (precision 70 → 52 %, recall 47 → 75 %) and is off by default.
 
+**On the actual carve.** Beyond the yeast-GEM proxy, `analyse_carvefungi_transports.py` scores the
+*real* transports the blanket penalty (Arm B) dropped from CarveFungi's own carve, using the
+yeast-derived evidence. Of the 66 dropped transports, the evidence-aware cost would **rescue 92 % of
+the curated ones** (mean cost 0.05) while leaving the non-curated expensive (mean 0.36, 40 % rescued) —
+a clean split the blanket penalty cannot make. Every one of the **5 individually-essential** dropped
+transports (2-oxoglutarate, 2-dehydropantoate, NADP⁺, NADPH, serine) scores **cost 0 → retained**. So
+on its own benchmark the evidence-aware cost turns the indiscriminate cut into a selective one.
+
 **ChEBI layer (yeast-GEM).** Adding the graded ChEBI roll-up on top of the coarse class lifts the
 selective cut's **recall from 42 % to 47 %** (kept 387→426) at steady 70 % precision. Two details make
 it work: the roll-up is graded by hop distance (a metabolite that *is* the curated substrate scores

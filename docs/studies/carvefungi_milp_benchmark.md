@@ -231,6 +231,27 @@ organism-agnosticism.
 a transporter, and annotation completeness varies by organism — so keep a *mild, tunable* prior on
 unsupported transports; never hard-forbid.
 
+## Result: evidence-aware scoring makes the cut selective
+
+The evidence-aware cost above is now implemented (`raven_toolbox.localization.transport_evidence`; see
+[the reference](../reference/transport_evidence_scoring.md)) and scored against **this carve**:
+`analyse_carvefungi_transports.py` annotates the yeast proteome (364 transporter genes via
+`hmmsearch` + `diamond`), builds the per-metabolite `transport_cost`, and asks whether it would
+*rescue* the transports Arm B dropped. It meets the success criteria set above:
+
+| dropped-by-Arm-B transports | n | evidence-aware would keep | mean cost |
+|---|--:|--:|--:|
+| curated (match yeast-GEM) | 25 | **92 %** | 0.05 |
+| non-curated | 10 | 40 % | 0.36 |
+
+The cut becomes **selective**: the curated dropped transports are cheap (rescued) while the non-curated
+stay near the full prior — a split the blanket −0.3 penalty (which drops both at 42 % / 39 %) cannot
+make. And **all 5 individually-essential** dropped transports are retained at cost 0: 2-oxoglutarate
+(`r_1099`), 2-dehydropantoate (`r_1568`), NADP⁺ (`r_1963`), NADPH (`r_1964`), serine (`r_2045`). The
+substrate match runs coarse (family → class) **and** a ChEBI-ontology roll-up (metabolite ChEBI →
+TCDB's curated substrate ChEBI); an optional `sibling_weight` also credits chemical relatives of the
+cargo. The non-fungal (AraCore) reproduction remains the outstanding organism-agnosticism check.
+
 ## What this does and doesn't show
 
 * **Not proven optima.** Each arm is a stable, deterministic incumbent at 18–27% gap, not a certified
