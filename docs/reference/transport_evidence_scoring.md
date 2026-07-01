@@ -215,41 +215,46 @@ retained). Coarse-stage recall is 42 % — but most of that miss is **gene-detec
 bound rather than substrate-bound (see the ChEBI-layer note). The non-fungal reproduction (AraCore)
 remains to run.
 
-**Head-to-head vs the blanket penalty.** Reproducing the reference study's finding
-([carvefungi_milp_benchmark](../studies/carvefungi_milp_benchmark.md)) on yeast-GEM, the same script
-contrasts the transport cut three ways (base rate 48 %):
+**Selectivity on yeast-GEM.** On yeast-GEM (a larger ground truth than the 138-transport carve), the
+same script measures how selective the cut is — the curated rate among *kept* (would-retain) vs
+*dropped* (would-drop) metabolites (base rate 48 %):
 
 | approach | kept curated | dropped curated | recall | selective? |
 |---|--:|--:|--:|:--|
-| blanket penalty (no evidence) | 48 % | 48 % | — | no (indiscriminate) |
+| no evidence (base rate) | 48 % | 48 % | — | no (indiscriminate) |
 | evidence: coarse | 70 % | 39 % | 42 % | yes |
 | evidence: + ChEBI | 70 % | 37 % | 47 % | yes |
 | evidence: + ChEBI + `sibling_weight` 0.5 | 52 % | 38 % | 75 % | recall-tilted |
 
-The blanket penalty (the reference approach) sheds real and spurious transports alike — its kept and
-dropped sets are both ~48 % curated, matching that study's measured 39 % / 42 %. Evidence weighting
-makes the kept set ~1.8× more curated than the dropped set and retains **all** the individually
-essential carriers the blanket cut dropped (cost 0). `sibling_weight` trades specificity for recall
-(precision 70 → 52 %, recall 47 → 75 %) and is off by default.
+Without transporter evidence the kept and dropped sets are both ~48 % curated (indiscriminate).
+Evidence weighting makes the kept set ~1.8× more curated than the dropped set and retains **all** the
+individually essential carriers (cost 0). `sibling_weight` trades specificity for recall (precision
+70 → 52 %, recall 47 → 75 %) and is off by default.
 
-**On the actual carve.** `analyse_carvefungi_transports.py` scores every approach on the *same*
-candidate set — CarveFungi's 138 carved transports — against the curated yeast-GEM transportome (43 of
-them are curated; 9 are individually essential):
+**On the actual carve.** `analyse_carvefungi_transports.py` scores each approach on the *same*
+candidate set — CarveFungi's own 138 carved transports (its `minmax_reduction`, unmodified) — against
+the curated yeast-GEM transportome (43 curated, 9 individually essential). CarveFungi applies **no**
+transport minimisation (transports score ~1e-11, no penalty), so it keeps all 138; our evidence-aware
+cost reduces that set selectively (keep a transport when a transporter gene supports its cargo).
+Sweeping the sibling weight:
 
 | approach | transports kept | curated replicated | essential kept | spurious kept |
 |---|--:|--:|--:|--:|
-| CarveFungi (no transport penalty) | 138 | 43/43 | 9/9 | 95 |
-| CarveFungi (blanket −0.3) | 72 | 18/43 | **3/9** | 54 |
-| ours: coarse | 98 | 41/43 | **9/9** | 57 |
-| ours: + ChEBI | 99 | 41/43 | **9/9** | 58 |
-| ours: + ChEBI + sibling 0.5 | 107 | **43/43** | **9/9** | 64 |
+| CarveFungi (native) | 138 | 43/43 | 9/9 | 95 |
+| ours: coarse | 42 | 35/43 | 7/9 | 7 |
+| ours: + ChEBI (no sibling) | 46 | 37/43 | 8/9 | 9 |
+| ours: + ChEBI + sibling 0.5 | 53 | 42/43 | **9/9** | 11 |
+| **ours: + ChEBI + sibling 0.7** | 55 | **43/43** | **9/9** | **12** |
+| ours: + ChEBI + sibling 1.0 | 56 | 43/43 | 9/9 | 13 |
 
-CarveFungi's blanket penalty is the leanest (72 kept) but **drops 6 of 9 essential carriers and over
-half the curated transports** — indiscriminate. The evidence-aware variants recover **all 9 essential**
-and 41–43 of 43 curated at moderate parsimony (98–107 kept, vs 138 unpenalised); the ChEBI + sibling
-layer recovers the last two curated transports for a few more spurious. ("ours" isolates the
-transport-cost objective — keep the network-needed transports plus those the evidence supports — not a
-re-solve of the carve MILP.)
+CarveFungi's native carve is **bloated** — 95 of its 138 transports are spurious (non-curated), because
+it never minimises transport. Our evidence-aware cost cuts that to **12 while replicating the entire
+curated (43/43) and essential (9/9) transportome** — an **87 % reduction in spurious transports with no
+loss of curated or essential transport**. The sibling weight is the dial: chemical *relatives* of a
+curated substrate (fructose/mannose for a hexose carrier) are what coarse and exact-ChEBI miss, so they
+are needed to recover the last essential + curated transports. **Sibling 0.7 is the optimum** — the
+smallest weight reaching full retention; beyond it spurious grows without gain. ("ours" applies our cost
+independently — keep the evidence-supported transports — not a re-solve of the carve MILP.)
 
 **ChEBI layer (yeast-GEM).** Adding the graded ChEBI roll-up on top of the coarse class lifts the
 selective cut's **recall from 42 % to 47 %** (kept 387→426) at steady 70 % precision. Two details make

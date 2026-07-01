@@ -236,24 +236,26 @@ unsupported transports; never hard-forbid.
 The evidence-aware cost above is now implemented (`raven_toolbox.localization.transport_evidence`; see
 [the reference](../reference/transport_evidence_scoring.md)) and scored against **this carve**:
 `analyse_carvefungi_transports.py` annotates the yeast proteome (364 transporter genes via
-`hmmsearch` + `diamond`), builds the per-metabolite `transport_cost`, and scores every approach on the
-*same* candidate set (Arm A's 138 carved transports) against the curated yeast-GEM transportome (43
-curated, 9 individually essential):
+`hmmsearch` + `diamond`), builds the per-metabolite `transport_cost`, and scores each approach on the
+*same* candidate set — the native carve's 138 transports — against the curated yeast-GEM transportome
+(43 curated, 9 individually essential):
 
 | approach | kept | curated replicated | essential kept | spurious kept |
 |---|--:|--:|--:|--:|
-| CarveFungi (no transport penalty) | 138 | 43/43 | 9/9 | 95 |
-| CarveFungi (blanket −0.3) | 72 | 18/43 | **3/9** | 54 |
-| ours: coarse | 98 | 41/43 | **9/9** | 57 |
-| ours: + ChEBI | 99 | 41/43 | **9/9** | 58 |
-| ours: + ChEBI + sibling 0.5 | 107 | **43/43** | **9/9** | 64 |
+| CarveFungi (native) | 138 | 43/43 | 9/9 | 95 |
+| ours: coarse | 42 | 35/43 | 7/9 | 7 |
+| ours: + ChEBI (no sibling) | 46 | 37/43 | 8/9 | 9 |
+| ours: + ChEBI + sibling 0.5 | 53 | 42/43 | **9/9** | 11 |
+| **ours: + ChEBI + sibling 0.7** | 55 | **43/43** | **9/9** | **12** |
+| ours: + ChEBI + sibling 1.0 | 56 | 43/43 | 9/9 | 13 |
 
-The blanket penalty is leanest but **indiscriminate** — it drops 6 of 9 essential carriers (incl.
-2-oxoglutarate, 2-dehydropantoate, NADP⁺/NADPH, serine) and more than half the curated transports.
-Every evidence-aware variant retains **all 9 essential** and 41–43 of 43 curated at moderate parsimony
-(98–107 kept). "ours" isolates the transport-cost objective (keep the network-needed transports plus
-those the evidence supports); it is not a re-solve of the carve MILP. The non-fungal (AraCore)
-reproduction remains the outstanding organism-agnosticism check.
+CarveFungi's native carve carries 95 spurious (non-curated) transports — it never minimises transport.
+Our evidence-aware cost cuts that to 12 while retaining **all 9 essential** (incl. 2-oxoglutarate,
+2-dehydropantoate, NADP⁺/NADPH, serine) and **all 43 curated** transports — an 87 % reduction in spurious
+with no loss. The sibling weight recovers the chemical-relative cargo (fructose/mannose for a hexose
+carrier) that coarse / exact-ChEBI miss; **0.7 is the optimum** (smallest weight reaching full
+retention). "ours" applies our cost independently, not a re-solve of the carve MILP. The non-fungal
+(AraCore) reproduction remains the outstanding organism-agnosticism check.
 
 ## What this does and doesn't show
 
