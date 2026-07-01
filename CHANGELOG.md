@@ -18,6 +18,18 @@ Milestones in the raven-toolbox port. For function-level status see
   (0.7 → 88.3% corroboration, 80% kept) and `membrane_threshold` (0.50 is inside the optimal plateau)
   in a new [finetuning study](docs/studies/localization_finetuning.md)
   (`scripts/finetune_localization_yeast.py`).
+* **Cross-species DeepLoc benchmark.** Generalised the predictor benchmark to any curated model
+  (`scripts/benchmark_deeploc.py --species {yeast,aracore,icre1355}`, a per-species compartment
+  config) and added independent non-yeast eukaryotes. DeepLoc 2.1 generalises across kingdoms — the
+  chloroplast is recovered in both *Arabidopsis*
+  ([AraCore](docs/studies/deeploc_aracore_benchmark.md), **80.3%** overall, plastid 89.9%) and the
+  green alga *Chlamydomonas* ([iCre1355](docs/studies/deeploc_icre1355_benchmark.md), plastid 78%,
+  though algal cytosol/mito are poor on an auto-generated model). A gene-level
+  [Human-GEM control](docs/studies/deeploc_humangem_benchmark.md)
+  (`scripts/benchmark_deeploc_humangem.py`) reaches 84.7% but, crucially, **excludes the 439 (15%)
+  gene compartments Human-GEM sourced from DeepLoc2** (which score 93.8% — DeepLoc grading itself).
+  The yeast run was refreshed to DeepLoc's slow (ProtT5) model, lifting organelle-collapsed accuracy
+  54.6% → 64.6% and mitochondrial-membrane recall 47% → 86%.
 * **Optional raw DeepLoc probabilities.** `load_deeploc` gained `normalise=False` to keep DeepLoc's
   calibrated probabilities instead of rescaling each gene's best compartment to 1.0. A whole-model
   yeast-GEM benchmark ([study](docs/studies/deeploc_normalisation_benchmark.md)) finds normalisation
