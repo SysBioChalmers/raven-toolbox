@@ -38,10 +38,12 @@ from raven_toolbox.localization.sequences import (
     prepare_deeploc_input,
     write_fasta,
 )
+from raven_toolbox.localization.substrate_ontology import SubstrateOntology
 from raven_toolbox.localization.transport_evidence import (
     TransporterAnnotation,
     annotate_proteome,
     annotate_transporters,
+    default_metabolite_chebi,
     default_substrate_of,
     evidence_aware_transport_cost,
 )
@@ -60,6 +62,7 @@ __all__ = [
     "LocalizationScores",
     "PreparedFasta",
     "ReviewReport",
+    "SubstrateOntology",
     "TransporterAnnotation",
     "annotate_proteome",
     "annotate_transporters",
@@ -67,6 +70,7 @@ __all__ = [
     "apply_localization",
     "assign_compartments",
     "combine_scores",
+    "default_metabolite_chebi",
     "default_substrate_of",
     "evidence_aware_transport_cost",
     "fetch_protein_sequences",

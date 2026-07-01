@@ -34,12 +34,14 @@ import pandas as pd
 
 from raven_toolbox.binaries import resolve_binary
 from raven_toolbox.data import ensure_data_file
+from raven_toolbox.localization.substrate_ontology import SubstrateOntology, load_tc_substrates
 from raven_toolbox.localization.transporter_tables import PFAM_TRANSPORTERS, TC_FAMILY_CLASS
 
 __all__ = [
     "TransporterAnnotation",
     "annotate_proteome",
     "annotate_transporters",
+    "default_metabolite_chebi",
     "default_substrate_of",
     "evidence_aware_transport_cost",
 ]
@@ -50,13 +52,15 @@ class TransporterAnnotation:
     """Per-gene transporter evidence, from any source (Pfam/hmmer, TCDB/diamond, orthology, or a
     hand-curated table). ``confidence`` is a 0..1 strength; ``substrate_classes`` are coarse shared
     classes (e.g. ``"amino_acid"``, ``"sugar"``, ``"organic_acid"``) used to match a transporter to a
-    metabolite it can plausibly carry."""
+    metabolite it can plausibly carry; ``substrate_chebi`` are the *specific* curated substrate ChEBIs
+    (from TCDB), for the finer ChEBI-ontology match."""
 
     gene: str
     confidence: float = 0.0
     families: tuple[str, ...] = ()
     substrate_classes: frozenset[str] = field(default_factory=frozenset)
     mechanism: str | None = None  # "uniport" | "symport" | "antiport" | None
+    substrate_chebi: frozenset[str] = field(default_factory=frozenset)
 
 
 def _default_base(m: cobra.Metabolite) -> str:
@@ -64,6 +68,25 @@ def _default_base(m: cobra.Metabolite) -> str:
     if m.compartment and m.id.endswith(f"_{m.compartment}"):
         return m.id[: -(len(m.compartment) + 1)]
     return m.id
+
+
+def default_metabolite_chebi(metabolite: cobra.Metabolite) -> frozenset[str]:
+    """ChEBI identifiers from a metabolite's annotation, normalised to ``CHEBI:NNNN``.
+
+    The model-side input to the ChEBI substrate match; pass as ``metabolite_chebi`` to
+    :func:`evidence_aware_transport_cost`. Returns the empty set for an un-annotated metabolite (which
+    then falls back to the coarse class match).
+    """
+    ann = metabolite.annotation.get("chebi")
+    if not ann:
+        return frozenset()
+    values = [ann] if isinstance(ann, str) else list(ann)
+    out: set[str] = set()
+    for v in values:
+        v = str(v).strip()
+        if v:
+            out.add(v if v.upper().startswith("CHEBI:") else f"CHEBI:{v}")
+    return frozenset(out)
 
 
 def annotate_transporters(
@@ -119,6 +142,8 @@ def evidence_aware_transport_cost(
     gene_compartments: Mapping[str, Iterable[str]],
     *,
     substrate_of: Callable[[cobra.Metabolite], Iterable[str]] | None = None,
+    ontology: SubstrateOntology | None = None,
+    metabolite_chebi: Callable[[cobra.Metabolite], Iterable[str]] | None = None,
     base_cost: float = 0.5,
     base_metabolite: Callable[[cobra.Metabolite], str] | None = None,
 ) -> dict[str, float]:
@@ -126,11 +151,14 @@ def evidence_aware_transport_cost(
 
     For each (compartment-agnostic) metabolite *m*::
 
-        evidence(m) = max over transporter genes g of g.confidence, restricted to genes that
-                      (substrate) share a substrate class with m  [if ``substrate_of`` is given], and
-                      (membrane)  are localised to a compartment where m occurs [if the gene has a
-                                  predicted compartment].
+        evidence(m) = max over transporter genes g of  g.confidence * substrate_match(g, m),
+                      restricted to genes localised to a compartment where m occurs (membrane gate).
         cost(m)     = base_cost * (1 - evidence(m))
+
+    ``substrate_match`` is 1.0 for a coarse substrate-class overlap and, when an ``ontology`` is given,
+    a graded 0..1 ChEBI roll-up (metabolite ChEBI → the gene's curated substrate ChEBI) that also
+    evidences metabolites the coarse classifier misses. With neither ``substrate_of`` nor ``ontology``
+    the match is compartment-only (every carrier at the right membrane counts).
 
     Parameters
     ----------
@@ -138,8 +166,14 @@ def evidence_aware_transport_cost(
         gene -> predicted compartment ids (the reliable DeepLoc *compartment* calls). A carrier at
         compartment *X* is taken to support transports across *X*'s boundary.
     substrate_of:
-        metabolite -> its substrate class(es). Matching a transporter to a metabolite needs this; when
-        omitted the match is compartment-only (coarse — every carrier at the right membrane counts).
+        metabolite -> its coarse substrate class(es) (e.g. :func:`default_substrate_of`); a class
+        overlap with the gene is full-credit evidence.
+    ontology:
+        a :class:`~.substrate_ontology.SubstrateOntology` enabling the finer, graded ChEBI-substrate
+        match on top of (and filling the gaps of) the coarse classes.
+    metabolite_chebi:
+        metabolite -> its ChEBI id(s) for that match (default: :func:`default_metabolite_chebi`, which
+        reads the ``chebi`` annotation).
     base_cost:
         the flat cost for an unsupported transport (recovers today's constant behaviour when no gene
         supports the metabolite).
@@ -148,6 +182,7 @@ def evidence_aware_transport_cost(
     is a self-contained ``transport_cost`` mapping.
     """
     base_of = base_metabolite or _default_base
+    chebi_of = metabolite_chebi or default_metabolite_chebi
     comps_of: dict[str, set[str]] = defaultdict(set)
     rep: dict[str, cobra.Metabolite] = {}
     for m in model.metabolites:
@@ -156,28 +191,42 @@ def evidence_aware_transport_cost(
             comps_of[b].add(m.compartment)
         rep.setdefault(b, m)
 
-    carriers: list[tuple[set[str], frozenset[str], float]] = []
+    carriers: list[tuple[set[str], frozenset[str], frozenset[str], float]] = []
     for gene, ann in annotation.items():
         if ann.confidence <= 0:
             continue
-        carriers.append((set(gene_compartments.get(gene, ())), ann.substrate_classes, ann.confidence))
+        carriers.append((set(gene_compartments.get(gene, ())), ann.substrate_classes,
+                         ann.substrate_chebi, ann.confidence))
 
+    compartment_only = substrate_of is None and ontology is None
     costs: dict[str, float] = {}
     for b, bcomps in comps_of.items():
-        classes = frozenset(substrate_of(rep[b])) if substrate_of else None
+        m = rep[b]
+        classes = frozenset(substrate_of(m)) if substrate_of else frozenset()
+        mchebi = frozenset(chebi_of(m)) if ontology is not None else frozenset()
         best = 0.0
-        for gcomps, subs, conf in carriers:
-            if classes is not None and not (classes & subs):
-                continue  # substrate mismatch
+        for gcomps, subs, gsub_chebi, conf in carriers:
             if gcomps and not (gcomps & bcomps):
                 continue  # gene's membrane does not border a compartment this metabolite is in
-            best = max(best, conf)
+            if compartment_only:
+                match = 1.0
+            else:
+                # coarse class overlap = full credit (preserves the coarse layer); a graded ChEBI
+                # roll-up adds credit where the coarse class is absent or too broad. Strongest wins.
+                match = 1.0 if (classes & subs) else 0.0
+                if ontology is not None and match < 1.0:
+                    match = max(match, ontology.match(mchebi, gsub_chebi))
+            if match <= 0.0:
+                continue  # substrate mismatch
+            evidence = conf * match
+            if evidence > best:
+                best = evidence
         costs[b] = base_cost * (1.0 - best)
     return costs
 
 
 # --------------------------------------------------------------------------- annotation back-end
-_TC_FAMILY = re.compile(r"(\d+\.[A-Z]\.\d+)\.\d+\.\d+")  # TC number -> family prefix (first 3 levels)
+_TC_FAMILY = re.compile(r"(\d+\.[A-Z]\.\d+)\.\d+\.\d+")  # group 1 = family (3 levels), group 0 = full TC-ID
 
 
 def _hmmsearch_families(proteome: Path, hmm_db: Path, threads: int) -> dict[str, tuple[set[str], float]]:
@@ -199,15 +248,16 @@ def _hmmsearch_families(proteome: Path, hmm_db: Path, threads: int) -> dict[str,
         return out
 
 
-def _diamond_tc(proteome: Path, tcdb_db: Path, threads: int) -> dict[str, tuple[set[str], float]]:
-    """diamond blastp (proteome vs TCDB) -> gene -> (TC family prefixes hit, best fractional identity)."""
+def _diamond_tc(proteome: Path, tcdb_db: Path,
+                threads: int) -> dict[str, tuple[set[str], set[str], float]]:
+    """diamond blastp (proteome vs TCDB) -> gene -> (TC family prefixes, full TC-IDs, best frac id)."""
     with tempfile.TemporaryDirectory() as tmp:
         m8 = Path(tmp) / "hits.m8"
         subprocess.run([resolve_binary("diamond"), "blastp", "-q", str(proteome), "-d", str(tcdb_db),
                         "-o", str(m8), "--outfmt", "6", "qseqid", "sseqid", "pident", "-e", "1e-5",
                         "--max-target-seqs", "3", "-p", str(threads), "--quiet"],
                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        out: dict[str, tuple[set[str], float]] = {}
+        out: dict[str, tuple[set[str], set[str], float]] = {}
         for line in m8.read_text().splitlines():
             if not line.strip():
                 continue
@@ -215,9 +265,10 @@ def _diamond_tc(proteome: Path, tcdb_db: Path, threads: int) -> dict[str, tuple[
             m = _TC_FAMILY.search(sseqid)
             if m is None:
                 continue
-            fams, best = out.get(gene, (set(), 0.0))
+            fams, tc_ids, best = out.get(gene, (set(), set(), 0.0))
             fams.add(m.group(1))
-            out[gene] = (fams, max(best, float(pident) / 100.0))
+            tc_ids.add(m.group(0))
+            out[gene] = (fams, tc_ids, max(best, float(pident) / 100.0))
         return out
 
 
@@ -226,6 +277,7 @@ def annotate_proteome(
     *,
     hmm_db: str | Path | None = None,
     tcdb_db: str | Path | None = None,
+    substrates: str | Path | bool | None = None,
     threads: int = 1,
 ) -> dict[str, TransporterAnnotation]:
     """Annotate a proteome's transporters from sequence, via the bundled ``hmmsearch`` + ``diamond``.
@@ -233,34 +285,39 @@ def annotate_proteome(
     Scans the proteome FASTA (headers = gene ids, as written by :func:`prepare_deeploc_input`) against
     the transporter Pfam HMM database (``hmmsearch --cut_ga``) and the TCDB DIAMOND database
     (``diamond blastp``); both databases auto-download from raven-data if not supplied. Pfam families
-    and TCDB TC-families are mapped to coarse substrate classes via
-    :mod:`raven_toolbox.localization.transporter_tables`. Returns gene → :class:`TransporterAnnotation`
-    (this coarse-first increment leaves ``substrate_chebi``/mechanism empty; the per-substrate ChEBI
-    layer is a later increment). Genes with no transporter hit are absent from the result, so this
-    doubles as a ``substrate_of``-independent membrane/family screen.
+    and TCDB TC-families map to coarse substrate classes via
+    :mod:`raven_toolbox.localization.transporter_tables`, and each gene's TCDB TC-IDs map to their
+    curated **substrate ChEBIs** (``substrates``: a ``tcdb_substrates.tsv`` path, or ``False`` to skip
+    that lookup). Returns gene → :class:`TransporterAnnotation` (``mechanism`` stays empty). Genes with
+    no transporter hit are absent, so this doubles as a ``substrate_of``-independent membrane screen.
     """
     proteome = Path(proteome)
     hmm_db = Path(hmm_db) if hmm_db else ensure_data_file("transporters", "transporter_pfam.hmm")
     tcdb_db = Path(tcdb_db) if tcdb_db else ensure_data_file("transporters", "tcdb.dmnd")
     pfam = _hmmsearch_families(proteome, hmm_db, threads)
     tcdb = _diamond_tc(proteome, tcdb_db, threads)
+    tc_substrates = ({} if substrates is False
+                     else load_tc_substrates(None if substrates is None else substrates))
 
     out: dict[str, TransporterAnnotation] = {}
     for gene in set(pfam) | set(tcdb):
         fams, pf_score = pfam.get(gene, (set(), 0.0))
-        tc_fams, tc_id = tcdb.get(gene, (set(), 0.0))
+        tc_fams, tc_ids, tc_id = tcdb.get(gene, (set(), set(), 0.0))
         classes: set[str] = set()
         for acc in fams:
             if acc in PFAM_TRANSPORTERS:
                 classes |= PFAM_TRANSPORTERS[acc][1]
         for tc in tc_fams:
             classes |= TC_FAMILY_CLASS.get(tc, frozenset())
+        substrate_chebi: set[str] = set()
+        for tc in tc_ids:
+            substrate_chebi |= tc_substrates.get(tc, frozenset())
         # Coarse confidence in [0,1]: a --cut_ga Pfam hit is curated-significant (floor 0.5, scaled by
         # bitscore, saturating ~200); a TCDB hit scales with sequence identity. Take the stronger. Tunable.
         conf = max(min(1.0, 0.5 + pf_score / 400.0) if fams else 0.0, tc_id)
         out[gene] = TransporterAnnotation(
             gene=gene, confidence=round(conf, 4), families=tuple(sorted(fams | tc_fams)),
-            substrate_classes=frozenset(classes))
+            substrate_classes=frozenset(classes), substrate_chebi=frozenset(substrate_chebi))
     return out
 
 

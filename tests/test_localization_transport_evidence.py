@@ -118,6 +118,7 @@ def test_annotate_proteome_finds_yeast_transporters():
     assert any("sugar" in a.substrate_classes for a in ann.values())        # HXT sugar transporters
     mcf = [a for a in ann.values() if "PF00153" in a.families]              # mitochondrial carriers
     assert mcf and any("carboxylate" in a.substrate_classes for a in mcf)
+    assert any(a.substrate_chebi for a in ann.values())                     # curated TCDB substrate ChEBIs
 
 
 # --------------------------------------------------------- metabolite -> coarse class (model side)
@@ -133,3 +134,67 @@ def test_default_substrate_of_classifies_key_metabolites():
     assert "amino_acid" in default_substrate_of(m("L-glutamate"))
     assert {"nucleotide", "cofactor_vitamin"} <= default_substrate_of(m("NADPH"))
     assert default_substrate_of(m("some unidentifiable compound")) == frozenset()  # safe default
+
+
+# ------------------------------------------------------- ChEBI substrate layer (specific matching)
+def test_default_metabolite_chebi_normalises():
+    from raven_toolbox.localization import default_metabolite_chebi
+
+    m = cobra.Metabolite("x")
+    m.annotation["chebi"] = "CHEBI:15589"
+    assert default_metabolite_chebi(m) == frozenset({"CHEBI:15589"})
+    m.annotation["chebi"] = ["12345", "CHEBI:67890"]  # bare + prefixed, list-valued
+    assert default_metabolite_chebi(m) == frozenset({"CHEBI:12345", "CHEBI:67890"})
+    assert default_metabolite_chebi(cobra.Metabolite("y")) == frozenset()  # un-annotated -> empty
+
+
+def test_substrate_ontology_graded_match(tmp_path):
+    import gzip
+
+    from raven_toolbox.localization import SubstrateOntology
+
+    rel = tmp_path / "rel.tsv.gz"
+    with gzip.open(rel, "wt", encoding="utf-8") as fh:
+        fh.write("CHEBI:2\tis_a\tCHEBI:1\n")                    # 2 is_a 1
+        fh.write("CHEBI:3\tis_a\tCHEBI:2\n")                    # 3 is_a 2 is_a 1
+        fh.write("CHEBI:5\tis_conjugate_base_of\tCHEBI:4\n")    # 5 <-> 4 (symmetric bridge)
+    sub = tmp_path / "sub.tsv"
+    sub.write_text("2.A.1.1.1\tCHEBI:1;CHEBI:4\n", encoding="utf-8")
+    onto = SubstrateOntology.load(relations_path=rel, substrates_path=sub)
+
+    assert onto.substrates_of(["2.A.1.1.1"]) == frozenset({"CHEBI:1", "CHEBI:4"})
+    assert onto.match(["CHEBI:1"], ["CHEBI:1"]) == 1.0          # exact
+    assert onto.match(["CHEBI:2"], ["CHEBI:1"]) == 0.9          # 1 hop up
+    assert onto.match(["CHEBI:3"], ["CHEBI:1"]) == 0.8          # 2 hops up (nearest wins)
+    assert onto.match(["CHEBI:5"], ["CHEBI:4"]) == 0.9          # conjugate bridge is bidirectional
+    assert onto.match(["CHEBI:9"], ["CHEBI:1"]) == 0.0          # unrelated
+    assert onto.match(["CHEBI:1"], []) == 0.0                   # gene has no curated substrate
+
+
+def test_evidence_uses_chebi_when_coarse_class_missing(tmp_path):
+    import gzip
+
+    from raven_toolbox.localization import SubstrateOntology
+
+    rel = tmp_path / "rel.tsv.gz"
+    with gzip.open(rel, "wt", encoding="utf-8") as fh:
+        fh.write("CHEBI:3\tis_a\tCHEBI:2\n")
+        fh.write("CHEBI:2\tis_a\tCHEBI:1\n")
+    sub = tmp_path / "sub.tsv"
+    sub.write_text("x\tCHEBI:1\n", encoding="utf-8")
+    onto = SubstrateOntology.load(relations_path=rel, substrates_path=sub)
+
+    model = cobra.Model("t")
+    mets = []
+    for comp in ("c", "m"):
+        met = cobra.Metabolite(f"glc_{comp}", compartment=comp)
+        met.annotation["chebi"] = "CHEBI:3"  # rolls up to the carrier substrate CHEBI:1 in 2 hops
+        mets.append(met)
+    rxn = cobra.Reaction("t_glc")
+    rxn.add_metabolites({mets[0]: -1, mets[1]: 1})
+    model.add_reactions([rxn])
+    # carrier gene has NO coarse class, only a curated substrate ChEBI -> coarse misses, ChEBI catches it
+    ann = {"G": TransporterAnnotation("G", 1.0, substrate_chebi=frozenset({"CHEBI:1"}))}
+    costs = evidence_aware_transport_cost(
+        model, ann, {"G": {"c"}}, substrate_of=lambda _m: [], ontology=onto, base_cost=0.5)
+    assert costs["glc"] == 0.5 * (1.0 - 0.8)  # 2-hop ChEBI match -> weight 0.8
