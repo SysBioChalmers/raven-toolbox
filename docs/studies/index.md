@@ -26,6 +26,11 @@ its equivalence claims against MATLAB RAVEN.
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
 - **[Localisation finetuning](localization_finetuning.md)** — tuning the DeepLoc-loading
   hyperparameters (`membrane_threshold`, `min_confidence`, triage trust) on the slow yeast run.
+- **[predictLocalization head-to-head](predictlocalization_comparison.md)** — the deterministic MILP
+  vs RAVEN's stochastic `predictLocalization` on identical inputs (determinism + accuracy + runtime).
+- **[assign_compartments on yeast-GEM](assign_compartments_yeast_gem.md)** — the
+  functionality-constrained MILP reproducing curated yeast-GEM compartmentalisation from UniProt
+  evidence alone, and whether the result still grows.
 - **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
 
@@ -42,5 +47,7 @@ deeploc_icre1355_benchmark
 deeploc_humangem_benchmark
 deeploc_normalisation_benchmark
 localization_finetuning
+predictlocalization_comparison
+assign_compartments_yeast_gem
 kegg_hmm_cutoff_calibration
 ```
