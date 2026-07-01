@@ -125,17 +125,17 @@ def functional_section(Y, rxnU, edge2rxn, a_only, shared):
                                remove_orphans=False)
             return Y.slim_optimize() or 0.0
 
-    dropped_essential: list[str] = []
+    essential: dict[str, list[str]] = {}
     for label, ids in (("dropped-by-B", a_only), ("shared", shared)):
         yr = y_rxns(ids)
         ess = [x for x in sorted(yr) if growth_without({x}) < 0.01 * g0]
         print(f"  {label:14s}: maps to {len(yr):2d} curated transports; remove all -> growth "
               f"{growth_without(yr):.4f}; individually essential: {len(ess)}")
+        essential[label] = ess
         if label == "dropped-by-B":
-            dropped_essential = ess
             for x in ess:
                 print(f"      essential: {x:10s} {Y.reactions.get_by_id(x).name}")
-    return dropped_essential
+    return essential["dropped-by-B"], essential["shared"]
 
 
 def connectivity_section(rxnU, E_BND, actA, actB, U):
@@ -186,8 +186,8 @@ def connectivity_section(rxnU, E_BND, actA, actB, U):
           f"by compartment: " + ", ".join(f"{c}:{n}" for c, n in bycomp.most_common()))
 
 
-def evidence_cost_on_yeast(Y, data_dir, sibling_weight, base_cost):
-    """Per-metabolite (norm-name-keyed) evidence-aware transport cost, from the yeast proteome."""
+def annotate_yeast(data_dir):
+    """Annotate the yeast proteome once; return (annotation, gene->compartments, ontology, n_genes)."""
     import tempfile
 
     fastas = sorted(data_dir.glob("*_proteins_*.fasta"))
@@ -199,47 +199,55 @@ def evidence_cost_on_yeast(Y, data_dir, sibling_weight, base_cost):
     sdf = pd.concat([load_deeploc(c, compartment_map=DEFAULT_COMPARTMENT_MAP).df
                      for c in sorted(data_dir.glob("*_deeploc_*.csv"))])
     gene_comps = {g: {sdf.loc[g].astype(float).idxmax()} for g in sdf.index if g in ann}
-    onto = SubstrateOntology.load()
-    cost = evidence_aware_transport_cost(Y, ann, gene_comps, substrate_of=default_substrate_of,
-                                         ontology=onto, sibling_weight=sibling_weight,
-                                         base_cost=base_cost, base_metabolite=lambda m: norm(m.name))
-    return cost, len(ann)
+    return ann, gene_comps, SubstrateOntology.load(), len(ann)
 
 
-def evidence_section(Y, rxnU, y_pairs, cost, base_cost, sets, dropped_essential):
-    """Would our evidence-aware cost *rescue* the transports the blanket penalty (Arm B) drops?
+def _cost(Y, ann, gene_comps, onto, base_cost, sibling_weight):
+    return evidence_aware_transport_cost(
+        Y, ann, gene_comps, substrate_of=default_substrate_of, ontology=onto,
+        sibling_weight=sibling_weight, base_cost=base_cost, base_metabolite=lambda m: norm(m.name))
 
-    For each transport, look up its cargo's evidence-aware cost (from the yeast proteome). A transport
-    is 'kept' when any cargo scores below ``base_cost`` (has transporter support). The blanket penalty
-    drops all of Arm A's extra transports regardless; a *selective* cost keeps the curated ones and the
-    spurious ones stay expensive."""
-    print("\n== evidence-aware rescue of the dropped transports (would our cost keep them?) ==")
 
-    def summarise(label, ids):
-        rows = []  # (is_curated, would_keep, min_cargo_cost)
-        for r in ids:
-            cargo = [c for c in (shuttled(rxnU[r]) - TRIVIAL) if c in cost]
-            if not cargo:
-                continue  # cargo absent from yeast-GEM -> not comparable
-            mn = min(cost[c] for c in cargo)
-            rows.append((any(e in y_pairs for e in rxn_edges(rxnU[r])), mn < base_cost, mn))
-        for tag, sub in (("curated", [x for x in rows if x[0]]),
-                         ("non-curated", [x for x in rows if not x[0]])):
-            if sub:
-                keep = sum(k for _, k, _ in sub) / len(sub)
-                mc = sum(c for _, _, c in sub) / len(sub)
-                print(f"  {label:16s} {tag:12s} n={len(sub):3d}  would-keep {keep:3.0%}  mean cost {mc:.2f}")
+def _carve_to_yeast(rxnU, edge2rxn, r):
+    """The curated yeast-GEM transport reaction(s) a carved transport corresponds to (metabolite +
+    compartment pair)."""
+    out = set()
+    for e in rxn_edges(rxnU[r]):
+        out |= edge2rxn.get(e, set())
+    return out
 
-    for label, ids in sets:
-        summarise(label, ids)
 
-    print("  -- the individually-essential transports the blanket cut drops (cargo cost; want < "
-          f"{base_cost}) --")
-    for x in dropped_essential:
-        rx = Y.reactions.get_by_id(x)
-        cargo = {c: round(cost[c], 2) for c in sorted(shuttled(rx) - TRIVIAL) if c in cost}
-        rescued = cargo and min(cargo.values()) < base_cost
-        print(f"    {x:9s} {rx.name[:40]:40s} {cargo}  [{'RESCUED' if rescued else 'not evidenced'}]")
+def benchmark_section(Y, rxnU, y_pairs, edge2rxn, ess_yeast, A, shared, a_only, costs, base_cost):
+    """One row per approach, same candidate set + metrics -- how well each replicates the curated
+    yeast-GEM transportome.
+
+    Candidate transports = Arm A's set. CarveFungi's two arms are their actual carve decisions
+    (no-penalty keeps all; blanket keeps the both-arm 'shared' set). 'ours' isolates the transport-cost
+    objective without re-solving the MILP: keep the network-needed shared transports plus the dropped
+    ones our evidence supports (any cargo cost < base_cost). Metrics vs yeast-GEM (ground truth):
+    curated transports replicated (recall), individually-essential retained, and spurious (non-curated)
+    kept (parsimony -- lower is leaner)."""
+    curated = {r for r in A if any(e in y_pairs for e in rxn_edges(rxnU[r]))}
+    essential = {r for r in A if _carve_to_yeast(rxnU, edge2rxn, r) & ess_yeast}
+    nc, ne = len(curated), len(essential)
+
+    def evidenced(r, cost):
+        cargo = [c for c in (shuttled(rxnU[r]) - TRIVIAL) if c in cost]
+        return bool(cargo) and min(cost[c] for c in cargo) < base_cost
+
+    print("\n== benchmark: replicating the curated yeast-GEM transportome ==")
+    print(f"   candidate transports = Arm A's {len(A)};  curated (match yeast-GEM) = {nc};  "
+          f"individually essential = {ne}")
+    print(f"   {'approach':27s} {'kept':>4} {'curated repl':>13} {'essential':>10} {'spurious':>9}")
+
+    def row(name, kept):
+        print(f"   {name:27s} {len(kept):4d} {len(kept & curated):8d}/{nc:<4d} "
+              f"{len(kept & essential):6d}/{ne:<3d} {len(kept - curated):9d}")
+
+    row("CarveFungi (no penalty)", set(A))
+    row("CarveFungi (blanket -0.3)", set(shared))
+    for name, cost in costs.items():
+        row(f"ours: {name}", set(shared) | {r for r in a_only if evidenced(r, cost)})
 
 
 def main():
@@ -252,7 +260,8 @@ def main():
     ap.add_argument("--universal", type=Path)
     ap.add_argument("--data-dir", type=Path, default=Path("data/deeploc"),
                     help="proteome + DeepLoc for the evidence-aware rescue (default: data/deeploc)")
-    ap.add_argument("--sibling-weight", type=float, default=0.0)
+    ap.add_argument("--sibling-weight", type=float, default=0.5,
+                    help="ChEBI sibling credit for the last benchmark row (0=off)")
     ap.add_argument("--base-cost", type=float, default=0.5)
     args = ap.parse_args()
 
@@ -270,14 +279,19 @@ def main():
                                          ("dropped by Arm B", a_only),
                                          ("kept by Arm A (all)", A)])
     edge2rxn, _ = curated_edges(Y)
-    dropped_ess = functional_section(Y, rxnU, edge2rxn, a_only, shared)
+    dropped_ess, shared_ess = functional_section(Y, rxnU, edge2rxn, a_only, shared)
     connectivity_section(rxnU, E_BND, actA, actB, U)
 
-    cost, n_ann = evidence_cost_on_yeast(Y, args.data_dir, args.sibling_weight, args.base_cost)
-    print(f"\n(evidence-aware cost from {n_ann} annotated yeast transporter genes; "
-          f"sibling_weight={args.sibling_weight})")
-    evidence_section(Y, rxnU, y_pairs, cost, args.base_cost,
-                     [("shared (kept)", shared), ("dropped by Arm B", a_only)], dropped_ess)
+    ann, gene_comps, onto, n_ann = annotate_yeast(args.data_dir)
+    print(f"\n(evidence-aware cost from {n_ann} annotated yeast transporter genes)")
+    costs = {
+        "coarse": _cost(Y, ann, gene_comps, None, args.base_cost, 0.0),
+        "+ChEBI": _cost(Y, ann, gene_comps, onto, args.base_cost, 0.0),
+        f"+ChEBI+sib{args.sibling_weight:g}": _cost(Y, ann, gene_comps, onto, args.base_cost,
+                                                    args.sibling_weight),
+    }
+    ess_yeast = set(dropped_ess) | set(shared_ess)
+    benchmark_section(Y, rxnU, y_pairs, edge2rxn, ess_yeast, A, shared, a_only, costs, args.base_cost)
 
 
 if __name__ == "__main__":

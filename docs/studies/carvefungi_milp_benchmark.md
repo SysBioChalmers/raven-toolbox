@@ -236,21 +236,24 @@ unsupported transports; never hard-forbid.
 The evidence-aware cost above is now implemented (`raven_toolbox.localization.transport_evidence`; see
 [the reference](../reference/transport_evidence_scoring.md)) and scored against **this carve**:
 `analyse_carvefungi_transports.py` annotates the yeast proteome (364 transporter genes via
-`hmmsearch` + `diamond`), builds the per-metabolite `transport_cost`, and asks whether it would
-*rescue* the transports Arm B dropped. It meets the success criteria set above:
+`hmmsearch` + `diamond`), builds the per-metabolite `transport_cost`, and scores every approach on the
+*same* candidate set (Arm A's 138 carved transports) against the curated yeast-GEM transportome (43
+curated, 9 individually essential):
 
-| dropped-by-Arm-B transports | n | evidence-aware would keep | mean cost |
-|---|--:|--:|--:|
-| curated (match yeast-GEM) | 25 | **92 %** | 0.05 |
-| non-curated | 10 | 40 % | 0.36 |
+| approach | kept | curated replicated | essential kept | spurious kept |
+|---|--:|--:|--:|--:|
+| CarveFungi (no transport penalty) | 138 | 43/43 | 9/9 | 95 |
+| CarveFungi (blanket −0.3) | 72 | 18/43 | **3/9** | 54 |
+| ours: coarse | 98 | 41/43 | **9/9** | 57 |
+| ours: + ChEBI | 99 | 41/43 | **9/9** | 58 |
+| ours: + ChEBI + sibling 0.5 | 107 | **43/43** | **9/9** | 64 |
 
-The cut becomes **selective**: the curated dropped transports are cheap (rescued) while the non-curated
-stay near the full prior — a split the blanket −0.3 penalty (which drops both at 42 % / 39 %) cannot
-make. And **all 5 individually-essential** dropped transports are retained at cost 0: 2-oxoglutarate
-(`r_1099`), 2-dehydropantoate (`r_1568`), NADP⁺ (`r_1963`), NADPH (`r_1964`), serine (`r_2045`). The
-substrate match runs coarse (family → class) **and** a ChEBI-ontology roll-up (metabolite ChEBI →
-TCDB's curated substrate ChEBI); an optional `sibling_weight` also credits chemical relatives of the
-cargo. The non-fungal (AraCore) reproduction remains the outstanding organism-agnosticism check.
+The blanket penalty is leanest but **indiscriminate** — it drops 6 of 9 essential carriers (incl.
+2-oxoglutarate, 2-dehydropantoate, NADP⁺/NADPH, serine) and more than half the curated transports.
+Every evidence-aware variant retains **all 9 essential** and 41–43 of 43 curated at moderate parsimony
+(98–107 kept). "ours" isolates the transport-cost objective (keep the network-needed transports plus
+those the evidence supports); it is not a re-solve of the carve MILP. The non-fungal (AraCore)
+reproduction remains the outstanding organism-agnosticism check.
 
 ## What this does and doesn't show
 
