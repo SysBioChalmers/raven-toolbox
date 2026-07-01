@@ -172,13 +172,22 @@ transportCost = scoreTransportEvidence(model, annotation, geneComps, varargin)
 3. **Consensus / refinement** — combine family + TCDB + orthology (EggNOG/KEGG, already computed in
    reconstruction) + DeepLoc; add directionality; resolve conflicts.
 
-**Status.** The scoring core and the bring-your-own-annotation path are **implemented** in
-`raven_toolbox.localization.transport_evidence`: `evidence_aware_transport_cost` (produces the
-per-metabolite `transport_cost` mapping both assignment functions already accept),
-`annotate_transporters` (parse any per-gene transporter table into `TransporterAnnotation`). The
-`hmmsearch` (Pfam families) and `diamond` (TCDB) annotation back-ends — which need the transporter
-databases provisioned in raven-data — are the next increment; until then, feed a table from any tool
-via the bring-your-own path.
+**Status.** The **coarse-first pipeline is implemented** in
+`raven_toolbox.localization.transport_evidence`:
+
+* `evidence_aware_transport_cost` — the scoring core (per-metabolite `transport_cost` mapping both
+  assignment functions already accept).
+* `annotate_proteome` — the **`hmmsearch` (Pfam families) + `diamond` (TCDB) back-end**: scans a
+  proteome FASTA against the transporter Pfam HMM db and the TCDB DIAMOND db (both auto-downloaded from
+  the raven-data `transporters-*` release), mapping families/TC-numbers to coarse substrate classes via
+  the curated `transporter_tables`. `annotate_transporters` still takes a pre-computed table.
+* `default_substrate_of` — the **model-side** coarse classifier (metabolite name → substrate class),
+  so a metabolite and a transporter meet in the shared vocabulary.
+
+Databases are built by `scripts/build_transporter_data.py` (24 Pfam families + TCDB). The **next
+increments** are the substrate-specific ChEBI layer (TCDB substrate table + ChEBI-ontology roll-up on
+both sides, replacing the coarse keyword match) and the end-to-end validation on this study's
+curated-transport benchmark (kept-transport match rate should become *selective*).
 
 ## Validation
 

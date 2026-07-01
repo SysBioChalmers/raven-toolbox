@@ -42,6 +42,7 @@ from raven_toolbox.localization.transport_evidence import (
     TransporterAnnotation,
     annotate_proteome,
     annotate_transporters,
+    default_substrate_of,
     evidence_aware_transport_cost,
 )
 from raven_toolbox.localization.triage import (
@@ -66,6 +67,7 @@ __all__ = [
     "apply_localization",
     "assign_compartments",
     "combine_scores",
+    "default_substrate_of",
     "evidence_aware_transport_cost",
     "fetch_protein_sequences",
     "fetch_uniprot_localization",

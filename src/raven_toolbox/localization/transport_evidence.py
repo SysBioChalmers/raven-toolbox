@@ -40,6 +40,7 @@ __all__ = [
     "TransporterAnnotation",
     "annotate_proteome",
     "annotate_transporters",
+    "default_substrate_of",
     "evidence_aware_transport_cost",
 ]
 
@@ -261,3 +262,54 @@ def annotate_proteome(
             gene=gene, confidence=round(conf, 4), families=tuple(sorted(fams | tc_fams)),
             substrate_classes=frozenset(classes))
     return out
+
+
+# ------------------------------------------------- metabolite -> coarse substrate class (model side)
+# Name-keyword heuristic over the shared coarse vocabulary; the principled ChEBI-ontology roll-up
+# (from the metabolite's ChEBI/KEGG annotation) is a later increment.
+_SUBSTRATE_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "amino_acid": ("glycine", "alanine", "valine", "leucine", "isoleucine", "proline", "phenylalanine",
+        "tryptophan", "methionine", "serine", "threonine", "cysteine", "cystine", "tyrosine",
+        "asparagine", "glutamine", "aspartate", "glutamate", "lysine", "arginine", "histidine",
+        "ornithine", "citrulline", "homoserine", "homocysteine", "aminobutyrate"),
+    "sugar": ("glucose", "fructose", "mannose", "galactose", "sucrose", "maltose", "trehalose",
+        "lactose", "sorbitol", "mannitol", "arabitol", "ribitol", "ribose", "xylose", "arabinose",
+        "raffinose", "glycerol", "ribulose", "sorbose", "fucose", "rhamnose", "xylulose", "inositol",
+        "sedoheptulose", "galactitol", "gluconate"),
+    "carboxylate": ("malate", "citrate", "isocitrate", "succinate", "fumarate", "oxaloacetate",
+        "oxoglutarate", "pyruvate", "lactate", "acetate", "formate", "oxalate", "malonate", "glyoxylate",
+        "glutarate", "aconitate", "tartrate", "propionate", "butyrate", "oxoadipate", "adipate",
+        "citramalate", "mevalonate", "acetoacetate", "hydroxybutyrate"),
+    "nucleotide": ("atp", "adp", "amp", "gtp", "gdp", "gmp", "ctp", "cdp", "cmp", "utp", "udp", "ump",
+        "itp", "idp", "imp", "dttp", "nadph", "nadh", "nadp", "nad(", "diphosphate", "triphosphate"),
+    "nucleoside_base": ("adenine", "guanine", "cytosine", "uracil", "thymine", "hypoxanthine",
+        "xanthine", "adenosine", "guanosine", "cytidine", "uridine", "thymidine", "inosine"),
+    "cofactor_vitamin": ("coa", "coenzyme a", "nadph", "nadp", "nad(", "flavin", "fad", "fmn", "folate",
+        "tetrahydrofolate", "biotin", "thiamine", "pantothenate", "pantoate", "pyridoxal", "pyridoxine",
+        "riboflavin", "cobalamin", "lipoate", "menaquinone", "ubiquinone", "molybdopterin"),
+    "lipid_fatty_acid": ("palmitate", "oleate", "stearate", "myristate", "laurate", "linoleate",
+        "decanoate", "octanoate", "hexanoate", "dodecanoate", "tetradecanoate", "hexadecanoate",
+        "octadecanoate", "fatty acid", "acyl", "sterol", "ergosterol", "lanosterol", "phosphatidyl",
+        "diacylglycerol", "triacylglycerol", "ceramide", "sphinganine"),
+    "phosphate_sulfate": ("phosphate", "sulfate", "sulphate", "thiosulfate"),
+    "inorganic_ion": ("sodium", "potassium", "calcium", "magnesium", "manganese", "ferrous", "ferric",
+        "zinc", "copper", "cobalt", "nickel", "chloride", "ammonium", "ammonia", "nitrate", "nitrite",
+        "carbonate", "bicarbonate", "hydrogen sulfide"),
+    "amine_polyamine": ("putrescine", "spermidine", "spermine", "cadaverine", "choline", "ethanolamine",
+        "carnitine", "betaine", "agmatine"),
+    "peptide": ("glutathione", "peptide", "dipeptide", "tripeptide"),
+}
+
+
+def default_substrate_of(metabolite: cobra.Metabolite) -> frozenset[str]:
+    """Coarse substrate class(es) for a model metabolite, from a name-keyword heuristic.
+
+    A dependency-free first pass over :data:`transporter_tables.COARSE_CLASSES`: it matches the
+    metabolite's name against curated keyword lists, so ``(S)-malate`` → ``carboxylate``,
+    ``D-glucose`` → ``sugar``, ``NADPH`` → ``nucleotide`` + ``cofactor_vitamin``. Pass it as
+    ``substrate_of`` to :func:`evidence_aware_transport_cost`. The principled ChEBI-ontology roll-up
+    (using the metabolite's ChEBI/KEGG annotation) is a later increment; an unmatched metabolite
+    returns the empty set — no substrate support, so the parsimony prior stands (a safe default).
+    """
+    name = (metabolite.name or metabolite.id or "").lower()
+    return frozenset(cls for cls, kws in _SUBSTRATE_KEYWORDS.items() if any(k in name for k in kws))

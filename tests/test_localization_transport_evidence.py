@@ -118,3 +118,18 @@ def test_annotate_proteome_finds_yeast_transporters():
     assert any("sugar" in a.substrate_classes for a in ann.values())        # HXT sugar transporters
     mcf = [a for a in ann.values() if "PF00153" in a.families]              # mitochondrial carriers
     assert mcf and any("carboxylate" in a.substrate_classes for a in mcf)
+
+
+# --------------------------------------------------------- metabolite -> coarse class (model side)
+def test_default_substrate_of_classifies_key_metabolites():
+    from raven_toolbox.localization import default_substrate_of
+
+    def m(name):
+        return cobra.Metabolite("x", name=name)
+
+    assert "carboxylate" in default_substrate_of(m("(S)-malate"))
+    assert "carboxylate" in default_substrate_of(m("citrate(3-)"))
+    assert "sugar" in default_substrate_of(m("D-glucose"))
+    assert "amino_acid" in default_substrate_of(m("L-glutamate"))
+    assert {"nucleotide", "cofactor_vitamin"} <= default_substrate_of(m("NADPH"))
+    assert default_substrate_of(m("some unidentifiable compound")) == frozenset()  # safe default
