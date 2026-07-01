@@ -184,10 +184,10 @@ transportCost = scoreTransportEvidence(model, annotation, geneComps, varargin)
 * `default_substrate_of` — the **model-side** coarse classifier (metabolite name → substrate class),
   so a metabolite and a transporter meet in the shared vocabulary.
 
-Databases are built by `scripts/build_transporter_data.py` (24 Pfam families + TCDB). The **next
-increments** are the substrate-specific ChEBI layer (TCDB substrate table + ChEBI-ontology roll-up on
-both sides, replacing the coarse keyword match) and the end-to-end validation on this study's
-curated-transport benchmark (kept-transport match rate should become *selective*).
+Databases are built by `scripts/build_transporter_data.py` (24 Pfam families + TCDB), and the
+coarse-first pipeline is **validated** on yeast-GEM (see *Validation → Result* below). The **next
+increment** is the substrate-specific ChEBI layer (TCDB substrate table + ChEBI-ontology roll-up on
+both sides, replacing the coarse keyword match) to lift recall further.
 
 ## Validation
 
@@ -199,6 +199,18 @@ curated-transport precision/recall + the functional (essentiality) test, before 
   *selective*, no longer ~equal at 41% vs 42%);
 * the 5 individually-essential transports are retained;
 * the gains **reproduce on a non-fungal model** (e.g. AraCore) — the organism-agnosticism check.
+
+**Result (yeast-GEM,
+[`validate_transport_evidence.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/validate_transport_evidence.py)).**
+Annotating the yeast proteome finds 364 transporter genes; scoring all 1337 metabolites against them
+(`base_cost` 0.5, carrier compartments from DeepLoc) makes the cut **selective**: of the metabolites
+the evidence keeps cheap (387), **70 %** are curated yeast-GEM transports, versus only **39 %** among
+the unsupported set the full prior would drop — where a blanket penalty treats both alike at the 48 %
+base rate. Every essential cytosol↔mito shuttle checked — (S)-malate, citrate, 2-oxoglutarate,
+oxaloacetate, NADP(+)/NADPH, L-serine, 2-dehydropantoate, pyruvate, PEP — is fully evidenced (cost 0,
+retained). Coarse-stage recall is 42 % (a keyword-unmatched metabolite gets no class, so no support);
+lifting it is exactly what the ChEBI increment targets. The non-fungal reproduction (AraCore) remains
+to run.
 
 ## Open questions / risks
 
