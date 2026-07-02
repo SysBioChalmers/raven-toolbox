@@ -231,30 +231,47 @@ Evidence weighting makes the kept set ~1.8× more curated than the dropped set a
 individually essential carriers (cost 0). `sibling_weight` trades specificity for recall (precision
 70 → 52 %, recall 47 → 75 %) and is off by default.
 
-**On the actual carve.** `analyse_carvefungi_transports.py` scores each approach on the *same*
-candidate set — CarveFungi's own 138 carved transports (its `minmax_reduction`, unmodified) — against
-the curated yeast-GEM transportome (43 curated, 9 individually essential). CarveFungi applies **no**
-transport minimisation (transports score ~1e-11, no penalty), so it keeps all 138; our evidence-aware
-cost reduces that set selectively (keep a transport when a transporter gene supports its cargo).
-Sweeping the sibling weight:
+**On the actual carve — feasibility-respecting.** `analyse_carvefungi_transports.py` benchmarks against
+a *genuine*, functional, gene-annotated reconstruction (`build_reference_carve_model.py` drives
+CarveFungi's own EggNOG scoring + its `carve_model` MILP + its gene-annotation step end to end — not a
+bare reaction-id cache, which drops CarveFungi's uptake reactions and each reaction's solved direction
+and so cannot grow standalone or support a real feasibility check). The regenerated model: 991
+reactions, 280 genes, 591 GPR-annotated, growth 0.758 on a defined minimal medium (9.7 % MIP gap).
 
-| approach | transports kept | curated replicated | essential kept | spurious kept |
-|---|--:|--:|--:|--:|
-| CarveFungi (native) | 138 | 43/43 | 9/9 | 95 |
-| ours: coarse | 42 | 35/43 | 7/9 | 7 |
-| ours: + ChEBI (no sibling) | 46 | 37/43 | 8/9 | 9 |
-| ours: + ChEBI + sibling 0.5 | 53 | 42/43 | **9/9** | 11 |
-| **ours: + ChEBI + sibling 0.7** | 55 | **43/43** | **9/9** | **12** |
-| ours: + ChEBI + sibling 1.0 | 56 | 43/43 | 9/9 | 13 |
+On its 170 inter-compartment transports (58 match curated yeast-GEM, 11 individually essential), "ours"
+is a **feasibility-respecting** reduction: rank unsupported transports (cost ≥ 0.35) worst-evidence
+first, tentatively knock each one out (bounds → 0,0) and re-run FBA, keep it knocked out if growth
+survives (≥ 1 % of native), otherwise restore it — feasibility overriding missing evidence, one
+reaction at a time (a greedy upper bound on what a joint solve could drop; see the caveat below):
 
-CarveFungi's native carve is **bloated** — 95 of its 138 transports are spurious (non-curated), because
-it never minimises transport. Our evidence-aware cost cuts that to **12 while replicating the entire
-curated (43/43) and essential (9/9) transportome** — an **87 % reduction in spurious transports with no
-loss of curated or essential transport**. The sibling weight is the dial: chemical *relatives* of a
-curated substrate (fructose/mannose for a hexose carrier) are what coarse and exact-ChEBI miss, so they
-are needed to recover the last essential + curated transports. **Sibling 0.7 is the optimum** — the
-smallest weight reaching full retention; beyond it spurious grows without gain. ("ours" applies our cost
-independently — keep the evidence-supported transports — not a re-solve of the carve MILP.)
+| approach | transports kept | curated replicated | essential kept | spurious kept | growth |
+|---|--:|--:|--:|--:|--:|
+| CarveFungi (native) | 170 | 58/58 | 11/11 | 112 | 0.758 |
+| ours: coarse | 108 | 54/58 | **11/11** | 54 | 0.168 |
+| ours: + ChEBI | 109 | 54/58 | 10/11 | 55 | 0.168 |
+| ours: + ChEBI + sibling 0.3–0.7 | 109–112 | 56–57/58 | 10/11 | 53–55 | 0.019 |
+| ours: + ChEBI + sibling 1.0 | 113 | **58/58** | **11/11** | 55 | 0.019 |
+
+CarveFungi's native carve is **bloated** — 112 of its 170 transports are spurious (non-curated), because
+it never minimises transport. Every evidence-aware variant roughly **halves** the transport network
+(170→108–113) and cuts spurious transports by **~51–53 %** (112→53–55) while keeping **93–100 %** of
+curated and **91–100 %** of individually-essential transports — full retention (58/58, 11/11) at both
+the `coarse` baseline and at `sibling` 1.0. The sibling weight recovers the chemical-relative cargo
+(fructose/mannose for a hexose carrier) coarse and exact-ChEBI miss.
+
+Two honest caveats. **(1) Growth trade-off:** feasibility here only guards against *total* growth
+collapse (≥ 1 % of native), not against a *reduced* growth rate — the reduced networks grow at
+2–22 % of native, so many dropped transports, while individually replaceable, collectively support
+*more efficient* growth even though none is a single point of failure. **(2) Greedy path-dependence:**
+this is a one-at-a-time, worst-evidence-first reduction, not a joint MILP — so it is an upper bound on
+what feasibility alone would allow to drop, and *which* essential transport survives can depend on
+removal order. Concretely, one essential transport (an ergosterol-precursor cytosol↔ER shuttle,
+`r_1754`) is retained at `coarse` and at `sibling` 1.0 but dropped in between: enabling ChEBI shifts
+*other* transports' relative costs enough to change the removal order, and this shuttle has redundant
+carve-local coverage that lets the greedy pass sacrifice it under some orderings but not others — a
+joint solve would not have this ambiguity. Reproduce: `build_reference_carve_model.py --carvefungi-dir
+<clone> --out <path>` (once; ~20 min CPLEX carve) then `analyse_carvefungi_transports.py --model <path>
+--yeast-gem <yeast-GEM>`.
 
 **ChEBI layer (yeast-GEM).** Adding the graded ChEBI roll-up on top of the coarse class lifts the
 selective cut's **recall from 42 % to 47 %** (kept 387→426) at steady 70 % precision. Two details make

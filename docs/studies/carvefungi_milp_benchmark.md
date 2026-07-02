@@ -12,7 +12,11 @@ MILP can and cannot support.
   * [`scripts/benchmark_carvefungi_milp.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/benchmark_carvefungi_milp.py)
     — an independent Gurobi re-implementation, used to study the formulation (tighter indicator coupling).
   * [`scripts/analyse_carvefungi_transports.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/analyse_carvefungi_transports.py)
-    — the transport-fidelity investigation below (curated match, functional impact, connectivity).
+    — the transport-fidelity investigation below (curated match, functional impact, connectivity) and,
+    in the Result section, the feasibility-respecting evidence-aware benchmark.
+  * [`scripts/build_reference_carve_model.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/build_reference_carve_model.py)
+    — regenerates CarveFungi's own genuine, functional, gene-annotated reconstruction (its EggNOG
+    scoring + `carve_model` MILP + gene annotation, end to end) as the substrate for that benchmark.
 * CarveFungi: [github.com/SandraCastilloPriego/CarveFungi](https://github.com/SandraCastilloPriego/CarveFungi),
   bioRxiv [2023.08.23.554328](https://doi.org/10.1101/2023.08.23.554328).
 
@@ -234,28 +238,39 @@ unsupported transports; never hard-forbid.
 ## Result: evidence-aware scoring makes the cut selective
 
 The evidence-aware cost above is now implemented (`raven_toolbox.localization.transport_evidence`; see
-[the reference](../reference/transport_evidence_scoring.md)) and scored against **this carve**:
-`analyse_carvefungi_transports.py` annotates the yeast proteome (364 transporter genes via
-`hmmsearch` + `diamond`), builds the per-metabolite `transport_cost`, and scores each approach on the
-*same* candidate set — the native carve's 138 transports — against the curated yeast-GEM transportome
-(43 curated, 9 individually essential):
+[the reference](../reference/transport_evidence_scoring.md)) and scored against a **genuine,
+functional, gene-annotated reconstruction** — not the reaction-id cache used for the Arm A/B comparison
+above (that cache is lossy: it drops CarveFungi's uptake reactions and each reaction's solved direction,
+so a model rebuilt from it cannot grow standalone and cannot support a real feasibility check).
+`build_reference_carve_model.py` drives CarveFungi's own EggNOG scoring, its `carve_model` MILP, and its
+gene-annotation step end to end, giving: 991 reactions, 280 genes, 591 GPR-annotated, growth 0.758 on a
+defined minimal medium (9.7 % MIP gap — tighter than the Arm A/B comparison's 18–27 %, likely from the
+tool's own `carve_model` parameterisation rather than a raw `minmax_reduction` call).
 
-| approach | kept | curated replicated | essential kept | spurious kept |
-|---|--:|--:|--:|--:|
-| CarveFungi (native) | 138 | 43/43 | 9/9 | 95 |
-| ours: coarse | 42 | 35/43 | 7/9 | 7 |
-| ours: + ChEBI (no sibling) | 46 | 37/43 | 8/9 | 9 |
-| ours: + ChEBI + sibling 0.5 | 53 | 42/43 | **9/9** | 11 |
-| **ours: + ChEBI + sibling 0.7** | 55 | **43/43** | **9/9** | **12** |
-| ours: + ChEBI + sibling 1.0 | 56 | 43/43 | 9/9 | 13 |
+`analyse_carvefungi_transports.py` annotates the yeast proteome (364 transporter genes via `hmmsearch` +
+`diamond`), builds the per-metabolite `transport_cost`, and — on this model's 170 inter-compartment
+transports (58 curated, 11 individually essential) — runs a **feasibility-respecting** reduction: rank
+unsupported transports (cost ≥ 0.35) worst-evidence-first, knock each out and re-check growth, restore
+it if growth collapses (< 1 % of native):
 
-CarveFungi's native carve carries 95 spurious (non-curated) transports — it never minimises transport.
-Our evidence-aware cost cuts that to 12 while retaining **all 9 essential** (incl. 2-oxoglutarate,
-2-dehydropantoate, NADP⁺/NADPH, serine) and **all 43 curated** transports — an 87 % reduction in spurious
-with no loss. The sibling weight recovers the chemical-relative cargo (fructose/mannose for a hexose
-carrier) that coarse / exact-ChEBI miss; **0.7 is the optimum** (smallest weight reaching full
-retention). "ours" applies our cost independently, not a re-solve of the carve MILP. The non-fungal
-(AraCore) reproduction remains the outstanding organism-agnosticism check.
+| approach | kept | curated replicated | essential kept | spurious kept | growth |
+|---|--:|--:|--:|--:|--:|
+| CarveFungi (native) | 170 | 58/58 | 11/11 | 112 | 0.758 |
+| ours: coarse | 108 | 54/58 | **11/11** | 54 | 0.168 |
+| ours: + ChEBI | 109 | 54/58 | 10/11 | 55 | 0.168 |
+| ours: + ChEBI + sibling 0.3-0.7 | 109-112 | 56-57/58 | 10/11 | 53-55 | 0.019 |
+| ours: + ChEBI + sibling 1.0 | 113 | **58/58** | **11/11** | 55 | 0.019 |
+
+CarveFungi's native carve carries 112 spurious (non-curated) transports — it never minimises transport.
+Every evidence-aware variant roughly **halves** the transport network and cuts spurious transports by
+**~51-53 %** while keeping 93-100 % of curated and 91-100 % of individually-essential transports (full
+retention at both `coarse` and `sibling` 1.0). Two caveats disclosed in full in the reference doc:
+feasibility here only guards against total growth collapse, not reduced growth rate (the reduced
+networks grow at 2-22 % of native — many dropped transports are individually replaceable but
+collectively support more efficient growth); and the reduction is a greedy, one-at-a-time pass, not a
+joint MILP, so *which* essential transport survives can depend on removal order (one, an
+ergosterol-precursor shuttle, is retained at `coarse` and `sibling` 1.0 but not in between). The
+non-fungal (AraCore) reproduction remains the outstanding organism-agnosticism check.
 
 ## What this does and doesn't show
 
