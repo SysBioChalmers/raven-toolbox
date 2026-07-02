@@ -51,7 +51,11 @@ from raven_toolbox.localization import (  # noqa: E402
 UNIV2YEAST = {"c": "c", "m": "m", "x": "p", "r": "er", "n": "n", "g": "g", "e": "e", "l": "lp"}
 TRIVIAL = {"h+", "water", "dioxygen", "carbon dioxide"}  # transported ~everywhere; not discriminating
 SIBLING_SWEEP = (0.0, 0.3, 0.5, 0.7, 1.0)
-GROWTH_FRACTION = 0.01  # a candidate transport is "feasibility-needed" if dropping it costs > 99% growth
+GROWTH_FRACTION = 0.01  # single-reaction essentiality convention on the curated yeast-GEM (_essential
+# below): a reaction is "essential" if deleting it drops growth below 1% of wild type -- the standard
+# knockout-screen bar, deliberately separate from feasibility_respecting_reduction's OWN, tunable
+# min_growth_fraction (default 0.9 in main()), which governs the carve's cumulative multi-transport
+# reduction and needs a much stricter, growth-PRESERVING floor -- see that function's docstring.
 
 
 def norm(name: str) -> str:
@@ -137,12 +141,25 @@ def best_cargo_cost(reaction, cost, base_cost):
     return min((cost[c] for c in cargo), default=base_cost)
 
 
-def feasibility_respecting_reduction(model, transport_ids, cost, keep_threshold, base_cost):
+def feasibility_respecting_reduction(model, transport_ids, cost, keep_threshold, base_cost,
+                                     growth_fraction=GROWTH_FRACTION):
     """Greedily drop unsupported transports (cost >= keep_threshold) worst-evidence-first, keeping any
-    whose removal breaks growth. Evidence-supported transports (cost < keep_threshold) are never
-    candidates -- feasibility can only ADD transports back, never remove a supported one. One-at-a-time
-    on a private copy of ``model``, so this is an upper bound on what a joint MILP would drop (a joint
-    solve sees the same trade-offs at once and could only be more conservative, i.e. keep >= as many).
+    whose removal drops growth below ``growth_fraction`` of native. Evidence-supported transports
+    (cost < keep_threshold) are never candidates -- feasibility can only ADD transports back, never
+    remove a supported one. One-at-a-time on a private copy of ``model``, so this is an upper bound on
+    what a joint MILP would drop (a joint solve sees the same trade-offs at once and could only be more
+    conservative, i.e. keep >= as many).
+
+    ``growth_fraction`` is the fraction of *native* growth every accepted removal must keep, checked
+    cumulatively against the ORIGINAL baseline at every step (not a per-step relative drop, which would
+    let many individually-small hits compound into large, undetected cumulative erosion). A loose floor
+    (e.g. 0.01, "still technically alive") lets the greedy, order-dependent search sacrifice a lot of
+    growth *capacity* while staying "feasible" in that weak sense -- and because different evidence
+    variants (e.g. sibling_weight sweeps) reorder which candidates get tried first, this can make the
+    *achieved* growth appear to vary non-monotonically even though evidence only ever adds credit,
+    never removes it (verified: the evidence-protected set only grows with more evidence). A floor
+    close to native growth (e.g. 0.9) makes the reduction growth-preserving, not just growth-nonzero,
+    and removes most of that path-dependent noise from the reported growth.
 
     Returns (kept_ids, dropped_ids, feasibility_forced_ids, achieved_growth).
 
@@ -167,7 +184,7 @@ def feasibility_respecting_reduction(model, transport_ids, cost, keep_threshold,
         lb, ub = rxn.bounds
         rxn.bounds = (0, 0)
         g = work.slim_optimize()
-        if not g or g < GROWTH_FRACTION * g0:
+        if not g or g < growth_fraction * g0:
             rxn.bounds = (lb, ub)  # feasibility requires it -- restore despite lacking evidence
             forced.append(rid)
         else:
@@ -187,6 +204,9 @@ def main():
     ap.add_argument("--keep-threshold", type=float, default=0.35,
                     help="a transport is a drop-candidate when its best cargo cost is >= this")
     ap.add_argument("--base-cost", type=float, default=0.5)
+    ap.add_argument("--min-growth-fraction", type=float, default=0.9,
+                    help="every accepted removal must keep growth >= this fraction of native (0.01 = "
+                        "'still technically alive', not growth-preserving; see the function docstring)")
     args = ap.parse_args()
 
     CF = cobra.io.read_sbml_model(str(args.model))
@@ -207,7 +227,8 @@ def main():
     print(f"  {nc} match curated yeast-GEM transports, {ne} individually essential "
           f"(evidence from {n_ann} annotated yeast transporter genes)")
 
-    print("\n== benchmark: replicating the curated yeast-GEM transportome (feasibility-respecting) ==")
+    print(f"\n== benchmark: replicating the curated yeast-GEM transportome (feasibility-respecting, "
+          f"min-growth-fraction={args.min_growth_fraction:g}) ==")
     print(f"   {'approach':30s} {'kept':>4} {'curated repl':>13} {'essential':>10} {'spurious':>9} "
           f"{'growth':>8}")
 
@@ -219,7 +240,8 @@ def main():
 
     def variant(label, cost):
         kept, dropped, forced, g = feasibility_respecting_reduction(
-            CF, transport_ids, cost, args.keep_threshold, args.base_cost)
+            CF, transport_ids, cost, args.keep_threshold, args.base_cost,
+            growth_fraction=args.min_growth_fraction)
         row(label, kept, g)
         return kept, dropped, forced
 

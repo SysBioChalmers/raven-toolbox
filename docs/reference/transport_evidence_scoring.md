@@ -241,37 +241,58 @@ reactions, 280 genes, 591 GPR-annotated, growth 0.758 on a defined minimal mediu
 On its 170 inter-compartment transports (58 match curated yeast-GEM, 11 individually essential), "ours"
 is a **feasibility-respecting** reduction: rank unsupported transports (cost ≥ 0.35) worst-evidence
 first, tentatively knock each one out (bounds → 0,0) and re-run FBA, keep it knocked out if growth
-survives (≥ 1 % of native), otherwise restore it — feasibility overriding missing evidence, one
-reaction at a time (a greedy upper bound on what a joint solve could drop; see the caveat below):
+survives (`--min-growth-fraction`, default **0.9** of native), otherwise restore it — feasibility
+overriding missing evidence, one reaction at a time (a greedy upper bound on what a joint solve could
+drop; see the caveats below). **Why 0.9, not "still alive":** an earlier pass used a 1 %-of-native
+floor (only "not dead") and produced a symptom worth naming explicitly — achieved growth *fell* as
+`sibling_weight` rose (0.168 → 0.019), even though evidence can only ever *add* credit, never remove it
+(`evidence_aware_transport_cost` combines coarse/ChEBI/sibling with `max`, and the set of
+evidence-protected transports was verified strictly non-shrinking as sibling weight increases). That
+was real, but it was the *greedy search's* artefact, not the evidence's: a 1 % floor lets a long chain
+of individually-small hits compound into severe, undetected growth erosion, and *which* chain gets
+tried first depends on the exact cost values, which shift across variants — different variants sacrifice
+different (but each individually replaceable) transports on the way to the same weak bar. Raising the
+floor to 0.9 makes the reduction growth-*preserving*, not just growth-nonzero, and removes that
+path-dependent noise from the reported growth (swept in the reference commit: at floor ≥ 0.7 the
+achieved growth is effectively equal — within numerical noise — across every variant tested):
 
 | approach | transports kept | curated replicated | essential kept | spurious kept | growth |
 |---|--:|--:|--:|--:|--:|
 | CarveFungi (native) | 170 | 58/58 | 11/11 | 112 | 0.758 |
-| ours: coarse | 108 | 54/58 | **11/11** | 54 | 0.168 |
-| ours: + ChEBI | 109 | 54/58 | 10/11 | 55 | 0.168 |
-| ours: + ChEBI + sibling 0.3–0.7 | 109–112 | 56–57/58 | 10/11 | 53–55 | 0.019 |
-| ours: + ChEBI + sibling 1.0 | 113 | **58/58** | **11/11** | 55 | 0.019 |
+| ours: coarse | 110 | 56/58 | **11/11** | 54 | 0.752 |
+| ours: + ChEBI | 111 | 56/58 | 10/11 | 55 | 0.752 |
+| ours: + ChEBI + sibling 0.3–0.7 | 110–113 | 56–57/58 | 10/11 | 54–56 | 0.752 |
+| ours: + ChEBI + sibling 1.0 | 114 | **58/58** | **11/11** | 56 | 0.752 |
 
 CarveFungi's native carve is **bloated** — 112 of its 170 transports are spurious (non-curated), because
-it never minimises transport. Every evidence-aware variant roughly **halves** the transport network
-(170→108–113) and cuts spurious transports by **~51–53 %** (112→53–55) while keeping **93–100 %** of
-curated and **91–100 %** of individually-essential transports — full retention (58/58, 11/11) at both
-the `coarse` baseline and at `sibling` 1.0. The sibling weight recovers the chemical-relative cargo
-(fructose/mannose for a hexose carrier) coarse and exact-ChEBI miss.
+it never minimises transport. Every evidence-aware variant cuts the transport network by a third
+(170→110–114) and spurious transports by **~50 %** (112→54–56) while keeping **97–100 %** of curated
+and **91–100 %** of individually-essential transports, at **99 % of native growth** (0.752 / 0.758) in
+every variant — full curated+essential retention at both the `coarse` baseline and at `sibling` 1.0.
 
-Two honest caveats. **(1) Growth trade-off:** feasibility here only guards against *total* growth
-collapse (≥ 1 % of native), not against a *reduced* growth rate — the reduced networks grow at
-2–22 % of native, so many dropped transports, while individually replaceable, collectively support
-*more efficient* growth even though none is a single point of failure. **(2) Greedy path-dependence:**
-this is a one-at-a-time, worst-evidence-first reduction, not a joint MILP — so it is an upper bound on
-what feasibility alone would allow to drop, and *which* essential transport survives can depend on
-removal order. Concretely, one essential transport (an ergosterol-precursor cytosol↔ER shuttle,
-`r_1754`) is retained at `coarse` and at `sibling` 1.0 but dropped in between: enabling ChEBI shifts
-*other* transports' relative costs enough to change the removal order, and this shuttle has redundant
-carve-local coverage that lets the greedy pass sacrifice it under some orderings but not others — a
-joint solve would not have this ambiguity. Reproduce: `build_reference_carve_model.py --carvefungi-dir
-<clone> --out <path>` (once; ~20 min CPLEX carve) then `analyse_carvefungi_transports.py --model <path>
---yeast-gem <yeast-GEM>`.
+**On growth units — a caveat, and the right standard to hold this to.** These "growth" values are the
+regenerated carve's *own* FBA objective on its artificially-constructed biomass reaction and its
+hand-set minimal medium — not a calibrated growth **rate** in h⁻¹. yeast-GEM's own growth-rate
+validation
+([`growth.py`](https://github.com/SysBioChalmers/yeast-GEM/blob/0b717e7dd5ca8a3b1b074f8055a736c2e9ec33ee/code/python/yeastgem/model_tests/growth.py))
+is the right standard to aspire to: it fixes *experimentally measured* chemostat uptake rates (glucose/
+O₂/NH₃) reaction-by-reaction and reports R² against 32 real growth-rate observations. It does not
+transfer directly to this carve (different reaction-id namespace, a `carve_model`-derived biomass
+equation with hand-picked stoichiometric weights, no calibrated exchange bounds) — so the only claim
+made here is the scale-invariant one, fraction of *this same model's own* native optimum, which is
+exactly what both the 1 %-floor symptom and its 0.9-floor fix are about.
+
+**Remaining caveat — greedy path-dependence.** This is a one-at-a-time, worst-evidence-first reduction,
+not a joint MILP, so it is an upper bound on what feasibility alone would allow to drop, and *which*
+essential transport survives can still depend on removal order even at a growth-preserving floor — one
+essential transport (an ergosterol-precursor cytosol↔ER shuttle, `r_1754`) is retained at `coarse` and
+at `sibling` 1.0 but dropped in between, because enabling ChEBI shifts *other* transports' relative
+costs enough to change the removal order, and carve-local redundancy lets the greedy pass sacrifice it
+under some orderings but not others. A joint solve would not have this ambiguity; at the 0.9 floor its
+effect is confined to this single essential/curated count, not to growth. Reproduce:
+`build_reference_carve_model.py --carvefungi-dir <clone> --out <path>` (once; ~20 min CPLEX carve) then
+`analyse_carvefungi_transports.py --model <path> --yeast-gem <yeast-GEM>` (`--min-growth-fraction` to
+sweep the floor).
 
 **ChEBI layer (yeast-GEM).** Adding the graded ChEBI roll-up on top of the coarse class lifts the
 selective cut's **recall from 42 % to 47 %** (kept 387→426) at steady 70 % precision. Two details make

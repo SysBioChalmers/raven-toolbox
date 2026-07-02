@@ -251,26 +251,39 @@ tool's own `carve_model` parameterisation rather than a raw `minmax_reduction` c
 `diamond`), builds the per-metabolite `transport_cost`, and — on this model's 170 inter-compartment
 transports (58 curated, 11 individually essential) — runs a **feasibility-respecting** reduction: rank
 unsupported transports (cost ≥ 0.35) worst-evidence-first, knock each out and re-check growth, restore
-it if growth collapses (< 1 % of native):
+it if growth drops below `--min-growth-fraction` (default **0.9**) of native.
+
+That default replaced an initial 1 %-of-native ("still alive") floor after it produced a tell: achieved
+growth *fell* as `sibling_weight` rose (0.168→0.019), although evidence can only ever add credit, never
+remove it (verified — the evidence-protected transport set is strictly non-shrinking as sibling weight
+increases). That was real, but it was an artefact of the *greedy search*, not the evidence: a 1 % floor
+lets many individually-small hits compound into large, undetected growth erosion, and different
+evidence variants reorder which candidate gets tried first, sacrificing different (each individually
+replaceable) transports on the way to the same weak bar. A 0.9 floor makes the reduction
+growth-*preserving* rather than merely growth-nonzero and removes that noise — full sweep in the
+reference doc, alongside a caveat that this carve's "growth" is its own uncalibrated FBA objective
+(fraction-of-native is the valid, scale-invariant signal), not a calibrated rate; yeast-GEM's own
+[chemostat-fitted growth-rate test](https://github.com/SysBioChalmers/yeast-GEM/blob/0b717e7dd5ca8a3b1b074f8055a736c2e9ec33ee/code/python/yeastgem/model_tests/growth.py)
+is the right standard but does not transfer directly (different reaction-id namespace, hand-built
+biomass weights, no calibrated exchange bounds).
 
 | approach | kept | curated replicated | essential kept | spurious kept | growth |
 |---|--:|--:|--:|--:|--:|
 | CarveFungi (native) | 170 | 58/58 | 11/11 | 112 | 0.758 |
-| ours: coarse | 108 | 54/58 | **11/11** | 54 | 0.168 |
-| ours: + ChEBI | 109 | 54/58 | 10/11 | 55 | 0.168 |
-| ours: + ChEBI + sibling 0.3-0.7 | 109-112 | 56-57/58 | 10/11 | 53-55 | 0.019 |
-| ours: + ChEBI + sibling 1.0 | 113 | **58/58** | **11/11** | 55 | 0.019 |
+| ours: coarse | 110 | 56/58 | **11/11** | 54 | 0.752 |
+| ours: + ChEBI | 111 | 56/58 | 10/11 | 55 | 0.752 |
+| ours: + ChEBI + sibling 0.3-0.7 | 110-113 | 56-57/58 | 10/11 | 54-56 | 0.752 |
+| ours: + ChEBI + sibling 1.0 | 114 | **58/58** | **11/11** | 56 | 0.752 |
 
 CarveFungi's native carve carries 112 spurious (non-curated) transports — it never minimises transport.
-Every evidence-aware variant roughly **halves** the transport network and cuts spurious transports by
-**~51-53 %** while keeping 93-100 % of curated and 91-100 % of individually-essential transports (full
-retention at both `coarse` and `sibling` 1.0). Two caveats disclosed in full in the reference doc:
-feasibility here only guards against total growth collapse, not reduced growth rate (the reduced
-networks grow at 2-22 % of native — many dropped transports are individually replaceable but
-collectively support more efficient growth); and the reduction is a greedy, one-at-a-time pass, not a
-joint MILP, so *which* essential transport survives can depend on removal order (one, an
-ergosterol-precursor shuttle, is retained at `coarse` and `sibling` 1.0 but not in between). The
-non-fungal (AraCore) reproduction remains the outstanding organism-agnosticism check.
+Every evidence-aware variant cuts the transport network by a third and spurious transports by **~50 %**
+while keeping 97-100 % of curated and 91-100 % of individually-essential transports, **at 99 % of
+native growth in every variant** (full curated+essential retention at both `coarse` and `sibling` 1.0).
+One caveat remains even at this floor: the reduction is a greedy, one-at-a-time pass, not a joint MILP,
+so *which* essential transport survives can still depend on removal order (one, an
+ergosterol-precursor shuttle, is retained at `coarse` and `sibling` 1.0 but not in between) — though at
+the growth-preserving floor its effect is confined to that single count, not to growth. The non-fungal
+(AraCore) reproduction remains the outstanding organism-agnosticism check.
 
 ## What this does and doesn't show
 
