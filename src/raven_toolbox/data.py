@@ -54,6 +54,27 @@ _DATA_REGISTRY: dict = {
             },
         },
     },
+    "transporters": {
+        "version": "transporters-2026-07-01",
+        "files": {
+            "tcdb.dmnd": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/transporters-2026-07-01/tcdb.dmnd",
+                "sha256": "ae8db23287ef415cad8a3004134b0d94024230f82afb5eb00a45941f8b8c04e6",
+            },
+            "transporter_pfam.hmm": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/transporters-2026-07-01/transporter_pfam.hmm",
+                "sha256": "0c44e7bfc1390a08c914915a87b9b85398528be5db4294f91c33387c46c48f19",
+            },
+            "tcdb_substrates.tsv": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/transporters-2026-07-01/tcdb_substrates.tsv",
+                "sha256": "f85f7b866b325d1e221089ccb5fd7a0491d1c26f8282c9ebb7c2d11bf3f1e79c",
+            },
+            "chebi_relations.tsv.gz": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/transporters-2026-07-01/chebi_relations.tsv.gz",
+                "sha256": "b6910bf9c7a405e4f1fc112030123dd79c982112b8f460cebefd9235c621d192",
+            },
+        },
+    },
 }
 
 # The core KEGG artefacts needed to build a model (no HMM libraries). These are
