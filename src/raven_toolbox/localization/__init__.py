@@ -24,6 +24,7 @@ from raven_toolbox.localization.predict import (
     apply_localization,
     predict_localization,
 )
+from raven_toolbox.localization.relocate import RelocationResult, relocate_reactions
 from raven_toolbox.localization.scores import (
     DEFAULT_COMPARTMENT_MAP,
     LocalizationScores,
@@ -60,6 +61,7 @@ __all__ = [
     "LocalizationResult",
     "LocalizationScores",
     "PreparedFasta",
+    "RelocationResult",
     "ReviewReport",
     "TransporterAnnotation",
     "annotate_transporters",
@@ -77,6 +79,7 @@ __all__ = [
     "load_uniprot",
     "prepare_deeploc_input",
     "predict_localization",
+    "relocate_reactions",
     "triage_localization",
     "write_fasta",
 ]
