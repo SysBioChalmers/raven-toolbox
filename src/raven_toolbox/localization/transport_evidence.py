@@ -87,10 +87,10 @@ def annotate_transporters(
         mech = None if mech is None or (isinstance(mech, float) and pd.isna(mech)) else str(mech)
         prev = out.get(gene)
         if prev is None or conf >= prev.confidence:
-            fams = tuple(sorted(fams | set(prev.families))) if prev else tuple(sorted(fams))
+            fam_tuple = tuple(sorted(fams | set(prev.families))) if prev else tuple(sorted(fams))
             subs = subs | prev.substrate_classes if prev else subs
             out[gene] = TransporterAnnotation(gene, max(conf, prev.confidence if prev else 0.0),
-                                              fams, subs, mech or (prev.mechanism if prev else None))
+                                              fam_tuple, subs, mech or (prev.mechanism if prev else None))
         else:  # keep prev confidence but accumulate families/substrates
             out[gene] = TransporterAnnotation(
                 gene, prev.confidence, tuple(sorted(set(prev.families) | fams)),

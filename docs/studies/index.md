@@ -12,6 +12,9 @@ its equivalence claims against MATLAB RAVEN.
   genome-scale ftINIT.
 - **[Yeast localization benchmark](yeast_localization_benchmark.md)** —
   `predict_localization` against curated yeast-GEM, with a predictor-noise sweep.
+- **[Compartment-assignment redesign](localization_redesign.md)** — the design of
+  `assign_compartments` (flux-free placement master + real-FBA certification): keeping the flux model
+  out of the placement optimisation so the result stays sound and functional at genome scale.
 - **[DeepLoc 2.1 yeast-GEM benchmark](deeploc_yeast_benchmark.md)** — real DeepLoc 2.1
   predictions vs curated yeast-GEM compartments; whether membrane-type recovers the
   lumen/membrane split, and an organelle-collapsed run (slow model: 64.6% collapsed).
@@ -36,9 +39,6 @@ its equivalence claims against MATLAB RAVEN.
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
 - **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
-- **[assign_compartments on yeast-GEM](assign_compartments_yeast_gem.md)** — the
-  functionality-constrained MILP reproducing curated yeast-GEM compartmentalisation from UniProt
-  evidence alone, and whether the result still grows.
 
 ```{toctree}
 :hidden:
@@ -57,5 +57,5 @@ carvefungi_analysis
 carvefungi_milp_benchmark
 deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
-assign_compartments_yeast_gem
+localization_redesign
 ```

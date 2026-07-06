@@ -1,8 +1,8 @@
 """Sub-cellular localisation — predictor-agnostic, partial-update friendly.
 
-:func:`predict_localization` is the score-driven MILP entry point; :func:`assign_compartments` is the
-functionality-constrained variant (adds a biomass/growth floor + big-M flux gating + optional gap-fill
-and sound reaction-level multi-localisation). :func:`load_deeploc`,
+:func:`predict_localization` is the score-driven MILP entry point; :func:`assign_compartments`
+is the functionality-constrained variant (a flux-free placement master plus real-FBA certification,
+with optional gap-fill, transport pruning and sound reaction-level multi-localisation). :func:`load_deeploc`,
 :func:`load_mulocdeep` and :func:`load_compartments` parse modern predictor / evidence-database
 outputs into the ``gene × compartment`` :class:`LocalizationScores` DataFrame the algorithm
 consumes (pass :data:`DEFAULT_COMPARTMENT_MAP` to map labels to your model's compartment ids).
@@ -13,9 +13,10 @@ loop with :func:`load_deeploc`.
 """
 from raven_toolbox.localization.assign import (
     AssignmentProposal,
+    GrowthCondition,
     apply_assignment,
-    assign_compartments,
 )
+from raven_toolbox.localization.certify import assign_compartments
 from raven_toolbox.localization.predict import (
     LocalizationProposal,
     LocalizationResult,
@@ -51,6 +52,7 @@ from raven_toolbox.localization.triage import (
 
 __all__ = [
     "AssignmentProposal",
+    "GrowthCondition",
     "DEFAULT_COMPARTMENT_MAP",
     "DEEPLOC_COMPARTMENT_TRUST",
     "LocalizationProposal",
