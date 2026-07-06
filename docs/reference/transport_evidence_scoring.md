@@ -9,7 +9,7 @@ with a **per-transport, evidence-aware** cost, in both **RAVEN** (MATLAB) and **
 The assignment step — RAVEN [`predictLocalization`](https://github.com/SysBioChalmers/RAVEN/blob/main/localization/predictLocalization.m)
 and raven-toolbox `predict_localization` — adds a transport reaction whenever a gene is placed away
 from a metabolite it must reach, charging a fixed `transportCost`/`transport_cost` per transport.
-The [CarveFungi head-to-head study](../studies/carvefungi_milp_benchmark.md) showed this blanket
+A blanket
 penalty is **indiscriminate**: it drops curated, functionally essential transporters (malate–aspartate
 and citrate shuttles, CoA-precursor and NADPH carriers — 5 individually essential in yeast-GEM) at the
 same rate as spurious ones, because the cost ignores whether a real transporter exists. The fix is to
@@ -172,24 +172,41 @@ transportCost = scoreTransportEvidence(model, annotation, geneComps, varargin)
 3. **Consensus / refinement** — combine family + TCDB + orthology (EggNOG/KEGG, already computed in
    reconstruction) + DeepLoc; add directionality; resolve conflicts.
 
-**Status.** The scoring core and the bring-your-own-annotation path are **implemented** in
-`raven_toolbox.localization.transport_evidence`: `evidence_aware_transport_cost` (produces the
-per-metabolite `transport_cost` mapping both assignment functions already accept),
-`annotate_transporters` (parse any per-gene transporter table into `TransporterAnnotation`). The
-`hmmsearch` (Pfam families) and `diamond` (TCDB) annotation back-ends — which need the transporter
-databases provisioned in raven-data — are the next increment; until then, feed a table from any tool
-via the bring-your-own path.
+**Status.** The **coarse-first pipeline is implemented** in
+`raven_toolbox.localization.transport_evidence`:
+
+* `evidence_aware_transport_cost` — the scoring core (per-metabolite `transport_cost` mapping both
+  assignment functions already accept).
+* `annotate_proteome` — the **`hmmsearch` (Pfam families) + `diamond` (TCDB) back-end**: scans a
+  proteome FASTA against the transporter Pfam HMM db and the TCDB DIAMOND db (both auto-downloaded from
+  the raven-data `transporters-*` release), mapping families/TC-numbers to coarse substrate classes via
+  the curated `transporter_tables`. `annotate_transporters` still takes a pre-computed table.
+* `default_substrate_of` — the **model-side** coarse classifier (metabolite name → substrate class),
+  so a metabolite and a transporter meet in the shared vocabulary.
+* `SubstrateOntology` + `substrate_chebi` — the **specific-substrate layer**: TCDB's curated
+  `TC-ID → substrate ChEBI` table + the ChEBI `is_a`/protonation graph give a graded
+  metabolite→substrate roll-up (exact 1.0, decaying by hop; an optional `sibling_weight` also credits
+  chemical *relatives* of the cargo) that `evidence_aware_transport_cost` layers on top of the coarse
+  class; `annotate_proteome` fills `TransporterAnnotation.substrate_chebi`.
+
+Databases are built by `scripts/build_transporter_data.py` (Pfam HMMs + TCDB DB + the TCDB-substrate
+and ChEBI-ontology tables) and the pipeline is **validated** on yeast-GEM (see *Validation* below).
 
 ## Validation
 
-Reuse this study's own benchmark
-([`analyse_carvefungi_transports.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/analyse_carvefungi_transports.py)):
-curated-transport precision/recall + the functional (essentiality) test, before vs after. Success:
+The pipeline is validated on real curated ground truth using only the shipped public API — no
+benchmark-specific scaffolding — in two studies under `docs/studies/`:
 
-* the **kept**-transport curated-match rate rises *above* the dropped rate (the cut becomes
-  *selective*, no longer ~equal at 41% vs 42%);
-* the 5 individually-essential transports are retained;
-* the gains **reproduce on a non-fungal model** (e.g. AraCore) — the organism-agnosticism check.
+* [**Replicate yeast-GEM**](../studies/replicate_yeast_gem.md) — flatten curated yeast-GEM to one
+  compartment with `merge_compartments`, then run `annotate_proteome` -> `evidence_aware_transport_cost`
+  -> `assign_compartments` and score the recovered compartmentalisation (reaction- and gene-level
+  agreement, added-transport count, functional connectivity, growth) against the curated original.
+* [**vs CarveFungi**](../studies/vs_carvefungi.md) — the same evidence-aware assignment head-to-head
+  with CarveFungi's own compartment prediction, scored against yeast-GEM at gene level and against
+  CarveFungi's own placement.
+
+Both drive the real functions on the yeast proteome + DeepLoc inputs in `data/deeploc/`; see each
+study for the current numbers.
 
 ## Open questions / risks
 
