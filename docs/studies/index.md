@@ -18,6 +18,11 @@ its equivalence claims against MATLAB RAVEN.
 - **[Curation-priority signals](curation_priority_signals.md)** — the signal catalogue behind
   `curation_priority`: which placements and transports to review by hand, and how the evidence-gated
   score ranks them.
+- **[Yeast-GEM validation](yeast_validation.md)** — `assign_compartments` on curated yeast-GEM:
+  recovery of the compartmentalisation, a CarveFungi head-to-head (McNemar), and a biological check
+  (transporter connectivity, pathway localisation, dual-localised enzymes).
+- **[Multi-organism validation](multiorganism_validation.md)** — the same method across four kingdoms
+  (yeast, Human-GEM, AraCore, iCre1355), including the chloroplast, with no per-organism changes.
 - **[DeepLoc 2.1 yeast-GEM benchmark](deeploc_yeast_benchmark.md)** — real DeepLoc 2.1
   predictions vs curated yeast-GEM compartments; whether membrane-type recovers the
   lumen/membrane split, and an organelle-collapsed run (slow model: 64.6% collapsed).
@@ -62,4 +67,6 @@ deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
 localization_redesign
 curation_priority_signals
+yeast_validation
+multiorganism_validation
 ```

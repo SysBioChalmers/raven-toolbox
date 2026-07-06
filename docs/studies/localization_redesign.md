@@ -165,7 +165,7 @@ solver tolerance.
 
 ## 6. Results (CERTAIN — measured on the yeast-GEM replication task)
 
-`scripts/experiment_certify_yeast_gem.py` on the flattened yeast-GEM draft (2569 rxns / 1337 mets,
+`scripts/benchmark_certified_yeast.py` on the flattened yeast-GEM draft (2569 rxns / 1337 mets,
 draft growth 0.1426; `min_growth = 0.5 × 0.0809 = 0.0405`; scalar `transport_cost = 0.5`):
 
 | Method | wall | certified? | materialised growth | reaction agr | gene agr | transports |
