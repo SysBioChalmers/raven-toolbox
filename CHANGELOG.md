@@ -15,12 +15,11 @@ Milestones in the raven-toolbox port. For function-level status see
   (TCDB) annotation back-ends are the next increment
   ([plan](docs/reference/transport_evidence_scoring.md)).
 * **Consolidated `assign_compartments` into raven-toolbox.** The functionality-constrained
-  compartment-assignment MILP — biomass/growth floor + big-M flux gating + optional gap-fill + sound
+  compartment-assignment MILP — biomass/growth floor + flux gating + optional gap-fill + sound
   reaction-level multi-localisation — moves from the standalone `edkerk/assignCompartments` repo into
   `localization/` (as `assign_compartments`/`apply_assignment`/`AssignmentProposal`), coexisting with
-  the score-driven `predict_localization` ([design](docs/reference/multi_localization_design.md),
-  [yeast-GEM benchmark](docs/studies/assign_compartments_yeast_gem.md)). The MATLAB port is tracked in
-  [MATLAB back-ports](docs/reference/matlab_raven_backports.md).
+  the score-driven `predict_localization` ([design](docs/reference/multi_localization_design.md)). The
+  MATLAB port is tracked in [MATLAB back-ports](docs/reference/matlab_raven_backports.md).
 * **CarveFungi assignment head-to-head on its own MILP.** Ran CarveFungi's *own* `minmax_reduction`
   carve-MILP (CPLEX, unmodified) with our transport-minimising term swapped into its objective, on its
   real universal-DB candidate set + DeepLoc-injected scores
@@ -29,7 +28,7 @@ Milestones in the raven-toolbox port. For function-level status see
   Adversarially verified (which caught and fixed a compartment-id parsing bug). Findings: adding our
   transport cost yields ~1.6× fewer inter-compartment transports per reaction (41% fewer) at no
   detectable assignment-accuracy cost (86.0% vs 85.5% recall; 93% identical placements). The carve's
-  big-M formulation is hard — neither CPLEX nor a tighter Gurobi port proves optimality — so these are
+  MILP formulation is hard — neither CPLEX nor a tighter Gurobi port proves optimality — so these are
   deterministic, time-budget-stable near-optimal incumbents, reported with their gaps. Also surfaced
   that CarveFungi's *shipped* yeast localisation file is inert (RefSeq vs ORF id mismatch).
 * **Head-to-head vs RAVEN predictLocalization + CarveFungi positioning.** Benchmarked the

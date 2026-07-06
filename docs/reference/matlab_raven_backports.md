@@ -8,14 +8,14 @@ raven-toolbox functionality still to be back-ported into MATLAB RAVEN.
 ## Pending back-port: functionality-constrained compartment-assignment MILP
 
 raven-toolbox's `localization/` now hosts **two** compartment-assignment algorithms:
-`predict_localization` (score-driven MILP) and **`assign_compartments`** (`localization/assign.py`) —
-the *functionality-constrained* MILP consolidated from the retired `edkerk/assignCompartments` repo.
-Over the score-driven version, `assign_compartments` adds a **biomass/growth floor**, **big-M flux
-gating** (a placement carries flux or scores nothing; sound via a tightened integrality tolerance),
-optional **gap-fill coupling** (universal-DB candidates added only when biomass feasibility needs them),
-and **sound reaction-level multi-localisation** (ε-flux activity coupling forbids dead placements —
-design in [multi_localization_design.md](multi_localization_design.md); benchmark in
-[assign_compartments on yeast-GEM](../studies/assign_compartments_yeast_gem.md)).
+`predict_localization` (score-driven MILP) and **`assign_compartments`** (`localization/certify.py`) —
+the *functionality-constrained* method, seeded by the port of the retired `edkerk/assignCompartments`
+repo. Over the score-driven version it adds a **biomass/growth floor** enforced by certification:
+placement is decided by a flux-free score MILP and the result is confirmed by a real FBA on the
+materialised model. It also adds optional **gap-fill coupling** (universal-DB candidates added only when
+biomass feasibility needs them) and **sound reaction-level multi-localisation** (a second compartment is
+kept only if a loopless FVA on the materialised model shows it carries real flux — design in
+[multi_localization_design.md](multi_localization_design.md)).
 
 MATLAB RAVEN has **no equivalent**: `core/predictLocalization.m` is a *simulated-annealing* heuristic
 (one gene → one compartment, no biomass constraint, no flux gating). The score adapters this needs are
