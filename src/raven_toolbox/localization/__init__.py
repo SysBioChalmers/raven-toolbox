@@ -17,6 +17,7 @@ from raven_toolbox.localization.assign import (
     apply_assignment,
 )
 from raven_toolbox.localization.certify import assign_compartments
+from raven_toolbox.localization.curation import curation_priority
 from raven_toolbox.localization.predict import (
     LocalizationProposal,
     LocalizationResult,
@@ -66,6 +67,7 @@ __all__ = [
     "apply_localization",
     "assign_compartments",
     "combine_scores",
+    "curation_priority",
     "evidence_aware_transport_cost",
     "fetch_protein_sequences",
     "fetch_uniprot_localization",
