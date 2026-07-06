@@ -15,6 +15,9 @@ its equivalence claims against MATLAB RAVEN.
 - **[Compartment-assignment redesign](localization_redesign.md)** — the design of
   `assign_compartments` (flux-free placement master + real-FBA certification): keeping the flux model
   out of the placement optimisation so the result stays sound and functional at genome scale.
+- **[Curation-priority signals](curation_priority_signals.md)** — the signal catalogue behind
+  `curation_priority`: which placements and transports to review by hand, and how the evidence-gated
+  score ranks them.
 - **[DeepLoc 2.1 yeast-GEM benchmark](deeploc_yeast_benchmark.md)** — real DeepLoc 2.1
   predictions vs curated yeast-GEM compartments; whether membrane-type recovers the
   lumen/membrane split, and an organelle-collapsed run (slow model: 64.6% collapsed).
@@ -58,4 +61,5 @@ carvefungi_milp_benchmark
 deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
 localization_redesign
+curation_priority_signals
 ```
