@@ -6,6 +6,15 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Fix gap-fill materialisation landing on the wrong compartment metabolite.**
+  `apply_assignment`'s `_add_universal_reaction` matched a universal candidate's metabolite ids
+  verbatim against the target model instead of resolving them through the same base-id/compartment
+  lookup `_move_reaction` already uses for relocated reactions. Wherever a draft's non-default-
+  compartment species only exist because a relocated reaction created them (any id scheme other
+  than the universal database's own), the gap-fill reaction silently materialised as a disconnected
+  island: the assignment's own solved objective already accounted for the correct shared node, only
+  the applied model was wrong. Fixed with a regression test
+  (`test_gapfill_reuses_relocated_compartment_metabolite`).
 * **Evidence-aware transport scoring (first increment).** New `localization.transport_evidence` turns
   per-gene transporter evidence into the per-metabolite `transport_cost` mapping the assignment MILPs
   already accept, so a transport is cheap when a transporter gene supports it (right substrate, right

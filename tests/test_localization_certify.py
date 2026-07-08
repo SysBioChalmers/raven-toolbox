@@ -326,6 +326,36 @@ def test_no_gratuitous_gapfill():
     assert res.added_reactions == []
 
 
+def test_gapfill_reuses_relocated_compartment_metabolite():
+    # Regression: _add_universal_reaction used to match a gap-fill candidate's metabolite ids verbatim
+    # against the model instead of routing them through the shared base-id/compartment resolver that
+    # _move_reaction uses. A relocated reaction materialises its non-default-compartment metabolites
+    # under a *generated* id ("A_c__m"), never the universal candidate's own "A_m" -- so the old code
+    # never found a match and silently created a second, disconnected "A_m", leaving the gap-fill
+    # reaction an island nothing else in the model touches. It never raised; it just built a wrong model.
+    m = _linear()  # EX_A -> r1: A_c->B_c (g1) -> bio: B_c->
+    proposal = AssignmentProposal(placements={"r1": ["m"]}, added_reactions=["rD"])
+
+    u = cobra.Model("universal")
+    A_m = cobra.Metabolite("A_m", name="A", compartment="m")
+    D_m = cobra.Metabolite("D_m", name="D", compartment="m")
+    u.add_metabolites([A_m, D_m])
+    rD = cobra.Reaction("rD", lower_bound=0, upper_bound=1000)
+    rD.add_metabolites({A_m: -1, D_m: 1})
+    u.add_reactions([rD])
+
+    out = apply_assignment(m, proposal, universal=u)
+
+    r1_out, rD_out = out.reactions.get_by_id("r1"), out.reactions.get_by_id("rD")
+    a_resolved = next(met for met, coeff in r1_out.metabolites.items() if coeff < 0)
+    assert a_resolved in rD_out.metabolites  # rD's "A" reuses the same node r1 relocated to
+
+    # Exactly 3 compartment-m metabolites should exist: A and B (from relocating r1) and D (a
+    # genuinely new species from the gap-fill reaction) -- not a 4th, disconnected copy of A.
+    in_m = [met for met in out.metabolites if met.compartment == "m"]
+    assert len(in_m) == 3
+
+
 # ------------------------------------------------------- honest partial (no false positive)
 def test_unreachable_floor_is_uncertified_not_falsely_certified():
     # An unreachable growth floor must yield an *uncertified* proposal (with the shortfall visible),

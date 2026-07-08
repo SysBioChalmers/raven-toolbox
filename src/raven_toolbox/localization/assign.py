@@ -156,25 +156,23 @@ def apply_assignment(
         _add_transport(out, b, c, default_compartment, index, resolve, n)
     if universal is not None:
         for rid in proposal.added_reactions:
-            _add_universal_reaction(out, universal.reactions.get_by_id(rid))
+            _add_universal_reaction(out, universal.reactions.get_by_id(rid), resolve)
     return out
 
 
-def _add_universal_reaction(model, urxn):
+def _add_universal_reaction(model, urxn, resolve):
     if urxn.id in model.reactions:
         return
     new = cobra.Reaction(urxn.id, name=urxn.name,
                          lower_bound=urxn.lower_bound, upper_bound=urxn.upper_bound)
     model.add_reactions([new])
-    mets = {}
-    for m, coeff in urxn.metabolites.items():
-        if m.id in model.metabolites:
-            mm = model.metabolites.get_by_id(m.id)
-        else:
-            mm = cobra.Metabolite(m.id, name=m.name, compartment=m.compartment,
-                                  formula=m.formula, charge=m.charge)
-        mets[mm] = coeff
-    new.add_metabolites(mets)
+    # Resolve each metabolite through the same (base id, compartment) lookup `resolve` gives relocated
+    # reactions, rather than matching the candidate's id verbatim. A relocated reaction materialises its
+    # non-default-compartment species under a *generated* id (`A_c__m`), never the universal database's
+    # own `A_m`; keying on the id would therefore miss the existing node and create a second, parallel
+    # copy, leaving the gap-fill reaction a disconnected island. Keying on (base, compartment) lands on
+    # the species already there.
+    new.add_metabolites({resolve(m, m.compartment): coeff for m, coeff in urxn.metabolites.items()})
     new.gene_reaction_rule = urxn.gene_reaction_rule
 
 
