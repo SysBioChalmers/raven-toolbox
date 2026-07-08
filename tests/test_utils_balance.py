@@ -74,3 +74,17 @@ def test_empty_reaction_is_unknown(model):
     model.add_reactions([empty])
     (res,) = get_elemental_balance(model, ["R_empty"])
     assert res.status == "unknown"
+
+
+def test_unparseable_formula_is_unknown_not_a_crash(model):
+    """A parenthesised polymer formula (glycogen, starch) makes cobra's `Metabolite.elements` return
+    None, which `check_mass_balance()` turns into a ValueError. The formula is present but
+    uninterpretable -- that is `unknown`, not an exception thrown mid-model."""
+    poly = cobra.Metabolite("p_c", formula="(C5H8)n", charge=0, compartment="c")
+    model.add_metabolites([poly])
+    r = cobra.Reaction("R_poly")
+    model.add_reactions([r])
+    r.build_reaction_from_string("a_c --> p_c")
+    (res,) = get_elemental_balance(model, ["R_poly"])
+    assert res.status == "unknown"
+    assert res.imbalance == {}

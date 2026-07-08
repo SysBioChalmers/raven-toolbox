@@ -24,8 +24,9 @@ its equivalence claims against MATLAB RAVEN.
 - **[Multi-organism validation](multiorganism_validation.md)** — the same method across four kingdoms
   (yeast, Human-GEM, AraCore, iCre1355), including the chloroplast, with no per-organism changes.
 - **[Confidence tracking](confidence_tracking.md)** — per-reaction, multi-facet confidence persisted in
-  the model (`raven_toolbox.confidence`): the data model, the notes round-trip, and the localisation
-  scorer, plus the roadmap for the equation / gene / reversibility facets.
+  the model (`raven_toolbox.confidence`): the localisation / equation / gene-association scorers and the
+  abstain-vs-zero discipline that keeps `overall == 0.0` meaning "provably wrong", validated against
+  yeast-GEM's own curator-assigned confidence scores.
 - **[DeepLoc 2.1 yeast-GEM benchmark](deeploc_yeast_benchmark.md)** — real DeepLoc 2.1
   predictions vs curated yeast-GEM compartments; whether membrane-type recovers the
   lumen/membrane split, and an organelle-collapsed run (slow model: 64.6% collapsed).
