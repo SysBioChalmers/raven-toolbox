@@ -26,8 +26,9 @@ class ElementalBalance:
     status
         ``"balanced"`` — elements balance;
         ``"unbalanced"`` — they do not (see ``imbalance``);
-        ``"unknown"`` — at least one metabolite has no formula, so it cannot be
-        determined (cobra would silently miscount these).
+        ``"unknown"`` — at least one metabolite has no formula, or a formula cobra
+        cannot parse (e.g. the polymer ``(C5H8)n``), so it cannot be determined
+        (cobra would silently miscount the former and raise on the latter).
     imbalance
         Element → net coefficient (products − reactants), only for
         ``"unbalanced"``; empty otherwise. Charge is not included.
@@ -78,9 +79,17 @@ def get_elemental_balance(
         if any(not met.formula for met in rxn.metabolites):
             results.append(ElementalBalance(rxn.id, "unknown"))
             continue
+        try:
+            balance = rxn.check_mass_balance()
+        except ValueError:
+            # A formula cobra cannot parse (a parenthesised polymer such as "(C5H8)n" makes
+            # Metabolite.elements return None, which check_mass_balance turns into a ValueError).
+            # The formula is present but uninterpretable: that is "unknown", not a crash.
+            results.append(ElementalBalance(rxn.id, "unknown"))
+            continue
         imbalance = {
             element: amount
-            for element, amount in rxn.check_mass_balance().items()
+            for element, amount in balance.items()
             if element != "charge"
         }
         if imbalance:

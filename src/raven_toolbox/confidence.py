@@ -1,10 +1,23 @@
 """Per-reaction, multi-facet confidence — persisted in the model, ignored by plain cobra.
 
 Attaches a small structured record to a reaction scoring how well-supported each *facet* of it is
-(``localization`` in this first increment; ``equation``/``gene_association``/``reversibility`` follow the
-same shape). Each facet is a :class:`ConfidenceEntry` — a continuous 0-1 ``score`` plus optional
-provenance (a categorical ``level``, the ``basis`` evidence, ``method``/``source``/``note``). A reaction
-carries a :class:`ReactionConfidence` (facet → entry) whose ``overall`` is the weakest facet.
+(``localization``, ``equation``, ``gene_association``; ``reversibility`` follows the same shape). Each
+facet is a :class:`ConfidenceEntry` — a continuous 0-1 ``score`` plus optional provenance (a categorical
+``level``, the ``basis`` evidence, ``method``/``source``/``note``). A reaction carries a
+:class:`ReactionConfidence` (facet → entry) whose ``overall`` is the weakest facet.
+
+**Two rules govern every score**, because ``overall = min(facets)`` and :func:`_write` drops the record
+when no facet remains:
+
+1. **Abstain rather than guess.** A facet that *does not apply* to a reaction is not written at all — an
+   absent facet is neutral under ``min``, whereas ``1.0`` would claim the reaction was checked and
+   passed. An exchange reaction is imbalanced by construction; it gets no ``equation`` facet, not a
+   perfect one. Use :func:`equation_exempt` / :func:`gene_association_exempt` to ask why.
+2. **A zero is a measurement, never ignorance.** ``score == 0.0`` means evidence *contradicts* the model
+   (a proven mass imbalance; zero localisation support at the assigned compartment). Where the evidence
+   is merely missing or uninterpretable, the score is low but positive. Hence the invariant enforced in
+   the tests: ``max(defect scores) < min(ignorance scores)`` across all facets, so a reaction with a
+   proven defect always outranks one that is merely unverifiable.
 
 **Storage.** The record lives as one JSON blob under ``reaction.notes["raven_confidence"]``. cobra
 round-trips ``notes`` losslessly through YAML/JSON and, as an HTML-escaped string, through SBML; the
@@ -12,28 +25,45 @@ helpers here write ``json.dumps`` and read ``json.loads(html.unescape(...))``, s
 either format. Plain cobra ignores the key entirely — a confidence-annotated model still loads and
 solves unchanged (a test invariant).
 
-The design and roadmap (equation/gene/reversibility facets, ECO/SBO and Thiele-Palsson mapping) are in
+**SBO precondition.** The exemptions read ``reaction.annotation["sbo"]``. On a model carrying no reaction
+SBO terms the scorers warn, because they cannot then tell a biomass pseudo-reaction from a chemistry
+defect. Detecting biomass by name instead is deliberately *not* done: ``\\bgrowth\\b`` matches
+"non-growth associated maintenance reaction", and a name regex must never silence a chemistry check.
+
+The design and roadmap (the ``reversibility`` facet, ECO/SBO and Thiele-Palsson mapping) are in
 ``docs/studies/confidence_tracking.md``. Wire it in by calling :func:`score_localization_confidence` on
-an :class:`~raven_toolbox.localization.AssignmentProposal`, and :func:`mark_curated` when a curator
-firmly fixes a placement (e.g. after :func:`~raven_toolbox.localization.relocate_reactions`).
+an :class:`~raven_toolbox.localization.AssignmentProposal`, :func:`score_equation_confidence` and
+:func:`score_gene_association_confidence` on any model, and :func:`mark_curated` when a curator firmly
+fixes a facet (e.g. after :func:`~raven_toolbox.localization.relocate_reactions`).
 """
 from __future__ import annotations
 
+import ast
 import html
 import json
 import math
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
 import cobra
+from cobra.core.formula import elements_and_molecular_weights
+
+from raven_toolbox.utils.balance import get_elemental_balance
 
 __all__ = [
     "ConfidenceEntry",
     "ReactionConfidence",
+    "clear_confidence",
     "confidence_report",
+    "equation_exempt",
+    "facet_summary",
+    "gene_association_exempt",
     "get_confidence",
     "mark_curated",
     "read_confidence",
+    "score_equation_confidence",
+    "score_gene_association_confidence",
     "score_localization_confidence",
     "set_confidence",
 ]
@@ -43,14 +73,25 @@ _SCHEMA_VERSION = 1
 # reserved top-level keys inside the stored blob that are not facets
 _RESERVED = frozenset({"schema_version"})
 
+# SBO terms cobra reads from SBML and writes via Model.add_boundary().
+_SBO_BIOMASS = "SBO:0000629"
+_SBO_PSEUDOREACTION = "SBO:0000395"  # "encapsulating process" — SLIME, pool, and lumped reactions
+_SBO_ATP_MAINTENANCE = "SBO:0000630"
+_SBO_SPONTANEOUS = "SBO:0000672"
+
+#: Symbols cobra's formula parser accepts that are not real elements (R groups, unspecified residues).
+#: A residual reported in one of these is uninterpretable, not a proven imbalance.
+_PERIODIC = frozenset(elements_and_molecular_weights)
+
 
 @dataclass
 class ConfidenceEntry:
     """One facet's confidence: a continuous ``score`` in [0, 1] plus optional provenance.
 
     ``level`` is an optional categorical band (``"curated"`` / ``"strong"`` / ``"moderate"`` / ``"weak"``
-    / ``"none"``); ``basis`` names the evidence (``"deeploc"``, ``"fba-certified"``, ``"curator"``,
-    ``"connectivity"``, ...); ``source`` distinguishes ``"auto"`` from ``"curator:<id>"``.
+    / ``"none"``); ``basis`` names the evidence (``"deeploc"``, ``"deeploc+fba-certified"``, ``"balanced"``,
+    ``"mass-imbalanced"``, ``"gpr+literature"``, ``"curator"``, ...); ``source`` distinguishes ``"auto"``
+    from ``"curator:<id>"``.
     """
 
     score: float
@@ -183,6 +224,23 @@ def confidence_report(model: cobra.Model):
     return out
 
 
+def facet_summary(model: cobra.Model):
+    """A :class:`pandas.DataFrame` of ``facet`` × ``basis`` × ``score`` counts over the model.
+
+    The audit trail abstention leaves behind: it separates *scored* reactions from the ones no facet
+    applies to, so "the fraction of this model whose chemistry is verified balanced" is a number you can
+    read off rather than infer from a score column."""
+    import pandas as pd
+
+    rows = [{"facet": facet, "basis": entry.basis, "score": entry.score, "level": entry.level}
+            for rc in read_confidence(model).values() for facet, entry in rc.facets.items()]
+    if not rows:
+        return pd.DataFrame(columns=["facet", "basis", "score", "level", "n"])
+    out = (pd.DataFrame(rows).groupby(["facet", "basis", "score", "level"], dropna=False)
+           .size().reset_index(name="n"))
+    return out.sort_values(["facet", "score"], ignore_index=True)
+
+
 # --------------------------------------------------------------------------- localization scorer (P1)
 
 def _level(score: float, *, curated: bool = False) -> str:
@@ -197,56 +255,341 @@ def _level(score: float, *, curated: bool = False) -> str:
     return "none"
 
 
-def mark_curated(reaction: cobra.Reaction, *, source: str = "curator", note: str | None = None,
-                 updated: str | None = None) -> None:
-    """Stamp a placement as **curator-verified**: localization confidence 1.0, ``level="curated"``.
+def mark_curated(reaction: cobra.Reaction, *, facet: str = "localization", source: str = "curator",
+                 note: str | None = None, updated: str | None = None) -> None:
+    """Stamp a facet as **curator-verified**: confidence 1.0, ``level="curated"``.
 
-    Call after a curator firmly fixes a reaction's compartment (e.g. via
+    Call after a curator firmly fixes a reaction (e.g. its compartment, via
     :func:`~raven_toolbox.localization.relocate_reactions`), so the decision persists in the model and
-    :func:`score_localization_confidence` leaves it untouched on a later automated pass.
+    the automated scorer for that ``facet`` leaves it untouched on a later pass.
+
+    ``1.0`` is reserved for this and for a proven check (a reaction whose chemistry is verified
+    balanced); the evidence-derived bands cap at 0.9, so a curated call always outranks an inferred one.
     """
-    set_confidence(reaction, "localization",
+    set_confidence(reaction, facet,
                    ConfidenceEntry(score=1.0, level="curated", basis="curator", source=source,
                                    note=note, updated=updated))
 
 
+def _curated(reaction: cobra.Reaction, facet: str, overwrite: bool) -> bool:
+    """True when ``facet`` carries a curator's call that an automated pass must not overwrite."""
+    entry = get_confidence(reaction).facets.get(facet)
+    return entry is not None and entry.level == "curated" and not overwrite
+
+
+def _abstain(reaction: cobra.Reaction, facet: str) -> None:
+    """Write no ``facet``, dropping a stale score from an earlier pass — but never a curator's call.
+
+    ``overwrite_curated=True`` licenses *recomputing* over a curated entry, not deleting one: a scorer
+    that cannot measure a reaction has learned nothing that invalidates a human's assertion about it.
+    Only an explicit :func:`clear_confidence` removes that.
+    """
+    entry = get_confidence(reaction).facets.get(facet)
+    if entry is not None and entry.level == "curated":
+        return
+    clear_confidence(reaction, facet)
+
+
 def score_localization_confidence(model, proposal, scores, *,
                                   overwrite_curated: bool = False, updated: str | None = None) -> int:
-    """Attach a ``localization`` confidence to every placement in ``proposal`` and return the count.
+    """Attach a ``localization`` confidence to the placements in ``proposal`` and return the count scored.
 
     The score is the DeepLoc support for the assigned compartment (the strongest scored gene's score
-    there): a placement its evidence backs is high-confidence, one placed by connectivity alone
-    (``no scored gene``) is low. The ``basis`` records ``deeploc`` and, when the proposal is certified,
-    ``fba-certified``. Placements already marked ``curated`` are left alone unless ``overwrite_curated``.
+    there), so ``0.0`` means the evidence actively puts the reaction *elsewhere*. The ``basis`` records
+    ``deeploc`` and, when the proposal is certified, ``fba-certified``.
 
-    This is the inverse of the localization signal in
-    :func:`~raven_toolbox.localization.curation_priority`: high confidence here == low review priority
-    there. ``model`` is the draft the proposal was built on.
+    A reaction whose genes are absent from ``scores`` (placed by connectivity alone) is **not scored**:
+    no measurement was possible, and writing ``0.0`` would veto the reaction's ``overall`` on the
+    strength of a missing input rather than of evidence. Such reactions surface through their
+    ``gene_association`` facet and through
+    :func:`~raven_toolbox.localization.curation_priority`'s ``no_evidence`` signal instead. Placements
+    already marked ``curated`` are left alone unless ``overwrite_curated``.
+
+    This is the inverse of the localization signal in ``curation_priority``: high confidence here ==
+    low review priority there. ``model`` is the draft the proposal was built on.
     """
     df = scores.df
     certified = bool(getattr(proposal, "certified", False))
-    unplaced = set(getattr(proposal, "unplaced_reactions", ()))
     n = 0
     for rid, comps in proposal.placements.items():
         if not comps or rid not in model.reactions:
             continue
         reaction = model.reactions.get_by_id(rid)
-        existing = get_confidence(reaction).facets.get("localization")
-        if existing is not None and existing.level == "curated" and not overwrite_curated:
+        if _curated(reaction, "localization", overwrite_curated):
             continue
         comp = comps[0]
         genes = [g.id for g in reaction.genes if g.id in df.index]
-        if genes and comp in df.columns:
-            support = max((_score(df, g, comp) for g in genes), default=0.0)
-            basis = "deeploc+fba-certified" if certified else "deeploc"
-        else:
-            support = 0.0
-            basis = "connectivity"  # placed by function/connectivity, no localisation evidence
-        note = "placed by connectivity; no scored gene" if rid in unplaced or not genes else None
+        if not genes or comp not in df.columns:
+            # Unmeasurable, not unsupported: abstain, and drop a stale score from an earlier pass.
+            _abstain(reaction, "localization")
+            continue
+        support = max((_score(df, g, comp) for g in genes), default=0.0)
         set_confidence(reaction, "localization",
-                       ConfidenceEntry(score=support, level=_level(support), basis=basis,
+                       ConfidenceEntry(score=support, level=_level(support),
+                                       basis="deeploc+fba-certified" if certified else "deeploc",
                                        method="score_localization_confidence", source="auto",
-                                       note=note, updated=updated))
+                                       updated=updated))
+        n += 1
+    return n
+
+
+# ------------------------------------------------------------ exemptions (which facets even apply)
+
+def _sbo(reaction: cobra.Reaction) -> str | None:
+    v = (reaction.annotation or {}).get("sbo")
+    if isinstance(v, str):
+        return v
+    if isinstance(v, (list, tuple)) and v:
+        return str(v[0])
+    return None
+
+
+def equation_exempt(reaction: cobra.Reaction) -> str | None:
+    """Why ``equation`` does not apply to ``reaction`` (a reason string), or ``None`` if it does.
+
+    Exchange/demand/sink reactions (``reaction.boundary``, i.e. any single-metabolite reaction) exchange
+    mass with the environment; biomass (``SBO:0000629``) and pool/SLIME pseudo-reactions
+    (``SBO:0000395``) are lumped by construction. All are imbalanced *by design*, so their chemistry is
+    not a defect and must not be scored.
+
+    ATP maintenance (``SBO:0000630``) is deliberately **not** exempt: it is real chemistry
+    (``ATP + H2O -> ADP + Pi + H``) and must balance. It is exempt from ``gene_association`` instead —
+    real chemistry, no catalyst. See :func:`gene_association_exempt`.
+    """
+    if reaction.boundary:
+        return "boundary"
+    sbo = _sbo(reaction)
+    if sbo == _SBO_BIOMASS:
+        return "biomass"
+    if sbo == _SBO_PSEUDOREACTION:
+        return "pseudoreaction"
+    return None
+
+
+def gene_association_exempt(reaction: cobra.Reaction) -> str | None:
+    """Why ``gene_association`` does not apply to ``reaction`` (a reason string), or ``None`` if it does.
+
+    Everything :func:`equation_exempt` excludes, plus the reactions that legitimately have no catalyst:
+    ATP maintenance (``SBO:0000630``) and spontaneous reactions (``SBO:0000672``, defined as "reaction
+    with no catalyst ... is needed to proceed"). Transport (``SBO:0000655``) is **not** exempt: the term
+    is defined as movement "mediated by a transporter protein", so a transport reaction with no
+    transporter gene is a genuine curation gap, not a modelling convention.
+    """
+    reason = equation_exempt(reaction)
+    if reason is not None:
+        return reason
+    sbo = _sbo(reaction)
+    if sbo == _SBO_ATP_MAINTENANCE:
+        return "maintenance"
+    if sbo == _SBO_SPONTANEOUS:
+        return "spontaneous"
+    return None
+
+
+def _warn_if_no_sbo(model: cobra.Model) -> None:
+    if model.reactions and not any(_sbo(r) for r in model.reactions):
+        warnings.warn(
+            "no reaction carries an SBO term, so biomass and pool pseudo-reactions cannot be told from "
+            "chemistry defects and will be scored as defects. Annotate SBO terms first.",
+            stacklevel=3,
+        )
+
+
+# --------------------------------------------------------------------------- equation facet (P2)
+
+# Defects (evidence contradicts the model) sort strictly below ignorance (evidence is missing).
+_EQ_MASS_IMBALANCED = 0.0     # proven: atoms do not conserve
+_EQ_CHARGE_IMBALANCED = 0.1   # proven, but often a protonation-state convention rather than an error
+_EQ_FORMULA_UNKNOWN = 0.3     # a formula is missing, unparseable, or generic -- verdict impossible
+_EQ_CHARGE_UNKNOWN = 0.6      # mass proven balanced, charge unverifiable
+_EQ_BALANCED = 1.0            # proven: mass and charge conserve
+
+_CHARGE_TOL = 1e-6
+
+
+def _charge_residual(reaction: cobra.Reaction) -> float | None:
+    """Net charge (products − reactants), or ``None`` if any metabolite's charge is unset.
+
+    Recomputed rather than read from ``check_mass_balance()["charge"]``, which cobra accumulates over
+    only the *non-``None``* metabolites — fabricating a residual from a partial sum.
+    """
+    total = 0.0
+    for met, coeff in reaction.metabolites.items():
+        if met.charge is None:
+            return None
+        total += coeff * met.charge
+    return total
+
+
+def _generic_symbols(reaction: cobra.Reaction) -> list[str]:
+    """Non-periodic symbols (R groups, residues) appearing in this reaction's formulas."""
+    out: set[str] = set()
+    for met in reaction.metabolites:
+        for symbol in met.elements or {}:
+            if symbol not in _PERIODIC:
+                out.add(symbol)
+    return sorted(out)
+
+
+def _equation_entry(reaction: cobra.Reaction, balance, tolerance: float) -> ConfidenceEntry:
+    if not reaction.metabolites:
+        # Not `boundary` (that is exactly one metabolite), so it reaches the scorer. Nothing to balance.
+        return ConfidenceEntry(_EQ_FORMULA_UNKNOWN, basis="no-stoichiometry",
+                               note="reaction has no metabolites")
+
+    if balance.status == "unknown":
+        missing = sorted(m.id for m in reaction.metabolites if not m.formula)
+        if missing:
+            shown = ", ".join(missing[:3]) + (" ..." if len(missing) > 3 else "")
+            return ConfidenceEntry(_EQ_FORMULA_UNKNOWN, basis="formula-missing",
+                                   note=f"no formula: {shown}")
+        return ConfidenceEntry(_EQ_FORMULA_UNKNOWN, basis="formula-unparseable",
+                               note="a formula cobra cannot parse (e.g. a parenthesised polymer)")
+
+    if balance.status == "unbalanced":
+        generic = sorted(set(balance.imbalance) - _PERIODIC)
+        if generic:
+            # The residual lands in an R group: the verdict is uninterpretable, not a proven imbalance.
+            return ConfidenceEntry(_EQ_FORMULA_UNKNOWN, basis="formula-generic",
+                                   note=f"residual in non-element symbols: {', '.join(generic)}")
+        residual = ", ".join(f"{el}{amount:+g}" for el, amount in sorted(balance.imbalance.items()))
+        return ConfidenceEntry(_EQ_MASS_IMBALANCED, basis="mass-imbalanced", note=residual)
+
+    # Mass balances. Note any R groups, but do not let them move a score they demonstrably cancel out of.
+    generic = _generic_symbols(reaction)
+    note = f"formulas contain non-element symbols: {', '.join(generic)}" if generic else None
+
+    charge = _charge_residual(reaction)
+    if charge is None:
+        return ConfidenceEntry(_EQ_CHARGE_UNKNOWN, basis="charge-unknown",
+                               note=note or "a metabolite has no charge")
+    if abs(charge) > tolerance:
+        return ConfidenceEntry(_EQ_CHARGE_IMBALANCED, basis="charge-imbalanced",
+                               note=f"net charge {charge:+g}")
+    return ConfidenceEntry(_EQ_BALANCED, basis="balanced", note=note)
+
+
+def score_equation_confidence(model, *, overwrite_curated: bool = False, updated: str | None = None,
+                              tolerance: float = _CHARGE_TOL) -> int:
+    """Attach an ``equation`` confidence (mass & charge balance) to every applicable reaction.
+
+    Returns the number of reactions scored. Reactions :func:`equation_exempt` excludes are **not**
+    scored — an exchange reaction is imbalanced by construction, and writing ``1.0`` there would make
+    469 never-checked yeast-GEM reactions indistinguishable from the 3617 verified ones.
+
+    Bands, lowest first: a proven mass imbalance (``0.0``); a proven charge imbalance (``0.1``, a rung
+    up because it is usually a protonation convention); a formula missing, unparseable, or generic
+    (``0.3`` — unverifiable, not wrong); mass proven but charge unset (``0.6``); balanced (``1.0``).
+    """
+    _warn_if_no_sbo(model)
+    balances = {b.reaction_id: b for b in get_elemental_balance(model)}
+    n = 0
+    for reaction in model.reactions:
+        if _curated(reaction, "equation", overwrite_curated):
+            continue
+        if equation_exempt(reaction) is not None:
+            _abstain(reaction, "equation")
+            continue
+        entry = _equation_entry(reaction, balances[reaction.id], tolerance)
+        entry.level = _level(entry.score)
+        entry.method = "score_equation_confidence"
+        entry.source = "auto"
+        entry.updated = updated
+        set_confidence(reaction, "equation", entry)
+        n += 1
+    return n
+
+
+# --------------------------------------------------------------------- gene_association facet (P2)
+
+_GA_NO_GPR = 0.2             # a reaction that should have a catalyst and does not
+_GA_GPR = 0.6                # genetic evidence only            (~ Thiele-Palsson 2)
+_GA_GPR_LITERATURE = 0.9     # genetic + literature evidence    (~ Thiele-Palsson 3)
+
+
+def _gpr_shape(reaction: cobra.Reaction) -> tuple[int, int]:
+    """``(alternative gene groups, largest group)`` — isozyme count and complex size.
+
+    Read off the rule's *top-level* operator, so a non-DNF rule such as ``(g1 or g2) and (g3 or g4)``
+    is summarised loosely as one group of four. This only ever feeds ``note``; nothing is scored from it.
+    """
+    body = reaction.gpr.body
+    if body is None:
+        return 0, 0
+
+    def leaves(node: ast.AST) -> int:
+        if isinstance(node, ast.Name):
+            return 1
+        if isinstance(node, ast.BoolOp):
+            return sum(leaves(v) for v in node.values)
+        return 0
+
+    if isinstance(body, ast.BoolOp) and isinstance(body.op, ast.Or):
+        return len(body.values), max(leaves(v) for v in body.values)
+    return 1, leaves(body)
+
+
+def _recorded_confidence(reaction: cobra.Reaction) -> int | None:
+    """The model's own Thiele-Palsson ``Confidence Level`` note (0-4), if it carries one.
+
+    Via ``float`` so that a level stored as ``3.0`` or ``"3.0"`` — which a YAML round-trip readily
+    produces — reads as 3 rather than silently as "absent".
+    """
+    raw = (reaction.notes or {}).get("Confidence Level")
+    try:
+        return int(float(str(raw)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _gene_entry(reaction: cobra.Reaction) -> ConfidenceEntry:
+    recorded = _recorded_confidence(reaction)
+    if not reaction.gene_reaction_rule.strip():
+        # Flagged, never scored from: keeping our rubric independent of the model's recorded score is
+        # what lets the recorded score serve as an *independent* check of it (see the study doc).
+        note = (f"recorded Confidence Level {recorded} but no GPR" if recorded is not None and
+                recorded >= 2 else None)
+        return ConfidenceEntry(_GA_NO_GPR, basis="no-gpr", note=note)
+
+    isozymes, complex_size = _gpr_shape(reaction)
+    bits = []
+    if isozymes > 1:
+        bits.append(f"{isozymes} isozymes")
+    if complex_size > 1:
+        bits.append(f"complex of {complex_size}")
+    note = "; ".join(bits) or None
+
+    if "pubmed" in (reaction.annotation or {}):
+        return ConfidenceEntry(_GA_GPR_LITERATURE, basis="gpr+literature", note=note)
+    return ConfidenceEntry(_GA_GPR, basis="gpr", note=note)
+
+
+def score_gene_association_confidence(model, *, overwrite_curated: bool = False,
+                                      updated: str | None = None) -> int:
+    """Attach a ``gene_association`` confidence to every applicable reaction; return the count scored.
+
+    Bands: no GPR (``0.2``); a GPR (``0.6``); a GPR plus a literature citation, i.e. a ``pubmed``
+    annotation (``0.9``). These mirror the Thiele-Palsson levels 0/1, 2 and 3 — and because the rubric
+    reads only the GPR and the citation, a curated model's *own* recorded ``Confidence Level`` note is
+    left free to serve as an independent check of it rather than as an input.
+
+    ``1.0`` is reserved for :func:`mark_curated`. Reactions :func:`gene_association_exempt` excludes
+    (boundary, biomass, pseudo, maintenance, spontaneous) are not scored; transport reactions are.
+    """
+    _warn_if_no_sbo(model)
+    n = 0
+    for reaction in model.reactions:
+        if _curated(reaction, "gene_association", overwrite_curated):
+            continue
+        if gene_association_exempt(reaction) is not None:
+            _abstain(reaction, "gene_association")
+            continue
+        entry = _gene_entry(reaction)
+        entry.level = _level(entry.score)
+        entry.method = "score_gene_association_confidence"
+        entry.source = "auto"
+        entry.updated = updated
+        set_confidence(reaction, "gene_association", entry)
         n += 1
     return n
 

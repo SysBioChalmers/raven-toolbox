@@ -6,6 +6,37 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Structural confidence facets: `equation` and `gene_association`.** `confidence` gains
+  `score_equation_confidence` (mass & charge balance, formula completeness) and
+  `score_gene_association_confidence` (GPR presence + literature corroboration), plus the public
+  `equation_exempt` / `gene_association_exempt` predicates and `facet_summary`. Two rules govern every
+  score, both forced by `overall = min(facets)`: a facet that does not apply to a reaction is **not
+  written at all** (an exchange reaction is imbalanced by construction, so writing `1.0` would make 469
+  never-checked yeast-GEM reactions indistinguishable from the 3617 verified ones), and `0.0` always means
+  *evidence contradicts the model* — never *evidence is missing*, which keeps `overall == 0.0` a usable
+  filter. Exemptions are SBO-driven, never name-driven: a `\bgrowth\b` regex would silence the chemistry
+  check on "non-growth associated maintenance reaction". Validated on yeast-GEM, where the gene rubric
+  recovers the model's own curator-assigned `Confidence Level` (99.9% / 91.5% / 95.3% per band) without
+  ever reading it. `mark_curated` now takes a `facet`, and `clear_confidence` is exported
+  ([design](docs/studies/confidence_tracking.md)).
+* **Fix `get_elemental_balance` crashing on an unparseable formula.** A parenthesised polymer such as
+  `(C5H8)n` (glycogen, starch) makes cobra's `Metabolite.elements` return `None`, which
+  `check_mass_balance()` turns into a `ValueError` — so the shipped helper raised part-way through a model
+  instead of reporting it. A present-but-uninterpretable formula is now `unknown`, which is what the
+  function's own contract already promised.
+* **Fix `score_localization_confidence` vetoing reactions it could not measure.** A reaction whose genes are
+  absent from the score table was written `0.0`/`connectivity`, which under `overall = min(facets)` vetoed
+  the whole reaction on the strength of a *missing input* rather than of evidence. It now abstains; a gene
+  that is scored but scores zero at the assigned compartment still earns a real `0.0`.
+* **Fix gap-fill materialisation landing on the wrong compartment metabolite.**
+  `apply_assignment`'s `_add_universal_reaction` matched a universal candidate's metabolite ids
+  verbatim against the target model instead of resolving them through the same base-id/compartment
+  lookup `_move_reaction` already uses for relocated reactions. Wherever a draft's non-default-
+  compartment species only exist because a relocated reaction created them (any id scheme other
+  than the universal database's own), the gap-fill reaction silently materialised as a disconnected
+  island: the assignment's own solved objective already accounted for the correct shared node, only
+  the applied model was wrong. Fixed with a regression test
+  (`test_gapfill_reuses_relocated_compartment_metabolite`).
 * **Evidence-aware transport scoring (first increment).** New `localization.transport_evidence` turns
   per-gene transporter evidence into the per-metabolite `transport_cost` mapping the assignment MILPs
   already accept, so a transport is cheap when a transporter gene supports it (right substrate, right
