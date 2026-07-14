@@ -175,11 +175,17 @@ def rescale_for_init(model: cobra.Model, max_stoich_diff: float = 25.0) -> None:
 
 
 def _orient_forward(rxn: cobra.Reaction, direction: int) -> None:
-    """Make ``rxn`` carry flux only in its forced direction (irreversible forward)."""
+    """Make ``rxn`` carry flux only in its forced direction (irreversible forward).
+
+    Matches RAVEN ``prepINITModel``: reverse the reactions whose forced direction is
+    negative (``reverseRxns``), then set ``lb = 0`` for every essential — unconditionally,
+    even where ``lb`` was already positive (RAVEN ``minModel1.lb(selInd) = 0``). The MILP
+    re-forces essential flux later, so relaxing ``lb`` to 0 here is intended.
+    """
     if direction < 0:  # flip so the forced (reverse) direction becomes forward
         rxn.add_metabolites({m: -2 * c for m, c in rxn.metabolites.items()})
         rxn.bounds = (-rxn.upper_bound, -rxn.lower_bound)
-    rxn.lower_bound = max(rxn.lower_bound, 0.0)
+    rxn.lower_bound = 0.0
 
 
 def prep_init_model(

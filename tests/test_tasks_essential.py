@@ -87,12 +87,32 @@ def test_direction_majority_across_tasks():
     m.objective = "REV"
     # Task forcing net production of b from a -> REV forward (+1).
     fwd = Task(id="fwd", inputs=[("a[s]", 0.0, 1000.0)], outputs=[("b[s]", 1.0, 1.0)])
-    # Two tasks forcing net production of a from b -> REV reverse (-1). Distinct ids
-    # (task lists have unique ids; essential discovery de-duplicates by id).
+    # Two tasks forcing net production of a from b -> REV reverse (-1).
     rev1 = Task(id="rev1", inputs=[("b[s]", 0.0, 1000.0)], outputs=[("a[s]", 1.0, 1.0)])
     rev2 = Task(id="rev2", inputs=[("b[s]", 0.0, 1000.0)], outputs=[("a[s]", 1.0, 1.0)])
     res = find_task_essential_reactions(m, [rev1, rev2, fwd])
     assert res.reactions["REV"] == -1  # two reverse votes beat one forward
+
+
+def test_duplicate_task_ids_all_contribute():
+    """Tasks that share an id must each contribute to the union, not overwrite each other.
+
+    Real task lists reuse a handful of ids across many tasks (metabolicTasks_Essential.txt
+    has 57 tasks under 5 ids). Keying results by id used to drop all but the last task per
+    id, under-counting the essential set. Here two tasks share id 't', each making a
+    different reaction essential; both must appear.
+    """
+    m = cobra.Model("dupid")
+    a, b, c, d = (cobra.Metabolite(x, name=x, compartment="s") for x in "abcd")
+    m.add_metabolites([a, b, c, d])
+    r1 = cobra.Reaction("R1", lower_bound=0, upper_bound=1000); r1.add_metabolites({a: -1, b: 1})
+    r2 = cobra.Reaction("R2", lower_bound=0, upper_bound=1000); r2.add_metabolites({c: -1, d: 1})
+    m.add_reactions([r1, r2])
+    m.objective = "R1"
+    t_r1 = Task(id="t", inputs=[("a[s]", 0.0, 1000.0)], outputs=[("b[s]", 1.0, 1.0)])
+    t_r2 = Task(id="t", inputs=[("c[s]", 0.0, 1000.0)], outputs=[("d[s]", 1.0, 1.0)])
+    res = find_task_essential_reactions(m, [t_r1, t_r2])
+    assert "R1" in res.reactions and "R2" in res.reactions  # neither overwritten
 
 
 def test_duplicate_name_comp_metabolites_both_constrained():

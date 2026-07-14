@@ -1,15 +1,28 @@
 """Reduce a model by removing/merging reactions that cannot carry flux.
 
-Four reduction modes that cobra does not cover out of the box:
-``remove_dead_end_reactions`` (reactions whose substrates have no producer),
-``remove_duplicate_reactions``, ``constrain_reversible_reactions`` (tighten bounds
-via FVA), and ``group_linear_reactions`` (lossy fold of unit-stoichiometry chains
-into one reaction; drops gene rules).
+Individual reduction modes (each removes a specific class of reaction, in place):
 
-Cobra-covered modes that you'd reach for separately:
+* ``remove_zero_interval_reactions`` — reactions locked at zero flux (``lb == ub == 0``);
+  RAVEN ``simplifyModel`` ``deleteZeroInterval``.
+* ``remove_dead_end_reactions`` — reactions touching a *topological* dead-end metabolite
+  (one that, given reaction directions, can only be produced or only consumed, or
+  participates in a single reaction); RAVEN ``deleteInaccessible``. Iterates to a fixpoint
+  and prunes orphaned metabolites.
+* ``remove_no_flux_reactions`` — reactions that cannot carry flux in *any* steady state,
+  found by FVA (both min and max flux zero); RAVEN ``deleteMinMax``. Catches blocked
+  reactions that are not topological dead-ends.
+* ``remove_duplicate_reactions`` — all-but-one of each set of reactions with identical
+  stoichiometry/bounds; RAVEN ``deleteDuplicates`` (detection-only: ``find_duplicate_reactions``).
+* ``constrain_reversible_reactions`` — does not remove reactions; tightens bounds, making
+  reversible reactions that can only carry flux one way irreversible (via FVA); RAVEN
+  ``constrainReversible``.
+* ``group_linear_reactions`` — lossy fold of single-producer/single-consumer chains into
+  one reaction (drops gene rules); RAVEN ``mergeLinear``.
 
-* No-flux removal → ``cobra.flux_analysis.find_blocked_reactions``.
-* Zero-interval removal → filter reactions with ``bounds == (0, 0)`` then prune.
+``simplify_model`` composes the above via RAVEN's ``simplifyModel`` boolean-flag interface,
+applying the selected modes in RAVEN's order. ``remove_dead_end_reactions`` and
+``remove_no_flux_reactions`` are complementary: the first is a cheap topological sweep, the
+second an exact FVA-based sweep that also removes flux-blocked reactions the first misses.
 """
 from __future__ import annotations
 
@@ -188,7 +201,7 @@ def remove_duplicate_reactions(
 
 
 def constrain_reversible_reactions(
-    model: cobra.Model, *, eps: float = 1e-9
+    model: cobra.Model, *, eps: float = 1e-10
 ) -> list[str]:
     """Constrain reversible reactions that can only carry flux one way.
 
@@ -197,10 +210,22 @@ def constrain_reversible_reactions(
     is set to 0, and if it can only carry reverse flux it is flipped to a forward
     reaction (stoichiometry, bounds, and objective negated). Returns the changed
     reaction IDs.
+
+    Matches RAVEN ``simplifyModel``'s ``constrainReversible``: it classifies a bound as
+    zero at ``|flux| < 1e-10`` and runs its FVA (``getAllowedBounds`` → ``solveLP``) at
+    ``FeasibilityTol = 1e-9``. We set the same feasibility tolerance on the solver so the
+    FVA min/max are trustworthy at that 1e-10 threshold (at Gurobi's looser 1e-6 default a
+    reaction with tiny one-way flux is mis-classified, changing its reversibility and, in
+    turn, how ``group_linear_reactions`` merges it).
     """
     revs = [r for r in model.reactions if r.lower_bound < 0 < r.upper_bound]
     if not revs:
         return []
+    try:  # Gurobi-specific; match RAVEN solveLP's precision. Harmless on other backends.
+        model.solver.problem.Params.FeasibilityTol = 1e-9
+        model.solver.problem.Params.OptimalityTol = 1e-9
+    except Exception:  # noqa: BLE001
+        pass
     # Infeasible models surface as either OptimizationError (Gurobi/HiGHS) or
     # NaN-filled ranges (some optlang backends silently). Catch both and raise
     # a single clear error — the original ``abs(NaN) < eps`` comparison would

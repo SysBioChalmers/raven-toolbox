@@ -2,6 +2,7 @@
 reaction building from equations, batch GPR / bound changes, irreversibility splitting,
 isozyme expansion, compartment merge / copy, and model merging by name."""
 from .add import add_reactions_from_equations
+from .boundary import close_model
 from .change import change_gene_reaction_rules, change_reaction_equations
 from .expand import expand_model, gpr_to_dnf
 from .irreversible import convert_to_irreversible
@@ -27,6 +28,7 @@ __all__ = [
     "add_transport_reactions",
     "change_gene_reaction_rules",
     "change_reaction_equations",
+    "close_model",
     "constrain_reversible_reactions",
     "convert_to_irreversible",
     "expand_model",
