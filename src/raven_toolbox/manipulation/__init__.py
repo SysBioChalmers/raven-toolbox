@@ -14,6 +14,9 @@ from .simplify import (
     group_linear_reactions,
     remove_dead_end_reactions,
     remove_duplicate_reactions,
+    remove_no_flux_reactions,
+    remove_zero_interval_reactions,
+    simplify_model,
 )
 from .transfer import add_reactions_from_model
 from .transport import add_transport_reactions
@@ -35,5 +38,8 @@ __all__ = [
     "remove_duplicate_reactions",
     "remove_genes",
     "remove_metabolites",
+    "remove_no_flux_reactions",
+    "remove_zero_interval_reactions",
     "set_variance_bounds",
+    "simplify_model",
 ]

@@ -64,6 +64,14 @@ _FORCE_ON = 0.1  # min flux for a reaction to count as "on" (RAVEN forceOnLim)
 _BIG_M = 100.0   # indicator/direction big-M cap on a *scored* reaction's flux (RAVEN's 100)
 
 
+def _dbg(msg: str) -> None:
+    """Print a diagnostic line to stderr when FTINIT_DEBUG is set (off by default)."""
+    import os
+    import sys
+    if os.environ.get("FTINIT_DEBUG"):
+        print(msg, file=sys.stderr, flush=True)
+
+
 @dataclass
 class FtInitResult:
     """Result of :func:`run_ftinit`."""
@@ -74,6 +82,7 @@ class FtInitResult:
     fluxes: dict[str, float]
     objective: float
     on_reactions: set[str] = field(default_factory=set)  # scored reactions turned on (indicator)
+    achieved_gap: float | None = None  # solver's final relative MIP gap (RAVEN's multi-run driver)
 
 
 def run_ftinit(
@@ -90,6 +99,7 @@ def run_ftinit(
     force_on_ess: float = _FORCE_ON,
     big_m: float = _BIG_M,
     mip_gap: float | None = None,
+    mip_gap_abs: float | None = None,
     time_limit: float | None = None,
 ) -> FtInitResult:
     """Run the single-step ftINIT MILP and return the extracted model.
@@ -181,6 +191,14 @@ def run_ftinit(
             add_constraint(total - big_m * x, ub=0.0, name=f"off_{rid}")  # flux>0 ⇒ x=1
 
     # Steady state S·v {== 0 | >= 0}; ignored metabolites are left unbalanced.
+    # NOTE (allow_excretion sign): we relax to S·v >= 0 (net production / excretion
+    # allowed), matching the constraint's name and classic INIT (RAVEN runINIT). RAVEN's
+    # *ftINIT* builder instead uses csense 'L' → S·v <= 0 (net consumption), which reads as
+    # inconsistent with its own "allowExcretion" intent. We deliberately keep the
+    # intent-faithful S·v >= 0: allow_excretion is unused in the default '1+1' schedule
+    # (both steps have allow_met_secr=False) and only fires in '2+1'/'2+0' step 1, so this
+    # does not affect the gene-essentiality pipeline. Revisit only if exact '2+1' parity
+    # with RAVEN is required.
     # Build each metabolite's balance as a *flat* list of (coeff·sign)·var terms and sum
     # it with optlang.symbolics.add. Python's builtin sum re-canonicalises a growing
     # sympy expression at every step (O(n²)); for hub metabolites that appear in ~10³
@@ -202,14 +220,62 @@ def run_ftinit(
     opt.objective = prob.Objective(
         add([mul([Real(score), ind]) for ind, score in indicators.values()]), direction="max"
     )
-    if time_limit is not None:
-        opt.configuration.timeout = int(time_limit)
+    try:  # Gurobi-specific; harmless if the backend differs. Match RAVEN's optimizeProb
+        # defaults exactly, because the ftINIT MILP is highly degenerate and the chosen
+        # incumbent (hence which reactions are kept) depends on these:
+        #   * Threads=1 — RAVEN forces single-threaded solving; multi-threaded Gurobi
+        #     picks among equal optima non-deterministically and can even report the MILP
+        #     infeasible (RAVEN issue #607). This is the dominant reproducibility lever.
+        #   * Presolve=2, FeasibilityTol/OptimalityTol/IntFeasTol=1e-9 — RAVEN's
+        #     optimizeProb defaults; they steer which optimal vertex a degenerate MILP
+        #     lands on and how binaries round at the 0.5 on/off cut.
+        #   * Seed=1234 — fixed seed so tie-breaking is reproducible.
+        opt.problem.Params.Threads = 1
+        opt.problem.Params.Presolve = 2
+        opt.problem.Params.FeasibilityTol = 1e-9
+        opt.problem.Params.OptimalityTol = 1e-9
+        opt.problem.Params.IntFeasTol = 1e-9
+        opt.problem.Params.Seed = 1234
+    except Exception:  # noqa: BLE001
+        pass
     if mip_gap is not None:
         try:  # Gurobi-specific; harmless if the backend differs
             opt.problem.Params.MIPGap = mip_gap
         except Exception:  # noqa: BLE001
             pass
+
+    if mip_gap_abs is not None:
+        # RAVEN's multi-run gap strategy (ftINIT.m). The final staged step has a
+        # near-zero objective (it mostly removes small negative-score reactions), so a
+        # fixed *relative* gap becomes an almost-zero absolute gap the solver cannot
+        # reach in the time limit — it stops with extra bypass reactions on, giving a
+        # suboptimal model. A fixed *absolute* gap (Gurobi MIPGapAbs) is unsafe: on a
+        # small-objective model the solver stops at the first garbage incumbent within
+        # it. Instead: a quick estimate solve, then re-solve (warm-started, same model)
+        # with a *relative* gap scaled to the objective — max(mip_gap, mip_gap_abs/|obj|)
+        # = RAVEN's AbsMIPGap/|objVal|, safe at any scale.
+        if time_limit is not None:
+            opt.configuration.timeout = max(1, min(int(time_limit) // 10, 30))
+        opt.optimize()
+        obj = abs(opt.objective.value) if opt.objective.value is not None else 0.0
+        _dbg(f"[ftinit] estimate solve: obj={opt.objective.value} status={opt.status}")
+        if obj > 0:
+            eff_gap = min(max(mip_gap or 0.0, mip_gap_abs / obj), 1.0)
+            _dbg(f"[ftinit] eff_gap = max({mip_gap}, {mip_gap_abs}/{obj:.1f}) = {eff_gap:.5f}")
+            try:
+                opt.problem.Params.MIPGap = eff_gap
+            except Exception:  # noqa: BLE001
+                pass
+
+    if time_limit is not None:
+        opt.configuration.timeout = int(time_limit)
     opt.optimize()
+    try:
+        _achieved = opt.problem.MIPGap
+    except Exception:  # noqa: BLE001
+        _achieved = None
+    _dbg(f"[ftinit] final solve: obj={opt.objective.value} status={opt.status} "
+         f"achieved_gap={_achieved}")
     # Accept a near-optimal incumbent (when a MIP gap / time limit is set), as RAVEN does.
     if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
         raise OptimizationError(f"ftINIT MILP did not solve (status: {opt.status}).")
@@ -227,7 +293,69 @@ def run_ftinit(
     out = model.copy()
     out.remove_reactions(deleted, remove_orphans=True)
     return FtInitResult(out, sorted(kept), sorted(deleted), fluxes,
-                        float(opt.objective.value), on_reactions=on)
+                        float(opt.objective.value), on_reactions=on,
+                        achieved_gap=_achieved)
+
+
+def _nudge_scores(rxn_scores: Mapping[str, float]) -> dict[str, float]:
+    """Push tiny reaction scores off zero (RAVEN ``ftINIT.m:160-161``).
+
+    Scores in ``(-0.1, 0]`` become ``-0.1`` and in ``(0, 0.1)`` become ``0.1`` — near-zero
+    scores cause the MILP numerical trouble. Exactly-zero scores become ``-0.1`` (scored,
+    removable) here; genuinely ignore-masked reactions are set back to 0 afterwards by
+    :func:`group_rxn_scores`.
+    """
+    nudged: dict[str, float] = {}
+    for rid, s in rxn_scores.items():
+        if -0.1 < s <= 0:
+            s = -0.1
+        elif 0 < s < 0.1:
+            s = 0.1
+        nudged[rid] = s
+    return nudged
+
+
+def _solve_step(
+    min_model, scores, step, *, essential, directions, ess_force, force_on, big_m,
+    mip_gap, mip_gap_abs, time_limit,
+) -> FtInitResult:
+    """Solve one ftINIT step, following RAVEN's multi-run gap-escalation schedule.
+
+    RAVEN (``ftINIT.m:227-283``) runs a step up to ``len(step.milp_runs)`` times: run 1 at
+    a flat relative gap; each later run at ``max(mip_gap, abs_gap/|obj|)`` — the absolute
+    gap made relative, which is safe when the step's objective is near zero — breaking as
+    soon as the previous run's achieved gap already meets the next (looser) target. A
+    caller ``time_limit`` caps each run's own limit. With no schedule (``step.milp_runs``
+    empty, e.g. the ``'full'`` series) this is a single solve at the caller's gap.
+    """
+    def _run(mg, mga, tl):
+        return run_ftinit(
+            min_model, scores, essential_rxns=essential, essential_directions=directions,
+            essential_force=ess_force, allow_excretion=step.allow_met_secr,
+            rem_pos_rev=step.pos_rev_off, ignore_mets=step.mets_to_ignore,
+            force_on=force_on, force_on_ess=force_on, big_m=big_m,
+            mip_gap=mg, mip_gap_abs=mga, time_limit=tl,
+        )
+
+    if not step.milp_runs:
+        return _run(mip_gap, mip_gap_abs, time_limit)
+
+    res: FtInitResult | None = None
+    last_obj: float | None = None
+    achieved: float | None = None
+    for i, run in enumerate(step.milp_runs):
+        target = run["mip_gap"]
+        tl = run["time_limit"] if time_limit is None else min(run["time_limit"], time_limit)
+        if i > 0:
+            # RAVEN: near-zero objective → abs_gap/|obj| blows up → accept any incumbent.
+            target = (min(max(run["mip_gap"], run["abs_gap"] / abs(last_obj)), 1.0)
+                      if last_obj else 1.0)
+            if achieved is not None and achieved <= target:
+                break
+        res = _run(target, None, tl)
+        last_obj, achieved = res.objective, res.achieved_gap
+    assert res is not None  # milp_runs is non-empty here
+    return res
 
 
 def ftinit(
@@ -242,6 +370,7 @@ def ftinit(
     force_on: float = _FORCE_ON,
     big_m: float = _BIG_M,
     mip_gap: float | None = None,
+    mip_gap_abs: float | None = 10.0,
     time_limit: float | None = None,
 ) -> cobra.Model:
     """Run the full ftINIT pipeline on prepData and return the context-specific model.
@@ -281,30 +410,36 @@ def ftinit(
     steps = steps if steps is not None else get_init_steps(series)
     min_model, group_of = prep.min_model, prep.group_of
 
+    # RAVEN nudges tiny reaction scores off zero once, before per-step grouping.
+    rxn_scores = _nudge_scores(rxn_scores)
+
     turned_on: dict[str, float] = {}   # merged reaction id -> flux (accumulated)
     left_in: set[str] = set()          # merged reactions with score 0 in the last step
+    # RAVEN seeds every reaction's "carried flux" at force_on (0.1) and updates it after
+    # each step; an essential reaction is forced at min(0.99·|carried flux|, force_on), so
+    # it is never forced above what it last carried (ftINIT.m:172,248) — this applies to
+    # the permanent (prep) essentials too, not only reactions turned on by a prior step.
+    flux_of: dict[str, float] = {r.id: force_on for r in min_model.reactions}
     for step in steps:
         to_zero = prep.masks.ignored(step.ignore_mask)
         scores = group_rxn_scores(min_model, rxn_scores, prep.orig_rxn_ids,
                                   prep.group_ids, to_zero)
         essential = set(prep.essential_rxns)  # pre-oriented forward (default direction)
         directions: dict[str, int] = {}
-        ess_force: dict[str, float] = {}
         if step.how_to_use_prev == "essential":
             for rid, flux in turned_on.items():
                 essential.add(rid)
                 directions[rid] = 1 if flux >= 0 else -1
-                # never force more flux than the reaction carried before (RAVEN)
-                ess_force[rid] = min(abs(flux) * 0.99, force_on)
-        res = run_ftinit(
-            min_model, scores, essential_rxns=essential, essential_directions=directions,
-            essential_force=ess_force, allow_excretion=step.allow_met_secr,
-            rem_pos_rev=step.pos_rev_off, ignore_mets=step.mets_to_ignore,
-            force_on=force_on, force_on_ess=force_on, big_m=big_m,
-            mip_gap=mip_gap, time_limit=time_limit,
+        ess_force = {rid: min(abs(flux_of.get(rid, force_on)) * 0.99, force_on)
+                     for rid in essential}
+        res = _solve_step(
+            min_model, scores, step, essential=essential, directions=directions,
+            ess_force=ess_force, force_on=force_on, big_m=big_m,
+            mip_gap=mip_gap, mip_gap_abs=mip_gap_abs, time_limit=time_limit,
         )
         for rid in res.on_reactions:
             turned_on[rid] = res.fluxes[rid]
+        flux_of.update(res.fluxes)  # carry this step's fluxes into the next
         left_in = {rid for rid, s in scores.items() if s == 0.0}
 
     # Merged reactions to keep: turned on + permanently essential + left-in (score 0).
