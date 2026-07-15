@@ -115,6 +115,9 @@ def test_duplicate_task_ids_all_contribute():
     t_r2 = Task(id="t", inputs=[("c[s]", 0.0, 1000.0)], outputs=[("d[s]", 1.0, 1.0)])
     res = find_task_essential_reactions(m, [t_r1, t_r2])
     assert "R1" in res.reactions and "R2" in res.reactions  # neither overwritten
+    # The per-task view merges the same-id tasks (union of their essentials), so the
+    # earlier task's reaction is not lost there either.
+    assert res.per_task["t"] == {"R1": 1, "R2": 1}
 
 
 def test_duplicate_name_comp_metabolites_both_constrained():

@@ -81,3 +81,79 @@ def test_prefers_cheaper_reactions_by_score():
     # ALT scored high (cost low), R7 scored low (cost high) → ALT chosen.
     res = fill_tasks(gapped, ref, [make_test_task()], rxn_scores={"ALT": 5.0, "R7": -3.0})
     assert res.added_reactions == ["ALT"]
+
+
+# --------------------------------------------------------------------------- #
+# Regression tests for the gap-fill rewrite in this PR (faithful RAVEN
+# ftINITFillGaps port): reactions are reconstructed rather than deep-copied
+# (cobra Reaction.copy() recurses without bound on genome-scale models), the
+# candidates are never copied into the model, and un-fillable tasks are surfaced.
+# --------------------------------------------------------------------------- #
+def test_gap_filled_reaction_keeps_its_gpr():
+    """A gap-filled reaction retains its GPR, stoichiometry and bounds.
+
+    The gap-fill reconstructs each chosen reaction (id/bounds/stoichiometry/GPR) instead
+    of deep-copying it. Dropping the gene rule would make the added reaction look
+    gene-less, so every gene controlling only that reaction would be silently missed by
+    the downstream gene-essentiality analysis — the very failure mode this PR fixes.
+    """
+    ref = _reference_without_exchanges()
+    gapped = ref.copy()
+    gapped.remove_reactions(["R7"], remove_orphans=False)
+    res = fill_tasks(gapped, ref, [make_test_task()])
+    r7 = res.model.reactions.get_by_id("R7")
+    assert r7.gene_reaction_rule == "G7"                 # gene rule preserved
+    assert "G7" in {g.id for g in res.model.genes}       # and its gene is in the model
+    assert {m.id: c for m, c in r7.metabolites.items()} == {"ec": -1, "es": 1}  # stoichiometry
+    assert (r7.lower_bound, r7.upper_bound) == (0, 1000)  # bounds
+
+
+def test_add_reference_reactions_recreates_missing_metabolites():
+    """``_add_reference_reactions`` creates metabolites a chosen reaction needs but the
+    target lacks, and reconstructs the reaction without cobra's recursive deep-copy."""
+    from raven_toolbox.init.taskfill import _add_reference_reactions
+
+    ref = make_test_model()                                   # full model: R7 (ec->es, G7)
+    target = make_test_model()
+    target.remove_reactions(["R7", "R8"], remove_orphans=True)  # e[s] now orphaned → removed
+    assert "es" not in {m.id for m in target.metabolites}
+
+    _add_reference_reactions(target, ref, ["R7"])
+
+    assert "es" in {m.id for m in target.metabolites}         # metabolite recreated
+    r7 = target.reactions.get_by_id("R7")
+    assert r7.gene_reaction_rule == "G7"
+    assert {m.id: c for m, c in r7.metabolites.items()} == {"ec": -1, "es": 1}
+    assert (r7.lower_bound, r7.upper_bound) == (0, 1000)
+
+
+def test_unfillable_task_is_reported_and_warns():
+    """A task the reference cannot satisfy is returned in ``failed_tasks`` and warned
+    about, not silently dropped into a discarded list (the old behaviour that let a
+    non-growing context model pass unnoticed)."""
+    import pytest
+
+    ref = _reference_without_exchanges()
+    ref.remove_reactions(["R7"], remove_orphans=False)  # reference itself cannot make e[s]
+    gapped = ref.copy()
+    with pytest.warns(UserWarning, match="could not be gap-filled"):
+        res = fill_tasks(gapped, ref, [make_test_task()])
+    assert res.failed_tasks == ["Gen e[s] from a[s]"]
+    assert res.added_reactions == []
+
+
+def test_additions_carry_forward_to_later_tasks():
+    """A reaction added for one task is present for later tasks (model carried forward),
+    so a second task with the same requirement needs no further additions."""
+    import math
+
+    from raven_toolbox.tasks import Task
+
+    ref = _reference_without_exchanges()
+    gapped = ref.copy()
+    gapped.remove_reactions(["R7"], remove_orphans=False)
+    first = make_test_task()
+    second = Task(id="second", inputs=[("a[s]", 0.0, math.inf)], outputs=[("e[s]", 1.0, 1.0)])
+    res = fill_tasks(gapped, ref, [first, second])
+    assert res.added_reactions == ["R7"]  # added once; the second task saw R7 already there
+    assert not res.failed_tasks
