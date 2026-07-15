@@ -105,8 +105,10 @@ def test_duplicate_task_ids_all_contribute():
     m = cobra.Model("dupid")
     a, b, c, d = (cobra.Metabolite(x, name=x, compartment="s") for x in "abcd")
     m.add_metabolites([a, b, c, d])
-    r1 = cobra.Reaction("R1", lower_bound=0, upper_bound=1000); r1.add_metabolites({a: -1, b: 1})
-    r2 = cobra.Reaction("R2", lower_bound=0, upper_bound=1000); r2.add_metabolites({c: -1, d: 1})
+    r1 = cobra.Reaction("R1", lower_bound=0, upper_bound=1000)
+    r1.add_metabolites({a: -1, b: 1})
+    r2 = cobra.Reaction("R2", lower_bound=0, upper_bound=1000)
+    r2.add_metabolites({c: -1, d: 1})
     m.add_reactions([r1, r2])
     m.objective = "R1"
     t_r1 = Task(id="t", inputs=[("a[s]", 0.0, 1000.0)], outputs=[("b[s]", 1.0, 1.0)])
