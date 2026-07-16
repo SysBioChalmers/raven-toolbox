@@ -4,8 +4,33 @@ Milestones in the raven-toolbox port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
-## Unreleased
+## 0.3.0 — 2026-07-16
 
+Compartment localisation and per-reaction confidence tracking, new gap-filling and flux-sampling
+algorithms, ftINIT parity with RAVEN, and KEGG artefact hosting moved to the dedicated `raven-data`
+repository.
+
+* **`export_for_git` can pin the MATLAB `.mat` variable name.** New keyword-only `varname`, forwarded
+  to `save_matlab_model`, so a repository that expects a specific struct name (Human-GEM expects
+  `humanGEM`) no longer has to write the `.mat` itself. Default `None` keeps cobra's own fallback (the
+  model id), so existing callers are unaffected.
+* **ftINIT now matches RAVEN's model preparation, solver parameters, and gap schedule.** A line-by-line
+  review against RAVEN's `ftINIT` / `prepINITModel` found the formulation faithfully ported, with the
+  real divergences concentrated in model simplification and solver/gap handling. `prep_init_model` runs
+  both RAVEN simplifications in `prepINITModel` order and broadens the exchange mask to RAVEN
+  `getExchangeRxns`' one-sided rule (any reaction with no products or no substrates) — previously only
+  the topological dead-end pass ran, leaving a ~10 % larger model. `ftinit` adopts RAVEN `optimizeProb`
+  solver parameters (`Threads=1` for a deterministic MILP incumbent, `Presolve=2`, `1e-9` feasibility /
+  optimality / integrality tolerances), nudges tiny reaction scores off zero, forces permanent essential
+  reactions at `min(0.99*|carried flux|, force_on)` while tracking carried flux across steps, and
+  escalates the MIP gap per step (RAVEN `MILPParams` / `AbsMIPGaps`). New `manipulation.simplify_model`
+  mirrors RAVEN's `simplifyModel` boolean-flag interface, adding `remove_zero_interval_reactions`
+  (`deleteZeroInterval`) and `remove_no_flux_reactions` (FVA-blocked removal, `deleteMinMax`).
+  Task-essential discovery follows RAVEN `checkTasks`, and task gap-fill follows `ftINITFillGaps`. On
+  Human-GEM / DLD1 the prep model now matches RAVEN's sizes (`ref_model` 10240 against RAVEN's ~10198;
+  merged `min_model` 6959 against ~6917 — previously 11532 / 8252). `allow_excretion` deliberately keeps
+  `S*v >= 0`, matching the flag's name and classic INIT rather than RAVEN's `csense 'L'`; it is unused in
+  the default `'1+1'` schedule and documented inline.
 * **Structural confidence facets: `equation` and `gene_association`.** `confidence` gains
   `score_equation_confidence` (mass & charge balance, formula completeness) and
   `score_gene_association_confidence` (GPR presence + literature corroboration), plus the public
@@ -121,6 +146,84 @@ Milestones in the raven-toolbox port. For function-level status see
   model compartment ids and collapse synonyms. `load_deeploc` gained a `compartment_map`
   argument. **Removed `load_wolfpsort`** — modern multi-label predictors, the COMPARTMENTS
   database and UniProt supersede the single-label WoLF PSORT caller.
+* **Flux sampling: CHRR and ACHR, unified under `random_sampling`.** `random_sampling(model,
+  method=...)` is the single entry point and dispatches `"achr"` (the new default), `"chrr"`, and
+  `"random_objective"` (the historical Bordel et al. 2010 vertex method). **CHRR** — Coordinate
+  Hit-and-Run with Rounding (Haraldsdóttir et al. 2017) — does nullspace reduction, maximum-volume
+  ellipsoid rounding, then coordinate hit-and-run; it is the recommended sampler for enzyme-constrained
+  (ecModel + proteomics) and flux-measured models, whose feasible set is a thin, ill-conditioned slab
+  that defeats unrounded chains. cobrapy ships ACHR but no CHRR, so the ACHR path wraps
+  `cobra.sampling.ACHRSampler` while CHRR is a genuine new implementation. Also exports
+  `max_volume_ellipsoid` (Zhang & Gao 2003 primal-dual interior-point MVE solver), validated against
+  analytic cases (box → unit ball, scaled/sheared box, triangle → Steiner inellipse). All methods return
+  a unified `FluxSamplingResult`; `RandomSamplingResult` is kept as an alias. Reference:
+  `docs/reference/flux_sampling_algorithms.md`. **Breaking:** `random_sampling`'s default changed from
+  the random-objective vertex method to ACHR — pass `method="random_objective"` for the previous
+  behaviour.
+* **Gap-filling algorithms: LP, MILP, and topological.** Three strategies in `raven_toolbox.gapfilling`
+  complementing `connect_blocked_reactions`: `fill_gaps_fast_lp` (LP-relaxation connectivity
+  gap-filling, fastGapFill / Thiele et al. 2014, with `variant="swift"` for the SWIFTCORE single-LP
+  form, Tefagh & Boyd 2020 — no MILP solve); `fill_gaps_kumar_milp` (Kumar et al. 2007 global
+  growth-floor MILP, adding directionality-reversal repair on top of database-reaction addition); and
+  `analyse_topology` (Meneco-inspired BFS metabolite-producibility scope, reporting unreachable
+  metabolites and pruning candidate reactions with no solver call). These complement
+  `cobra.flux_analysis.gapfill`, which does objective-based gap-filling without reversal repair.
+  References: `docs/reference/gap_filling_algorithms.md`, `docs/reference/cobra_raven_comparison.md`.
+* **KEGG artefacts hosted in `raven-data`.** All KEGG artefact URLs move from `raven-toolbox` releases
+  to the dedicated `raven-data` repository (`raven-data/releases/download/kegg118/`), keeping the
+  toolbox release lean. Adds `scripts/publish_to_raven_data.py` to upload build artefacts to a
+  `raven-data` release, and updates the `_DATA_REGISTRY` URLs in `data.py` to match. Maintenance docs
+  (`maintaining_binaries.md`, `maintaining_kegg_data.md`, `data_manifest.md`) describe the 3-step
+  publish workflow; `docs/reference/matlab_raven_backports.md` is slimmed to the deliberate-omission
+  section now that every backport item is complete.
+* **kegg118 artefact set.** Regenerates `data/manifest.json` for kegg118 (versions, SHA256 checksums,
+  byte sizes for the core bundle, taxonomy, and the prokaryote/eukaryote HMM libraries) and syncs the
+  in-code `_DATA_REGISTRY`, which had been left at kegg116 and is the fallback when
+  `$RAVEN_PYTHON_MANIFEST` is unset. Fixes the generated release-asset URLs, which pointed at the
+  singular `…/release/download/…` path that GitHub does not serve — every download would have 404'd —
+  and `scripts/make_registry_snippet.py` now takes a release `--tag` and builds the
+  `…/releases/download/<tag>` prefix itself so the typo cannot recur. The HMM libraries are named
+  `kegg<version>_prokaryotes` / `_eukaryotes` consistently across the manifest, the Python resolver, and
+  MATLAB RAVEN.
+* **Binary provisioning: sets, fetch CLI, auto-fetch toggle, native-Windows HMMER.** Provisioning is
+  decoupled from pip (extras can only pull PyPI wheels, and downloading binaries during `pip install`
+  is a known anti-pattern) into: **binary sets** — `runtime` (blast, diamond, hmmsearch) vs `build`
+  (hmmbuild, mafft, cd-hit); an explicit **fetch CLI**, `raven-toolbox-binaries --set runtime|build|all`
+  (and `--list`), which is OS-aware, SHA256-verified, skips tools already on PATH, and reports per-tool
+  `present/downloaded/unavailable/error`; and the unchanged **lazy first-use download**, now disableable
+  via `RAVEN_PYTHON_AUTOFETCH=0` for air-gapped or conda-managed setups. Adds a `windows-x86_64` entry
+  on the `hmmer` bundle (HMMER 3.3.2 repackaged from RAVEN 2.10.5) so the KEGG HMM *query* runs on
+  native Windows without WSL — searching 3.4-built libraries with 3.3.2 is safe because the toolbox
+  ships ASCII `.hmm` libraries, the `HMMER3/f` format is unchanged 3.1→3.4, and 3.4 introduced no
+  protein-scoring change. HMM *building* stays WSL/conda-only (MAFFT and CD-HIT have no Windows
+  builds). `ensure_binary` now resolves `<name>.exe` on Windows, and sibling DLLs extract next to it.
+* **Resumable KEGG artefact build.** `scripts/build_kegg_artefacts.py` skips each stage whose output
+  already exists (parsed tables, taxonomy, per-domain HMM library, core bundle), so a build that dies
+  partway continues on re-run of the same command instead of restarting the multi-hour HMM step; a new
+  `--force` rebuilds from scratch. `build_ko_fastas` keeps already-written `<KO>.fa` files and writes a
+  `.ko_fastas_complete` marker so a finished run fast-paths without re-scanning `genes.pep`.
+  `organism_gene_ko` is loaded lazily, so a fully-published build re-runs as a clean no-op.
+* **Progress reporting for the KEGG build.** An opt-in `progress` flag (tqdm) on the maintainer-side
+  KEGG path, so long-running steps report progress instead of appearing to hang: per-file byte bars for
+  download and the multi-GB proteome gunzip, a byte bar over the dominant `organism_gene_ko` streaming
+  pass in `parse_kegg_dump`, and an "N of M KOs" counter over the HMM build loop. `progress` is
+  independent of `verbose`; with both on, per-KO log lines route through `tqdm.write` so they do not
+  corrupt the bar.
+* **Excel export of `model.ec`.** `export_to_excel` writes a populated `model.ec` (`EcData`) to two
+  further sheets, mirroring RAVEN's `exportToExcelFormat`: **ENZYMES** (`ID`, `GENE`, `MW`, `SEQUENCE`,
+  `CONC`) and **ENZRXNS** (`ID`, `KCAT`, `SOURCE`, `NOTE`, `EC-NUMBER`, `ENZYMES`), where the `ENZYMES`
+  column encodes subunit stoichiometry from `ec.rxn_enz_mat` as `enzyme:count` pairs. Written only when
+  the model carries a populated `model.ec`; plain cobra models are unchanged. Export-only — YAML remains
+  the round-trippable ecModel format.
+* **CI runs on macOS and Windows.** The `test` job gains a lean matrix — ubuntu × Python 3.11/3.12/3.13
+  plus macos × 3.12 and windows × 3.12 (5 jobs) — so OS-specific bugs in path handling, `subprocess`,
+  and file I/O are caught here rather than in downstream consumers. `lint` / `mypy` / `docs` stay
+  ubuntu-only.
+* **Docstring rendering fixes.** `set_gam`'s trailing "Returns the (mutated) model for chaining." sat
+  inside the `Parameters` block, which griffe read as a phantom parameter named `Returns`; it is now a
+  proper `Returns` section. `add_sbo_terms` used 4-space-indented bullets under plain-text headings,
+  which CommonMark renders as a code block rather than a list; it now uses bold headers with unindented
+  bullets. No API changes.
 
 ## 0.2.0 — 2026-06-14
 
