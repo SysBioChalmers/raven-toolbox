@@ -97,7 +97,9 @@ intersphinx_mapping = {
     "cobra": ("https://cobrapy.readthedocs.io/en/latest/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "pandas": ("https://pandas.pydata.org/docs/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    # scipy intentionally omitted: no doc cross-references resolve against it, and
+    # docs.scipy.org is chronically slow to serve objects.inv, which fails the -W build
+    # on a transient timeout. Re-add if a scipy cross-reference is ever needed.
 }
 
 # -- todo extension ----------------------------------------------------------

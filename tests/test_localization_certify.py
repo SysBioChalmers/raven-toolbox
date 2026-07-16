@@ -1,0 +1,391 @@
+"""Tests for materialised-FBA-certified compartment assignment.
+
+These use single-compartment toys to exercise the *certified* contract: the returned proposal is
+``certified=True`` **iff** the model ``apply_assignment`` builds actually reaches the growth floor (the
+certificate is a real FBA on the materialised model, not a growth row inside the placement solve), and
+functionality still drives placement against a reaction's top localisation score when a confined
+metabolite requires it.
+"""
+import cobra
+import pandas as pd
+import pytest
+
+from raven_toolbox.localization import (
+    AssignmentProposal,
+    GrowthCondition,
+    apply_assignment,
+    assign_compartments,
+)
+from raven_toolbox.localization.scores import LocalizationScores
+
+
+def _met(mid):
+    return cobra.Metabolite(mid, name=mid, compartment="c")
+
+
+def _grows(model, floor=1e-6):
+    v = model.slim_optimize(error_value=0.0)
+    return v is not None and v > floor
+
+
+def _linear():
+    """EX_A -> r1: A->B -> bio: B->. B produced only by r1."""
+    m = cobra.Model("linear")
+    A, B = _met("A_c"), _met("B_c")
+    m.add_metabolites([A, B])
+    ex = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
+    ex.add_metabolites({A: -1})
+    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r1.add_metabolites({A: -1, B: 1})
+    r1.gene_reaction_rule = "g1"
+    bio = cobra.Reaction("bio", lower_bound=0, upper_bound=1000)
+    bio.add_metabolites({B: -1})
+    m.add_reactions([ex, r1, bio])
+    m.objective = "bio"
+    return m
+
+
+def _chain():
+    """EX_A -> r1: A->X -> r2: X->B -> bio: B->. X is the pathway intermediate."""
+    m = cobra.Model("chain")
+    A, X, B = _met("A_c"), _met("X_c"), _met("B_c")
+    m.add_metabolites([A, X, B])
+    ex = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
+    ex.add_metabolites({A: -1})
+    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r1.add_metabolites({A: -1, X: 1})
+    r1.gene_reaction_rule = "g1"
+    r2 = cobra.Reaction("r2", lower_bound=0, upper_bound=1000)
+    r2.add_metabolites({X: -1, B: 1})
+    r2.gene_reaction_rule = "g2"
+    bio = cobra.Reaction("bio", lower_bound=0, upper_bound=1000)
+    bio.add_metabolites({B: -1})
+    m.add_reactions([ex, r1, r2, bio])
+    m.objective = "bio"
+    return m
+
+
+def _gap_draft():
+    """EX_A -> r1: A->B; bio: B + C -> biomass. Nothing makes C, so the draft cannot grow."""
+    m = cobra.Model("gap")
+    A, B, C = _met("A_c"), _met("B_c"), _met("C_c")
+    m.add_metabolites([A, B, C])
+    ex = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
+    ex.add_metabolites({A: -1})
+    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r1.add_metabolites({A: -1, B: 1})
+    r1.gene_reaction_rule = "g1"
+    bio = cobra.Reaction("bio", lower_bound=0, upper_bound=1000)
+    bio.add_metabolites({B: -1, C: -1})
+    m.add_reactions([ex, r1, bio])
+    m.objective = "bio"
+    return m
+
+
+def _universal():
+    """Candidate database with rC: A -> C (the missing producer of C)."""
+    u = cobra.Model("universal")
+    A, C = _met("A_c"), _met("C_c")
+    u.add_metabolites([A, C])
+    rc = cobra.Reaction("rC", lower_bound=0, upper_bound=1000)
+    rc.add_metabolites({A: -1, C: 1})
+    u.add_reactions([rc])
+    return u
+
+
+def _relay():
+    """EX_A -> r1: A->I -> r2: I->B -> bio: B->. I only ever lives where r1/r2 are placed."""
+    m = cobra.Model("relay")
+    A, mid, B = _met("A_c"), _met("Int_c"), _met("B_c")
+    m.add_metabolites([A, mid, B])
+    ex = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
+    ex.add_metabolites({A: -1})
+    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r1.add_metabolites({A: -1, mid: 1})
+    r1.gene_reaction_rule = "g1"
+    r2 = cobra.Reaction("r2", lower_bound=0, upper_bound=1000)
+    r2.add_metabolites({mid: -1, B: 1})
+    r2.gene_reaction_rule = "g2"
+    bio = cobra.Reaction("bio", lower_bound=0, upper_bound=1000)
+    bio.add_metabolites({B: -1})
+    m.add_reactions([ex, r1, r2, bio])
+    m.objective = "bio"
+    return m
+
+
+def test_pool_split_across_two_nondefault_compartments_is_bridged():
+    # Regression: the intermediate I is produced in m (r1) and consumed in p (r2) and never exists in
+    # the default compartment c. The star-topology transport must still create the c hub so I is
+    # reconnected (m<->c<->p); otherwise both transports are silently dropped and the model is dead.
+    m = _relay()
+    scores = LocalizationScores(pd.DataFrame(
+        {"c": [0.1, 0.1], "m": [0.9, 0.0], "p": [0.0, 0.9]}, index=["g1", "g2"]))
+    res = assign_compartments(m, scores, ["r1", "r2"])
+    assert res.certified
+    assert res.placements["r1"] == ["m"]
+    assert res.placements["r2"] == ["p"]
+    assert _grows(apply_assignment(m, res))
+
+
+def _multiloc():
+    """EX_A -> A_c; tA: A_c<->A_m; r1: A->B (g1 scores c and m equally); bio: B_c->; sink: B_m->.
+
+    Both compartments are connected (transport of A, a demand for B_m), so a duplicate of r1 in the
+    non-primary compartment can carry flux — a genuine, evidence-backed dual placement.
+    """
+    m = cobra.Model("multiloc")
+    Ac = cobra.Metabolite("A_c", compartment="c")
+    Bc = cobra.Metabolite("B_c", compartment="c")
+    Am = cobra.Metabolite("A_m", compartment="m")
+    Bm = cobra.Metabolite("B_m", compartment="m")
+    m.add_metabolites([Ac, Bc, Am, Bm])
+    ex = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
+    ex.add_metabolites({Ac: -1})
+    tA = cobra.Reaction("tA", lower_bound=-1000, upper_bound=1000)
+    tA.add_metabolites({Ac: -1, Am: 1})
+    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r1.add_metabolites({Ac: -1, Bc: 1})
+    r1.gene_reaction_rule = "g1"
+    bio = cobra.Reaction("bio", lower_bound=0, upper_bound=1000)
+    bio.add_metabolites({Bc: -1})
+    sink = cobra.Reaction("sinkB_m", lower_bound=0, upper_bound=1000)
+    sink.add_metabolites({Bm: -1})
+    m.add_reactions([ex, tA, r1, bio, sink])
+    m.objective = "bio"
+    return m
+
+
+def test_multilocalize_recovers_evidence_backed_dual():
+    # g1 scores c and m equally and BOTH compartments are functionally connected, so the FVA-validated
+    # enrichment places r1 in both.
+    m = _multiloc()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.9], "m": [0.9]}, index=["g1"]))
+    res = assign_compartments(m, scores, ["r1"], multi_localize=True)
+    assert res.certified
+    assert set(res.placements["r1"]) == {"c", "m"}
+    assert _grows(apply_assignment(m, res))
+
+
+def test_multilocalize_rejects_dead_duplicate():
+    # Soundness: g1 scores m strongly (0.9 > threshold) so an m-duplicate of r1 IS proposed, but with
+    # nothing transportable the m copy is disconnected (no A in m, no B sink) and carries no flux -> the
+    # FVA gate drops it, so r1 stays mono. No dead duplicate can harvest the m-score.
+    m = _linear()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.9], "m": [0.9]}, index=["g1"]))
+    res = assign_compartments(m, scores, ["r1"], transportable=[], multi_localize=True)
+    assert res.certified
+    assert res.placements["r1"] == ["c"]
+    assert _grows(apply_assignment(m, res))
+
+
+def _two_carbon():
+    """Grows on A (rA) or B (rB), both feeding the shared core M -> bio."""
+    m = cobra.Model("two_carbon")
+    A, B, M = _met("A_c"), _met("B_c"), _met("M_c")
+    m.add_metabolites([A, B, M])
+    exA = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
+    exA.add_metabolites({A: -1})
+    exB = cobra.Reaction("EX_B", lower_bound=0, upper_bound=1000)  # closed by default (B medium opens)
+    exB.add_metabolites({B: -1})
+    rA = cobra.Reaction("rA", lower_bound=0, upper_bound=1000)
+    rA.add_metabolites({A: -1, M: 1})
+    rA.gene_reaction_rule = "gA"
+    rB = cobra.Reaction("rB", lower_bound=0, upper_bound=1000)
+    rB.add_metabolites({B: -1, M: 1})
+    rB.gene_reaction_rule = "gB"
+    bio = cobra.Reaction("bio", lower_bound=0, upper_bound=1000)
+    bio.add_metabolites({M: -1})
+    m.add_reactions([exA, exB, rA, rB, bio])
+    m.objective = "bio"
+    return m
+
+
+# --------------------------------------------------------------------------- basics
+def test_result_type_and_certified():
+    m = _linear()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.4], "m": [0.9]}, index=["g1"]))
+    res = assign_compartments(m, scores, ["r1"])
+    assert isinstance(res, AssignmentProposal)
+    assert res.certified is True
+    assert res.status == "certified"
+
+
+def test_score_respected_when_functional():
+    # r1 prefers m (0.9 > 0.4); B is transportable (default), so r1 can follow its score to m and a
+    # transport keeps the model functional.
+    m = _linear()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.4], "m": [0.9]}, index=["g1"]))
+    res = assign_compartments(m, scores, ["r1"])
+    assert res.placements["r1"] == ["m"]
+    assert res.certified
+
+
+def test_minimize_transports_stays_certified_and_functional():
+    # The transport-subset minimisation must keep the model certified and functional, and never
+    # increase the transport count. (On this toy both transports are essential, so the minimum equals
+    # the certified set; the point is that minimisation is sound and does not break certification.)
+    m = _linear()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.4], "m": [0.9]}, index=["g1"]))
+    base = assign_compartments(m, scores, ["r1"])
+    mini = assign_compartments(m, scores, ["r1"], minimize_transports=True)
+    assert mini.certified
+    assert mini.placements["r1"] == ["m"]
+    assert len(mini.added_transports) <= len(base.added_transports)
+    assert _grows(apply_assignment(m, mini))
+
+
+def _isozyme():
+    """EX_A -> {r1: A->B (g1), r2: A->B (g2)} -> bio: B_c->. Two isozymes make B from A."""
+    m = cobra.Model("isozyme")
+    A, B = _met("A_c"), _met("B_c")
+    m.add_metabolites([A, B])
+    ex = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
+    ex.add_metabolites({A: -1})
+    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r1.add_metabolites({A: -1, B: 1})
+    r1.gene_reaction_rule = "g1"
+    r2 = cobra.Reaction("r2", lower_bound=0, upper_bound=1000)
+    r2.add_metabolites({A: -1, B: 1})
+    r2.gene_reaction_rule = "g2"
+    bio = cobra.Reaction("bio", lower_bound=0, upper_bound=1000)
+    bio.add_metabolites({B: -1})
+    m.add_reactions([ex, r1, r2, bio])
+    m.objective = "bio"
+    return m
+
+
+def test_minimize_transports_drops_a_redundant_transport():
+    # g1 sends its isozyme r1 to m (needing transports for A and B); g2 keeps r2 in c (no transport).
+    # Both make B, so the cytosolic r2 alone feeds biomass and r1's route is redundant -> pFBA carries
+    # no flux through r1's transports, and minimisation drops them. A real reduction, still functional.
+    scores = LocalizationScores(pd.DataFrame(
+        {"c": [0.1, 0.9], "m": [0.9, 0.1]}, index=["g1", "g2"]))
+    base = assign_compartments(_isozyme(), scores, ["r1", "r2"])
+    mini = assign_compartments(_isozyme(), scores, ["r1", "r2"], minimize_transports=True)
+    assert base.certified and mini.certified
+    assert base.added_transports  # the score placement did add redundant transports
+    assert len(mini.added_transports) < len(base.added_transports)  # and minimisation dropped them
+    assert _grows(apply_assignment(_isozyme(), mini))
+
+
+def test_certified_implies_materialised_growth():
+    # The soundness invariant: a certified proposal, when materialised, actually grows. (This is exactly
+    # what a placement certified only by a flux model inside the placement solve could get wrong.)
+    m = _linear()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.4], "m": [0.9]}, index=["g1"]))
+    res = assign_compartments(m, scores, ["r1"])
+    assert res.certified
+    assert _grows(apply_assignment(m, res))
+
+
+# --------------------------------------------------- functionality overrides the score
+def test_functionality_overrides_score():
+    # B is NOT transportable, so placing r1 in m would strand B in m where biomass (in c) cannot reach
+    # it. The confinement repair pins r1 to c, against its higher m-score. Materialised model grows.
+    m = _linear()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.4], "m": [0.9]}, index=["g1"]))
+    res = assign_compartments(m, scores, ["r1"], transportable=["A"])
+    assert res.certified
+    assert res.placements["r1"] == ["c"]
+    assert _grows(apply_assignment(m, res))
+
+
+def test_pathway_coherence_overrides_individual_score():
+    # g1 prefers c (0.9), g2 prefers m (0.9). The intermediate X is non-transportable, so r1 and r2
+    # must co-locate; the score objective then anchors the whole pathway in c (0.9+0.5 > 0.1+0.9),
+    # so r2 lands in c against its own m-preference.
+    m = _chain()
+    scores = LocalizationScores(pd.DataFrame(
+        {"c": [0.9, 0.5], "m": [0.1, 0.9]}, index=["g1", "g2"]))
+    res = assign_compartments(m, scores, ["r1", "r2"], transportable=["A", "B"])
+    assert res.certified
+    assert res.placements["r1"] == ["c"]
+    assert res.placements["r2"] == ["c"]
+    assert _grows(apply_assignment(m, res))
+
+
+# --------------------------------------------------------------------- gap-fill coupling
+def test_gapfill_restores_function():
+    # The draft cannot grow (C has no producer). Certification fails, so the feedback loop pulls rC
+    # from the universal model and re-certifies.
+    m = _gap_draft()
+    scores = LocalizationScores(pd.DataFrame({"c": [1.0], "m": [0.0]}, index=["g1"]))
+    res = assign_compartments(m, scores, ["r1"], universal=_universal(), min_growth=1.0)
+    assert res.certified
+    assert "rC" in res.added_reactions
+    assert _grows(apply_assignment(m, res, universal=_universal()))
+
+
+def test_no_gratuitous_gapfill():
+    # When the draft already grows, no universal candidate is pulled (it is only reached on a real
+    # growth failure).
+    m = _linear()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.9], "m": [0.1]}, index=["g1"]))
+    res = assign_compartments(m, scores, ["r1"], universal=_universal())
+    assert res.certified
+    assert res.added_reactions == []
+
+
+def test_gapfill_reuses_relocated_compartment_metabolite():
+    # Regression: _add_universal_reaction used to match a gap-fill candidate's metabolite ids verbatim
+    # against the model instead of routing them through the shared base-id/compartment resolver that
+    # _move_reaction uses. A relocated reaction materialises its non-default-compartment metabolites
+    # under a *generated* id ("A_c__m"), never the universal candidate's own "A_m" -- so the old code
+    # never found a match and silently created a second, disconnected "A_m", leaving the gap-fill
+    # reaction an island nothing else in the model touches. It never raised; it just built a wrong model.
+    m = _linear()  # EX_A -> r1: A_c->B_c (g1) -> bio: B_c->
+    proposal = AssignmentProposal(placements={"r1": ["m"]}, added_reactions=["rD"])
+
+    u = cobra.Model("universal")
+    A_m = cobra.Metabolite("A_m", name="A", compartment="m")
+    D_m = cobra.Metabolite("D_m", name="D", compartment="m")
+    u.add_metabolites([A_m, D_m])
+    rD = cobra.Reaction("rD", lower_bound=0, upper_bound=1000)
+    rD.add_metabolites({A_m: -1, D_m: 1})
+    u.add_reactions([rD])
+
+    out = apply_assignment(m, proposal, universal=u)
+
+    r1_out, rD_out = out.reactions.get_by_id("r1"), out.reactions.get_by_id("rD")
+    a_resolved = next(met for met, coeff in r1_out.metabolites.items() if coeff < 0)
+    assert a_resolved in rD_out.metabolites  # rD's "A" reuses the same node r1 relocated to
+
+    # Exactly 3 compartment-m metabolites should exist: A and B (from relocating r1) and D (a
+    # genuinely new species from the gap-fill reaction) -- not a 4th, disconnected copy of A.
+    in_m = [met for met in out.metabolites if met.compartment == "m"]
+    assert len(in_m) == 3
+
+
+# ------------------------------------------------------- honest partial (no false positive)
+def test_unreachable_floor_is_uncertified_not_falsely_certified():
+    # An unreachable growth floor must yield an *uncertified* proposal (with the shortfall visible),
+    # never a false certificate. This is the property the whole redesign exists to guarantee.
+    m = _linear()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.4], "m": [0.9]}, index=["g1"]))
+    res = assign_compartments(m, scores, ["r1"], min_growth=1e6)
+    assert res.certified is False
+    assert res.status == "uncertified"
+    assert res.growths["__primary__"] < 1e6  # the real (small) growth is reported, not hidden
+
+
+def test_no_growth_draft_raises():
+    m = _linear()
+    m.reactions.EX_A.lower_bound = 0  # no uptake -> no growth
+    scores = LocalizationScores(pd.DataFrame({"c": [0.4], "m": [0.9]}, index=["g1"]))
+    with pytest.raises(ValueError, match="does not grow"):
+        assign_compartments(m, scores, ["r1"])
+
+
+# --------------------------------------------------------------- multi-medium certification
+def test_growth_conditions_are_certified_per_medium():
+    # Certification runs on the primary medium (A) and each GrowthCondition medium (B); both grow, so
+    # the proposal is certified and every medium's biomass flux is reported.
+    m = _two_carbon()
+    scores = LocalizationScores(pd.DataFrame(
+        {"c": [0.9, 0.9], "m": [0.1, 0.1]}, index=["gA", "gB"]))
+    on_b = GrowthCondition(name="onB", medium={"EX_B": 10.0}, min_growth=1.0)
+    res = assign_compartments(m, scores, ["rA", "rB"], min_growth=1.0,
+                                        growth_conditions=[on_b])
+    assert res.certified
+    assert res.growths["__primary__"] >= 1.0
+    assert res.growths["onB"] >= 1.0

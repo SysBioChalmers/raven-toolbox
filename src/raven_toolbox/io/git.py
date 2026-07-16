@@ -50,6 +50,7 @@ def export_for_git(
     prefix: str = "model",
     formats: Iterable[str] = ("yml", "xml", "mat", "xlsx"),
     sub_dirs: bool = True,
+    varname: str | None = None,
 ) -> Path:
     """Write ``model`` into a Standard-GEM repository layout.
 
@@ -65,6 +66,10 @@ def export_for_git(
     sub_dirs
         If True (default), write ``model/<fmt>/<prefix>.<fmt>`` (standard-GEM
         layout); otherwise all files go directly in ``path``.
+    varname
+        Variable name for the MATLAB (``.mat``) struct. ``None`` (default) lets
+        cobra use its own default (the model id); set it when a repository pins a
+        specific name (e.g. Human-GEM's ``humanGEM``).
 
     Returns
     -------
@@ -92,7 +97,7 @@ def export_for_git(
     if "xml" in formats:
         cobra.io.write_sbml_model(model, str(target("xml")))
     if "mat" in formats:
-        cobra.io.save_matlab_model(model, str(target("mat")))
+        cobra.io.save_matlab_model(model, str(target("mat")), varname=varname)
     if "xlsx" in formats:
         export_to_excel(model, target("xlsx"))
     if "txt" in formats:

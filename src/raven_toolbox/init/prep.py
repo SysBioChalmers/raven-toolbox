@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 import cobra
 
 from raven_toolbox.init.merge import merge_linear
+from raven_toolbox.manipulation.simplify import simplify_model
 from raven_toolbox.tasks import Task, find_task_essential_reactions
 
 
@@ -49,6 +50,20 @@ class ReactionMasks:
             if bit:
                 out |= group
         return out
+
+
+def _is_exchange_reaction(rxn: cobra.Reaction) -> bool:
+    """One-sided reaction: all metabolites are on the same side (RAVEN ``getExchangeRxns``).
+
+    RAVEN's ``getExchangeRxns`` (default ``'all'``) flags every reaction with no products
+    *or* no substrates — i.e. whose non-zero stoichiometry is all one sign. That is broader
+    than cobra's ``Reaction.boundary`` (single metabolite only): it also catches
+    multi-metabolite sink / pool reactions, which ftINIT force-keeps.
+    """
+    coeffs = list(rxn.metabolites.values())
+    if not coeffs:
+        return False
+    return not (any(c > 0 for c in coeffs) and any(c < 0 for c in coeffs))
 
 
 def _is_advanced_transport(rxn: cobra.Reaction) -> bool:
@@ -83,7 +98,7 @@ def classify_reactions(
     """
     spont, cust = set(spontaneous), set(custom)
     masks = ReactionMasks(
-        exchange={r.id for r in model.boundary},
+        exchange={r.id for r in model.reactions if _is_exchange_reaction(r)},
         spontaneous={r.id for r in model.reactions if r.id in spont},
         custom={r.id for r in model.reactions if r.id in cust},
         no_gpr={r.id for r in model.reactions if not r.gene_reaction_rule.strip()},
@@ -160,11 +175,17 @@ def rescale_for_init(model: cobra.Model, max_stoich_diff: float = 25.0) -> None:
 
 
 def _orient_forward(rxn: cobra.Reaction, direction: int) -> None:
-    """Make ``rxn`` carry flux only in its forced direction (irreversible forward)."""
+    """Make ``rxn`` carry flux only in its forced direction (irreversible forward).
+
+    Matches RAVEN ``prepINITModel``: reverse the reactions whose forced direction is
+    negative (``reverseRxns``), then set ``lb = 0`` for every essential — unconditionally,
+    even where ``lb`` was already positive (RAVEN ``minModel1.lb(selInd) = 0``). The MILP
+    re-forces essential flux later, so relaxing ``lb`` to 0 here is intended.
+    """
     if direction < 0:  # flip so the forced (reverse) direction becomes forward
         rxn.add_metabolites({m: -2 * c for m, c in rxn.metabolites.items()})
         rxn.bounds = (-rxn.upper_bound, -rxn.lower_bound)
-    rxn.lower_bound = max(rxn.lower_bound, 0.0)
+    rxn.lower_bound = 0.0
 
 
 def prep_init_model(
@@ -175,6 +196,7 @@ def prep_init_model(
     spontaneous: Iterable[str] = (),
     custom: Iterable[str] = (),
     essential_cache_path=None,
+    simplify: bool = True,
     scale: bool = True,
 ) -> PrepData:
     """Build :class:`PrepData` from a template model — the once-per-template work shared
@@ -192,6 +214,16 @@ def prep_init_model(
     """
     ref_model = template.copy()
 
+    if simplify:
+        # RAVEN prepINITModel "first simplification":
+        # simplifyModel(model, deleteUnconstrained, ~deleteDuplicates, deleteZeroInterval,
+        # deleteInaccessible, deleteMinMax). Drop reactions that cannot carry steady-state
+        # flux — zero-interval, topological dead-ends, then FVA-blocked (deleteMinMax).
+        # Without the FVA-blocked and zero-interval passes the MILP runs on a ~10% larger
+        # model and reaches a different (bypass-heavy) optimum.
+        simplify_model(ref_model, delete_zero_interval=True, delete_dead_end=True,
+                       delete_no_flux=True)
+
     essential_pre: dict[str, int] = {}
     task_mets: set[str] = set()
     kept_tasks: list[Task] = []
@@ -206,6 +238,14 @@ def prep_init_model(
     # the merge keeps them forward and the MILP forces them with a simple lower bound.
     for rid, direction in essential_pre.items():
         _orient_forward(ref_model.reactions.get_by_id(rid), direction)
+
+    if simplify:
+        # RAVEN prepINITModel "second simplification":
+        # simplifyModel(minModel1, ..., constrainReversible=true). FVA every reversible
+        # reaction and make one-way-only ones irreversible *before* the linear merge. This
+        # is what lets many more reactions merge (RAVEN: 5533 → 3734 reversible rxns), so
+        # skipping it leaves a larger merged model and a different MILP optimum.
+        simplify_model(ref_model, constrain_reversible=True)
 
     masks = classify_reactions(ref_model, ext_comp=ext_comp,
                                spontaneous=spontaneous, custom=custom)

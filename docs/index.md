@@ -15,7 +15,7 @@ that is unique to RAVEN:
 - **Connectivity gap-filling** against template models.
 - **Omics integration** — Human Protein Atlas (proteomics + RNA-seq) ingestion.
 - **Sub-cellular localisation** prediction by MILP, with partial-update mode and pluggable
-  predictors (WoLF PSORT, DeepLoc, …).
+  evidence sources (DeepLoc 2, MULocDeep, COMPARTMENTS, UniProt, …).
 - **N-model comparison**; **reporter metabolites**; **FSEOF**; **flux sampling**.
 - **YAML I/O** following the cobra standard, plus geckopy's `ec-*` enzyme-constrained
   fields; **SIF** export; **RAVEN-style Excel** export.
@@ -121,6 +121,7 @@ reference/known_issues
 :hidden:
 :caption: Design archive
 
+archive/binary_provisioning_plan
 archive/ftinit_review_and_plan
 archive/localization_design
 archive/plan_get_model_from_homology

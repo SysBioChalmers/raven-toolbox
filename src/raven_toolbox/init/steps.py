@@ -23,6 +23,22 @@ _ALL_NO_GPR_KEPT = (1, 1, 1, 1, 1, 1, 1, 0)  # hold out every GPR-less category 
 _EXCH_SPONT = (1, 0, 0, 0, 1, 0, 0, 0)        # hold out only exchange + spontaneous
 _NONE = (0, 0, 0, 0, 0, 0, 0, 0)
 
+# Per-step MILP run schedule (RAVEN INITStepDesc MILPParams + AbsMIPGaps). Each run is
+# (relative mip_gap, time_limit seconds, absolute mip gap). RAVEN runs a step up to this
+# many times: run 1 at the flat relative gap, later runs at max(mip_gap, abs_gap/|obj|),
+# breaking as soon as the achieved gap already meets the next target. The final step's
+# quick 5 s first run just estimates the (near-zero) objective so the absolute gap can be
+# converted to a sane relative one for the escalation runs.
+_STEP_RUNS = (
+    {"mip_gap": 0.0004, "time_limit": 120, "abs_gap": 10.0},
+    {"mip_gap": 0.0030, "time_limit": 5000, "abs_gap": 20.0},
+)
+_FINAL_STEP_RUNS = (
+    {"mip_gap": 0.0004, "time_limit": 5, "abs_gap": 10.0},
+    {"mip_gap": 0.0004, "time_limit": 120, "abs_gap": 10.0},
+    {"mip_gap": 0.0030, "time_limit": 5000, "abs_gap": 20.0},
+)
+
 
 @dataclass
 class InitStep:
@@ -33,6 +49,9 @@ class InitStep:
     pos_rev_off: bool = False                    # drop positive reversibles from the problem
     allow_met_secr: bool = False                 # relax S·v = 0 to ≥ 0
     mets_to_ignore: Sequence[str] = field(default_factory=tuple)  # met names zeroed from S (e.g. H2O)
+    # RAVEN's per-step MILPParams + AbsMIPGaps escalation schedule (see _STEP_RUNS). Empty
+    # → a single solve at the caller's mip_gap / mip_gap_abs (used by 'full' and ad-hoc steps).
+    milp_runs: tuple[dict, ...] = ()
 
 
 def get_init_steps(series: str = "1+1", *, mets_to_ignore: Sequence[str] = ()) -> list[InitStep]:
@@ -43,11 +62,11 @@ def get_init_steps(series: str = "1+1", *, mets_to_ignore: Sequence[str] = ()) -
     metabolite names removed from the stoichiometry in each step (e.g. H2O, H+).
     """
     m = tuple(mets_to_ignore)
-    s1 = InitStep("ignore", _ALL_NO_GPR_KEPT, mets_to_ignore=m)
+    s1 = InitStep("ignore", _ALL_NO_GPR_KEPT, mets_to_ignore=m, milp_runs=_STEP_RUNS)
     s1_posrev = InitStep("ignore", _ALL_NO_GPR_KEPT, pos_rev_off=True, allow_met_secr=True,
-                         mets_to_ignore=m)
-    s2_all = InitStep("essential", _ALL_NO_GPR_KEPT, mets_to_ignore=m)
-    s_final = InitStep("essential", _EXCH_SPONT, mets_to_ignore=m)
+                         mets_to_ignore=m, milp_runs=_STEP_RUNS)
+    s2_all = InitStep("essential", _ALL_NO_GPR_KEPT, mets_to_ignore=m, milp_runs=_STEP_RUNS)
+    s_final = InitStep("essential", _EXCH_SPONT, mets_to_ignore=m, milp_runs=_FINAL_STEP_RUNS)
 
     if series == "1+1":
         return [s1, s_final]

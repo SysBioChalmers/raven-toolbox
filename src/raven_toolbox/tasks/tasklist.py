@@ -94,10 +94,18 @@ def parse_task_list(path: str | Path) -> list[Task]:
     # (vs. pure whitespace/comment), used by the orphan-row warning below.
     _DATA_COLS = ("IN", "OUT", "EQU", "CHANGED RXN")
 
+    id_col = col.get("ID", 0)
     tasks: list[Task] = []
     current: Task | None = None
     for row_no, row in enumerate(rows[header_idx + 1:], start=header_idx + 2):
         if not any(c.strip() for c in row):
+            continue
+        # RAVEN parseTaskList: "all rows starting with a non-empty [first] cell are
+        # removed" — comment / section-header rows carry a marker (e.g. "#") in a leading
+        # column before the ID, with the ID column holding descriptive text. Skip any row
+        # with a non-empty cell *before* the ID column, or it becomes a spurious empty task
+        # (69 vs RAVEN's 57 on metabolicTasks_Essential).
+        if any(j < len(row) and row[j].strip() for j in range(id_col)):
             continue
         rid = cell(row, "ID")
         if rid.startswith("#"):

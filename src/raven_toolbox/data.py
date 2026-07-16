@@ -29,27 +29,49 @@ from urllib.request import urlopen
 from raven_toolbox.binaries import _sha256
 
 # dataset -> {"version": str, "files": {filename: {"url": str, "sha256": str}}}
-# Mirrors data/manifest.json (the cross-language source of truth); regenerate the
-# block with scripts/make_registry_snippet.py when publishing a new KEGG release.
+# Baked snapshot of data/manifest.json (the cross-language source of truth). Assets
+# are hosted in the raven-data repo's releases. Regenerate this block from the
+# manifest with `python scripts/make_registry_snippet.py sync` (never hand-edit).
 _DATA_REGISTRY: dict = {
     "kegg": {
-        "version": "kegg116",
+        "version": "kegg118",
         "files": {
-            "kegg116_core.tar.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_core.tar.gz",
-                "sha256": "155d5806d43db2fde5783fb124f8782bbcad390a1dd80879c520d2eac9d780e7",
+            "kegg118_core.tar.gz": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_core.tar.gz",
+                "sha256": "520ba8bb09d6ca479ca1ab84ea70bf7c1d7f82d8f6406b717cee293b7c8609ca",
             },
-            "kegg116_eukaryotes.hmm.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_eukaryotes.hmm.gz",
-                "sha256": "2d48bc9935575d0f9ba4178bf2df19279bff866b49c1bf83a8e15787b11d6708",
+            "kegg118_eukaryotes.hmm.gz": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_eukaryotes.hmm.gz",
+                "sha256": "05999a38f3a1a5186d19d4e415f5029c33af56a08edb75190bd98ea19437765a",
             },
-            "kegg116_prokaryotes.hmm.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_prokaryotes.hmm.gz",
-                "sha256": "d80cb2a22dec9fd8336b3998e3b96ee121672f63f4041cddaf09624fe739f1af",
+            "kegg118_prokaryotes.hmm.gz": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_prokaryotes.hmm.gz",
+                "sha256": "ff9f25389e4c9c1cd58c13ee8d48d68a23152d04761d2e5875a9b5de8051b7b4",
             },
-            "kegg116_taxonomy.gz": {
-                "url": "https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0/kegg116_taxonomy.gz",
-                "sha256": "1edc56da94d71433e5f08c133600292c311baaf33279a959518ab08389b0e538",
+            "kegg118_taxonomy.gz": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/kegg118/kegg118_taxonomy.gz",
+                "sha256": "5499c9537ac2697592dd1b484f309027509472e25a9d39d925dc581b9eef46e2",
+            },
+        },
+    },
+    "transporters": {
+        "version": "transporters-2026-07-01",
+        "files": {
+            "tcdb.dmnd": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/transporters-2026-07-01/tcdb.dmnd",
+                "sha256": "ae8db23287ef415cad8a3004134b0d94024230f82afb5eb00a45941f8b8c04e6",
+            },
+            "transporter_pfam.hmm": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/transporters-2026-07-01/transporter_pfam.hmm",
+                "sha256": "0c44e7bfc1390a08c914915a87b9b85398528be5db4294f91c33387c46c48f19",
+            },
+            "tcdb_substrates.tsv": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/transporters-2026-07-01/tcdb_substrates.tsv",
+                "sha256": "f85f7b866b325d1e221089ccb5fd7a0491d1c26f8282c9ebb7c2d11bf3f1e79c",
+            },
+            "chebi_relations.tsv.gz": {
+                "url": "https://github.com/SysBioChalmers/raven-data/releases/download/transporters-2026-07-01/chebi_relations.tsv.gz",
+                "sha256": "b6910bf9c7a405e4f1fc112030123dd79c982112b8f460cebefd9235c621d192",
             },
         },
     },

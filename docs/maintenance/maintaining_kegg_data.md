@@ -71,6 +71,9 @@ download_kegg_dump("keggdb", auth=("YOUR_KEGG_USER", "YOUR_KEGG_PASSWORD"))
 Already-downloaded files are skipped; pass `force=True` to re-fetch (for a new
 KEGG release).
 
+Per-file download and extraction progress bars are shown by default; pass
+`progress=False` for non-interactive runs (e.g. logging to a file).
+
 ## Step 3b.2 — parse into the published artefacts
 
 ```python
@@ -85,6 +88,9 @@ every output filename is version-prefixed (e.g. `kegg116_organism_gene_ko.tsv.gz
 matching the published release assets. See
 [kegg_data_format.md](kegg_data_format.md) for what those tables contain and the
 format rationale.
+
+Pass `progress=True` to report each parse stage and show a progress bar over the
+large `organism_gene_ko` (ko) streaming pass.
 
 ## Step 3b.3 — build the HMM libraries
 
@@ -108,6 +114,7 @@ for domain in ("prokaryotes", "eukaryotes"):
         "keggdb/taxonomy",       # domain split, from 3b.1
         f"hmms/{domain}",
         domain=domain,
+        progress=True,           # show an "N of M KOs" bar for the long build
     )
 ```
 
@@ -137,22 +144,31 @@ python scripts/build_kegg_artefacts.py --keggdb keggdb --out artefacts \
     --version kegg116 --hmms --threads 8
 ```
 
-Upload the contents of `artefacts/` to the release, then record the artefacts in
-both the shared `data/manifest.json` and `raven_toolbox.data._DATA_REGISTRY` with
-[`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/README.md)
-(it computes each file's SHA256 + size):
+The build is **idempotent**: if it fails partway (the HMM step can run for hours),
+re-run the *same command* — each stage is skipped when its output already exists
+(parsed tables, taxonomy, per-domain HMM library, core bundle) and the per-KO HMM
+build resumes where it left off, so finished work is not repeated. Pass `--force`
+to rebuild everything from scratch.
+
+Then **publish** the artefacts to the `raven-data` release and update the manifest.
+The assets live in [`raven-data`](https://github.com/SysBioChalmers/raven-data), not
+in the code repo — see [Artefact hosting & publishing](artefact_hosting.md) for the
+full workflow. In short:
 
 ```bash
-# shared source of truth (read by raven-toolbox and MATLAB RAVEN):
+# 1. upload to the kegg118 release (idempotent; immutable tag):
+python scripts/publish_to_raven_data.py release --tag kegg118 --dir artefacts
+
+# 2. record them in the shared manifest (computes each file's SHA256 + size):
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
-    --target data --dataset kegg --version kegg116 --dir artefacts \
-    --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0
-# in-code registry, so end users auto-fetch with no env var (paste into _DATA_REGISTRY):
-python scripts/make_registry_snippet.py data --dataset kegg --version kegg116 \
-    --dir artefacts --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/v0.1.0
+    --target data --dataset kegg --version kegg118 --dir artefacts \
+    --base-url https://github.com/SysBioChalmers/raven-data/releases/download/kegg118
+
+# 3. regenerate the baked Python registries from the manifest (don't hand-edit):
+python scripts/make_registry_snippet.py sync
 ```
 
-From then on `ensure_data` fetches and verifies the artefacts for end users
+From then on `ensure_data` fetches and SHA256-verifies the artefacts for end users
 automatically.
 
 ## End-user paths (3b.4 / 3b.5)

@@ -8,9 +8,10 @@ shared assembler. For organisms not in KEGG.
 Improvement over RAVEN: one ``hmmsearch`` of the whole concatenated KO library (K7)
 replaces RAVEN's per-KO ``hmmsearch`` loop — the same fast search direction, but one
 invocation instead of thousands, and no ``hmmpress``/``hmmscan`` needed.
-Phylogenetic-distance subsampling is **not** used — our prebuilt prok90/euk90
-libraries already fix the sequence set, so picking the right domain library (not
-per-organism distance weighting) is the relevant choice.
+Phylogenetic-distance subsampling is **not** used — our prebuilt per-domain
+libraries (``kegg<version>_prokaryotes`` / ``kegg<version>_eukaryotes``) already fix
+the sequence set, so picking the right domain library (not per-organism distance
+weighting) is the relevant choice.
 
 The scoring/assignment logic (:func:`assign_kos`, :func:`parse_hmmsearch_tblout`) is
 pure and unit-tested; running the search needs HMMER (``hmmsearch``).

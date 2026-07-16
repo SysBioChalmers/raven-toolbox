@@ -17,7 +17,7 @@ functionality that's unique to RAVEN:
 * **Connectivity gap-filling** against template models.
 * **Omics integration** — Human Protein Atlas (proteomics + RNA-seq) ingestion.
 * **Sub-cellular localisation** prediction by MILP, with partial-update mode and
-  pluggable predictors (WoLF PSORT, DeepLoc, …).
+  pluggable evidence sources (DeepLoc 2, MULocDeep, COMPARTMENTS, UniProt, …).
 * **N-model comparison**; **reporter metabolites**; **FSEOF**; **flux sampling**.
 * **YAML I/O** following the cobra standard, plus geckopy's `ec-*` enzyme-constrained
   fields. **SIF** export. **RAVEN-style Excel** export.
@@ -39,29 +39,16 @@ COBRA ecosystem.
 
 raven-toolbox has been validated against MATLAB RAVEN on **Human-GEM** (5 Hart2015 cell-line
 models, Jaccard 0.975–0.980 — see [docs/humangem_validation.md](docs/studies/humangem_validation.md)).
-The functional scope of the original RAVEN toolbox is covered with two principled
-omissions:
+The functional scope of the original RAVEN toolbox is covered with three principled
+omissions, all deliberately out of scope rather than pending work:
 
 * **MetaCyc-based reconstruction** is not implemented and is flagged for removal from
   MATLAB RAVEN as well — see [IMPROVEMENTS.md](IMPROVEMENTS.md) under `R-MetaCyc`.
 * **Dynamic FBA** is not implemented — several maintained Python packages already cover
   it ([`dfba`](https://pypi.org/project/dfba/), [`reframed`](https://pypi.org/project/reframed/),
   [`mewpy`](https://pypi.org/project/mewpy/)).
-
-### Not yet implemented
-
-Planned or partial functionality still on the books (full detail in
-**[docs/todo.md](docs/reference/todo.md)**):
-
-- [ ] **Metabolomics-based scoring in tINIT / ftINIT** — passing a non-empty `metabolomics`
-  argument currently raises `NotImplementedError`.
-- [ ] **Published binary release ZIPs** (BLAST / DIAMOND / HMMER) — the resolver in
-  `binaries.py` is ready; the registry is empty until the ZIPs are published as release assets.
-- [ ] **Published KEGG data-artefact releases** — the build pipeline exists; the artefact
-  bundle is not published yet.
-
-The two principled omissions above (MetaCyc reconstruction, dynamic FBA) are **not** on this
-list — they are deliberately out of scope, not pending work.
+* **Metabolomics-based scoring in tINIT / ftINIT** is not implemented — passing a
+  non-empty `metabolomics` argument raises `NotImplementedError`.
 
 ## Installation (development)
 
@@ -74,6 +61,34 @@ pip install -e ".[dev]"
 raven-toolbox requires Python ≥ 3.11. Genome-scale (f)tINIT MILPs currently require **Gurobi**
 ([details on solver portability](docs/studies/init_solver_benchmark.md)); toy and unit-test work
 runs on the open-source GLPK.
+
+### External command-line tools (BLAST, DIAMOND, HMMER, MAFFT, CD-HIT)
+
+Some workflows call external tools. **For most users there is nothing to do** —
+raven-toolbox downloads each tool it needs automatically the first time it's used.
+
+Which tools a workflow uses:
+
+| Workflow | Tools |
+|---|---|
+| Homology-based reconstruction | `blastp` + `makeblastdb`, or `diamond` |
+| KEGG HMM query (`getKEGGModelForOrganism`) | `hmmsearch` |
+| Building the KEGG HMM libraries (maintainers) | `hmmbuild`, `mafft`, `cd-hit` |
+
+Optional:
+
+- **Fetch them up front** instead of on first use:
+  ```bash
+  raven-toolbox-binaries --set runtime   # blastp, makeblastdb, diamond, hmmsearch
+  raven-toolbox-binaries --set build     # hmmbuild, mafft, cd-hit
+  ```
+- **Use your own install** — if a tool is on your `PATH` it's used instead of a
+  download, e.g. `conda install -c bioconda blast diamond hmmer mafft cd-hit`.
+- **Disable automatic downloads** (air-gapped / conda-only setups): set
+  `RAVEN_PYTHON_AUTOFETCH=0`.
+
+**Windows:** homology reconstruction and the KEGG species model work as-is. To
+*build* the KEGG HMM libraries (needs MAFFT/CD-HIT), use **WSL2**.
 
 ## Documentation
 

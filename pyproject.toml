@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "raven-toolbox"
-version = "0.2.0"
+version = "0.3.0"
 description = "Reconstruction, Analysis and Visualization of Metabolic Networks in Python, a port of the RAVEN Toolbox built on cobrapy"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -49,12 +49,16 @@ dependencies = [
 dev = [
     "pytest>=7",
     "pytest-cov",
+    "pytest-timeout>=2.1",
     "ruff==0.15.15",
     "mypy>=1.8",
 ]
 excel = [
     "openpyxl>=3.1",
 ]
+
+[project.scripts]
+raven-toolbox-binaries = "raven_toolbox.binaries_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/SysBioChalmers/raven-toolbox"
@@ -86,3 +90,11 @@ python_version = "3.11"
 files = ["src/raven_toolbox"]
 # cobra / optlang / scipy / ruamel ship no type stubs; don't error on their imports.
 ignore_missing_imports = true
+
+# numpy >= 2.5 ships PEP 695 `type` statements in its bundled stubs, which mypy rejects under
+# python_version 3.11 ("Type statement is only supported in Python 3.12 and greater"). Skip numpy's
+# stubs so the check stays on 3.11 for our own code rather than weakening it to 3.12.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true

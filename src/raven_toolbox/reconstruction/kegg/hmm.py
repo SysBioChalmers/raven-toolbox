@@ -1,8 +1,9 @@
 """Build per-KO HMM libraries from KEGG sequences (step 3b.3, maintainer-side).
 
 Ports RAVEN ``constructMultiFasta`` plus the clustering/alignment/training stages
-of ``getKEGGModelForOrganism``. Run once per KEGG release to produce the
-``prok90`` / ``euk90`` HMM libraries that the de-novo query path (3b.5) searches.
+of ``getKEGGModelForOrganism``. Run once per KEGG release to produce the per-domain
+(``kegg<version>_prokaryotes`` / ``kegg<version>_eukaryotes``) HMM libraries that the
+de-novo query path (3b.5) searches.
 
 Per KO, within one domain (prokaryote / eukaryote):
 
@@ -29,9 +30,12 @@ import shutil
 import subprocess
 import tempfile
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 import pandas as pd
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 from raven_toolbox.binaries import resolve_binary
 from raven_toolbox.reconstruction.kegg.taxonomy import organisms_in_domain
@@ -76,43 +80,70 @@ def build_ko_fastas(
     out_dir: str | Path,
     *,
     organisms: set[str] | None = None,
+    progress: bool = False,
+    force: bool = False,
 ) -> dict[str, Path]:
     """Write one ``<KO>.fa`` per KO with its member genes' sequences.
 
     but with a stdlib offset index instead
     of the Java-hashtable byte scan. ``organisms`` restricts to a domain's
     organism codes (for the prok/euk split). Empty KOs are skipped (no file).
-    Returns ``{ko: path}`` for the files written.
+    ``progress`` shows a tqdm bar over the per-KO writing pass. Returns
+    ``{ko: path}`` for the files written.
+
+    **Resumable:** a ``<KO>.fa`` that already exists is kept (not rewritten), and
+    once a full pass completes a ``.ko_fastas_complete`` marker is written so a
+    later call returns the existing files without re-scanning ``genes_pep`` (the
+    costly part). ``force`` ignores both and rebuilds. The resume assumes the same
+    inputs as the original run (as the per-KO HMM resume in :func:`build_hmm_library`
+    does); use ``force`` after changing ``organism_gene_ko``/``organisms``.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    marker = out_dir / ".ko_fastas_complete"
 
     rows = organism_gene_ko
     if organisms is not None:
         rows = rows[rows["organism"].isin(organisms)]
 
     ko_to_ids: dict[str, list[str]] = {}
-    wanted: set[str] = set()
     for organism, gene, ko in zip(rows["organism"], rows["gene"], rows["ko"], strict=True):
-        fid = _full_id(organism, gene)
-        ko_to_ids.setdefault(ko, []).append(fid)
-        wanted.add(fid)
+        ko_to_ids.setdefault(ko, []).append(_full_id(organism, gene))
 
-    index = _index_fasta(genes_pep, wanted)
+    # Fast path: a prior run finished, so trust the existing files — no genes.pep scan.
+    if marker.exists() and not force:
+        return {ko: out_dir / f"{ko}.fa" for ko in ko_to_ids if (out_dir / f"{ko}.fa").exists()}
 
+    # Keep already-written fastas; only the remaining KOs need a genes.pep scan, so a
+    # partial resume re-indexes just the leftovers (a crash leaves no marker).
     written: dict[str, Path] = {}
-    with open(genes_pep, "rb") as src:
-        for ko, ids in ko_to_ids.items():
-            present = sorted({i for i in ids if i in index})
-            if not present:
-                continue
-            path = out_dir / f"{ko}.fa"
-            with open(path, "wb") as out:
-                for fid in present:
-                    start, end = index[fid]
-                    src.seek(start)
-                    out.write(src.read(end - start))
+    todo: dict[str, list[str]] = {}
+    for ko, ids in ko_to_ids.items():
+        path = out_dir / f"{ko}.fa"
+        if path.exists() and not force:
             written[ko] = path
+        else:
+            todo[ko] = ids
+
+    if todo:
+        wanted = {fid for ids in todo.values() for fid in ids}
+        index = _index_fasta(genes_pep, wanted)
+        with open(genes_pep, "rb") as src:
+            for ko, ids in tqdm(
+                todo.items(), desc="multi-FASTA", unit="KO", disable=not progress
+            ):
+                present = sorted({i for i in ids if i in index})
+                if not present:
+                    continue
+                path = out_dir / f"{ko}.fa"
+                with open(path, "wb") as out:
+                    for fid in present:
+                        start, end = index[fid]
+                        src.seek(start)
+                        out.write(src.read(end - start))
+                written[ko] = path
+
+    marker.write_text("")  # full pass over all KOs done → safe to fast-path next time
     return written
 
 
@@ -403,6 +434,8 @@ def build_hmm_library(
     threads: int = 1,
     fast: bool = True,
     verbose: bool = False,
+    progress: bool = False,
+    force: bool = False,
     concatenate: bool = True,
     cdhit: str | Path | None = None,
     mafft: str | Path | None = None,
@@ -416,7 +449,14 @@ def build_hmm_library(
     ``hmmsearch`` (no ``hmmpress`` needed). Returns ``{"hmms": [...], "library": path | None}``.
 
     Heavy and binary-dependent — intended for the maintainer, run once per KEGG
-    release. Skips KOs that already have an ``.hmm`` (resumable).
+    release. **Resumable:** skips KOs that already have an ``.hmm`` and reuses an
+    already-built multi-FASTA (see :func:`build_ko_fastas`), so re-running after a
+    failure continues rather than restarting. ``force`` rebuilds everything.
+
+    ``progress`` shows tqdm bars for the multi-FASTA and per-KO HMM passes (the
+    headline ``N of M`` counter for the long build); it is independent of
+    ``verbose`` (per-KO INFO logging). With both on, per-KO log lines are routed
+    through ``tqdm.write`` so they don't corrupt the bar.
     """
     out_dir = Path(out_dir)
     fasta_dir = out_dir / "fasta"
@@ -427,18 +467,30 @@ def build_hmm_library(
     if not organisms:
         raise ValueError(f"No organisms found for domain {domain!r} in {taxonomy}.")
 
-    ko_fastas = build_ko_fastas(organism_gene_ko, genes_pep, fasta_dir, organisms=organisms)
+    if progress:
+        tqdm.write(f"Indexing genes and writing per-KO FASTAs for {domain}...")
+    ko_fastas = build_ko_fastas(
+        organism_gene_ko, genes_pep, fasta_dir, organisms=organisms,
+        progress=progress, force=force,
+    )
 
     hmms: list[Path] = []
-    for ko, fasta in ko_fastas.items():
-        out_hmm = hmm_dir / f"{ko}.hmm"
-        if not out_hmm.exists():
-            build_ko_hmm(
-                fasta, out_hmm, seq_identity=seq_identity,
-                parttree_residues=parttree_residues, threads=threads, fast=fast,
-                verbose=verbose, cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
-            )
-        hmms.append(out_hmm)
+    redirect = logging_redirect_tqdm() if progress else nullcontext()
+    with redirect, tqdm(
+        ko_fastas.items(), total=len(ko_fastas), desc=f"HMM {domain}",
+        unit="KO", disable=not progress,
+    ) as bar:
+        for ko, fasta in bar:
+            bar.set_postfix_str(ko, refresh=False)
+            out_hmm = hmm_dir / f"{ko}.hmm"
+            if force or not out_hmm.exists():
+                out_hmm.unlink(missing_ok=True)  # ensure a clean rebuild under force
+                build_ko_hmm(
+                    fasta, out_hmm, seq_identity=seq_identity,
+                    parttree_residues=parttree_residues, threads=threads, fast=fast,
+                    verbose=verbose, cdhit=cdhit, mafft=mafft, hmmbuild=hmmbuild,
+                )
+            hmms.append(out_hmm)
 
     library: Path | None = None
     if concatenate and hmms:

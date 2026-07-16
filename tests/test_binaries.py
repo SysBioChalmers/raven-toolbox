@@ -26,8 +26,116 @@ def test_resolve_via_path():
 
 def test_resolve_unresolvable_raises(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda _: None)
+    # 'mafft' has no hosted bundle (only blast/diamond/hmmer are), so resolution
+    # has nothing to download and must raise — hermetic, no network.
     with pytest.raises(FileNotFoundError, match="Could not find"):
-        binaries.resolve_binary("diamond")  # empty registry, not on PATH
+        binaries.resolve_binary("mafft")
+
+
+def test_default_registry_urls_point_at_raven_data():
+    # Guard against a straggler/old host slipping into the baked registries.
+    from raven_toolbox import data as data_mod
+
+    urls = [p["url"] for b in binaries._REGISTRY.values() for p in b["platforms"].values()]
+    urls += [
+        f["url"] for d in data_mod._DATA_REGISTRY.values() for f in d["files"].values()
+    ]
+    assert urls, "registries should not be empty"
+    assert all("/SysBioChalmers/raven-data/releases/download/" in u for u in urls), urls
+
+
+# --------------------------------------------------------------------------- #
+# Auto-fetch toggle (RAVEN_PYTHON_AUTOFETCH)
+# --------------------------------------------------------------------------- #
+def test_autofetch_enabled_default_and_off(monkeypatch):
+    monkeypatch.delenv("RAVEN_PYTHON_AUTOFETCH", raising=False)
+    assert binaries.autofetch_enabled() is True
+    for off in ("0", "false", "No", "OFF"):
+        monkeypatch.setenv("RAVEN_PYTHON_AUTOFETCH", off)
+        assert binaries.autofetch_enabled() is False
+    monkeypatch.setenv("RAVEN_PYTHON_AUTOFETCH", "1")
+    assert binaries.autofetch_enabled() is True
+
+
+def test_resolve_skips_download_when_autofetch_off(monkeypatch):
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    monkeypatch.setenv("RAVEN_PYTHON_AUTOFETCH", "0")
+
+    def boom(*a, **k):  # ensure_binary must NOT be reached
+        raise AssertionError("ensure_binary called despite auto-fetch disabled")
+
+    monkeypatch.setattr(binaries, "ensure_binary", boom)
+    with pytest.raises(FileNotFoundError, match="auto-fetch is disabled"):
+        binaries.resolve_binary("diamond")
+
+
+# --------------------------------------------------------------------------- #
+# Binary sets + provisioning
+# --------------------------------------------------------------------------- #
+def test_executables_for_set():
+    assert binaries.executables_for_set("runtime") == ("blastp", "makeblastdb", "diamond", "hmmsearch")
+    assert binaries.executables_for_set("build") == ("hmmbuild", "mafft", "cd-hit")
+    # 'all' is the de-duplicated union of every set, order preserved.
+    assert binaries.executables_for_set("all") == (
+        "blastp", "makeblastdb", "diamond", "hmmsearch", "hmmbuild", "mafft", "cd-hit",
+    )
+    with pytest.raises(ValueError, match="Unknown binary set"):
+        binaries.executables_for_set("nope")
+
+
+def test_provision_prefers_existing(monkeypatch):
+    monkeypatch.setattr(shutil, "which", lambda exe: "/usr/bin/diamond" if exe == "diamond" else None)
+    [res] = binaries.provision_binaries(["diamond"])
+    assert res.status == "present"
+    assert res.detail == "/usr/bin/diamond"
+
+
+def test_provision_unavailable_when_no_bundle(monkeypatch):
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    [res] = binaries.provision_binaries(["diamond"], registry={})
+    assert res.status == "unavailable"
+    assert res.executable == "diamond"
+
+
+def test_provision_downloads_when_missing(tmp_path, monkeypatch):
+    exe = tmp_path / "diamond"
+    exe.write_text("#!/bin/sh\necho hi\n")
+    archive = tmp_path / "diamond.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.write(exe, "diamond")
+    sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    registry = {
+        "diamond": {
+            "version": "1.0", "provides": ["diamond"],
+            "platforms": {binaries.platform_key(): {"url": archive.as_uri(), "sha256": sha}},
+        }
+    }
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    [res] = binaries.provision_binaries(["diamond"], registry=registry)
+    assert res.status == "downloaded"
+    assert Path(res.detail).name == "diamond"
+
+
+def test_ensure_binary_windows_exe_suffix(tmp_path, monkeypatch):
+    # On Windows the bundle ships hmmsearch.exe; ensure_binary must look it up and
+    # return it under the .exe name (otherwise Windows bundles never resolve).
+    archive = tmp_path / "hmmer.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("hmmsearch.exe", "MZ binary")
+        zf.writestr("cygwin1.dll", "dll")
+    sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    registry = {
+        "hmmer": {
+            "version": "3.3.2", "provides": ["hmmsearch"],
+            "platforms": {"windows-x86_64": {"url": archive.as_uri(), "sha256": sha}},
+        }
+    }
+    monkeypatch.setattr(binaries, "platform_key", lambda: "windows-x86_64")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    path = binaries.ensure_binary("hmmsearch", registry=registry)
+    assert Path(path).name == "hmmsearch.exe"
+    assert Path(path).exists()
 
 
 def test_platform_key_format():

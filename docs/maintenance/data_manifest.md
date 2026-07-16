@@ -31,7 +31,7 @@ Point raven-toolbox at a manifest and the resolvers populate themselves on first
 verifying each download's checksum:
 
 ```bash
-export RAVEN_PYTHON_MANIFEST=https://github.com/SysBioChalmers/raven-toolbox/releases/download/manifest-v1/manifest.json
+export RAVEN_PYTHON_MANIFEST=https://github.com/SysBioChalmers/raven-data/releases/download/manifest-v1/manifest.json
 ```
 
 ```python
@@ -69,35 +69,43 @@ end
 
 ## Publishing — generating manifest entries
 
-After uploading a release's files, add/update an entry with the maintainer script
+After uploading a release's files (see [Artefact hosting & publishing](artefact_hosting.md)
+for the end-to-end workflow), add/update an entry with the maintainer script
 ([`scripts/make_registry_snippet.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/make_registry_snippet.py)),
-which computes each SHA256 and byte size:
+which computes each SHA256 and byte size. Pass `--tag` (the GitHub release tag); the
+script builds the `https://github.com/SysBioChalmers/raven-toolbox/releases/download/<tag>`
+asset URL itself:
 
 ```bash
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
-    --target data --dataset kegg --version kegg116 --dir artefacts \
-    --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/kegg-kegg116 \
+    --target data --dataset kegg --version kegg118 --dir artefacts \
+    --base-url https://github.com/SysBioChalmers/raven-data/releases/download/kegg118 \
     --doi 10.5281/zenodo.0000000 --source https://zenodo.org/records/0000000
 
 python scripts/make_registry_snippet.py manifest --manifest data/manifest.json \
-    --target binary --bundle diamond --version 2.1.9 --provides diamond --dir zips \
-    --base-url https://github.com/SysBioChalmers/raven-toolbox/releases/download/diamond-2.1.9 \
+    --target binary --bundle diamond --version 2.1.17 --provides diamond --dir dist/binaries \
+    --base-url https://github.com/SysBioChalmers/raven-data/releases/download/diamond-2.1.17 \
     --license GPL-3.0-only
+```
+
+Then regenerate the baked Python registries from the manifest (single source of truth):
+
+```bash
+python scripts/make_registry_snippet.py sync   # rewrites _DATA_REGISTRY + _REGISTRY
 ```
 
 ## Where to host
 
-Release **assets are stored separately from the git tree** (GitHub keeps them in a blob
-store), so attaching them to a release does **not** bloat the repository. A dedicated assets
-repository is therefore **optional** — attach the assets to releases on an existing RAVEN
-repo (this one, or MATLAB [RAVEN](https://github.com/SysBioChalmers/RAVEN)) and have **both
-packages reuse the same release-asset URLs** via this manifest.
+The assets live in the dedicated [`raven-data`](https://github.com/SysBioChalmers/raven-data)
+repository as **GitHub Release assets** — stored separately from the git tree (GitHub keeps
+them in a blob store), and so usable even though the HMM libraries (~135–155 MB) exceed
+GitHub's 100 MB *git* file limit. Both raven-toolbox and MATLAB RAVEN reuse the same
+release-asset URLs via this manifest.
 
-Use **dedicated tags** for the assets — e.g. `kegg-kegg116`, `diamond-2.1.9` — rather than
-attaching them to code-milestone releases like `v0.1.0a1`. KEGG data updates roughly yearly
-while the code changes often; dedicated tags keep the two cadences decoupled while still
-living in one repository. The manifest's per-dataset `version` does the rest (it namespaces
-the download cache).
+Assets use **per-artefact, immutable tags** versioned by upstream version — e.g. `kegg118`,
+`diamond-2.1.17`, `hmmer-3.4.0` — never code-milestone tags. Each asset is uploaded once and
+re-referenced across manifest snapshots, so there is no duplication; see
+[Artefact hosting & publishing](artefact_hosting.md) for the full versioning model.
 
 Both GitHub Releases and Zenodo are just URLs in the manifest, so consumers don't care —
 mix them per file:
