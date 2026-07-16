@@ -66,7 +66,10 @@ jobs:
           }
           cat notes.md
 
-      - uses: actions/upload-artifact@v4
+      # dist/ and notes.md share the workspace root as their least common
+      # ancestor, so the artifact holds ``dist/*`` beside ``notes.md`` — the
+      # layout both downstream jobs expect.
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: |
@@ -80,7 +83,7 @@ jobs:
     permissions:
       contents: write # create the release and upload its assets
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
       - name: Create the release
@@ -109,7 +112,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
       - uses: pypa/gh-action-pypi-publish@release/v1
