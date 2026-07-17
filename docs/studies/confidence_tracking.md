@@ -1,9 +1,9 @@
 # Per-reaction confidence tracking
 
-**Status: P1 + P2 shipped.** The data model, the notes round-trip (YAML + SBML), and the `localization`,
-`equation` and `gene_association` scorers live in
+**Status: the three facets are shipped.** The data model, the notes round-trip (YAML + SBML), and the
+`localization`, `equation` and `gene_association` scorers live in
 [`raven_toolbox/confidence.py`](../../src/raven_toolbox/confidence.py) (tests in `tests/test_confidence.py`).
-The `reversibility` facet (P3) and the standards mapping (P4) below remain planned.
+The facet set is **closed** — see [§10](#10-what-is-left) for the remaining work.
 
 Every reaction carries a small structured record scoring how well-supported each of its **facets** is,
 persisted in the model file, computed from evidence, updated by curation, and consumed by the raven-toolbox
@@ -43,7 +43,6 @@ no facet is left. Those two facts, taken together, force the design:
 | `localization` | the compartment assignment | DeepLoc support at the assigned compartment + FBA certification |
 | `equation` | mass & charge balance, formula completeness | `get_elemental_balance` + a recomputed charge sum |
 | `gene_association` | is there gene evidence, and is it corroborated | GPR presence + a `pubmed` annotation |
-| `reversibility` *(planned)* | are the bounds thermodynamically justified | ΔG hook / FVA-attainable direction |
 
 Each facet is scored independently, so a model can be annotated one facet at a time and the record grows
 incrementally. A `ConfidenceEntry` is a continuous `score` in [0, 1] plus optional provenance: a categorical
@@ -82,8 +81,8 @@ and must balance. Detecting biomass by *name* is likewise refused — `\bgrowth\
 model carries **no** reaction SBO terms at all, the scorers warn: they then cannot tell a pseudo-reaction from
 a defect.
 
-Note also that `reaction.boundary` is `len(metabolites) == 1`, independent of id, bounds and reversibility —
-so it catches an exchange reaction that is not named `EX_`, and a blocked `(0, 0)` one.
+Note also that `reaction.boundary` is `len(metabolites) == 1`, independent of id and of bounds — so it
+catches an exchange reaction that is not named `EX_`, and a blocked `(0, 0)` one.
 
 ### Bands
 
@@ -207,9 +206,9 @@ not a guarantee about another.
 `confidence_report`, `facet_summary`. Storage lives in `reaction.notes["raven_confidence"]`; there is no
 separate save step — the record serialises with the model.
 
-**Planned (P3):** `score_reversibility_confidence` and an umbrella `annotate_confidence(model, types=[...])`.
+**Planned:** an umbrella `annotate_confidence(model, facets=[...])` — see [§10](#10-what-is-left).
 
-## 9. Standards alignment (P4, for the paper)
+## 9. Standards alignment (for the paper)
 
 Map the categorical `level` onto the established **Thiele & Palsson reconstruction confidence score (0–4)** so
 it is familiar to modellers and reviewers, and reference **ECO** (Evidence & Conclusion Ontology) terms where a
@@ -223,11 +222,35 @@ facet maps to an evidence class. Two cautions carried forward from the design wo
   biomass production, `SBO:0000395` encapsulating process, `SBO:0000630` ATP maintenance, `SBO:0000672`
   spontaneous reaction, `SBO:0000655` transport reaction.
 
-## 10. Phasing
+## 10. What is left
 
-- **P1 — foundation + the facet we already had** *(shipped)*: data model, storage/round-trip helpers (YAML
-  **and** SBML), the `localization` scorer, `confidence_report`.
-- **P2 — cheap structural facets** *(shipped)*: `equation` (mass/charge/formula) + `gene_association`, the
-  abstain-vs-zero discipline, `facet_summary`, and the exemption predicates.
-- **P3 — reversibility:** the bounds-vs-FVA heuristic, with a ΔG hook.
-- **P4 — paper:** Thiele-Palsson / ECO / SBO mapping and documentation.
+The **facet set is closed**: `localization`, `equation` and `gene_association` are shipped, and no further
+facet is planned. What remains is finishing the work *around* them.
+
+### 10.1 Wire the facets together
+
+- **`annotate_confidence(model, facets=[...])`** — one call that runs every applicable scorer, instead of
+  making a caller know the three scorer names and their argument shapes. `localization` needs a proposal and
+  a score table while the other two need only the model, so the umbrella must skip a facet whose inputs are
+  absent rather than fail — the same abstain-rather-than-guess rule the scores themselves follow.
+- **Let `curation_priority` read the record.** Today it re-derives localisation evidence from scratch and
+  cannot see that a curator already settled a placement, so a `mark_curated` reaction keeps surfacing in the
+  review queue. Skipping facets at `level == "curated"` closes the loop between the two tools: score → review
+  → curate → *stop being asked about it*. This is the single change that makes curation feel finished.
+- **Point the SBO precondition at its remedy.** The scorers warn on a model with no SBO terms, but do not say
+  that `raven_toolbox.annotation.add_sbo_terms(model)` is the fix. The warning should name it.
+
+### 10.2 Validate beyond one model
+
+Every number in §6 comes from yeast-GEM, and §6 already flags that three bands (`formula-unparseable`,
+`formula-generic`, `charge-unknown`) never fire there — they are covered only by synthetic fixtures. A
+distribution measured on one model is not a guarantee about another. Running
+`scripts/measure_confidence_facets.py` over Human-GEM and a non-curated draft would show whether the bands
+are calibrated or merely yeast-shaped, and would exercise the branches yeast cannot reach. The
+gene-rubric-vs-`Confidence Level` check only replicates on a model that records that note, so its absence
+elsewhere is itself worth reporting.
+
+### 10.3 Standards alignment for the paper
+
+§9 above: map `level` onto Thiele & Palsson 0–4, and attach ECO terms where a facet maps to an evidence
+class — with the two cautions recorded there. The SBO half is already done and verified.
