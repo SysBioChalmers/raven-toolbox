@@ -4,6 +4,19 @@ Milestones in the raven-toolbox port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
+## Unreleased
+
+* **Benchmarked two previously-unmeasured `assign_compartments` features.** A new ablation study
+  ([`assignment_ablations.md`](docs/studies/assignment_ablations.md),
+  `scripts/benchmark_assignment_ablations.py`) measures transport pruning and gap-filling on yeast-GEM,
+  which were shipped with correctness tests but no performance numbers. Transport pruning removes 21.6 %
+  of provisioned transports (a strict subset) at no reaction-accuracy cost. Gap-filling never fires on a
+  well-connected draft (no gratuitous additions at genome scale), and under ground-truthed
+  knockout-recovery it re-adds the *exact* removed reaction in 100 % of recoveries with zero wrong
+  additions — its recall (~45 %) is bounded by `cobra.flux_analysis.gapfill`'s numerical tolerance (a
+  sharp optimum at cobra's default, confirmed by an `integer_threshold` sweep), and it fails safe by
+  declining rather than mis-filling.
+
 ## 0.3.0 — 2026-07-16
 
 Compartment localisation and per-reaction confidence tracking, new gap-filling and flux-sampling

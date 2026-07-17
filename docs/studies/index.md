@@ -21,6 +21,10 @@ its equivalence claims against MATLAB RAVEN.
 - **[Yeast-GEM validation](yeast_validation.md)** — `assign_compartments` on curated yeast-GEM:
   recovery of the compartmentalisation, a CarveFungi head-to-head (McNemar), and a biological check
   (transporter connectivity, pathway localisation, dual-localised enzymes).
+- **[Compartment-assignment ablations](assignment_ablations.md)** — measuring two `assign_compartments`
+  features that were only correctness-tested: transport pruning (21.6 % fewer transports at no accuracy
+  cost) and gap-filling (never gratuitous; 100 % exact when it recovers, capped by cobra's gapfill
+  tolerance).
 - **[Multi-organism validation](multiorganism_validation.md)** — the same method across four kingdoms
   (yeast, Human-GEM, AraCore, iCre1355), including the chloroplast, with no per-organism changes.
 - **[Confidence tracking](confidence_tracking.md)** — per-reaction, multi-facet confidence persisted in
@@ -72,6 +76,7 @@ kegg_hmm_cutoff_calibration
 localization_redesign
 curation_priority_signals
 yeast_validation
+assignment_ablations
 multiorganism_validation
 confidence_tracking
 ```
