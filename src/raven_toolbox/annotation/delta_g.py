@@ -18,6 +18,24 @@ from pathlib import Path
 import cobra
 import pandas as pd
 
+#: ModelSEED's "no valid ΔG" sentinel, as used by yeast-GEM's side-car tables. Its own
+#: ``checkrxnDirection.m`` gates on it verbatim: ``if ~isequal(seed_rxnInfo{...},'10000000.0')
+#: %check if database contains valid deltaG value``. Stamping it would present a physically
+#: impossible 10⁷ kJ/mol as a measurement, so it is treated as missing.
+SEED_DELTA_G_MISSING = 1e7
+
+
+def _is_missing(value, sentinel: float) -> bool:
+    """True when ``value`` is the sentinel, whether it arrived as a number or as text.
+
+    The CSV round-trips through MATLAB and pandas, so the same sentinel shows up as ``10000000``,
+    ``10000000.0`` or ``"10000000.0"`` depending on the writer and the column's inferred dtype.
+    """
+    try:
+        return math.isclose(float(value), sentinel, rel_tol=1e-9)
+    except (TypeError, ValueError):
+        return False
+
 
 def load_delta_g_csv(
     entities: Iterable,
@@ -26,6 +44,7 @@ def load_delta_g_csv(
     id_column: str = "Var1",
     value_column: str = "Var2",
     note_key: str = "deltaG",
+    missing_value: float | None = SEED_DELTA_G_MISSING,
     verbose: bool = False,
 ) -> int:
     """Stamp ``note_key`` on each entity from a CSV of ``id → value``.
@@ -42,12 +61,19 @@ def load_delta_g_csv(
     note_key
         Key under which the value is stored on ``entity.notes``.
         Default ``"deltaG"``.
+    missing_value
+        A sentinel standing for "no value", left unstamped rather than
+        recorded as a measurement. Defaults to ModelSEED's
+        :data:`SEED_DELTA_G_MISSING` (10⁷), which covers 777 of
+        yeast-GEM's 4102 reaction rows. Pass ``None`` to stamp every
+        value verbatim.
     verbose
         Print a summary of unmatched entity ids.
 
     Returns
     -------
-    The number of entities that were stamped (i.e. matched the CSV).
+    The number of entities that were stamped (i.e. matched the CSV and
+    carried a real value).
     """
     df = pd.read_csv(path)
     if id_column not in df.columns or value_column not in df.columns:
@@ -62,6 +88,9 @@ def load_delta_g_csv(
     for entity in entities:
         value = lookup.get(entity.id)
         if value is None or (isinstance(value, float) and math.isnan(value)):
+            missing.append(entity.id)
+            continue
+        if missing_value is not None and _is_missing(value, missing_value):
             missing.append(entity.id)
             continue
         entity.notes[note_key] = str(value)
@@ -111,5 +140,5 @@ def save_delta_g_csv(
 # Re-export the cobra Model type for type-checker friendliness; helps
 # IDEs surface the right hints to callers that hand us model.metabolites
 # / model.reactions directly.
-__all__ = ["load_delta_g_csv", "save_delta_g_csv"]
+__all__ = ["SEED_DELTA_G_MISSING", "load_delta_g_csv", "save_delta_g_csv"]
 _ = cobra  # silence "imported but unused" — used for typing context above

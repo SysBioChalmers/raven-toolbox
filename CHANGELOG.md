@@ -4,6 +4,17 @@ Milestones in the raven-toolbox port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
+## Unreleased
+
+* **Fix `load_delta_g_csv` recording ModelSEED's "missing" sentinel as a real measurement.** The side-car
+  tables encode "no valid ΔG" as `10000000`, and the loader — written for exactly these files, down to its
+  `Var1`/`Var2` defaults — stamped it verbatim, presenting a physically impossible 10⁷ kJ/mol as a
+  measurement on **777 of yeast-GEM's 4102 reactions (19.5%)**. yeast-GEM's own `checkrxnDirection.m` gates
+  on the same value (`if ~isequal(seed_rxnInfo{...},'10000000.0') %check if database contains valid deltaG
+  value`). The sentinel is now treated as missing, as NaN already was, recognised whichever dtype the CSV
+  round-trip produces; the new keyword-only `missing_value` (default `SEED_DELTA_G_MISSING`) tunes or
+  disables it. Real ΔG coverage of yeast-GEM is 78.2%, not the 97.1% the loader previously implied.
+
 ## 0.3.0 — 2026-07-16
 
 Compartment localisation and per-reaction confidence tracking, new gap-filling and flux-sampling
