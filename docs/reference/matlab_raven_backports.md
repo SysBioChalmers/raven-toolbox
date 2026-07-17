@@ -29,6 +29,27 @@ Reference implementation: `src/raven_toolbox/localization/assign.py`.
 
 ---
 
+## Pending back-port INTO raven-toolbox: order-insensitive grRule comparison in model diff
+
+MATLAB RAVEN's `comparison/diffModels.m` (the port of `comparison/diff.py::diff_models`, added in
+[RAVEN #686](https://github.com/SysBioChalmers/RAVEN/pull/686)) compares grRules as **logic**, not
+text: each rule is expanded to disjunctive normal form and the genes within each isozyme, and the
+isozymes themselves, are sorted before comparison, so `a and b` equals `b and a` and `(a or b)`
+equals `(b or a)`.
+
+raven-toolbox's `diff_models` is weaker here. `_normalise_gpr` (`comparison/diff.py`) only
+lowercases and collapses whitespace — its own docstring notes "a more robust comparator would parse
+to a GPR AST and compare structures; this is the cheap heuristic". So it reports two logically
+identical rules that differ only in operand order as a difference.
+
+**Back-port.** Replace the string `_normalise_gpr` with an AST-based comparison. cobra already
+exposes the parsed GPR (`Reaction.gpr` / `GPR`), and the repo has `gpr_to_dnf`
+(`manipulation/expand.py`) — canonicalise by DNF-expanding, sorting the genes within each clause and
+sorting the clauses, then compare. This is a small change and makes the two implementations agree.
+Reference: `comparison/diffModels.m::canonicalGpr` in MATLAB RAVEN.
+
+---
+
 ## Functionality in MATLAB RAVEN not in raven-toolbox
 
 Principled omissions — present in MATLAB RAVEN, deliberately **not** ported to
