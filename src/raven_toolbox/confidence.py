@@ -68,6 +68,7 @@ __all__ = [
     "score_gene_association_confidence",
     "score_localization_confidence",
     "set_confidence",
+    "thiele_palsson_score",
 ]
 
 _KEY = "raven_confidence"
@@ -595,6 +596,31 @@ def score_gene_association_confidence(model, *, overwrite_curated: bool = False,
         set_confidence(reaction, "gene_association", entry)
         n += 1
     return n
+
+
+#: ``gene_association`` facet ``basis`` -> Thiele & Palsson reconstruction confidence score (0-4). A
+#: homology-derived GPR is sequence evidence (2); a GPR with a literature citation is
+#: experimental/genetic (3); a reaction that should have a catalyst but has none is a modelling
+#: inference (1). ``curated`` is deliberately absent: a curator's assertion does not, on its own, name
+#: the *evidence class* it rests on (the score's ``basis`` is ``"curator"``), so its Thiele-Palsson
+#: class must be set from the evidence the curator used, not inferred here (see the study doc §9).
+_THIELE_PALSSON_FROM_GA_BASIS = {"gpr+literature": 3, "gpr": 2, "no-gpr": 1}
+
+
+def thiele_palsson_score(reaction: cobra.Reaction) -> int | None:
+    """The reaction's Thiele & Palsson reconstruction confidence score (0-4), or ``None``.
+
+    Derived from the ``gene_association`` facet's ``basis`` (:func:`score_gene_association_confidence`),
+    the facet that captures reaction-inclusion evidence: ``gpr+literature`` -> 3 (experimental/genetic),
+    ``gpr`` -> 2 (sequence), ``no-gpr`` -> 1 (modelling). Returns ``None`` when the facet is absent (the
+    reaction was not scored, or ``gene_association`` does not apply to it) or ``curated`` (whose evidence
+    class the curator must name — see the module note and the study doc §9). The ``localization`` and
+    ``equation`` facets are quality checks, not Thiele-Palsson evidence classes, and are not consulted.
+    """
+    entry = get_confidence(reaction).facets.get("gene_association")
+    if entry is None:
+        return None
+    return _THIELE_PALSSON_FROM_GA_BASIS.get(entry.basis)
 
 
 def annotate_confidence(
