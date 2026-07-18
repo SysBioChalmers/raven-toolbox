@@ -1,10 +1,10 @@
 """Per-reaction, multi-facet confidence — persisted in the model, ignored by plain cobra.
 
-Attaches a small structured record to a reaction scoring how well-supported each *facet* of it is
-(``localization``, ``equation``, ``gene_association``; ``reversibility`` follows the same shape). Each
-facet is a :class:`ConfidenceEntry` — a continuous 0-1 ``score`` plus optional provenance (a categorical
-``level``, the ``basis`` evidence, ``method``/``source``/``note``). A reaction carries a
-:class:`ReactionConfidence` (facet → entry) whose ``overall`` is the weakest facet.
+Attaches a small structured record to a reaction scoring how well-supported each *facet* of it is:
+``localization``, ``equation`` and ``gene_association``. Each facet is a :class:`ConfidenceEntry` — a
+continuous 0-1 ``score`` plus optional provenance (a categorical ``level``, the ``basis`` evidence,
+``method``/``source``/``note``). A reaction carries a :class:`ReactionConfidence` (facet → entry) whose
+``overall`` is the weakest facet.
 
 **Two rules govern every score**, because ``overall = min(facets)`` and :func:`_write` drops the record
 when no facet remains:
@@ -30,9 +30,9 @@ SBO terms the scorers warn, because they cannot then tell a biomass pseudo-react
 defect. Detecting biomass by name instead is deliberately *not* done: ``\\bgrowth\\b`` matches
 "non-growth associated maintenance reaction", and a name regex must never silence a chemistry check.
 
-The design and roadmap (the ``reversibility`` facet, ECO/SBO and Thiele-Palsson mapping) are in
-``docs/studies/confidence_tracking.md``. Wire it in by calling :func:`score_localization_confidence` on
-an :class:`~raven_toolbox.localization.AssignmentProposal`, :func:`score_equation_confidence` and
+The design and the measured yeast-GEM distributions are in ``docs/studies/confidence_tracking.md``; the
+facet set above is closed. Wire it in by calling :func:`score_localization_confidence` on an
+:class:`~raven_toolbox.localization.AssignmentProposal`, :func:`score_equation_confidence` and
 :func:`score_gene_association_confidence` on any model, and :func:`mark_curated` when a curator firmly
 fixes a facet (e.g. after :func:`~raven_toolbox.localization.relocate_reactions`).
 """
