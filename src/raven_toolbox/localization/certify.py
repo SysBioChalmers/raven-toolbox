@@ -126,6 +126,31 @@ def _prepare_scope(model, scores, reactions_to_relocate, *, transportable, base_
 
 
 # --------------------------------------------------------------------------- master
+def _pin_deterministic(prob, opt) -> None:
+    """Pin solver parameters so a degenerate placement objective is resolved the
+    same way every run and across solvers/machines. On a benchmark of the yeast
+    master (identical model, one parameter varied at a time) exactly three
+    settings changed which co-optimal placement Gurobi returned -- thread count,
+    seed, and presolve level -- while the MIP gap only mattered once loosened
+    past ~1e-2 (which also loses optimality) and every tolerance was irrelevant.
+    So: single thread and fixed seed remove thread/seed nondeterminism, a fixed
+    presolve level (2, matching the MATLAB port's optimizeProb default) removes
+    the presolve divergence, and a zero MIP gap forces the exact optimum. Only
+    Gurobi exposes these by the names used here; other backends keep defaults."""
+    if "gurobi" not in getattr(prob, "__name__", ""):
+        return
+    try:
+        gp_model = opt.problem
+        gp_model.update()
+        gp_model.setParam("Threads", 1)
+        gp_model.setParam("Seed", 0)
+        gp_model.setParam("Presolve", 2)
+        gp_model.setParam("MIPGap", 0.0)
+        gp_model.setParam("IntFeasTol", 1e-9)
+    except Exception:  # noqa: BLE001 — reproducibility hint, never fatal
+        pass
+
+
 def _score(score_df, g: str, c: str) -> float:
     if c not in score_df.columns or g not in score_df.index:
         return 0.0
@@ -148,20 +173,27 @@ def _solve_placement_master(
     model.solver  # noqa: B018 — initialise the solver so model.problem is usable
     prob = model.problem
     opt = prob.Model()
+    # Build the MILP in a canonical order so the solver is handed the same
+    # problem every run and across the MATLAB port: movable is already sorted by
+    # id, but genes_in_scope is a set whose iteration order is randomised per
+    # process (string hash randomisation), which would otherwise reorder the
+    # variables/constraints and let a degenerate objective pick a different
+    # co-optimal placement each run. Iterate it sorted everywhere.
+    genes_sorted = sorted(genes_in_scope)
     x = {(r.id, c): prob.Variable(f"x_{r.id}_{c}", type="binary")
          for r in movable for c in compartments}
     y = {(g, c): prob.Variable(f"y_{g}_{c}", type="binary")
-         for g in genes_in_scope for c in compartments}
+         for g in genes_sorted for c in compartments}
     cons: list = []
 
     for r in movable:
         cons.append(prob.Constraint(add([x[r.id, c] for c in compartments]),
                                     lb=1.0, ub=1.0, name=f"place_{r.id}"))
-        for g in {gg.id for gg in r.genes} & genes_in_scope:
+        for g in sorted({gg.id for gg in r.genes} & genes_in_scope):
             for c in compartments:
                 cons.append(prob.Constraint(x[r.id, c] - y[g, c], ub=0.0,
                                             name=f"couple_{r.id}_{g}_{c}"))
-    for g in genes_in_scope:
+    for g in genes_sorted:
         cons.append(prob.Constraint(add([y[g, c] for c in compartments]),
                                     lb=1.0, name=f"gene1_{g}"))
         for c in compartments:
@@ -181,7 +213,7 @@ def _solve_placement_master(
     opt.add(list(x.values()) + list(y.values()) + cons)
 
     obj = []
-    for g in genes_in_scope:
+    for g in genes_sorted:
         for c in compartments:
             s = _score(score_df, g, c)
             if s:
@@ -192,6 +224,7 @@ def _solve_placement_master(
     opt.objective = prob.Objective(add(obj) if obj else Real(0.0), direction="max")
     if time_limit is not None:
         opt.configuration.timeout = int(time_limit)
+    _pin_deterministic(prob, opt)
     opt.optimize()
 
     if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
