@@ -18,11 +18,12 @@ from pathlib import Path
 import cobra
 import pandas as pd
 
-#: ModelSEED's "no valid ΔG" sentinel, as used by yeast-GEM's side-car tables. Its own
-#: ``checkrxnDirection.m`` gates on it verbatim: ``if ~isequal(seed_rxnInfo{...},'10000000.0')
-#: %check if database contains valid deltaG value``. Stamping it would present a physically
-#: impossible 10⁷ kJ/mol as a measurement, so it is treated as missing.
-SEED_DELTA_G_MISSING = 1e7
+#: The "no valid ΔG" sentinel used by the ΔG side-car tables (e.g. yeast-GEM's
+#: ``model_rxnDeltaG.csv``). yeast-GEM's ``checkrxnDirection.m`` gates on it verbatim:
+#: ``if ~isequal(seed_rxnInfo{...},'10000000.0') %check if database contains valid deltaG
+#: value``. Stamping it would present a physically impossible 10⁷ kJ/mol as a measurement,
+#: so it is treated as missing.
+DELTA_G_MISSING = 1e7
 
 
 def _is_missing(value, sentinel: float) -> bool:
@@ -44,7 +45,7 @@ def load_delta_g_csv(
     id_column: str = "Var1",
     value_column: str = "Var2",
     note_key: str = "deltaG",
-    missing_value: float | None = SEED_DELTA_G_MISSING,
+    missing_value: float | None = DELTA_G_MISSING,
     verbose: bool = False,
 ) -> int:
     """Stamp ``note_key`` on each entity from a CSV of ``id → value``.
@@ -63,8 +64,8 @@ def load_delta_g_csv(
         Default ``"deltaG"``.
     missing_value
         A sentinel standing for "no value", left unstamped rather than
-        recorded as a measurement. Defaults to ModelSEED's
-        :data:`SEED_DELTA_G_MISSING` (10⁷), which covers 777 of
+        recorded as a measurement. Defaults to
+        :data:`DELTA_G_MISSING` (10⁷), which covers 777 of
         yeast-GEM's 4102 reaction rows. Pass ``None`` to stamp every
         value verbatim.
     verbose
@@ -140,5 +141,5 @@ def save_delta_g_csv(
 # Re-export the cobra Model type for type-checker friendliness; helps
 # IDEs surface the right hints to callers that hand us model.metabolites
 # / model.reactions directly.
-__all__ = ["SEED_DELTA_G_MISSING", "load_delta_g_csv", "save_delta_g_csv"]
+__all__ = ["DELTA_G_MISSING", "load_delta_g_csv", "save_delta_g_csv"]
 _ = cobra  # silence "imported but unused" — used for typing context above

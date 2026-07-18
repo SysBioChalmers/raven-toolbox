@@ -185,10 +185,10 @@ def test_load_skips_nan_rows(tmp_path):
     assert m.metabolites.get_by_id("glc_e").notes["deltaG"] == "1.0"
 
 
-def test_load_skips_the_seed_missing_sentinel(tmp_path):
-    """ModelSEED writes 10000000 for "no valid ΔG", and yeast-GEM's side-car carries it on 777 of its
-    4102 reaction rows. Stamping it would record a physically impossible 10^7 kJ/mol as a measurement.
-    yeast-GEM's own checkrxnDirection.m gates on the same value."""
+def test_load_skips_the_missing_sentinel(tmp_path):
+    """The ΔG side-car tables write 10000000 for "no valid ΔG", and yeast-GEM's side-car carries it on
+    777 of its 4102 reaction rows. Stamping it would record a physically impossible 10^7 kJ/mol as a
+    measurement. yeast-GEM's own checkrxnDirection.m gates on the same value."""
     m = _toy_model()
     m.metabolites.get_by_id("atp_c").notes["deltaG"] = "preserved"
 
