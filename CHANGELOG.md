@@ -21,6 +21,13 @@ Milestones in the raven-toolbox port. For function-level status see
   value`). The sentinel is now treated as missing, as NaN already was, recognised whichever dtype the CSV
   round-trip produces; the new keyword-only `missing_value` (default `DELTA_G_MISSING`) tunes or
   disables it. Real ΔG coverage of yeast-GEM is 78.2%, not the 97.1% the loader previously implied.
+* **Wire the confidence facets together.** `confidence.annotate_confidence(model, proposal=..., scores=...)`
+  runs every applicable scorer in one call and returns `{facet: reactions_scored}` — `equation` and
+  `gene_association` need only the model, `localization` runs only when a proposal and its scores are given
+  (skipped, not failed, otherwise). `curation_priority` now drops a placement a curator has settled with
+  `mark_curated` from the review queue (new `include_curated=False`), so a settled reaction stops
+  resurfacing; `include_curated=True` keeps it. The no-SBO-terms warning now names its remedy,
+  `raven_toolbox.annotation.add_sbo_terms(model)`.
 
 ## 0.3.0 — 2026-07-16
 

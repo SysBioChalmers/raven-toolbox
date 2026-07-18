@@ -369,3 +369,23 @@ def test_affected_for_transport_lists_dependent_reactions():
     # the palmitoyl-CoA transport is coupled to the reactions that make/consume it (r0 in c, r1 in m)
     assert trow["n_affected"] >= 1
     assert "r1" in trow["affected"]
+
+
+def test_curation_priority_skips_curated_localization():
+    """A reaction whose localization facet is mark_curated drops out of the review queue (closing the
+    score -> review -> curate loop); include_curated=True keeps it."""
+    from raven_toolbox.confidence import mark_curated
+
+    m = _linear()                                           # r1: A_c -> B_c, gene g1
+    scores = LocalizationScores(pd.DataFrame({"c": [0.4], "m": [0.9]}, index=["g1"]))
+    prop = _proposal({"r1": ["c"]}, unplaced=["r1"])        # no_evidence + override fire on r1
+
+    base = curation_priority(m, prop, scores, check_essential=False)
+    assert "r1" in set(base["target"])                      # surfaces before curation
+
+    mark_curated(m.reactions.get_by_id("r1"), facet="localization")
+    after = curation_priority(m, prop, scores, check_essential=False)
+    assert "r1" not in set(after["target"])                 # dropped once curated
+
+    kept = curation_priority(m, prop, scores, check_essential=False, include_curated=True)
+    assert "r1" in set(kept["target"])                      # include_curated overrides

@@ -130,6 +130,7 @@ def curation_priority(
     check_essential: bool = True,
     essential_candidate_threshold: float = 0.2,
     min_growth: float | None = None,
+    include_curated: bool = False,
 ):
     """Rank reaction placements and added transports by how likely each needs manual curation.
 
@@ -155,6 +156,11 @@ def curation_priority(
     (heuristic) ``min_growth`` floor, and is skipped entirely if the materialised model cannot beat that
     floor (where the test could not discriminate). Set ``check_essential=False`` to skip the only
     non-cheap signal.
+
+    A reaction whose ``localization`` confidence has been marked ``curated`` (via
+    :func:`~raven_toolbox.confidence.mark_curated`, e.g. after a curator settled its placement) is
+    dropped from the queue, closing the score -> review -> curate loop so a settled reaction stops
+    resurfacing. Pass ``include_curated=True`` to score it anyway.
     """
     import pandas as pd
 
@@ -164,6 +170,18 @@ def curation_priority(
     unplaced = set(proposal.unplaced_reactions)
     # gap-fills that are also (somehow) in placements are scored as placements, not duplicated as gapfill
     added_reactions = [r for r in proposal.added_reactions if r not in proposal.placements]
+
+    # Reactions a curator has settled (localization facet marked "curated"): drop them from the queue so
+    # they stop resurfacing, closing the score -> review -> curate loop. include_curated keeps them.
+    curated_localization: set[str] = set()
+    if not include_curated:
+        from raven_toolbox.confidence import get_confidence
+        for rid in {*proposal.placements, *added_reactions}:
+            if rid not in model.reactions:
+                continue
+            entry = get_confidence(model.reactions.get_by_id(rid)).facets.get("localization")
+            if entry is not None and entry.level == "curated":
+                curated_localization.add(rid)
 
     def _cur(b):
         return _is_currency(b, extra_currency)
@@ -207,6 +225,8 @@ def curation_priority(
 
     # ---- placement signals: one row per (reaction, compartment) ----
     for rid, cs in placements_of.items():
+        if rid in curated_localization:
+            continue
         r = model.reactions.get_by_id(rid)
         noncur = [(base(m), coeff) for m, coeff in r.metabolites.items() if not _cur(base(m))]
         subs = [b for b, coeff in noncur if coeff < 0]
@@ -259,6 +279,8 @@ def curation_priority(
 
     # ---- H3 gap-fill: reactions pulled from the universal model (not in the draft's placements) ----
     for rid in added_reactions:
+        if rid in curated_localization:
+            continue
         comp = default_compartment
         if universal is not None and rid in universal.reactions:
             csx = {mm.compartment for mm in universal.reactions.get_by_id(rid).metabolites}
