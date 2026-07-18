@@ -43,6 +43,7 @@ import html
 import json
 import math
 import warnings
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -54,6 +55,7 @@ from raven_toolbox.utils.balance import get_elemental_balance
 __all__ = [
     "ConfidenceEntry",
     "ReactionConfidence",
+    "annotate_confidence",
     "clear_confidence",
     "confidence_report",
     "equation_exempt",
@@ -390,7 +392,8 @@ def _warn_if_no_sbo(model: cobra.Model) -> None:
     if model.reactions and not any(_sbo(r) for r in model.reactions):
         warnings.warn(
             "no reaction carries an SBO term, so biomass and pool pseudo-reactions cannot be told from "
-            "chemistry defects and will be scored as defects. Annotate SBO terms first.",
+            "chemistry defects and will be scored as defects. Annotate SBO terms first with "
+            "raven_toolbox.annotation.add_sbo_terms(model).",
             stacklevel=3,
         )
 
@@ -592,6 +595,42 @@ def score_gene_association_confidence(model, *, overwrite_curated: bool = False,
         set_confidence(reaction, "gene_association", entry)
         n += 1
     return n
+
+
+def annotate_confidence(
+    model: cobra.Model,
+    *,
+    proposal: Any = None,
+    scores: Any = None,
+    facets: Iterable[str] | None = None,
+    overwrite_curated: bool = False,
+    updated: str | None = None,
+) -> dict[str, int]:
+    """Run every applicable confidence scorer in one call; return ``{facet: reactions_scored}``.
+
+    ``equation`` and ``gene_association`` need only the model and always run; ``localization`` runs
+    only when both ``proposal`` (an :class:`~raven_toolbox.localization.AssignmentProposal`) and
+    ``scores`` (a :class:`~raven_toolbox.localization.LocalizationScores`) are given, and is otherwise
+    **skipped rather than failing** — the same abstain-rather-than-guess rule the scores follow, so a
+    caller without a localisation proposal still gets the other two facets. ``facets=[...]`` restricts
+    to a subset (names outside the facet set are ignored). ``overwrite_curated`` and ``updated`` pass
+    through to each scorer.
+    """
+    requested = {"localization", "equation", "gene_association"} if facets is None else set(facets)
+    counts: dict[str, int] = {}
+    if "localization" in requested and proposal is not None and scores is not None:
+        counts["localization"] = score_localization_confidence(
+            model, proposal, scores, overwrite_curated=overwrite_curated, updated=updated
+        )
+    if "equation" in requested:
+        counts["equation"] = score_equation_confidence(
+            model, overwrite_curated=overwrite_curated, updated=updated
+        )
+    if "gene_association" in requested:
+        counts["gene_association"] = score_gene_association_confidence(
+            model, overwrite_curated=overwrite_curated, updated=updated
+        )
+    return counts
 
 
 def _score(df, g: str, c: str) -> float:
