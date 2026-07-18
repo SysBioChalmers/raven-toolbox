@@ -19,6 +19,7 @@ from raven_toolbox.confidence import (
     score_gene_association_confidence,
     score_localization_confidence,
     set_confidence,
+    thiele_palsson_score,
 )
 from raven_toolbox.localization import AssignmentProposal
 from raven_toolbox.localization.scores import LocalizationScores
@@ -487,3 +488,28 @@ def test_sbo_warning_names_add_sbo_terms():
     m = _model()                                             # carries no SBO terms
     with pytest.warns(UserWarning, match=r"add_sbo_terms"):
         score_equation_confidence(m)
+
+
+# --------------------------------------------------------------------------- Thiele-Palsson mapping
+
+def test_thiele_palsson_score_maps_gene_association_basis():
+    m = _model()
+    r = m.reactions.r1
+    for basis, expected in (("gpr+literature", 3), ("gpr", 2), ("no-gpr", 1)):
+        set_confidence(r, "gene_association", ConfidenceEntry(0.6, basis=basis))
+        assert thiele_palsson_score(r) == expected
+    # curated: the evidence class is the curator's to name, not inferred here -> None
+    mark_curated(r, facet="gene_association")
+    assert thiele_palsson_score(r) is None
+    # no gene_association facet at all (an exempt boundary reaction) -> None
+    assert thiele_palsson_score(m.reactions.EX_A) is None
+
+
+def test_thiele_palsson_score_end_to_end():
+    m = _model()
+    score_gene_association_confidence(m)
+    assert get_confidence(m.reactions.r1).facets["gene_association"].basis == "gpr"
+    assert thiele_palsson_score(m.reactions.r1) == 2               # sequence-only GPR
+    m.reactions.r1.annotation["pubmed"] = ["12345"]
+    score_gene_association_confidence(m)
+    assert thiele_palsson_score(m.reactions.r1) == 3               # GPR + literature

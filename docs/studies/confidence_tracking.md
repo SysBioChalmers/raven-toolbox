@@ -210,35 +210,48 @@ separate save step — the record serialises with the model.
 
 ## 9. Standards alignment (for the paper)
 
-Map the categorical `level` onto the established **Thiele & Palsson reconstruction confidence score (0–4)** so
-it is familiar to modellers and reviewers, and reference **ECO** (Evidence & Conclusion Ontology) terms where a
-facet maps to an evidence class. Two cautions carried forward from the design work:
+The **Thiele & Palsson reconstruction confidence score (0–4)** classifies a reaction by the *type* of
+evidence for including it. It therefore maps from the `gene_association` facet — the one that measures
+reaction-inclusion evidence — via its `basis`, **not** from a facet's `level` (a support-strength band) or
+the `overall` score. `raven_toolbox.confidence.thiele_palsson_score(reaction)` returns it:
+
+| `gene_association` basis | Thiele-Palsson | ECO evidence class |
+|---|---|---|
+| `gpr+literature` | 3 — experimental / genetic | assign from the cited evidence, e.g. `ECO:0000015` (mutant phenotype) or `ECO:0000002` (direct assay); not inferable from the presence of a citation alone |
+| `gpr` | 2 — sequence data | `ECO:0000044` sequence similarity evidence |
+| `no-gpr` | 1 — modelling inference | — |
+| `curated` | set by the curator's own evidence | set by the curator's own evidence |
+
+Two cautions govern the mapping:
 
 - Thiele & Palsson's table assigns score **2 to two different evidence classes** (physiological data *and*
-  sequence data), so a recorded 2 does not determine an evidence class and must not be mapped to one.
-- Assertion-method ECO terms (e.g. "inferred by curator") are not evidence classes and must not be used as
-  such. Any ECO id must be checked against the ontology before it reaches the paper — a wrong ontology id is
-  worse than an omitted one. The SBO ids used above were each verified against EBI's SBO: `SBO:0000629`
-  biomass production, `SBO:0000395` encapsulating process, `SBO:0000630` ATP maintenance, `SBO:0000672`
-  spontaneous reaction, `SBO:0000655` transport reaction.
+  sequence data), so the mapping only runs *forward* (basis → score); a recorded 2 does not determine an
+  evidence class and must not be mapped back to one. `curated` is likewise left unmapped — a curator's
+  assertion does not, on its own, name the evidence class it rests on.
+- Assertion-method ECO terms are **not** evidence classes and must not be used as such: `ECO:0000305`
+  "curator inference used in manual assertion" describes *how* a call was made, not the evidence for it. Any
+  ECO id must be checked against the ontology before it reaches the paper — a wrong ontology id is worse than
+  an omitted one. Every ECO id above was verified against EBI's ECO (OLS): `ECO:0000044` sequence similarity
+  evidence, `ECO:0000015` mutant phenotype evidence, `ECO:0000002` direct assay evidence. The SBO ids used
+  earlier were likewise verified: `SBO:0000629` biomass production, `SBO:0000395` encapsulating process,
+  `SBO:0000630` ATP maintenance, `SBO:0000672` spontaneous reaction, `SBO:0000655` transport reaction.
 
 ## 10. What is left
 
-The **facet set is closed**: `localization`, `equation` and `gene_association` are shipped, and no further
-facet is planned. What remains is finishing the work *around* them.
+facet is planned. The wiring (§10.1) and the standards mapping (§10.3) are shipped; what remains is
+validating beyond one model (§10.2) and the paper write-up.
 
-### 10.1 Wire the facets together
+### 10.1 Wire the facets together — shipped
 
-- **`annotate_confidence(model, facets=[...])`** — one call that runs every applicable scorer, instead of
-  making a caller know the three scorer names and their argument shapes. `localization` needs a proposal and
-  a score table while the other two need only the model, so the umbrella must skip a facet whose inputs are
-  absent rather than fail — the same abstain-rather-than-guess rule the scores themselves follow.
-- **Let `curation_priority` read the record.** Today it re-derives localisation evidence from scratch and
-  cannot see that a curator already settled a placement, so a `mark_curated` reaction keeps surfacing in the
-  review queue. Skipping facets at `level == "curated"` closes the loop between the two tools: score → review
-  → curate → *stop being asked about it*. This is the single change that makes curation feel finished.
-- **Point the SBO precondition at its remedy.** The scorers warn on a model with no SBO terms, but do not say
-  that `raven_toolbox.annotation.add_sbo_terms(model)` is the fix. The warning should name it.
+- **`annotate_confidence(model, proposal=..., scores=...)`** runs every applicable scorer in one call and
+  returns `{facet: count}`, so a caller need not know the three scorer names and their argument shapes.
+  `localization` runs only when a proposal and score table are given; a facet whose inputs are absent is
+  skipped rather than failed — the same abstain-rather-than-guess rule the scores themselves follow.
+- **`curation_priority` reads the record.** A reaction a curator has settled with `mark_curated` is dropped
+  from the review queue (`include_curated=False`), closing the loop between the two tools: score → review →
+  curate → *stop being asked about it*.
+- **The SBO precondition names its remedy.** The no-SBO-terms warning points at
+  `raven_toolbox.annotation.add_sbo_terms(model)`.
 
 ### 10.2 Validate beyond one model
 
@@ -250,7 +263,9 @@ are calibrated or merely yeast-shaped, and would exercise the branches yeast can
 gene-rubric-vs-`Confidence Level` check only replicates on a model that records that note, so its absence
 elsewhere is itself worth reporting.
 
-### 10.3 Standards alignment for the paper
+### 10.3 Standards alignment for the paper — mapping shipped
 
-§9 above: map `level` onto Thiele & Palsson 0–4, and attach ECO terms where a facet maps to an evidence
-class — with the two cautions recorded there. The SBO half is already done and verified.
+§9 above. The Thiele-Palsson mapping is shipped as `raven_toolbox.confidence.thiele_palsson_score`
+(`gene_association` basis → 0–4), and its ECO evidence-class ids are verified against OLS. What remains is
+paper-side, not code: assigning the specific ECO class for `gpr+literature` and `curated` reactions from the
+actual cited/curator evidence (which the facet cannot infer), and the write-up itself.
