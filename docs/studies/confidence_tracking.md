@@ -179,10 +179,11 @@ disagreements are informative rather than embarrassing: 43 gene-less reactions c
 
 ### What yeast-GEM cannot test
 
-Three bands never fire on it, and are therefore exercised only by synthetic fixtures: `formula-unparseable`
-(no parenthesised formulas), `formula-generic` (no residual lands in an R group), and `charge-unknown` (all
-2748 metabolites carry a charge). This is stated rather than hidden — a distribution measured on one model is
-not a guarantee about another.
+Three bands never fire on it: `formula-unparseable` (no parenthesised formulas), `formula-generic` (no
+residual lands in an R group), and `charge-unknown` (all 2748 metabolites carry a charge). This is stated
+rather than hidden — a distribution measured on one model is not a guarantee about another. The cross-model
+sweep in [§10.2](#102-validate-beyond-one-model) resolves it: `formula-generic` and `formula-unparseable`
+both fire on other real models; only `charge-unknown` stays exercised solely by synthetic fixtures.
 
 ## 7. Integration with the existing tools
 
@@ -203,10 +204,8 @@ not a guarantee about another.
 **Shipped:** `ConfidenceEntry`, `ReactionConfidence`, `get_confidence` / `set_confidence` /
 `clear_confidence`, `read_confidence`, `mark_curated`, `equation_exempt`, `gene_association_exempt`,
 `score_localization_confidence`, `score_equation_confidence`, `score_gene_association_confidence`,
-`confidence_report`, `facet_summary`. Storage lives in `reaction.notes["raven_confidence"]`; there is no
-separate save step — the record serialises with the model.
-
-**Planned:** an umbrella `annotate_confidence(model, facets=[...])` — see [§10](#10-what-is-left).
+`annotate_confidence`, `confidence_report`, `facet_summary`. Storage lives in
+`reaction.notes["raven_confidence"]`; there is no separate save step — the record serialises with the model.
 
 ## 9. Standards alignment (for the paper)
 
@@ -238,30 +237,39 @@ Two cautions govern the mapping:
 
 ## 10. What is left
 
-facet is planned. The wiring (§10.1) and the standards mapping (§10.3) are shipped; what remains is
-validating beyond one model (§10.2) and the paper write-up.
+The **facet set is closed**: `localization`, `equation` and `gene_association` are shipped, and no further
+facet is planned. The wiring (§10.1), the standards mapping (§10.3) and the cross-model validation (§10.2)
+are done; what remains is the paper write-up.
 
-### 10.1 Wire the facets together — shipped
+### 10.1 Wire the facets together — done
 
-- **`annotate_confidence(model, proposal=..., scores=...)`** runs every applicable scorer in one call and
-  returns `{facet: count}`, so a caller need not know the three scorer names and their argument shapes.
-  `localization` runs only when a proposal and score table are given; a facet whose inputs are absent is
-  skipped rather than failed — the same abstain-rather-than-guess rule the scores themselves follow.
-- **`curation_priority` reads the record.** A reaction a curator has settled with `mark_curated` is dropped
-  from the review queue (`include_curated=False`), closing the loop between the two tools: score → review →
-  curate → *stop being asked about it*.
-- **The SBO precondition names its remedy.** The no-SBO-terms warning points at
-  `raven_toolbox.annotation.add_sbo_terms(model)`.
+- **`annotate_confidence(model, *, proposal=None, scores=None, facets=None)`** runs every applicable scorer
+  in one call and skips a facet whose inputs are absent (`localization` needs a proposal and a score table;
+  the other two need only the model) rather than failing — the same abstain-rather-than-guess rule the
+  scores themselves follow.
+- **`curation_priority` now skips curated placements.** A reaction whose `localization` facet is
+  `mark_curated` is dropped from the review queue (pass `include_curated=True` to keep it), closing the
+  score → review → curate loop so a settled reaction stops resurfacing.
+- **The SBO-precondition warning now names its remedy** — `raven_toolbox.annotation.add_sbo_terms(model)`.
 
 ### 10.2 Validate beyond one model
 
-Every number in §6 comes from yeast-GEM, and §6 already flags that three bands (`formula-unparseable`,
-`formula-generic`, `charge-unknown`) never fire there — they are covered only by synthetic fixtures. A
-distribution measured on one model is not a guarantee about another. Running
-`scripts/measure_confidence_facets.py` over Human-GEM and a non-curated draft would show whether the bands
-are calibrated or merely yeast-shaped, and would exercise the branches yeast cannot reach. The
-gene-rubric-vs-`Confidence Level` check only replicates on a model that records that note, so its absence
-elsewhere is itself worth reporting.
+Done. `scripts/measure_confidence_facets.py` (now reads SBML or YAML/JSON) was run on three more models —
+**Human-GEM** (12 877 rxns), **iYali** (1924) and **panAsp/pAo** (1917) — vs yeast-GEM's §6 baseline:
+
+| equation band | yeast-GEM | Human-GEM | iYali | pAo |
+|---|---|---|---|---|
+| `formula-generic` (0.3) | 0 | 66 | 40 | 26 |
+| `formula-unparseable` (0.3) | 0 | 0 | 8 | 67 |
+| `charge-unknown` (0.6) | 0 | 0 | 0 | 0 |
+
+Two of the three bands yeast-GEM could not exercise fire on other real models, so they are calibrated, not
+yeast artefacts. Only `charge-unknown` stays fixture-only — a mass-balanced reaction with a charge-less
+metabolite is rare (curated models charge everything; drafts fail mass balance first).
+
+`gpr+literature` (0.9) fires only where reactions carry a `pubmed` annotation (iYali 749; the others 0). The
+gene-rubric-vs-`Confidence Level` check needs a per-reaction-curated model: iYali and pAo record a blanket
+value (all 2, all 0), so only yeast-GEM's varied notes are usable ground truth.
 
 ### 10.3 Standards alignment for the paper — mapping shipped
 
