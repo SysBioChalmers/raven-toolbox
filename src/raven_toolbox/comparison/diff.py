@@ -10,8 +10,8 @@ or pre/post refactor of one toolchain) produce equivalent models.
 Diff scope: reaction / metabolite / gene id sets, stoichiometry (within
 tolerance), bounds, objective coefficients, GPR rules, metabolite
 formula/charge/compartment, and a configurable set of annotation keys.
-Formatting differences (key ordering, whitespace, float repr) are
-explicitly **not** failures.
+Formatting differences (key ordering, whitespace, float repr, and GPR
+operand order — ``a and b`` == ``b and a``) are explicitly **not** failures.
 """
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import cobra
+
+from raven_toolbox.manipulation.expand import gpr_to_dnf
 
 # Annotation keys checked by default. Add via ``extra_annotations`` or
 # remove via ``ignore_annotations`` in :func:`diff_models`.
@@ -152,10 +154,9 @@ def _diff_reactions(
                 f"{rxn_id}: objective A={ra.objective_coefficient} B={rb.objective_coefficient}",
             )
 
-        ga = _normalise_gpr(ra.gene_reaction_rule)
-        gb = _normalise_gpr(rb.gene_reaction_rule)
-        if ga != gb:
-            _push(diffs, counters, "gpr", cap, f"{rxn_id}: GPR A={ga!r} B={gb!r}")
+        if _canonical_gpr(ra) != _canonical_gpr(rb):
+            _push(diffs, counters, "gpr", cap,
+                  f"{rxn_id}: GPR A={ra.gene_reaction_rule!r} B={rb.gene_reaction_rule!r}")
 
         _diff_annotations(
             f"rxn {rxn_id}", ra.annotation, rb.annotation,
@@ -218,16 +219,30 @@ def _diff_annotations(
             _push(diffs, counters, "anno", cap, f"{label}.annotation[{k!r}]: A={va} B={vb}")
 
 
-def _normalise_gpr(rule: str) -> str:
-    """Lowercase + collapse whitespace.
+def _canonical_gpr(reaction: cobra.Reaction) -> str:
+    """Canonical, order-insensitive form of a reaction's GPR, for logic-level comparison.
 
-    A more robust comparator would parse to a GPR AST and compare
-    structures; this is the cheap heuristic that catches the formatting
-    drift we see between different SBML writers.
+    DNF-expand the parsed GPR, then sort the genes within each isozyme clause and sort the clauses, so
+    operand order never registers as a difference: ``a and b`` == ``b and a`` and ``a or b`` ==
+    ``b or a``. Mirrors MATLAB RAVEN's ``diffModels`` (`RAVEN #686
+    <https://github.com/SysBioChalmers/RAVEN/pull/686>`_), which compares grRules as logic rather than
+    text. Gene ids are lowercased and duplicate genes/clauses collapse, preserving the formatting-drift
+    tolerance the previous string heuristic gave.
+
+    Falls back to that whitespace/lowercase heuristic for a rule cobra could not parse (``gpr.body`` is
+    ``None`` while the rule string is non-empty), so a malformed rule is still compared rather than
+    silently equated to the empty rule.
     """
-    if not rule:
-        return ""
-    return " ".join(rule.lower().split())
+    gpr = reaction.gpr
+    if gpr is not None and gpr.body is not None:
+        try:
+            clauses = gpr_to_dnf(gpr)
+        except ValueError:
+            clauses = None
+        if clauses is not None:
+            canon = sorted({tuple(sorted({g.lower() for g in clause})) for clause in clauses})
+            return " | ".join(" & ".join(clause) for clause in canon)
+    return " ".join((reaction.gene_reaction_rule or "").lower().split())
 
 
 def _normalise_annotation_value(v):
