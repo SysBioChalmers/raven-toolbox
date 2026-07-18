@@ -35,11 +35,17 @@ def assemble_model_from_ko_genes(
     model_id: str | None = None,
     model_name: str | None = None,
     note: str | None = None,
+    prune_orthology: bool = False,
 ) -> tuple[cobra.Model, dict[str, list[str]]]:
     """Build a draft model from a ``{ko: [gene, ...]}`` assignment.
 
     Returns ``(model, gpr_map)`` where ``gpr_map`` is the kept reactions' gene
     lists, so callers can add gene annotations afterwards.
+
+    ``prune_orthology`` restricts each gene-backed reaction's ``kegg.orthology``
+    annotation to the KOs that actually contributed a gene, matching RAVEN
+    ``getKEGGModelForOrganism``'s HMM branch (the organism-annotation path keeps
+    the full reference KO list, so this is off by default).
     """
     rxn_to_kos: dict[str, set[str]] = {}
     for ko, rid in zip(ko_reaction["ko"], ko_reaction["reaction"], strict=True):
@@ -53,15 +59,19 @@ def assemble_model_from_ko_genes(
     }
 
     gpr_map: dict[str, list[str]] = {}
+    matched_kos: dict[str, set[str]] = {}
     spontaneous_kept: set[str] = set()
     for rxn in reference_model.reactions:
         rid = rxn.id
         # Quality filters first: dropped even if it would have genes.
         if any(not keep_flag and rid in flagged for keep_flag, flagged in drop_if.values()):
             continue
-        genes = sorted({g for ko in rxn_to_kos.get(rid, ()) for g in ko_to_genes.get(ko, ())})
+        rxn_kos = rxn_to_kos.get(rid, ())
+        genes = sorted({g for ko in rxn_kos for g in ko_to_genes.get(ko, ())})
         if genes:
             gpr_map[rid] = genes
+            # KOs that actually contributed a gene, for optional annotation pruning.
+            matched_kos[rid] = {ko for ko in rxn_kos if ko_to_genes.get(ko)}
         elif rid in spontaneous and keep_spontaneous:
             spontaneous_kept.add(rid)
 
@@ -76,6 +86,20 @@ def assemble_model_from_ko_genes(
     )
     for rid, genes in gpr_map.items():
         model.reactions.get_by_id(rid).gene_reaction_rule = " or ".join(genes)
+    if prune_orthology:
+        # Restrict each gene-backed reaction's kegg.orthology to the KOs that
+        # matched a gene, preserving the reference annotation's order. (The
+        # order-preserving intersection also avoids the index misalignment in
+        # RAVEN getKEGGModelForOrganism's rxnMiriams pruning.)
+        for rid, kos in matched_kos.items():
+            annotation = model.reactions.get_by_id(rid).annotation
+            orthology = annotation.get("kegg.orthology")
+            if orthology is None:
+                continue
+            if isinstance(orthology, list):
+                annotation["kegg.orthology"] = [k for k in orthology if k in kos]
+            elif orthology not in kos:
+                annotation["kegg.orthology"] = []
     if note is not None:
         for rid in keep:
             model.reactions.get_by_id(rid).notes["note"] = note

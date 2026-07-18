@@ -6,6 +6,13 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **`diff_models` compares grRules as logic, not text.** The GPR check now DNF-expands each rule (via the
+  existing `manipulation.gpr_to_dnf`), sorts the genes within each isozyme clause and sorts the clauses, so
+  operand order no longer registers as a difference: `a and b` == `b and a` and `a or b` == `b or a`. The
+  previous heuristic only lowercased and collapsed whitespace, so it flagged logically identical rules that
+  differed only in operand order. This brings `diff_models` in line with MATLAB RAVEN's `diffModels`
+  ([RAVEN #686](https://github.com/SysBioChalmers/RAVEN/pull/686)); a rule cobra cannot parse falls back to
+  the old string comparison, so malformed rules are still compared rather than silently equated.
 * **Fix `load_delta_g_csv` recording the ΔG side-car tables' "missing" sentinel as a real measurement.** The
   side-car tables encode "no valid ΔG" as `10000000`, and the loader — written for exactly these files, down to its
   `Var1`/`Var2` defaults — stamped it verbatim, presenting a physically impossible 10⁷ kJ/mol as a
