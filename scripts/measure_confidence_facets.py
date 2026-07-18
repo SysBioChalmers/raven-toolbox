@@ -40,6 +40,16 @@ def _recorded(rxn) -> int | None:
         return None
 
 
+def _load_model(path: Path):
+    """Load a model by extension: SBML (.xml/.sbml), cobra YAML (.yml/.yaml) or cobra JSON (.json)."""
+    suffix = path.suffix.lower()
+    if suffix in (".yml", ".yaml"):
+        return cobra.io.load_yaml_model(str(path))
+    if suffix == ".json":
+        return cobra.io.load_json_model(str(path))
+    return cobra.io.read_sbml_model(str(path))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -48,7 +58,7 @@ def main(argv=None):
     ap.add_argument("--head", type=int, default=12, help="rows of the review queue to print")
     args = ap.parse_args(argv)
 
-    model = cobra.io.read_sbml_model(str(args.model))
+    model = _load_model(args.model)
     total = len(model.reactions)
     print(f"=== {model.id or args.model.name}: {total} reactions, {len(model.metabolites)} metabolites ===")
 
