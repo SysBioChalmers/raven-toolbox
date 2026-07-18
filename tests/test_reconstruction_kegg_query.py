@@ -127,6 +127,50 @@ def test_get_model_from_sequences(reference_and_tables, monkeypatch):
     assert model.id == "myorg"
     r = model.reactions.get_by_id("R90010")
     assert set(r.gene_reaction_rule.split(" or ")) == {"myGeneA", "myGeneB"}
-    assert r.notes["note"].endswith("(using HMMs)")
+    assert r.notes["note"] == "Included by KEGG HMM reconstruction"
+    # Its single KO matched, so the kegg.orthology annotation is unchanged.
+    assert r.annotation["kegg.orthology"] == ["K90001"]
     # R90200/R90300 had no matched KOs and are not spontaneous -> absent.
     assert "R90200" not in model.reactions
+
+
+def test_model_id_defaults_to_fasta_stem(reference_and_tables, monkeypatch):
+    """RAVEN always sets model.id; with no model_id we default it to the FASTA stem
+    rather than inheriting the reference model's id."""
+    model_ref, tables = reference_and_tables
+    monkeypatch.setattr(
+        "raven_toolbox.reconstruction.kegg.query.run_hmmsearch",
+        lambda *a, **k: "myGeneA - K90001 - 1e-120 400 0\n",
+    )
+    model = get_kegg_model_from_sequences(
+        "/some/path/eco.faa", model_ref, tables["ko_reaction"], "ignored.hmm",
+        rxn_flags=tables["rxn_flags"],
+    )
+    assert model.id == "eco"
+
+
+def test_prune_orthology_keeps_only_matched_kos():
+    """The FASTA path prunes a kept reaction's kegg.orthology to the KOs that
+    matched a gene (RAVEN getKEGGModelForOrganism HMM branch), preserving order."""
+    import cobra
+
+    from raven_toolbox.reconstruction.kegg.assemble import assemble_model_from_ko_genes
+
+    ref = cobra.Model("ref")
+    met = cobra.Metabolite("C1", compartment="s")
+    rxn = cobra.Reaction("R1")
+    rxn.add_metabolites({met: -1.0})
+    rxn.annotation["kegg.orthology"] = ["K1", "K2", "K3"]
+    ref.add_reactions([rxn])
+    ko_reaction = pd.DataFrame(
+        [("K1", "R1"), ("K2", "R1"), ("K3", "R1")], columns=["ko", "reaction"]
+    )
+    ko_to_genes = {"K2": ["g"]}  # only K2 matched a gene
+
+    pruned, _ = assemble_model_from_ko_genes(
+        ref, ko_reaction, ko_to_genes, prune_orthology=True
+    )
+    assert pruned.reactions.get_by_id("R1").annotation["kegg.orthology"] == ["K2"]
+    # Default (organism path) keeps the full reference KO list.
+    full, _ = assemble_model_from_ko_genes(ref, ko_reaction, ko_to_genes)
+    assert full.reactions.get_by_id("R1").annotation["kegg.orthology"] == ["K1", "K2", "K3"]
