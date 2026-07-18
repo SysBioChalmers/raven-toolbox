@@ -13,6 +13,14 @@ Milestones in the raven-toolbox port. For function-level status see
   differed only in operand order. This brings `diff_models` in line with MATLAB RAVEN's `diffModels`
   ([RAVEN #686](https://github.com/SysBioChalmers/RAVEN/pull/686)); a rule cobra cannot parse falls back to
   the old string comparison, so malformed rules are still compared rather than silently equated.
+* **Wire the confidence facets together.** `confidence.annotate_confidence(model, proposal=..., scores=...)`
+  runs every applicable scorer in one call and returns `{facet: count}` — `equation` and `gene_association`
+  need only the model, `localization` runs only when a proposal and its scores are given (skipped, not
+  failed, otherwise). `curation_priority` now reads the confidence record: a placement a curator has
+  settled with `mark_curated` drops out of the review queue (new `respect_curated=True`), closing the
+  score → review → curate → stop-being-asked loop; transports and gap-fills are unaffected, and
+  `respect_curated=False` restores the old behaviour. The no-SBO warning now names its remedy,
+  `raven_toolbox.annotation.add_sbo_terms(model)`.
 
 ## 0.3.0 — 2026-07-16
 

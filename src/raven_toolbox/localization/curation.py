@@ -130,6 +130,7 @@ def curation_priority(
     check_essential: bool = True,
     essential_candidate_threshold: float = 0.2,
     min_growth: float | None = None,
+    respect_curated: bool = True,
 ):
     """Rank reaction placements and added transports by how likely each needs manual curation.
 
@@ -155,6 +156,13 @@ def curation_priority(
     (heuristic) ``min_growth`` floor, and is skipped entirely if the materialised model cannot beat that
     floor (where the test could not discriminate). Set ``check_essential=False`` to skip the only
     non-cheap signal.
+
+    ``respect_curated`` (default ``True``) drops from the queue any reaction whose ``localization``
+    confidence is :func:`~raven_toolbox.confidence.mark_curated`-stamped — a curator already settled its
+    compartment, so re-surfacing it for review is noise. This closes the loop with
+    :mod:`raven_toolbox.confidence`: score → review here → curate (``mark_curated``) → stop being asked.
+    Transports and gap-fills are unaffected (curation marks a reaction's placement, not a bridge). Set
+    ``False`` to rank every placement regardless.
     """
     import pandas as pd
 
@@ -170,6 +178,17 @@ def curation_priority(
 
     # full placement lists (ALL compartments, not just the first) for every movable reaction
     placements_of = {rid: list(cs) for rid, cs in proposal.placements.items() if cs}
+
+    # Reactions a curator already settled: their localization confidence is `level == "curated"`. We drop
+    # their placement rows below so the queue stops re-asking about them. Lazy import -- confidence imports
+    # from localization, so a module-level import here would be circular.
+    curated_ids: set[str] = set()
+    if respect_curated:
+        from raven_toolbox.confidence import get_confidence
+        for rid in placements_of:
+            entry = get_confidence(model.reactions.get_by_id(rid)).facets.get("localization")
+            if entry is not None and entry.level == "curated":
+                curated_ids.add(rid)
     # rid -> set of compartments it occupies (movable from the proposal, pinned from the model), so the
     # neighbour signal sees the whole materialised layout including dual-localised reactions.
     comps_of: dict[str, set[str]] = {rid: set(cs) for rid, cs in placements_of.items()}
@@ -207,6 +226,8 @@ def curation_priority(
 
     # ---- placement signals: one row per (reaction, compartment) ----
     for rid, cs in placements_of.items():
+        if rid in curated_ids:            # a curator already settled this placement -- do not re-ask
+            continue
         r = model.reactions.get_by_id(rid)
         noncur = [(base(m), coeff) for m, coeff in r.metabolites.items() if not _cur(base(m))]
         subs = [b for b, coeff in noncur if coeff < 0]

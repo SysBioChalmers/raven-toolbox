@@ -54,6 +54,7 @@ from raven_toolbox.utils.balance import get_elemental_balance
 __all__ = [
     "ConfidenceEntry",
     "ReactionConfidence",
+    "annotate_confidence",
     "clear_confidence",
     "confidence_report",
     "equation_exempt",
@@ -390,7 +391,8 @@ def _warn_if_no_sbo(model: cobra.Model) -> None:
     if model.reactions and not any(_sbo(r) for r in model.reactions):
         warnings.warn(
             "no reaction carries an SBO term, so biomass and pool pseudo-reactions cannot be told from "
-            "chemistry defects and will be scored as defects. Annotate SBO terms first.",
+            "chemistry defects and will be scored as defects. Run "
+            "raven_toolbox.annotation.add_sbo_terms(model) first.",
             stacklevel=3,
         )
 
@@ -599,3 +601,41 @@ def _score(df, g: str, c: str) -> float:
         return 0.0
     v = df.at[g, c]
     return 0.0 if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
+
+
+# --------------------------------------------------------------------------- umbrella
+
+_ALL_FACETS = ("localization", "equation", "gene_association")
+
+
+def annotate_confidence(model, *, proposal=None, scores=None, facets=None,
+                        overwrite_curated: bool = False, updated: str | None = None) -> dict[str, int]:
+    """Run every applicable scorer over ``model`` in one call; return ``{facet: count scored}``.
+
+    ``equation`` and ``gene_association`` need only the model. ``localization`` additionally needs the
+    assignment ``proposal`` and its ``scores`` table, so it runs only when **both** are given — and is
+    otherwise skipped rather than failed, the same abstain-rather-than-guess rule the scores themselves
+    follow. The returned dict therefore reports what actually ran: a facet that was skipped for want of
+    inputs is absent from it.
+
+    ``facets`` restricts the set to score (an iterable of facet names; default all three). A facet named
+    there whose inputs are missing is skipped, not an error — asking for ``localization`` without a
+    proposal simply scores nothing for it. ``overwrite_curated`` and ``updated`` pass through to each
+    scorer. This is the one call a caller makes after :func:`~raven_toolbox.localization.assign_compartments`
+    to annotate a freshly-built model across every facet at once.
+    """
+    todo = list(facets) if facets is not None else list(_ALL_FACETS)
+    unknown = [f for f in todo if f not in _ALL_FACETS]
+    if unknown:
+        raise ValueError(f"unknown facet(s) {unknown}; known facets are {list(_ALL_FACETS)}")
+    counts: dict[str, int] = {}
+    if "equation" in todo:
+        counts["equation"] = score_equation_confidence(
+            model, overwrite_curated=overwrite_curated, updated=updated)
+    if "gene_association" in todo:
+        counts["gene_association"] = score_gene_association_confidence(
+            model, overwrite_curated=overwrite_curated, updated=updated)
+    if "localization" in todo and proposal is not None and scores is not None:
+        counts["localization"] = score_localization_confidence(
+            model, proposal, scores, overwrite_curated=overwrite_curated, updated=updated)
+    return counts

@@ -369,3 +369,43 @@ def test_affected_for_transport_lists_dependent_reactions():
     # the palmitoyl-CoA transport is coupled to the reactions that make/consume it (r0 in c, r1 in m)
     assert trow["n_affected"] >= 1
     assert "r1" in trow["affected"]
+
+
+def test_curation_priority_respects_curated_placements():
+    """A placement a curator has settled (mark_curated) drops out of the review queue -- closing the
+    score -> review -> curate loop -- and comes back with respect_curated=False."""
+    from raven_toolbox.confidence import mark_curated
+
+    m = _linear()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.9], "m": [0.1]}, index=["g1"]))
+    prop = _proposal({"r1": ["c"]}, unplaced=["r1"])  # unplaced -> fires the no_evidence signal
+
+    before = curation_priority(m, prop, scores, check_essential=False)
+    assert list(before["target"]) == ["r1"]            # r1 is flagged for review
+
+    mark_curated(m.reactions.r1)                        # curator settles r1's compartment
+    after = curation_priority(m, prop, scores, check_essential=False)
+    assert "r1" not in list(after["target"])           # ... so it no longer surfaces
+
+    ignored = curation_priority(m, prop, scores, check_essential=False, respect_curated=False)
+    assert list(ignored["target"]) == ["r1"]           # opt-out ranks it regardless
+
+
+def test_curated_skip_is_targeted_not_global():
+    """Curating one reaction suppresses only that reaction's rows -- another flagged placement stays."""
+    from raven_toolbox.confidence import mark_curated
+
+    m = _linear()
+    c = _met("C_c")
+    m.add_metabolites([c])
+    r2 = cobra.Reaction("r2", lower_bound=0, upper_bound=1000)
+    r2.add_metabolites({m.metabolites.B_c: -1, c: 1})
+    r2.gene_reaction_rule = "g2"
+    m.add_reactions([r2])
+    scores = LocalizationScores(pd.DataFrame({"c": [0.9], "m": [0.1]}, index=["g1", "g2"]))
+    prop = _proposal({"r1": ["c"], "r2": ["c"]}, unplaced=["r1", "r2"])  # both fire no_evidence
+
+    assert set(curation_priority(m, prop, scores, check_essential=False)["target"]) == {"r1", "r2"}
+    mark_curated(m.reactions.r1)                        # curate only r1
+    left = set(curation_priority(m, prop, scores, check_essential=False)["target"])
+    assert left == {"r2"}                               # r1 gone, r2 still reviewed

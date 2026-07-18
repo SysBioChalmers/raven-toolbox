@@ -7,6 +7,7 @@ import pytest
 from raven_toolbox.confidence import (
     ConfidenceEntry,
     ReactionConfidence,
+    annotate_confidence,
     confidence_report,
     equation_exempt,
     facet_summary,
@@ -447,3 +448,28 @@ def test_facet_summary_separates_scored_from_exempt():
     assert eq["n"].sum() == 3
     assert int(eq[eq["basis"] == "balanced"]["n"].iloc[0]) == 2
     assert int(eq[eq["basis"] == "mass-imbalanced"]["n"].iloc[0]) == 1   # SPONT: H2O -> H
+
+
+# --------------------------------------------------------------------- annotate_confidence umbrella
+
+def test_annotate_confidence_skips_localization_without_a_proposal():
+    m = _model()
+    counts = annotate_confidence(m)                     # model only
+    assert set(counts) == {"equation", "gene_association"}   # localization skipped, not failed
+    assert "localization" not in get_confidence(m.reactions.r1).facets
+
+
+def test_annotate_confidence_runs_all_facets_with_a_proposal():
+    m, proposal, scores = _scored_proposal()
+    counts = annotate_confidence(m, proposal=proposal, scores=scores)
+    assert set(counts) == {"localization", "equation", "gene_association"}
+    assert counts["localization"] == 1
+    facets = get_confidence(m.reactions.r1).facets
+    assert {"localization", "equation", "gene_association"} <= set(facets)
+
+
+def test_annotate_confidence_facets_restriction_and_unknown():
+    m = _model()
+    assert set(annotate_confidence(m, facets=["equation"])) == {"equation"}
+    with pytest.raises(ValueError, match="unknown facet"):
+        annotate_confidence(m, facets=["bogus"])
