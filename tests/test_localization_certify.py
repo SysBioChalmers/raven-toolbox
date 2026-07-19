@@ -343,6 +343,22 @@ def test_gapfill_offers_nothing_when_the_universal_cannot_restore_growth():
     assert _gapfill(applied, empty, "bio", min_growth=1.0) == []
 
 
+def test_gapfill_warns_on_namespace_mismatch_instead_of_failing_silently():
+    # A universal whose metabolite ids don't match the model can't connect; _gapfill returns [] but must
+    # WARN, so "found nothing" is distinguishable from "wrong namespace".
+    from raven_toolbox.localization.certify import _gapfill
+
+    applied = _gap_draft()
+    foreign = cobra.Model("foreign")  # same chemistry (A->C) under foreign ids
+    a, c = cobra.Metabolite("A_x", compartment="c"), cobra.Metabolite("C_x", compartment="c")
+    foreign.add_metabolites([a, c])
+    rc = cobra.Reaction("rC", lower_bound=0, upper_bound=1000)
+    rc.add_metabolites({a: -1, c: 1})
+    foreign.add_reactions([rc])
+    with pytest.warns(UserWarning, match="namespace"):
+        assert _gapfill(applied, foreign, "bio", min_growth=1.0) == []
+
+
 def test_no_gratuitous_gapfill():
     # When the draft already grows, no universal candidate is pulled (it is only reached on a real
     # growth failure).

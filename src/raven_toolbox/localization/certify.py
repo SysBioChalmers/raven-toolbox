@@ -29,6 +29,7 @@ See ``docs/studies/localization_redesign.md`` for the design rationale.
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 
@@ -697,57 +698,64 @@ def assign_compartments(
 
 
 def _gapfill(applied, universal, biomass_reaction, min_growth) -> list[str]:
-    """Universal reactions whose addition restores the primary growth floor, via a flux-based fill.
+    """The ``universal`` reactions whose addition restores the primary growth floor, via a flux-based fill.
 
-    Adds every ``universal`` candidate not already present, holds biomass at the floor, and runs pFBA
-    (maximise biomass, then minimise total flux); the added reactions that carry flux are returned.
+    On a working copy: add every ``universal`` candidate not already present in one batch, check the floor
+    is even reachable, hold biomass at the floor, run pFBA (maximise biomass, then minimise total flux),
+    and return -- sorted -- the added reactions that carry flux. pFBA makes the set flux-parsimonious (not
+    guaranteed reaction-count-minimal); the caller re-certifies with a real FBA regardless, so no false
+    certificate is possible.
 
-    This is a plain LP, which matters. ``cobra.flux_analysis.gapfill`` solves an indicator MILP that, at
-    genome scale, fails to find a valid fill in the *majority* of cases even when the exact reaction that
-    restores growth is present in the universal — its own validation then rejects the bad incumbent and
-    raises, so no fill is offered. The LP here cannot have that failure mode: a returned set is a real
-    flux solution that actually reaches the floor. The caller re-certifies with FBA regardless, so this
-    never yields a false certificate.
+    An LP, not cobra's indicator MILP — ``cobra.flux_analysis.gapfill`` at genome scale fails to find a
+    valid fill in the *majority* of cases even when the exact restoring reaction is present in the
+    universal (its own validation then rejects the broken incumbent and raises); on single-reaction
+    knockout-recovery this restores every case where that MILP restores under half.
+
+    **Namespace.** Candidates are matched to the model by metabolite id (as cobra's gapfill required): the
+    universal must share the draft's metabolite namespace. A candidate whose metabolites do not resolve
+    becomes a dead-end that cannot carry flux and is left out — and a warning fires when most candidates
+    fail to resolve, so a silent empty result is distinguishable from a namespace mismatch.
     """
     if biomass_reaction not in applied.reactions:
         return []
     floor = max(min_growth, 1e-4)
     try:
         from cobra.flux_analysis import pfba
-        with applied:
-            added = []
-            for urxn in universal.reactions:
-                if urxn.id in applied.reactions:
-                    continue
-                new = cobra.Reaction(urxn.id, name=urxn.name,
-                                     lower_bound=urxn.lower_bound, upper_bound=urxn.upper_bound)
-                applied.add_reactions([new])
-                new.add_metabolites({_universal_met(applied, m): coeff
-                                     for m, coeff in urxn.metabolites.items()})
-                added.append(new)
-            if not added:
-                return []
-            applied.objective = biomass_reaction
-            if (applied.slim_optimize(error_value=0.0) or 0.0) < floor - 1e-9:
-                return []  # unfixable even with every candidate present
-            applied.reactions.get_by_id(biomass_reaction).lower_bound = floor
-            fluxes = pfba(applied).fluxes
-            return [r.id for r in added if abs(fluxes.get(r.id, 0.0)) > 1e-9]
+        # Work on a copy: no context-manager rollback (whose failure on some optlang backends would
+        # otherwise discard a valid result), and the caller rebuilds `applied` from the proposal anyway.
+        work = applied.copy()
+        candidates = [u for u in universal.reactions if u.id not in work.reactions]
+        if not candidates:
+            return []
+        fresh = [cobra.Reaction(u.id, name=u.name, lower_bound=u.lower_bound, upper_bound=u.upper_bound)
+                 for u in candidates]
+        work.add_reactions(fresh)  # one batch — per-reaction adds are super-linear at scale
+        fully_unresolved = 0
+        for nr, urxn in zip(fresh, candidates, strict=True):
+            stoich, n_unres = {}, 0
+            for met, coeff in urxn.metabolites.items():
+                if met.id in work.metabolites:
+                    stoich[work.metabolites.get_by_id(met.id)] = coeff
+                else:
+                    n_unres += 1
+                    stoich[cobra.Metabolite(met.id, name=met.name, formula=met.formula,
+                                            charge=met.charge, compartment=met.compartment)] = coeff
+            nr.add_metabolites(stoich)
+            fully_unresolved += n_unres == len(urxn.metabolites) and len(urxn.metabolites) > 0
+        if fully_unresolved > 0.5 * len(candidates):
+            warnings.warn(
+                f"gap-fill: {fully_unresolved}/{len(candidates)} universal candidates share no metabolite "
+                "id with the model — a likely namespace mismatch; gap-fill will find little or nothing.",
+                stacklevel=2)
+
+        work.objective = biomass_reaction
+        if (work.slim_optimize(error_value=0.0) or 0.0) < floor - 1e-9:
+            return []  # unfixable even with every candidate present
+        work.reactions.get_by_id(biomass_reaction).lower_bound = floor
+        fluxes = pfba(work).fluxes
+        return sorted(nr.id for nr in fresh if abs(fluxes.get(nr.id, 0.0)) > 1e-9)
     except Exception:  # noqa: BLE001 — infeasible / backend quirk: report none added
         return []
-
-
-def _universal_met(model, met):
-    """The model's own metabolite matching ``met`` by id, or a fresh copy to be added with the reaction.
-
-    Matches by id, as ``cobra.flux_analysis.gapfill`` did — the solve assumes the universal shares the
-    draft's metabolite namespace; a candidate whose metabolites do not resolve simply cannot carry flux
-    to biomass, so the LP leaves it out.
-    """
-    if met.id in model.metabolites:
-        return model.metabolites.get_by_id(met.id)
-    return cobra.Metabolite(met.id, name=met.name, formula=met.formula,
-                            charge=met.charge, compartment=met.compartment)
 
 
 def _diagnose_growth_gap(applied, proposal, biomass_reaction, movable_ids, pinned_comp,
