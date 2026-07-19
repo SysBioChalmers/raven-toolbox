@@ -19,6 +19,13 @@ only a compartment-label map and a metabolite base-key per organism.
 | *A. thaliana* | plant | AraCore v2.1 | 585 | 6 | **yes** | 35 s | **yes** | **81.8 %** | **93.7 %** | 215 | 0.0 % |
 | *C. reinhardtii* | algal | iCre1355 | 2394 | 11 | **yes** | 93 s | **yes** | 53.4 % | 70.5 % | 1108 | 19.0 % |
 
+> **Reaction-agreement column predates the deterministic placement tie-break** (Unreleased; see
+> [yeast_validation.md](yeast_validation.md)). Before it, the per-reaction compartment was a free
+> co-optimum the solver resolved arbitrarily; it is now placed by each reaction's own enzyme scores.
+> These reaction-agreement figures will be re-measured on the new placement (yeast, re-run, went 72.0 %
+> → 72.5 %). The **gene**-agreement column, growth, and blocked fraction are unaffected — the tie-break
+> leaves the gene layout untouched.
+
 Agreement is scored against each model's **own** compartment annotation (a *circular* truth — the model
 being re-placed is also the reference). This measures self-consistency and functionality, not accuracy;
 the independent-ground-truth work (P2: HPA for human, SUBA5 for Arabidopsis, the Chlamydomonas
