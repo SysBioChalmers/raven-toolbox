@@ -697,20 +697,57 @@ def assign_compartments(
 
 
 def _gapfill(applied, universal, biomass_reaction, min_growth) -> list[str]:
-    """Minimal gap-fill reactions (from ``universal``) that restore the primary growth floor.
+    """Universal reactions whose addition restores the primary growth floor, via a flux-based fill.
 
-    Uses ``cobra.flux_analysis.gapfill``; the result is validated by the caller's certification FBA,
-    so any tolerance quirk in cobra's own MILP cannot produce a false certificate here.
+    Adds every ``universal`` candidate not already present, holds biomass at the floor, and runs pFBA
+    (maximise biomass, then minimise total flux); the added reactions that carry flux are returned.
+
+    This is a plain LP, which matters. ``cobra.flux_analysis.gapfill`` solves an indicator MILP that, at
+    genome scale, fails to find a valid fill in the *majority* of cases even when the exact reaction that
+    restores growth is present in the universal — its own validation then rejects the bad incumbent and
+    raises, so no fill is offered. The LP here cannot have that failure mode: a returned set is a real
+    flux solution that actually reaches the floor. The caller re-certifies with FBA regardless, so this
+    never yields a false certificate.
     """
-    try:
-        from cobra.flux_analysis import gapfill as cobra_gapfill
-        with applied:
-            applied.objective = biomass_reaction
-            solutions = cobra_gapfill(applied, universal, lower_bound=max(min_growth, 1e-4),
-                                      demand_reactions=False, iterations=1)
-        return [r.id for r in solutions[0]] if solutions else []
-    except Exception:  # noqa: BLE001 — infeasible gap-fill / backend quirk: report none added
+    if biomass_reaction not in applied.reactions:
         return []
+    floor = max(min_growth, 1e-4)
+    try:
+        from cobra.flux_analysis import pfba
+        with applied:
+            added = []
+            for urxn in universal.reactions:
+                if urxn.id in applied.reactions:
+                    continue
+                new = cobra.Reaction(urxn.id, name=urxn.name,
+                                     lower_bound=urxn.lower_bound, upper_bound=urxn.upper_bound)
+                applied.add_reactions([new])
+                new.add_metabolites({_universal_met(applied, m): coeff
+                                     for m, coeff in urxn.metabolites.items()})
+                added.append(new)
+            if not added:
+                return []
+            applied.objective = biomass_reaction
+            if (applied.slim_optimize(error_value=0.0) or 0.0) < floor - 1e-9:
+                return []  # unfixable even with every candidate present
+            applied.reactions.get_by_id(biomass_reaction).lower_bound = floor
+            fluxes = pfba(applied).fluxes
+            return [r.id for r in added if abs(fluxes.get(r.id, 0.0)) > 1e-9]
+    except Exception:  # noqa: BLE001 — infeasible / backend quirk: report none added
+        return []
+
+
+def _universal_met(model, met):
+    """The model's own metabolite matching ``met`` by id, or a fresh copy to be added with the reaction.
+
+    Matches by id, as ``cobra.flux_analysis.gapfill`` did — the solve assumes the universal shares the
+    draft's metabolite namespace; a candidate whose metabolites do not resolve simply cannot carry flux
+    to biomass, so the LP leaves it out.
+    """
+    if met.id in model.metabolites:
+        return model.metabolites.get_by_id(met.id)
+    return cobra.Metabolite(met.id, name=met.name, formula=met.formula,
+                            charge=met.charge, compartment=met.compartment)
 
 
 def _diagnose_growth_gap(applied, proposal, biomass_reaction, movable_ids, pinned_comp,

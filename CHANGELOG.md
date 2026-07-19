@@ -6,6 +6,16 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **`assign_compartments` gap-fill is now a reliable flux-based fill.** The universal-DB gap-fill in
+  `localization.certify` no longer calls `cobra.flux_analysis.gapfill`, whose indicator MILP, at genome
+  scale, fails to find a valid fill in the **majority** of cases *even when the exact reaction that
+  restores growth is present in the universal* — the MILP returns an incumbent its own validation then
+  rejects, and it raises rather than offering a fill. The replacement adds the universal candidates, holds
+  biomass at the growth floor, runs pFBA, and keeps the added reactions that carry flux: a plain LP that
+  cannot have that failure mode. Measured against the old path — knockout-recovery recall **100 % (60/60,
+  each recovering the exact removed reaction) vs cobra's 45 %**; on realistic incomplete drafts it restores
+  growth **12/12 vs cobra's 0/12**, ~5× faster. The caller still re-certifies with a real FBA, so no false
+  certificate is possible.
 * **`diff_models` compares grRules as logic, not text.** The GPR check now DNF-expands each rule (via the
   existing `manipulation.gpr_to_dnf`), sorts the genes within each isozyme clause and sorts the clauses, so
   operand order no longer registers as a difference: `a and b` == `b and a` and `a or b` == `b or a`. The

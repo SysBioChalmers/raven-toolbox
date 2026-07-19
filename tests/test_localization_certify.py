@@ -316,6 +316,33 @@ def test_gapfill_restores_function():
     assert _grows(apply_assignment(m, res, universal=_universal()))
 
 
+def test_gapfill_returns_a_growth_restoring_set():
+    # Directly exercise the flux-based _gapfill: on a draft that cannot grow it returns the universal
+    # reaction that restores biomass, and nothing spurious. As a plain LP it is reliable where cobra's
+    # indicator gap-fill MILP is not (that MILP fails to find such a fill in most genome-scale cases even
+    # when it exists) -- and a returned set always actually restores growth.
+    from raven_toolbox.localization.certify import _gapfill
+
+    applied = _gap_draft()  # EX_A -> r1: A->B; bio: B + C ->  (C has no producer)
+    added = _gapfill(applied, _universal(), "bio", min_growth=1.0)
+    assert added == ["rC"]  # the exact missing producer of C, nothing extra
+
+    ur = _universal().reactions.get_by_id("rC")
+    nr = cobra.Reaction(ur.id, lower_bound=ur.lower_bound, upper_bound=ur.upper_bound)
+    applied.add_reactions([nr])
+    nr.add_metabolites({applied.metabolites.get_by_id(m.id): c for m, c in ur.metabolites.items()})
+    assert _grows(applied)
+
+
+def test_gapfill_offers_nothing_when_the_universal_cannot_restore_growth():
+    # If even adding every candidate cannot reach the floor, _gapfill returns [] (no false fill).
+    from raven_toolbox.localization.certify import _gapfill
+
+    applied = _gap_draft()
+    empty = cobra.Model("empty")  # no candidate produces C
+    assert _gapfill(applied, empty, "bio", min_growth=1.0) == []
+
+
 def test_no_gratuitous_gapfill():
     # When the draft already grows, no universal candidate is pulled (it is only reached on a real
     # growth failure).
