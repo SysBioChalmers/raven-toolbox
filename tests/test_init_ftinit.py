@@ -137,3 +137,45 @@ def test_forced_flux_lower_bound_is_respected():
     res = run_ftinit(model, scores)
     assert res.fluxes["R6"] >= 2.0 - 1e-6
     assert "R6" not in res.deleted_reactions
+
+
+# --------------------------------------------------------------------------- #
+# canonical (deterministic uniqueness) — Tier 2 item 4.
+# --------------------------------------------------------------------------- #
+def _degenerate_model():
+    """Two interchangeable negative-score reactions (R1, R2) both feed an essential E.
+
+    Exactly one is needed to make E carry flux, so the score optimum (-1) is degenerate
+    between keeping R1 or R2. Which one a plain solve keeps is an arbitrary tie-break.
+    """
+    m = cobra.Model("degen")
+    a, mm, p = (cobra.Metabolite(x, name=x, compartment="s") for x in ("a", "m", "p"))
+    m.add_metabolites([a, mm, p])
+    R1 = cobra.Reaction("R1", lower_bound=0, upper_bound=1000); R1.add_metabolites({a: -1, mm: 1})
+    R2 = cobra.Reaction("R2", lower_bound=0, upper_bound=1000); R2.add_metabolites({a: -1, mm: 1})
+    E = cobra.Reaction("E", lower_bound=0, upper_bound=1000); E.add_metabolites({mm: -1, p: 1})
+    EXa = cobra.Reaction("EX_a", lower_bound=-1000, upper_bound=1000); EXa.add_metabolites({a: -1})
+    EXp = cobra.Reaction("EX_p", lower_bound=-1000, upper_bound=1000); EXp.add_metabolites({p: -1})
+    m.add_reactions([R1, R2, E, EXa, EXp])
+    m.objective = "E"
+    return m
+
+
+def test_canonical_breaks_degenerate_tie_by_id():
+    """canonical selects the unique sparsest, lowest-id optimum among equal alternatives."""
+    m = _degenerate_model()
+    res = run_ftinit(m, {"R1": -1.0, "R2": -1.0}, essential_rxns=["E"], canonical=True)
+    # exactly one of the degenerate pair is kept (the tie is resolved, not doubled) ...
+    assert len({"R1", "R2"} & set(res.kept_reactions)) == 1
+    # ... and it is deterministically the lower-id one.
+    assert "R1" in res.kept_reactions and "R2" not in res.kept_reactions
+    # the reported objective is the primary (score) optimum, not the phase-2 secondary.
+    assert res.objective == pytest.approx(-1.0, abs=1e-6)
+
+
+def test_canonical_safe_on_unique_optimum():
+    """On a non-degenerate model canonical returns the same optimum (no regression)."""
+    model = make_test_model()
+    res = run_ftinit(model, _scores(model), canonical=True)
+    assert set(res.kept_reactions) == _LOOP
+    assert res.objective == pytest.approx(8.0, abs=1e-6)
