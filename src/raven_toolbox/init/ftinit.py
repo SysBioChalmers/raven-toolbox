@@ -520,9 +520,11 @@ def ftinit(
     ``docs/init_param_calibration.md`` for the calibration table.
 
     ``strict_gap`` and ``canonical`` (both opt-in, default off → exact RAVEN behaviour)
-    make the extracted model reproducible across solver versions/platforms instead of
-    merely across identical runs, which matters when a downstream metric (e.g. gene
-    essentiality) must not drift on solver noise:
+    reduce the arbitrariness of the degenerate MILP's tie-break, yielding a more
+    parsimonious and more *reproducible* extracted model. They do **not** make the model
+    biologically more accurate: the alternative optima they choose among are equally
+    consistent with the expression data, so this only pins *which* optimum is returned. It
+    reduces the fragility of the MILP, not its correctness:
 
       * ``strict_gap`` replaces the loose relative-gap escalation with a single solve per
         step proven to a fixed *absolute* gap (below the 0.1 reaction-score granularity),
@@ -532,6 +534,16 @@ def ftinit(
         lowest-id) optimum, so the degenerate choice is pinned rather than left to the
         solver — applied both to each extraction step and to the task gap-fill. Best used
         together with ``strict_gap`` (a well-defined primary optimum to canonicalise).
+
+    Caveats worth carrying into any workflow that uses these: they reduce run-to-run and
+    platform fragility but do *not* guarantee reproducibility across Gurobi versions
+    (proving the genome-scale optimum is intractable, so ``strict_gap`` may fall back to an
+    incumbent), and a downstream metric such as gene essentiality can even shift or worsen,
+    because the sparser ``canonical`` model is more sensitive to the residual (mostly
+    transport) degeneracy. For reproducible gene essentiality specifically, pin the solver
+    stack (raven-toolbox commit + ``gurobipy`` version) rather than relying on these flags.
+    Rule of thumb: for many models the baseline is fine; reach for these when one or a few
+    stable, parsimonious model artifacts are wanted.
     """
     if metabolomics:
         raise NotImplementedError(
