@@ -21,18 +21,28 @@ parent organelle, matching DeepLoc's resolution).
 
 | metric | `assign_compartments` |
 |---|--:|
-| reaction-level agreement | **72.0 %** (1400/1943) |
+| reaction-level agreement | **72.5 %** (1408/1943) |
 | gene-level agreement | **88.7 %** (716/807) |
-| transports added | 1001 (curated 1467) |
+| transports added | 967 (curated 1467) |
 | blocked re-placed reactions | 29.7 % |
 | materialised growth | 0.1426 /h (floor 0.040) |
 | certified (real FBA) | **yes** |
 
 Gene agreement (88.7 %) sits well above DeepLoc's ~64 % raw ceiling because functionality corrects
-placements; the model stays functional because the method provisions the ~1000 transports the placement
+placements; the model stays functional because the method provisions the ~970 transports the placement
 actually needs, and the blocked 29.7 % is yeast-GEM's *intrinsic* dead-end floor, not a placement
 artefact. Every number is authoritative because the growth column is a real FBA on the materialised
 model — the certificate, not a separate solver floor.
+
+Reaction placement is **deterministic and score-aligned.** The placement master maximises a
+gene-localisation objective, which never mentions the per-reaction placement variable — so each
+reaction's compartment was a free co-optimum: reproducible once the solver is pinned, but an *arbitrary*
+vertex (which on its own scored only 52.8 %). A lexicographic second pass fixes the gene layout to the
+primary optimum, then places each reaction in the compartment its own enzymes are predicted to occupy
+(the summed DeepLoc score of the reaction's genes, with a small default-compartment prior for genes-free
+and score-tied reactions). The gene layout — hence gene agreement — is untouched; the 72.5 % reaction
+agreement now rests on the localisation evidence itself, not on a solver's arbitrary tie-break, and the
+coherent placement needs fewer transports (967 vs 1001).
 
 ## 2. Head-to-head with CarveFungi (Comparison 2)
 
