@@ -182,6 +182,13 @@ Reading:
 - **The honest agreement-vs-transport frontier is now measurable.** 72.5 % agreement costs ~1261
   reconnecting transports (983 FVA-usable), against curated yeast-GEM's own 1467 inter-compartment
   reactions — high agreement honestly requires many transports (there is no free lunch).
+- **Reaction placement is deterministic and score-aligned, not an arbitrary co-optimum.** The master's
+  objective is over gene-localisation variables only, so each reaction's compartment is a free
+  co-optimum — a pinned solver returns it reproducibly, but *arbitrarily* (an un-tie-broken solve scored
+  only 52.8 %). A lexicographic second pass fixes the gene layout to the primary optimum, then places
+  each reaction in the compartment its own enzymes are predicted to occupy (summed DeepLoc score of the
+  reaction's genes, small default-compartment prior for genes-free and tied reactions). The gene layout
+  is untouched, so the 72.5 % rests on the localisation evidence itself, not on a solver's tie-break.
 
 Every number is authoritative because the growth column *is* the certificate: there is no separate MILP
 floor to disagree with it. Raw JSON in `.research_tmp/certify_yeast_gem.json`.

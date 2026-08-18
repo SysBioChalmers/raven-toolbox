@@ -20,6 +20,19 @@ Milestones in the raven-toolbox port. For function-level status see
   metabolite namespace: candidates are matched by id, as cobra's gapfill required, and a mismatch now
   **warns** instead of returning `[]` silently. The set is flux-parsimonious (pFBA) but not guaranteed
   reaction-count-minimal; the caller re-certifies with a real FBA, so no false certificate is possible.
+* **Deterministic, score-aligned reaction placement in `assign_compartments`.** The placement master
+  maximises a gene-localisation objective that never mentions the per-reaction placement variable, so
+  each reaction's compartment was a free co-optimum: the pinned solver returned it reproducibly but
+  *arbitrarily*, and reaction agreement with curated yeast-GEM was only **52.8 %** (an earlier un-pinned
+  build happened to land ~72 %). A lexicographic second pass now fixes the gene layout to the primary
+  optimum, then places each reaction in the compartment its own enzymes are predicted to occupy — the
+  summed DeepLoc score of the reaction's genes, with a small `default_compartment` prior so genes-free
+  and score-tied reactions fall there deterministically. Yeast reaction agreement rises to **72.5 %**
+  (1408/1943) and now rests on the localisation evidence rather than a solver tie-break; **gene agreement
+  is unchanged** (88.7 %, 716/807 — the gene layout is untouched); coherent placement fragments fewer
+  metabolites, so it adds **fewer transports** (1001 → 967); growth and blocked-fraction are unchanged;
+  the second solve is warm-started and adds ~4 s. Reproducible run-to-run (identical placement across
+  independent runs).
 * **`diff_models` compares grRules as logic, not text.** The GPR check now DNF-expands each rule (via the
   existing `manipulation.gpr_to_dnf`), sorts the genes within each isozyme clause and sorts the clauses, so
   operand order no longer registers as a difference: `a and b` == `b and a` and `a or b` == `b or a`. The

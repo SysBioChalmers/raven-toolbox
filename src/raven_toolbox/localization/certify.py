@@ -159,8 +159,14 @@ def _score(score_df, g: str, c: str) -> float:
     return 0.0 if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
 
 
+# Tie-break weight for the placement master's second pass: small enough never to override a real
+# per-reaction score difference (DeepLoc scores are ~[0, 1] summed over a reaction's genes), just enough
+# to send a genes-free or score-tied reaction to the default compartment deterministically.
+_DEFAULT_COMPARTMENT_PRIOR = 1e-3
+
+
 def _solve_placement_master(
-    model, movable, genes_in_scope, gene_rxns, score_df, compartments, *,
+    model, movable, genes_in_scope, gene_rxns, score_df, compartments, default_compartment, *,
     multi_compartment_penalty, forced, colocation_groups, time_limit,
 ):
     """Flux-free score-maximising placement MILP (mono-localisation).
@@ -170,6 +176,11 @@ def _solve_placement_master(
     compartment (``x[a, c] = x[b, c]``), letting the score objective pick which one. No flux and no
     growth floor at all in the master — the placement can never harvest a compartment's score through
     leaked flux.
+
+    Solved in two lexicographic passes: the primary objective places genes by score (and penalises
+    spread), which leaves the per-reaction placement ``x`` a free co-optimum; the second pass then fixes
+    the gene layout and places each reaction in the compartment its own enzymes score highest for, so the
+    reaction placement is deterministic and evidence-aligned rather than an arbitrary co-optimal vertex.
     """
     model.solver  # noqa: B018 — initialise the solver so model.problem is usable
     prob = model.problem
@@ -213,21 +224,52 @@ def _solve_placement_master(
 
     opt.add(list(x.values()) + list(y.values()) + cons)
 
-    obj = []
+    # Primary objective: place each gene in the compartment(s) its DeepLoc score favours, penalising
+    # spread across compartments. This fixes the gene layout but leaves the *reaction* placement x a free
+    # co-optimum (the objective never mentions x), which a deterministic solver resolves to an arbitrary
+    # vertex -- yeast-GEM reaction agreement 52.8%. A lexicographically-lower second pass then chooses x.
+    primary = []
     for g in genes_sorted:
         for c in compartments:
             s = _score(score_df, g, c)
             if s:
-                obj.append(mul([Real(s), y[g, c]]))
+                primary.append(mul([Real(s), y[g, c]]))
     if multi_compartment_penalty:
         for v in y.values():
-            obj.append(mul([Real(-multi_compartment_penalty), v]))
-    opt.objective = prob.Objective(add(obj) if obj else Real(0.0), direction="max")
+            primary.append(mul([Real(-multi_compartment_penalty), v]))
+    opt.objective = prob.Objective(add(primary) if primary else Real(0.0), direction="max")
     if time_limit is not None:
         opt.configuration.timeout = int(time_limit)
     _pin_deterministic(prob, opt)
     opt.optimize()
+    if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
+        return opt.status, {}, {}
 
+    # Lexicographic second pass. Fix the gene layout to the primary optimum -- fixing the *solution* (each
+    # y binary), not the objective value, so there is no near-optimal tolerance to tune -- then place each
+    # reaction in the compartment its own enzymes are predicted to occupy: reward x[r, c] by the summed
+    # gene score of r's genes for c, with a small prior for `default_compartment` so genes-free and
+    # score-tied reactions fall there deterministically rather than to an arbitrary co-optimal vertex.
+    # The gene layout (agreement, multi-compartment consolidation) is untouched; only reaction placement,
+    # which was free, is now meaningful.
+    try:  # read every primal before touching any bound -- the first bound change discards the solution
+        y_star = {k: 1.0 if (v.primal or 0.0) >= 0.5 else 0.0 for k, v in y.items()}
+    except (AttributeError, ValueError):
+        return "no_incumbent", {}, {}
+    for k, v in y.items():
+        v.lb = v.ub = y_star[k]
+    secondary = []
+    for r in movable:
+        r_genes = sorted({gg.id for gg in r.genes} & genes_in_scope)
+        for c in compartments:
+            w = sum(_score(score_df, g, c) for g in r_genes)
+            if c == default_compartment:
+                w += _DEFAULT_COMPARTMENT_PRIOR
+            if w:
+                secondary.append(mul([Real(w), x[r.id, c]]))
+    opt.objective = prob.Objective(add(secondary) if secondary else Real(0.0), direction="max")
+    _pin_deterministic(prob, opt)
+    opt.optimize()
     if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
         return opt.status, {}, {}
     try:
@@ -622,7 +664,7 @@ def assign_compartments(
         seen.add(signature)
 
         status, placements, gene_comps = _solve_placement_master(
-            model, movable, genes_in_scope, gene_rxns, score_df, compartments,
+            model, movable, genes_in_scope, gene_rxns, score_df, compartments, default_compartment,
             multi_compartment_penalty=multi_compartment_penalty,
             forced=forced, colocation_groups=groups, time_limit=time_limit)
         if not placements:
