@@ -6,6 +6,20 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **`assign_compartments` gap-fill: a reliable flux-based fill instead of cobra's MILP.** The
+  universal-DB gap-fill in `localization.certify` no longer calls `cobra.flux_analysis.gapfill`, whose
+  indicator MILP, at genome scale, fails to find a valid fill in the **majority** of cases *even when the
+  exact reaction that restores growth is present in the universal* (it returns an incumbent its own
+  validation rejects, and raises rather than offering a fill). The replacement adds the candidates on a
+  working copy, holds biomass at the floor, runs pFBA, and returns the flux-carrying additions — **sorted**,
+  so the result does not depend on which co-optimal vertex the solver picked. A plain LP cannot have the
+  MILP's failure mode: a returned set is a real flux solution that reaches the floor. On single-reaction
+  knockout-recovery (remove an essential reaction, fill from a universal that contains it), recall is
+  **60/60 — the exact reaction each time — vs cobra's 45 %**; on realistic incomplete drafts (12% of
+  internal reactions dropped, many simultaneous gaps) it restores growth **12/12 vs cobra's 0/12**. The universal must share the draft's
+  metabolite namespace: candidates are matched by id, as cobra's gapfill required, and a mismatch now
+  **warns** instead of returning `[]` silently. The set is flux-parsimonious (pFBA) but not guaranteed
+  reaction-count-minimal; the caller re-certifies with a real FBA, so no false certificate is possible.
 * **Deterministic, score-aligned reaction placement in `assign_compartments`.** The placement master
   maximises a gene-localisation objective that never mentions the per-reaction placement variable, so
   each reaction's compartment was a free co-optimum: the pinned solver returned it reproducibly but
