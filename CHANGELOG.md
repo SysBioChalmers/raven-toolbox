@@ -6,6 +6,23 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Opt-in deterministic ftINIT extraction: `ftinit(..., strict_gap=True, canonical=True)`.** The extraction
+  MILP is highly degenerate — many reaction subsets reach the same score optimum — so `Threads=1` + a fixed
+  `Seed` make the solver's choice *reproducible* but not *unique*: a different Gurobi version or platform
+  lands on a different optimum. Two new keyword flags, **both default off** so existing behaviour is
+  unchanged, pin it instead. `strict_gap` proves each step to a fixed *absolute* gap (0.05, below the 0.1
+  reaction-score granularity) in a single solve, replacing RAVEN's relative-gap escalation, whose final
+  near-zero-objective run otherwise accepts an arbitrary within-gap incumbent. `canonical` adds a
+  lexicographic phase 2 over the removable reactions — hold the score objective at its optimum, minimise the
+  count of kept reactions, then their summed id rank — selecting the sparsest, lowest-id optimum instead of a
+  solver tie-break; it applies to both each extraction step and the task gap-fill (`fill_tasks(...,
+  canonical=True)`). A solve that ends at the time limit with no incumbent now raises a clear error (or, for
+  the canonical phase, falls back to the primary optimum) rather than an opaque `AttributeError` on a null
+  primal. **These are a reproducibility/parsimony tool, not an accuracy or a gene-essentiality fix**: on
+  Human-GEM/DLD1 they cut the reaction-level seed-swing 125 → 34 but *worsened* essential-gene determinism
+  (5 → 19 flips) at a 3–7× build-time cost, because the sparser model is more sensitive to the residual
+  transport degeneracy. For reproducible essentiality, pin the solver stack instead. Measurements and the
+  full trade-off: [docs/studies/ftinit_determinism.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/studies/ftinit_determinism.md).
 * **`assign_compartments` gap-fill: a reliable flux-based fill instead of cobra's MILP.** The
   universal-DB gap-fill in `localization.certify` no longer calls `cobra.flux_analysis.gapfill`, whose
   indicator MILP, at genome scale, fails to find a valid fill in the **majority** of cases *even when the

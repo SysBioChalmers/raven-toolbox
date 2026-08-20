@@ -159,3 +159,26 @@ def test_essential_merged_away_is_skipped():
 
     prep = prep_init_model(m, [task], ext_comp="s")  # must not raise
     assert "REV" not in prep.essential_rxns  # merged into a collapsed group
+
+
+# --------------------------------------------------------------------------- #
+# strict_gap / canonical (deterministic extraction) — Tier 2 items 4 & 5.
+# These are opt-in; the default path stays exact-RAVEN. On the toy oracle they must
+# reproduce T0001 (no regression) and be run-to-run identical.
+# --------------------------------------------------------------------------- #
+def test_ftinit_strict_gap_matches_oracle():
+    """strict_gap: one near-proven-optimal solve per step, still gives T0001."""
+    model = make_test_model()
+    prep = prep_init_model(model, ext_comp="s")
+    out = ftinit(prep, _scores(model), strict_gap=True)
+    assert {r.id for r in out.reactions} == set(TEST_MODEL_FTINIT_NO_TASKS)
+
+
+def test_ftinit_canonical_matches_oracle_and_is_stable():
+    """canonical (+ strict_gap): preserves T0001 and is identical across repeated runs."""
+    model = make_test_model()
+    prep = prep_init_model(model, ext_comp="s")
+    out1 = ftinit(prep, _scores(model), strict_gap=True, canonical=True)
+    out2 = ftinit(prep, _scores(model), strict_gap=True, canonical=True)
+    assert {r.id for r in out1.reactions} == set(TEST_MODEL_FTINIT_NO_TASKS)
+    assert {r.id for r in out1.reactions} == {r.id for r in out2.reactions}
