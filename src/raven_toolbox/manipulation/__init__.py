@@ -4,6 +4,7 @@ isozyme expansion, compartment merge / copy, and model merging by name."""
 from .add import add_reactions_from_equations
 from .boundary import close_model
 from .change import change_gene_reaction_rules, change_reaction_equations
+from .compartments import copy_to_compartment, merge_compartments
 from .expand import expand_model, gpr_to_dnf
 from .irreversible import convert_to_irreversible
 from .merge import merge_models
@@ -31,10 +32,12 @@ __all__ = [
     "close_model",
     "constrain_reversible_reactions",
     "convert_to_irreversible",
+    "copy_to_compartment",
     "expand_model",
     "find_duplicate_reactions",
     "gpr_to_dnf",
     "group_linear_reactions",
+    "merge_compartments",
     "merge_models",
     "remove_dead_end_reactions",
     "remove_duplicate_reactions",
