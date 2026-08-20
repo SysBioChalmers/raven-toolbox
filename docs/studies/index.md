@@ -10,6 +10,9 @@ its equivalence claims against MATLAB RAVEN.
   scaling sweeps; dropout / noise / downsample robustness).
 - **[(f)tINIT solver benchmark](init_solver_benchmark.md)** — Gurobi vs HiGHS vs GLPK on
   genome-scale ftINIT.
+- **[ftINIT extraction determinism](ftinit_determinism.md)** — what the opt-in `strict_gap` /
+  `canonical` flags buy on Human-GEM/DLD1: a 3.7× smaller reaction seed-swing, but *worse*
+  gene-essentiality determinism (5 → 19 flips) and a 3–7× build-time cost.
 - **[Yeast localization benchmark](yeast_localization_benchmark.md)** —
   `predict_localization` against curated yeast-GEM, with a predictor-noise sweep.
 - **[Compartment-assignment redesign](localization_redesign.md)** — the design of
@@ -58,6 +61,7 @@ its equivalence claims against MATLAB RAVEN.
 humangem_validation
 init_param_calibration
 init_solver_benchmark
+ftinit_determinism
 yeast_localization_benchmark
 deeploc_yeast_benchmark
 deeploc_aracore_benchmark

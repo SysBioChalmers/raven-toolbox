@@ -63,6 +63,8 @@ from raven_toolbox.init.taskfill import fill_tasks
 _FORCE_ON = 0.1  # min flux for a reaction to count as "on" (RAVEN forceOnLim)
 _BIG_M = 100.0   # indicator/direction big-M cap on a *scored* reaction's flux (RAVEN's 100)
 _STRICT_ABS_GAP = 0.05  # absolute gap for the opt-in strict mode (below the 0.1 score granularity)
+_EXTRACT_SEED = 1234  # RAVEN optimizeProb Seed; a module constant so a determinism probe
+                      # can vary it (see docs/studies/ftinit_determinism.md) without editing code
 
 
 def _dbg(msg: str) -> None:
@@ -237,13 +239,13 @@ def run_ftinit(
         #   * Presolve=2, FeasibilityTol/OptimalityTol/IntFeasTol=1e-9 — RAVEN's
         #     optimizeProb defaults; they steer which optimal vertex a degenerate MILP
         #     lands on and how binaries round at the 0.5 on/off cut.
-        #   * Seed=1234 — fixed seed so tie-breaking is reproducible.
+        #   * Seed (``_EXTRACT_SEED``=1234) — fixed seed so tie-breaking is reproducible.
         opt.problem.Params.Threads = 1
         opt.problem.Params.Presolve = 2
         opt.problem.Params.FeasibilityTol = 1e-9
         opt.problem.Params.OptimalityTol = 1e-9
         opt.problem.Params.IntFeasTol = 1e-9
-        opt.problem.Params.Seed = 1234
+        opt.problem.Params.Seed = _EXTRACT_SEED
     except Exception:  # noqa: BLE001
         pass
     if strict_abs_gap is not None:
