@@ -4,7 +4,19 @@ from __future__ import annotations
 import cobra
 import pytest
 
-from raven_toolbox.manipulation.compartments import copy_to_compartment, merge_compartments
+from raven_toolbox import manipulation
+from raven_toolbox.manipulation import copy_to_compartment, merge_compartments
+
+
+def test_exported_from_the_package():
+    """Both are public API, not just importable from the submodule.
+
+    They were missing from ``manipulation.__all__`` for a long time precisely because these
+    tests reached into ``manipulation.compartments`` directly, so nothing exercised the path
+    a user actually takes.
+    """
+    assert "merge_compartments" in manipulation.__all__
+    assert "copy_to_compartment" in manipulation.__all__
 
 
 def _two_compartment_model() -> cobra.Model:
