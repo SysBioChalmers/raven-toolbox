@@ -215,6 +215,13 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     rxn_notes = _capture_entry_fields(raw.get("reactions", []), _RXN_FIELDS)
     gene_notes = _capture_entry_fields(raw.get("genes", []), _GENE_FIELDS)
 
+    # RAVEN MATLAB omits a section entirely when it is empty -- a model with no
+    # genes has no ``genes:`` block at all. cobra's ``model_from_dict`` indexes
+    # these keys directly and raises ``KeyError``, so a valid RAVEN file would
+    # not load. Supply the empty lists it expects.
+    for section in ("metabolites", "reactions", "genes"):
+        raw.setdefault(section, [])
+
     model = model_from_dict(raw)
 
     for met, notes in zip(model.metabolites, met_notes, strict=False):
