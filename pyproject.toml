@@ -73,6 +73,7 @@ packages = ["src/raven_toolbox"]
 testpaths = ["tests"]
 markers = [
     "parity: cross-language checks against MATLAB RAVEN (see tests/parity/README.md)",
+    "slow: needs a genome-scale model and a solver licence that accepts it; run nightly, not in the pull-request suite",
 ]
 
 [tool.ruff]

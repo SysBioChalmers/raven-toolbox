@@ -96,3 +96,52 @@ def test_baseline_describes_a_real_decision(baseline):
         f"the baseline keeps {kept} of {total} reactions, so the extraction is "
         f"not choosing -- fix the fixture or the scores, not this assertion"
     )
+
+
+def test_solvers_agree_on_the_extraction(raven_root, baseline):
+    """The extracted set must not depend on which solver found it.
+
+    This is the measurement the exact-equality assertion above rests on, kept
+    as a test so it stays true. If a future model makes the solvers disagree,
+    this fails first and says so -- which is the signal to move that fixture to
+    an overlap band with a measured floor, rather than to loosen the assertion
+    above and lose the ability to detect real drift.
+
+    Solvers that are not installed, or that refuse the model (the size-limited
+    licence bundled with pip-installed gurobipy will refuse a large one), are
+    skipped individually rather than failing the test.
+    """
+    from cobra.util.solver import solvers as available
+
+    fixture = raven_root.joinpath(*baseline["fixture"].split("/"))
+    if not fixture.is_file():
+        pytest.skip(f"fixture {baseline['fixture']} not in this RAVEN checkout")
+
+    candidates = [name for name in ("glpk", "gurobi", "cplex") if name in available]
+    results: dict[str, list[str]] = {}
+    refused: dict[str, str] = {}
+
+    for name in candidates:
+        model = read_yaml_model(fixture)
+        try:
+            model.solver = name
+            results[name] = sorted(
+                r.id for r in run_init(model, _scores(model)).model.reactions
+            )
+        except Exception as exc:  # noqa: BLE001 - reported, not swallowed
+            refused[name] = f"{type(exc).__name__}: {exc}"
+
+    if len(results) < 2:
+        pytest.skip(
+            f"need two usable solvers to compare; ran {sorted(results)}, "
+            f"refused {refused or 'none'}"
+        )
+
+    distinct = {tuple(v) for v in results.values()}
+    assert len(distinct) == 1, (
+        "solvers disagree on the extracted set, so exact equality is no longer "
+        "the right assertion for this fixture:\n"
+        + "\n".join(f"  {name}: {len(kept)} reactions" for name, kept in results.items())
+        + f"\n  symmetric difference: "
+        f"{sorted(set(results[candidates[0]]) ^ set(results[candidates[1]]))}"
+    )
