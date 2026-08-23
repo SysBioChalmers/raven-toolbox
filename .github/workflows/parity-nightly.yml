@@ -31,7 +31,13 @@ jobs:
     # night for no reason.
     if: github.repository == 'SysBioChalmers/raven-toolbox'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Measured: the Human-GEM extraction takes ~68 minutes on a fast
+    # workstation, of which only ~2 are parsing and copying. run_init's
+    # time_limit does not bound the call -- a 60-second limit still ran for
+    # well over 15 minutes -- so the real stop is pytest-timeout below, and
+    # this budget only has to be comfortably larger than that so the timeout
+    # is reported as a test failure instead of a killed job.
+    timeout-minutes: 150
 
     steps:
       - uses: actions/checkout@v5
@@ -92,4 +98,16 @@ jobs:
         env:
           RAVEN_ROOT: ${{ github.workspace }}/.raven
           HUMAN_GEM_YML: ${{ runner.temp }}/Human-GEM.yml
+          RAVEN_PARITY_REPORT_DIR: ${{ runner.temp }}/parity-report
           PYTHONUNBUFFERED: "1"
+
+      # The numbers are what make the run useful: they are the candidate for the
+      # next recorded baseline. Uploaded even when the tests fail, since a
+      # failure is exactly when the actual reaction set needs inspecting.
+      - name: Upload the run report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genome-scale-parity-report
+          path: ${{ runner.temp }}/parity-report
+          if-no-files-found: warn

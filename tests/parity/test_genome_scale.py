@@ -63,7 +63,13 @@ def genome_scale_model():
 
 @pytest.fixture(scope="module")
 def extraction(genome_scale_model):
-    """Run the extraction once and share it across the assertions below."""
+    """Run the extraction once and share it across the assertions below.
+
+    The result is also written to disk. pytest captures stdout for a *passing*
+    test, so a print here is invisible in exactly the case that matters most:
+    the successful nightly run whose numbers are supposed to become the next
+    baseline. The report file survives capture and is uploaded as an artefact.
+    """
     model = genome_scale_model
     scores = {
         rxn.id: (10.0 if i % 3 == 0 else (-5.0 if i % 3 == 1 else 1.0))
@@ -75,11 +81,37 @@ def extraction(genome_scale_model):
     )
     elapsed = time.perf_counter() - started
     kept = sorted(r.id for r in result.model.reactions)
-    print(
-        f"\ngenome-scale extraction: kept {len(kept)} of "
-        f"{len(model.reactions)} reactions in {elapsed:.0f}s "
-        f"(mip_gap={MIP_GAP}, time_limit={TIME_LIMIT_SECONDS:.0f}s)"
+
+    summary = (
+        f"kept {len(kept)} of {len(model.reactions)} reactions in "
+        f"{elapsed:.0f}s (mip_gap={MIP_GAP}, "
+        f"time_limit={TIME_LIMIT_SECONDS:.0f}s)"
     )
+    print(f"\ngenome-scale extraction: {summary}")
+
+    out_dir = Path(os.environ.get("RAVEN_PARITY_REPORT_DIR", "."))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "genome_scale_run.json").write_text(
+        json.dumps(
+            {
+                "kept_reactions": kept,
+                "kept": len(kept),
+                "total": len(model.reactions),
+                "seconds": round(elapsed, 1),
+                "mip_gap": MIP_GAP,
+                "time_limit": TIME_LIMIT_SECONDS,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if step_summary:
+        with open(step_summary, "a", encoding="utf-8") as fh:
+            fh.write(f"### Genome-scale extraction\n\n{summary}\n")
+
     return {"kept": kept, "total": len(model.reactions), "seconds": elapsed}
 
 
