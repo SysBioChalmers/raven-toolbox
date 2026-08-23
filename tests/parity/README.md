@@ -104,8 +104,15 @@ Two sources, with different trade-offs:
 ## Determinism
 
 `test_determinism.py` is not cross-language: it checks that raven-toolbox gives
-the *same* answer twice. It lives here because it protects the same property the
-parity tiers do — several recent fixes made compartment placement and gap-filling
+the *same* answer twice — including in a second process. Python randomises
+string hashing per process, so a set iterated to build constraint rows gives a
+stable answer within one run and a different one in the next; repeating the call
+in-process cannot see that, so one test runs the computation under three
+`PYTHONHASHSEED` values through `_hashseed_worker.py` and compares digests.
+(That is what `scripts/determinism_probe.py` did by hand while the placement
+determinism fixes were being made.)
+
+It lives here because it protects the same property the parity tiers do — several recent fixes made compartment placement and gap-filling
 deterministic, and nothing would have caught a regression.
 
 ## What is enforced today
