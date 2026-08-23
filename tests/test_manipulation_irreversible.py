@@ -142,3 +142,38 @@ def test_conversion_is_idempotent_after_first_pass():
     second = convert_to_irreversible(model)
     assert second == []
     assert "r1_REV_REV" not in {r.id for r in model.reactions}
+
+
+def test_reverse_reaction_inherits_annotation_subsystem_and_notes():
+    """MATLAB's convertToIrrev copies the per-reaction fields (eccodes,
+    rxnMiriams, subSystems, rxnNotes, ...) onto the reverse reaction.
+    Losing them here leaves e.g. GECKO's reverse reactions without an EC
+    code, and therefore without a kcat."""
+    model = _build_model_with_bounds([
+        ("r1", {"A": -1.0, "B": 1.0}, -500.0, 1000.0),
+    ])
+    forward = model.reactions.get_by_id("r1")
+    forward.annotation["ec-code"] = "1.1.1.1"
+    forward.subsystem = "Glycolysis"
+    forward.notes["origin"] = "curated"
+
+    convert_to_irreversible(model)
+
+    rev = model.reactions.get_by_id("r1_REV")
+    assert rev.annotation["ec-code"] == "1.1.1.1"
+    assert rev.subsystem == "Glycolysis"
+    assert rev.notes["origin"] == "curated"
+
+
+def test_reverse_reaction_annotation_is_a_copy_not_an_alias():
+    """Editing the reverse reaction's annotations must not write through
+    to the forward reaction."""
+    model = _build_model_with_bounds([
+        ("r1", {"A": -1.0, "B": 1.0}, -500.0, 1000.0),
+    ])
+    model.reactions.get_by_id("r1").annotation["ec-code"] = "1.1.1.1"
+
+    convert_to_irreversible(model)
+
+    model.reactions.get_by_id("r1_REV").annotation["ec-code"] = "2.2.2.2"
+    assert model.reactions.get_by_id("r1").annotation["ec-code"] == "1.1.1.1"
