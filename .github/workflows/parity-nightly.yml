@@ -1,0 +1,95 @@
+name: Parity (nightly, licensed solver)
+
+# The genome-scale checks the studies rest on need a Gurobi licence that will
+# accept a model with thousands of reactions. The licence bundled with
+# pip-installed gurobipy caps out well below that, so this workflow uses a
+# Gurobi Web License Service (WLS) licence supplied through repository secrets:
+#
+#   GUROBI_WLSACCESSID   the WLS access id
+#   GUROBI_WLSSECRET     the WLS secret
+#   GUROBI_LICENSEID     the numeric licence id
+#
+# WLS is the licence type intended for containers and CI; a named-user academic
+# licence is tied to a specific machine and is not appropriate for a hosted
+# runner.
+
+on:
+  schedule:
+    # 03:17 UTC, offset off the hour so it does not queue behind everything
+    # else scheduled on the hour.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: parity-nightly
+  cancel-in-progress: false
+
+jobs:
+  genome-scale:
+    name: genome-scale parity
+    # Forks do not have the secrets, and a scheduled run there would fail every
+    # night for no reason.
+    if: github.repository == 'SysBioChalmers/raven-toolbox'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check out MATLAB RAVEN
+        uses: actions/checkout@v5
+        with:
+          repository: SysBioChalmers/RAVEN
+          ref: develop3
+          path: .raven
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - run: pip install --upgrade pip
+      - run: pip install -e ".[dev]" gurobipy
+
+      # Fail here, loudly, rather than let the tests skip and the job go green
+      # having checked nothing -- which is the failure mode this whole harness
+      # exists to avoid.
+      - name: Install the Gurobi WLS licence
+        env:
+          WLSACCESSID: ${{ secrets.GUROBI_WLSACCESSID }}
+          WLSSECRET: ${{ secrets.GUROBI_WLSSECRET }}
+          LICENSEID: ${{ secrets.GUROBI_LICENSEID }}
+        run: |
+          if [ -z "$WLSACCESSID" ] || [ -z "$WLSSECRET" ] || [ -z "$LICENSEID" ]; then
+            echo "::error::Gurobi WLS secrets are not set (GUROBI_WLSACCESSID," \
+                 "GUROBI_WLSSECRET, GUROBI_LICENSEID). The genome-scale checks" \
+                 "cannot run without them."
+            exit 1
+          fi
+          umask 077
+          { echo "WLSACCESSID=$WLSACCESSID"
+            echo "WLSSECRET=$WLSSECRET"
+            echo "LICENSEID=$LICENSEID"
+          } > "$HOME/gurobi.lic"
+          echo "GRB_LICENSE_FILE=$HOME/gurobi.lic" >> "$GITHUB_ENV"
+
+      # Well past the 2000x2000 limit of the bundled licence, so this step fails
+      # unless the WLS licence really is in effect -- better to find out here
+      # than to have the tests skip and the job go green having checked nothing.
+      - name: Verify the licence accepts a genome-scale problem
+        run: |
+          python scripts/parity/check_license.py
+
+      - name: Download Human-GEM
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/Human-GEM.yml" \
+            https://raw.githubusercontent.com/SysBioChalmers/Human-GEM/main/model/Human-GEM.yml
+          ls -lh "$RUNNER_TEMP/Human-GEM.yml"
+
+      - name: Run the parity suite, including the slow checks
+        run: pytest -m parity -v -rs --timeout=5400 --timeout-method=thread
+        env:
+          RAVEN_ROOT: ${{ github.workspace }}/.raven
+          HUMAN_GEM_YML: ${{ runner.temp }}/Human-GEM.yml
+          PYTHONUNBUFFERED: "1"

@@ -99,12 +99,17 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install --upgrade pip
-      - run: pip install -e ".[dev]"
+      # gurobipy ships a size-limited licence (2000 variables / 2000
+      # constraints). That is useless at genome scale but ample for the small
+      # fixtures here, and it gives the cross-solver check a second solver to
+      # compare against. Genome-scale work runs in parity-nightly.yml, which
+      # uses a WLS licence.
+      - run: pip install -e ".[dev]" gurobipy
       # -rs reports what skipped: oracle-backed checks skip until someone runs
       # scripts/parity/generate_oracles.m in MATLAB, and that should be visible
       # in the log rather than looking like coverage that exists.
       - name: Run parity checks
-        run: pytest -m parity -v -rs --timeout=600 --timeout-method=thread
+        run: pytest -m "parity and not slow" -v -rs --timeout=600 --timeout-method=thread
         env:
           RAVEN_ROOT: ${{ github.workspace }}/.raven
           PYTHONUNBUFFERED: "1"

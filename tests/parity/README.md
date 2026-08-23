@@ -35,9 +35,30 @@ rather than the model.
 
 Mixed-integer results: INIT/ftINIT extraction, gap-filling, compartment
 assignment. These problems have many optima of equal objective value, so a
-different answer is not a wrong answer. Compare overlap (Jaccard, containment)
-against a recorded baseline band, and hold the solver fixed — Gurobi and GLPK
-can legitimately land on different optima of the same problem.
+different answer is not a wrong answer. What can be checked is *drift*: today's
+result against the result that was last inspected and accepted.
+
+`test_set_level.py` does that against a baseline recorded by
+`scripts/parity/record_baseline.py`. When a change is expected to move the
+extraction, read the diff the failure prints, re-record, and say in the pull
+request why it moved:
+
+```bash
+python scripts/parity/record_baseline.py    # uses $RAVEN_ROOT
+```
+
+That baseline asserts **exact** set equality rather than an overlap band,
+because it was measured rather than assumed: on this fixture GLPK and Gurobi
+return the same 13 reactions, and each is identical across repeated runs. A
+difference therefore means this package changed, not that the solver picked
+another optimum. On a fixture where the solvers genuinely disagree, the honest
+form is a band with a measured floor — not a loosened threshold on this one.
+
+The baseline is seeded from raven-toolbox itself, which makes it a regression
+guard rather than a cross-language check. Its `source` field records that, and
+the test prints it on failure so the two are not confused. Extending
+`generate_oracles.m` with an extraction oracle turns the same comparison into a
+real parity check.
 
 ### Tier 3 — statistical
 
@@ -86,3 +107,17 @@ Two sources, with different trade-offs:
 the *same* answer twice. It lives here because it protects the same property the
 parity tiers do — several recent fixes made compartment placement and gap-filling
 deterministic, and nothing would have caught a regression.
+
+## What is enforced today
+
+- Every RAVEN-authored model loads and round-trips without losing RAVEN's own
+  fields (tier 1).
+- The small-model extraction has not drifted from its recorded baseline
+  (tier 2).
+- The deterministic paths return the same answer twice.
+
+Still only *reported*, not enforced: the genome-scale Human-GEM, yeast and
+multi-organism comparisons in `docs/studies/`. They need Gurobi and models too
+large for a free runner, so closing that gap needs a nightly job on a licensed
+runner — the next piece of this harness. Tier 3 has a stated contract and no
+tests yet for the same reason.
