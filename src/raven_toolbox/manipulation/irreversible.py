@@ -10,6 +10,8 @@ import it from raven_toolbox once raven_toolbox is published.
 """
 from __future__ import annotations
 
+import copy
+
 import cobra
 
 
@@ -22,8 +24,13 @@ def convert_to_irreversible(model: cobra.Model) -> list[str]:
     - A new reaction with the same ID plus a ``_REV`` suffix is added,
       representing the reverse direction. Its stoichiometry is the
       negation of the original, its bounds are ``(0, -original_lb)``,
-      and it inherits the name (with " (reversible)" appended) and the
-      gene-protein rule of the original.
+      and it inherits the name (with " (reversible)" appended), the
+      gene-protein rule, the subsystem, the annotations and the notes
+      of the original. MATLAB's ``convertToIrrev`` copies the same
+      per-reaction fields across (``eccodes``, ``rxnMiriams``,
+      ``subSystems``, ``rxnNotes``, ...); dropping them would, among
+      other things, leave the reverse reaction without an EC code and
+      so without a kcat downstream.
 
     Exchange reactions (boundary reactions) are never split, regardless
     of their bounds, matching MATLAB behavior where exchange reactions
@@ -59,6 +66,9 @@ def convert_to_irreversible(model: cobra.Model) -> list[str]:
         rev_rxn.upper_bound = -original_lb
         rev_rxn.add_metabolites({m: -c for m, c in rxn.metabolites.items()})
         rev_rxn.gene_reaction_rule = rxn.gene_reaction_rule
+        rev_rxn.subsystem = rxn.subsystem
+        rev_rxn.annotation = copy.deepcopy(rxn.annotation)
+        rev_rxn.notes = copy.deepcopy(rxn.notes)
 
         reverse_rxns_to_add.append(rev_rxn)
         forward_updates.append(rxn)

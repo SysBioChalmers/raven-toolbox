@@ -6,6 +6,13 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **`convert_to_irreversible` now carries the reaction's annotations, subsystem and notes onto the
+  `_REV` reaction.** MATLAB's `convertToIrrev` copies the per-reaction fields (`eccodes`, `rxnMiriams`,
+  `subSystems`, `rxnNotes`, ...) across when it splits a reversible reaction; the Python port copied only
+  the name and the gene rule. Downstream that silently cost the reverse reaction its EC code — in geckopy,
+  `fill_eccodes_from_gem` returned `''` for every `_REV` reaction, fuzzy BRENDA matching then found no
+  kcat, and the reverse direction ended up unconstrained.
+
 * **Opt-in deterministic ftINIT extraction: `ftinit(..., strict_gap=True, canonical=True)`.** The extraction
   MILP is highly degenerate — many reaction subsets reach the same score optimum — so `Threads=1` + a fixed
   `Seed` make the solver's choice *reproducible* but not *unique*: a different Gurobi version or platform
