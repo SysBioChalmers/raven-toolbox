@@ -78,6 +78,37 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
 
+  parity:
+    name: parity vs MATLAB RAVEN
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      # RAVEN is GPL and this package is MIT, so its files are never vendored
+      # here -- the cross-language checks read them from a checkout instead.
+      # develop3 is the branch raven-docs documents and raven-toolbox tracks.
+      - name: Check out MATLAB RAVEN
+        uses: actions/checkout@v5
+        with:
+          repository: SysBioChalmers/RAVEN
+          ref: develop3
+          path: .raven
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      # -rs reports what skipped: oracle-backed checks skip until someone runs
+      # scripts/parity/generate_oracles.m in MATLAB, and that should be visible
+      # in the log rather than looking like coverage that exists.
+      - name: Run parity checks
+        run: pytest -m parity -v -rs --timeout=600 --timeout-method=thread
+        env:
+          RAVEN_ROOT: ${{ github.workspace }}/.raven
+          PYTHONUNBUFFERED: "1"
+
   docs:
     name: docs
     runs-on: ubuntu-latest

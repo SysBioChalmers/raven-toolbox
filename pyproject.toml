@@ -71,6 +71,9 @@ packages = ["src/raven_toolbox"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "parity: cross-language checks against MATLAB RAVEN (see tests/parity/README.md)",
+]
 
 [tool.ruff]
 line-length = 100
