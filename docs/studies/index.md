@@ -54,6 +54,9 @@ its equivalence claims against MATLAB RAVEN.
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
 - **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
+- **[Homology cut-off calibration](homology_cutoff_calibration.md)** — *protocol, not yet
+  run*: how to calibrate `max_evalue` / `min_align_len` / `min_identity` for homology
+  reconstruction, against KEGG cross-organism models and curated GEM pairs.
 
 ```{toctree}
 :hidden:
@@ -73,6 +76,7 @@ carvefungi_analysis
 carvefungi_milp_benchmark
 deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
+homology_cutoff_calibration
 localization_redesign
 curation_priority_signals
 yeast_validation
