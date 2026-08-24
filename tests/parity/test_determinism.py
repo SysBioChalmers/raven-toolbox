@@ -12,6 +12,12 @@ order, an unseeded solver), and the symptom is a benchmark that quietly moves.
 """
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import cobra
 import pytest
 
@@ -112,4 +118,61 @@ def test_duplicate_removal_keeps_the_same_reaction_every_run():
     assert len(set(kept)) == 1, (
         f"remove_duplicate_reactions kept different reactions across {RUNS} "
         f"runs: {set(kept)}"
+    )
+
+
+def test_result_does_not_depend_on_the_process_hash_seed(tmp_path):
+    """The same computation, in two processes with different string hashing.
+
+    Python randomises string hashes per process. A set iterated to build
+    constraint rows, or a dict deciding a tie-break, gives a stable answer
+    *within* a process and a different one in the next -- so the repetitions
+    above cannot see it, however many times they run. Two processes with
+    different PYTHONHASHSEED values can.
+
+    This is what scripts/determinism_probe.py checked by hand while the
+    placement determinism fixes were being made. Running it as a test means
+    nobody has to remember to.
+    """
+    worker = Path(__file__).with_name("_hashseed_worker.py")
+    results = {}
+
+    for seed in ("0", "1", "12345"):
+        env = {**os.environ, "PYTHONHASHSEED": seed}
+        # The package under test must win over any installed copy.
+        src = Path(__file__).resolve().parents[2] / "src"
+        env["PYTHONPATH"] = os.pathsep.join(
+            [str(src), env.get("PYTHONPATH", "")]
+        ).rstrip(os.pathsep)
+
+        proc = subprocess.run(
+            [sys.executable, str(worker)],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=600,
+            check=False,
+        )
+        assert proc.returncode == 0, (
+            f"worker failed under PYTHONHASHSEED={seed}:\n{proc.stderr[-2000:]}"
+        )
+        marker = [
+            line for line in proc.stdout.splitlines() if line.startswith("HASHSEED_RESULT ")
+        ]
+        assert marker, (
+            f"worker printed no result under PYTHONHASHSEED={seed}; "
+            f"stdout tail:\n{proc.stdout[-1000:]}"
+        )
+        results[seed] = json.loads(marker[-1].removeprefix("HASHSEED_RESULT "))
+
+    assert all(r["added"] for r in results.values()), (
+        "the worker's fixture no longer requires any fill, so this test would "
+        "pass whatever the ordering does -- fix the worker, not the assertion"
+    )
+
+    digests = {seed: r["digest"] for seed, r in results.items()}
+    assert len(set(digests.values())) == 1, (
+        "the result depends on Python's per-process hash seed, so something is "
+        "iterating a set or dict whose order is not stable across runs:\n"
+        + "\n".join(f"  PYTHONHASHSEED={s}: {r['added']}" for s, r in results.items())
     )
