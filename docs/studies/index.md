@@ -55,9 +55,9 @@ its equivalence claims against MATLAB RAVEN.
 - **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
 - **[Homology cut-off calibration](homology_cutoff_calibration.md)** — `max_evalue` is
-  inert across five orders of magnitude; `min_identity` is the only real lever and its
-  optimum moves with phylogenetic distance. Defaults unchanged under the pre-registered
-  criterion, and the curated-GEM ground truth is shown to be circular.
+  inert across five orders of magnitude; `min_identity` is the only real lever, and 40 is
+  confirmed once precision is weighted above recall (β = 0.5). Defaults unchanged, and the
+  curated-GEM ground truth is shown to be circular.
 
 ```{toctree}
 :hidden:

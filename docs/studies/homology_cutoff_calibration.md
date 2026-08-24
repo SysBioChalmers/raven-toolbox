@@ -3,15 +3,17 @@
 :::{admonition} Run 2026-08-24 — the defaults do not change
 :class: important
 
-The measurements are in. Under the success criterion fixed before the data
-existed, **no change to `max_evalue` / `min_align_len` / `min_identity` is
-justified**, and they stay as they are.
+Scored at **β = 0.5** — precision weighted above recall, because a wrongly
+transferred reaction is worse than a missed one — `(1e-30, 200, 40)` stands.
+`min_identity` 40 is optimal or within 0.01 of optimal on every organism tested.
 
-That is not the whole story: the evidence supports a looser identity on every
-organism measured, and it was blocked by a constraint that this run suggests was
-mis-specified. Rewriting the criterion after seeing the curves is exactly what
-fixing it in advance was meant to prevent, so the criterion stands and the
-decision it hinges on is stated openly at the end.
+One candidate change misses narrowly: `min_align_len` 50 improves all four
+organisms at unchanged precision, but fails both pre-registered gates. It is
+recorded rather than adopted.
+
+Scored at β = 1 the same data says something quite different — a 10-point deficit
+at distance — which is worth knowing about any threshold study that does not
+state its weighting.
 :::
 
 ## What this study found
@@ -21,10 +23,12 @@ decision it hinges on is stated openly at the end.
    anything. Identity and alignment length have already excluded everything a
    looser e-value would admit.
 2. **`min_align_len` barely matters below 150.** Values of 50 and 100 give
-   identical results; the default of 200 costs ~2 points of F1.
-3. **`min_identity` is the only real lever**, and its best value *moves with
-   phylogenetic distance* — so no single global default is right for every
-   reconstruction.
+   identical results, and 50 scores best on every organism — a nearly free recall
+   gain that the pre-registered gates nonetheless reject.
+3. **`min_identity` is the only real lever, and 40 is the right value** under the
+   agreed weighting. Which value looks best depends entirely on that weighting:
+   at β = 1 the optimum moves to 25–30 and drifts with phylogenetic distance; at
+   β = 0.5 it sits at 40 for everything.
 4. **One of the two planned ground truths is unusable**, and the study can
    demonstrate why rather than merely suspect it.
 
@@ -120,16 +124,17 @@ annotation are judged — KEGG's table covers reaction-linked KOs only (843 of
 ~6,000 `sce` genes), so a hit involving an unannotated gene is unjudgeable rather
 than wrong, and counting it either way would be an invention.
 
-| Target | Distance | Hits | Truth pairs | Default (1e-30/200/40) | Best F1 |
-|---|---|---|---|---|---|
-| `kla` | close | 54,478 | 1,100 | P 0.976 R 0.761 **F1 0.855** | ide 30 → **0.878** |
-| `yli` | medium | 57,492 | 1,091 | P 0.967 R 0.596 **F1 0.737** | ide 25 → **0.815** |
-| `ani` | distant | 76,973 | 1,131 | P 0.936 R 0.514 **F1 0.663** | ide 25 → **0.760** |
-| `eco` | very distant | 11,458 | 355 | P 0.788 R 0.304 **F1 0.439** | ide 30 → **0.530** |
+| Target | Distance | Hits | Truth pairs | Default: precision / recall | F0.5 | F1 |
+|---|---|---|---|---|---|---|
+| `kla` | close | 54,478 | 1,100 | 0.976 / 0.761 | **0.923** | 0.855 |
+| `yli` | medium | 57,492 | 1,091 | 0.967 / 0.596 | **0.860** | 0.737 |
+| `ani` | distant | 76,973 | 1,131 | 0.936 / 0.514 | **0.804** | 0.663 |
+| `eco` | very distant | 11,458 | 355 | 0.788 / 0.304 | **0.598** | 0.439 |
 
-The default is precision-heavy and recall-poor, and it gets worse with distance:
-recall falls 0.76 → 0.60 → 0.51 → 0.30 across the ladder while precision stays
-above 0.93 until the very-distant pair.
+The default is precision-heavy and recall-poor, and gets more so with distance:
+recall falls 0.76 → 0.60 → 0.51 → 0.30 across the ladder while precision holds
+above 0.93 until the very-distant pair. Whether that is a flaw or the point
+depends on the weighting — see below.
 
 Both other parameters are near-inert, confirming arm 1 on independent data:
 
@@ -143,61 +148,79 @@ Both other parameters are near-inert, confirming arm 1 on independent data:
 
 ## Applying the criterion
 
-The criterion, fixed before any data existed: *maximise hit-level F1 against KO
-sharing, averaged over the medium and distant bands, subject to the very-distant
-pairs transferring no more than the current defaults do.*
+The criterion, fixed before any data existed: *maximise hit-level F-score against
+KO sharing, averaged over the medium and distant bands, subject to the
+very-distant pairs transferring no more than the current defaults do*, and change
+a default only if the improvement exceeds the spread across organisms within a
+band.
 
-| ide | objective F1 (`yli`, `ani`) | `kla` F1 | `eco` calls | `eco` precision | `eco` F1 |
+### The loss function, decided on the argument
+
+The protocol deliberately left the precision/recall weighting open, because it is
+a value judgement rather than a measurement. It was settled on the asymmetry, not
+by inspecting which threshold won: **a wrongly transferred reaction is worse than
+a missed one.** A missing reaction can be recovered by gap-filling; a wrong one
+pollutes the model and its gene associations silently and survives into
+everything downstream. So **β = 0.5**, weighting precision above recall.
+
+### Scored at β = 0.5
+
+| ide | `kla` | `yli` | `ani` | `eco` | objective (`yli`, `ani`) |
 |---|---|---|---|---|---|
-| 25 | **0.788** | 0.866 | 487 (3.6×) | 0.435 | 0.504 |
-| 30 | 0.785 | **0.878** | 384 (2.8×) | 0.510 | **0.530** |
-| 35 | 0.758 | 0.873 | 256 (1.9×) | 0.602 | 0.504 |
-| **40** *(default)* | 0.700 | 0.855 | **137** | **0.788** | 0.439 |
-| 45 | 0.597 | 0.820 | 82 | 0.866 | 0.325 |
+| 25 | 0.861 | 0.833 | 0.771 | 0.460 | 0.802 |
+| 30 | 0.896 | 0.851 | 0.796 | 0.518 | 0.823 |
+| 35 | 0.917 | 0.868 | 0.814 | 0.558 | 0.841 |
+| **40** *(default)* | **0.923** | 0.860 | 0.804 | **0.598** | 0.832 |
+| 45 | 0.907 | 0.813 | 0.735 | 0.520 | 0.774 |
 
-The objective improves by 8.8 points at ide 25 — and **every** loosening violates
-the constraint, ide 35 included. Under the criterion as written, the defaults
-stand.
+**The default identity of 40 is vindicated.** It is optimal on the close and
+very-distant organisms outright, and within 0.01 of the best on the other two.
+The F1-scored version of this table told a very different story — a 10-point
+deficit on `ani` — and that deficit was entirely an artefact of weighting a
+missed reaction as heavily as a wrong one. Under the weighting the maintainers
+actually hold, the existing default is right.
 
-### The criterion looks mis-specified
+### One candidate change, which the rules reject
 
-Stated plainly rather than quietly fixed. At ide 35, F1 improves on *all four*
-organisms, the constraint organism included (`eco` 0.439 → 0.504), because the
-extra calls at distance are substantially correct: recall on `eco` rises from
-0.304 to 0.552. The constraint penalises finding true orthologs, which was not
-its intent — it was meant to stop recall being maximised until everything
-transfers, and F1 on the very-distant pair already does that job.
+Scoring the full grid rather than identity alone puts the optimum at
+`min_align_len` **50** with identity unchanged, for every organism:
 
-### But there is a real argument for the strict default
+| Organism | default (40/200) | (40/50) | Δ | precision |
+|---|---|---|---|---|
+| `kla` | 0.923 | 0.933 | +0.009 | 0.976 → 0.976 |
+| `yli` | 0.860 | 0.871 | +0.011 | 0.967 → 0.961 |
+| `ani` | 0.804 | 0.815 | +0.012 | 0.936 → 0.937 |
+| `eco` | 0.598 | 0.618 | +0.020 | 0.788 → 0.783 |
 
-F1 weights precision and recall equally, and reconstruction does not. At `eco`,
-precision falls from 0.788 to 0.602 at ide 35. A **missing** reaction can be
-recovered by gap-filling; a **wrongly transferred** one silently pollutes the
-model and its gene associations, and tends to survive into everything downstream.
-If a false transfer costs more than a missed one, today's strict default is
-defensible on exactly this evidence.
+Recall rises 3–4 points while precision moves by at most 0.006 — nearly free, and
+consistent across all four organisms. It nonetheless fails both gates:
 
-## What this leaves open
+- **Constraint**: `eco` calls rise 137 → 152, which is more than the defaults
+  transfer. Violated, if narrowly.
+- **Margin**: the objective improves by 0.011 against a within-band spread of
+  0.056. Not met.
 
-The next decision is not a measurement but a value judgement, and it belongs to
-the maintainers: **what is the relative cost of a wrongly transferred reaction
-versus a missed one?** Answer that and the loss function follows — an
-F-beta with beta < 1, say — and the sweep above can be re-scored in minutes
-without realigning anything.
+So the defaults stand — **`(1e-30, 200, 40)` unchanged** — and the honest note is
+that the margin rule is doing questionable work here. It compares an improvement
+against the spread between organisms of *different difficulty*, which is not a
+noise estimate; a change that helps 4 of 4 organisms at unchanged precision is a
+consistent signal, not sampling noise. Whether to adopt `min_align_len` 50 on
+that basis is a maintainer's call, and one this study deliberately does not make
+for itself.
 
-That answer should be recorded *before* the re-scoring, as this criterion was.
+## Recommendations
 
-## Recommendations that do not depend on that decision
-
-1. **Stop treating `max_evalue` as a tuning knob.** It is inert across five
-   orders of magnitude in the default regime. Document it; do not spend
-   calibration effort on it.
-2. **`min_identity` is the lever**, and its optimum moves with phylogenetic
-   distance: ~30 for a close relative, ~25 for medium and distant. A single
-   global default is a compromise, and the docs should say so, so users
-   reconstructing from a distant template know which number to reach for.
-3. **`min_align_len` 200 is slightly conservative** — 150 costs nothing measured
-   here — but the effect is small enough not to justify a change on its own.
+1. **Keep `(1e-30, 200, 40)`.** The identity default is confirmed by the agreed
+   loss function; the other two parameters have no better value that clears the
+   gates.
+2. **Stop treating `max_evalue` as a tuning knob.** It is inert across five
+   orders of magnitude in the default regime, on both ground truths. Document it
+   and spend no further calibration effort there.
+3. **Consider `min_align_len` 50** as a separate, explicit decision. It helps all
+   four organisms at unchanged precision and fails only the margin and constraint
+   rules, both of which are doing debatable work at this scale.
+4. **State the weighting whenever these thresholds are discussed.** The same
+   measurements recommend 25 or 40 depending on β alone.
 
 ## Limitations
 

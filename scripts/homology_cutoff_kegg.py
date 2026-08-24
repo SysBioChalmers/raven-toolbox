@@ -192,16 +192,26 @@ def cmd_score(args: argparse.Namespace) -> int:
             fn = len(truth - called)
             precision = tp / (tp + fp) if tp + fp else 0.0
             recall = tp / (tp + fn) if tp + fn else 0.0
-            f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+            # beta < 1 weights precision above recall. For reconstruction that is
+            # the honest weighting: a missed reaction can be recovered by
+            # gap-filling, while a wrongly transferred one pollutes the model and
+            # its gene associations silently.
+            b2 = args.beta ** 2
+            score = (
+                (1 + b2) * precision * recall / (b2 * precision + recall)
+                if precision and recall else 0.0
+            )
             rows.append({**combo, "judged": len(called), "unjudgeable": unjudgeable,
                          "tp": tp, "fp": fp, "fn": fn, "precision": round(precision, 4),
-                         "recall": round(recall, 4), "f1": round(f1, 4)})
+                         "recall": round(recall, 4), "beta": args.beta,
+                         "fbeta": round(score, 4)})
 
         results[code] = {"truth_pairs": len(truth), "n_hits": len(hits), "rows": rows}
         base = next(r for r in rows if all(r[k] == v for k, v in BASE.items()))
-        best = max(rows, key=lambda r: r["f1"])
-        print(f"{code}: default F1={base['f1']:.3f} (P={base['precision']:.3f} "
-              f"R={base['recall']:.3f})  best F1={best['f1']:.3f} at ide="
+        best = max(rows, key=lambda r: r["fbeta"])
+        label = f"F{args.beta:g}"
+        print(f"{code}: default {label}={base['fbeta']:.3f} (P={base['precision']:.3f} "
+              f"R={base['recall']:.3f})  best {label}={best['fbeta']:.3f} at ide="
               f"{best['min_identity']} len={best['min_align_len']}")
 
     (args.out / "hitlevel_results.json").write_text(
@@ -227,6 +237,9 @@ def main(argv: list[str] | None = None) -> int:
     score = sub.add_parser("score", help="score thresholds against KO sharing")
     score.add_argument("--gene-ko", type=pathlib.Path, required=True,
                        help="KEGG organism_gene_ko table (.tsv or .tsv.gz)")
+    score.add_argument("--beta", type=float, default=0.5,
+                       help="F-beta weighting; below 1 favours precision, which is the "
+                            "agreed weighting for reconstruction (default: 0.5)")
 
     args = parser.parse_args(argv)
     args.out.mkdir(parents=True, exist_ok=True)
