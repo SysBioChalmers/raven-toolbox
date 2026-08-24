@@ -101,7 +101,7 @@ def run_diamond(
     model_ids: Sequence[str],
     ref_fastas: Sequence[str | Path],
     *,
-    evalue: float = 1e-5,
+    evalue: float = 1e-3,
     threads: int = 1,
     sensitivity: str = "--more-sensitive",
     diamond: str | Path | None = None,
@@ -110,12 +110,12 @@ def run_diamond(
 
     Returns the hits DataFrame. Requires DIAMOND.
 
-    Note that this default does *not* match MATLAB RAVEN. ``getDiamond`` passes
-    no ``--evalue`` at all, so DIAMOND's own default of 1e-3 applies there --
-    looser than both this 1e-5 and ``run_blast``'s 1e-4. Three different cutoffs
-    across two toolboxes and two aligners, none of them written down until now;
-    aligning them needs a decision about which is right rather than a quiet
-    change here.
+    The default matches MATLAB RAVEN's ``getDiamond``, which passes no
+    ``--evalue`` at all and so inherits DIAMOND's own default of 1e-3. Stated
+    explicitly here rather than left implicit, since the two aligners disagree:
+    ``run_blast`` uses 1e-4, following ``getBlast``. Neither cutoff has been
+    calibrated against data on either side -- unlike the KO-assignment cutoffs,
+    where measurement did justify diverging from RAVEN.
     """
     model_ids = list(model_ids)
     ref_fastas = _as_list(ref_fastas)
