@@ -53,7 +53,7 @@ def run_blast(
     model_ids: Sequence[str],
     ref_fastas: Sequence[str | Path],
     *,
-    evalue: float = 1e-5,
+    evalue: float = 1e-4,
     threads: int = 1,
     blastp: str | Path | None = None,
     makeblastdb: str | Path | None = None,
@@ -62,6 +62,10 @@ def run_blast(
 
     Returns the hits DataFrame (filtered at
     ``evalue``). Requires BLAST+ (`blastp`, `makeblastdb`).
+
+    The default matches MATLAB RAVEN's ``getBlast``, which hardcodes
+    ``-evalue 10e-5`` -- that is 1e-4, not 1e-5. Unlike RAVEN's, this one is an
+    argument, so a stricter search stays available.
     """
     model_ids = list(model_ids)
     ref_fastas = _as_list(ref_fastas)
@@ -97,7 +101,7 @@ def run_diamond(
     model_ids: Sequence[str],
     ref_fastas: Sequence[str | Path],
     *,
-    evalue: float = 1e-5,
+    evalue: float = 1e-3,
     threads: int = 1,
     sensitivity: str = "--more-sensitive",
     diamond: str | Path | None = None,
@@ -105,6 +109,13 @@ def run_diamond(
     """Bidirectional DIAMOND between an organism and template organisms.
 
     Returns the hits DataFrame. Requires DIAMOND.
+
+    The default matches MATLAB RAVEN's ``getDiamond``, which passes no
+    ``--evalue`` at all and so inherits DIAMOND's own default of 1e-3. Stated
+    explicitly here rather than left implicit, since the two aligners disagree:
+    ``run_blast`` uses 1e-4, following ``getBlast``. Neither cutoff has been
+    calibrated against data on either side -- unlike the KO-assignment cutoffs,
+    where measurement did justify diverging from RAVEN.
     """
     model_ids = list(model_ids)
     ref_fastas = _as_list(ref_fastas)
