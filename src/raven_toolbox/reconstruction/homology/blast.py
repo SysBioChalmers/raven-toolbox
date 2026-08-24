@@ -53,7 +53,7 @@ def run_blast(
     model_ids: Sequence[str],
     ref_fastas: Sequence[str | Path],
     *,
-    evalue: float = 1e-5,
+    evalue: float = 1e-4,
     threads: int = 1,
     blastp: str | Path | None = None,
     makeblastdb: str | Path | None = None,
@@ -62,6 +62,10 @@ def run_blast(
 
     Returns the hits DataFrame (filtered at
     ``evalue``). Requires BLAST+ (`blastp`, `makeblastdb`).
+
+    The default matches MATLAB RAVEN's ``getBlast``, which hardcodes
+    ``-evalue 10e-5`` -- that is 1e-4, not 1e-5. Unlike RAVEN's, this one is an
+    argument, so a stricter search stays available.
     """
     model_ids = list(model_ids)
     ref_fastas = _as_list(ref_fastas)
@@ -105,6 +109,13 @@ def run_diamond(
     """Bidirectional DIAMOND between an organism and template organisms.
 
     Returns the hits DataFrame. Requires DIAMOND.
+
+    Note that this default does *not* match MATLAB RAVEN. ``getDiamond`` passes
+    no ``--evalue`` at all, so DIAMOND's own default of 1e-3 applies there --
+    looser than both this 1e-5 and ``run_blast``'s 1e-4. Three different cutoffs
+    across two toolboxes and two aligners, none of them written down until now;
+    aligning them needs a decision about which is right rather than a quiet
+    change here.
     """
     model_ids = list(model_ids)
     ref_fastas = _as_list(ref_fastas)
