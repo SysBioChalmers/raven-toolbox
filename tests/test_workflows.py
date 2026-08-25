@@ -17,6 +17,25 @@ from pathlib import Path
 import pytest
 from ruamel.yaml import YAML
 
+
+def usable_bash() -> str | None:
+    """Return a bash that can actually parse a script, or None.
+
+    On Windows `bash` often resolves to the WSL stub, which exits non-zero with
+    "Windows Subsystem for Linux has no installed distributions" no matter what
+    it is handed. Checking only that the name resolves turns that into three
+    confusing failures about the workflows, which are fine.
+    """
+    candidate = shutil.which("bash")
+    if not candidate:
+        return None
+    probe = subprocess.run([candidate, "-n"], input=b":\n", capture_output=True)
+    return candidate if probe.returncode == 0 else None
+
+
+BASH = usable_bash()
+
+
 WORKFLOWS = sorted((Path(__file__).resolve().parents[1] / ".github" / "workflows").glob("*.yml"))
 
 
@@ -67,15 +86,16 @@ def test_workflow_is_valid_yaml(path: Path):
     assert read(path)
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+@pytest.mark.skipif(BASH is None, reason="no usable bash")
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
 def test_every_run_block_parses_as_shell(path: Path):
+    assert BASH is not None  # skipif guarantees this; mypy does not know that
     for label, script in run_blocks(path):
         # Bytes, not text: in text mode Python translates "\n" to "\r\n" on the
         # way into stdin under Windows, and bash then rejects the carriage
         # returns it just received.
         result = subprocess.run(
-            ["bash", "-n"],
+            [BASH, "-n"],
             input=strip_expressions(script).encode("utf-8"),
             capture_output=True,
         )
