@@ -3,7 +3,11 @@ name: Parity (nightly, licensed solver)
 # The genome-scale checks the studies rest on need a Gurobi licence that will
 # accept a model with thousands of reactions. The licence bundled with
 # pip-installed gurobipy caps out well below that, so this workflow uses a
-# Gurobi Web License Service (WLS) licence supplied through repository secrets:
+# Gurobi Web License Service (WLS) licence, supplied in either of two shapes:
+#
+#   GUROBI_EDUARD        an organisation secret holding a licence file verbatim
+#
+# or, failing that, three separate secrets:
 #
 #   GUROBI_WLSACCESSID   the WLS access id
 #   GUROBI_WLSSECRET     the WLS secret
@@ -63,22 +67,47 @@ jobs:
       # exists to avoid.
       - name: Install the Gurobi WLS licence
         env:
+          # Two shapes exist in the organisation. GUROBI_EDUARD is an organisation
+          # secret holding a licence file verbatim; the three-field form below is
+          # what this workflow was originally written against. Only WLSACCESSID was
+          # ever created, so the three-field branch has never fired and this job has
+          # failed here every night since it was added. Accept either.
+          LICENCE_FILE: ${{ secrets.GUROBI_EDUARD }}
           WLSACCESSID: ${{ secrets.GUROBI_WLSACCESSID }}
           WLSSECRET: ${{ secrets.GUROBI_WLSSECRET }}
           LICENSEID: ${{ secrets.GUROBI_LICENSEID }}
         run: |
-          if [ -z "$WLSACCESSID" ] || [ -z "$WLSSECRET" ] || [ -z "$LICENSEID" ]; then
-            echo "::error::Gurobi WLS secrets are not set (GUROBI_WLSACCESSID," \
-                 "GUROBI_WLSSECRET, GUROBI_LICENSEID). The genome-scale checks" \
-                 "cannot run without them."
+          umask 077
+          licence="$HOME/gurobi.lic"
+          if [ -n "$LICENCE_FILE" ]; then
+            printf '%s\n' "$LICENCE_FILE" > "$licence"
+          elif [ -n "$WLSACCESSID" ] && [ -n "$WLSSECRET" ] && [ -n "$LICENSEID" ]; then
+            { echo "WLSACCESSID=$WLSACCESSID"
+              echo "WLSSECRET=$WLSSECRET"
+              echo "LICENSEID=$LICENSEID"
+            } > "$licence"
+          else
+            # Fail here, loudly, rather than let the tests skip and the job go green
+            # having checked nothing -- which is the failure mode this whole harness
+            # exists to avoid.
+            echo "::error::No Gurobi licence configured. Set the GUROBI_EDUARD" \
+                 "organisation secret to a WLS licence file, or set GUROBI_WLSACCESSID," \
+                 "GUROBI_WLSSECRET and GUROBI_LICENSEID. The genome-scale checks cannot" \
+                 "run without one."
             exit 1
           fi
-          umask 077
-          { echo "WLSACCESSID=$WLSACCESSID"
-            echo "WLSSECRET=$WLSSECRET"
-            echo "LICENSEID=$LICENSEID"
-          } > "$HOME/gurobi.lic"
-          echo "GRB_LICENSE_FILE=$HOME/gurobi.lic" >> "$GITHUB_ENV"
+
+          # Report the shape without printing the value. A named-user academic licence
+          # is tied to one machine and cannot authenticate on a hosted runner, so
+          # finding one here explains a failure that otherwise looks like a solver bug.
+          if grep -q '^[[:space:]]*WLSACCESSID=' "$licence"; then
+            echo "Gurobi WLS licence installed"
+          else
+            echo "::warning::the configured licence is not a WLS licence. A named-user" \
+                 "licence is tied to a specific machine and will not authenticate on a" \
+                 "hosted runner."
+          fi
+          echo "GRB_LICENSE_FILE=$licence" >> "$GITHUB_ENV"
 
       # Well past the 2000x2000 limit of the bundled licence, so this step fails
       # unless the WLS licence really is in effect -- better to find out here
