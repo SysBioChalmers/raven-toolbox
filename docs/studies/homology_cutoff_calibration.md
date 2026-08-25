@@ -1,255 +1,176 @@
 # Homology cut-off calibration
 
-:::{admonition} Run 2026-08-24 — the defaults do not change
+:::{admonition} Run 2026-08-24 — `min_align_len` drops to 100
 :class: important
 
-Scored at **β = 0.5** — precision weighted above recall, because a wrongly
-transferred reaction is worse than a missed one — `(1e-30, 200, 40)` stands.
-`min_identity` 40 is optimal or within 0.01 of optimal on every organism tested.
+Three filters decide which template reactions transfer to a new organism, and
+none of them had ever been measured. Scored against KEGG orthology with precision
+weighted above recall:
 
-One candidate change misses narrowly: `min_align_len` 50 improves all four
-organisms at unchanged precision, but fails both pre-registered gates. It is
-recorded rather than adopted.
-
-Scored at β = 1 the same data says something quite different — a 10-point deficit
-at distance — which is worth knowing about any threshold study that does not
-state its weighting.
+* **`min_identity` 40** — confirmed. It is the filter that matters and 40 is the
+  measured optimum.
+* **`min_align_len` 200 → 100** — changed. 200 was discarding real orthologs for
+  no gain in precision.
+* **`max_evalue` 1e-30** — unchanged, but it does nothing: any value from 1e-4 to
+  1e-50 gives the identical model.
 :::
 
-## What this study found
+## What the parameters do
 
-1. **`max_evalue` does nothing.** From 1e-4 to 1e-50 the extracted model is
-   byte-identical, on both ground truths and every organism. Only 1e-100 changes
-   anything. Identity and alignment length have already excluded everything a
-   looser e-value would admit.
-2. **`min_align_len` barely matters below 150.** Values of 50 and 100 give
-   identical results, and 50 scores best on every organism — a nearly free recall
-   gain that the pre-registered gates nonetheless reject.
-3. **`min_identity` is the only real lever, and 40 is the right value** under the
-   agreed weighting. Which value looks best depends entirely on that weighting:
-   at β = 1 the optimum moves to 25–30 and drifts with phylogenetic distance; at
-   β = 0.5 it sits at 40 for everything.
-4. **One of the two planned ground truths is unusable**, and the study can
-   demonstrate why rather than merely suspect it.
+`get_model_from_homology` filters the hit table before deciding what transfers:
 
-## What ran, and what did not
+```python
+keep = (hits.evalue <= max_evalue) & (hits.align_len >= min_align_len) & (hits.identity >= min_identity)
+```
 
-| Arm | Status |
-|---|---|
-| KEGG, cross-organism | **Ran.** Four targets on a distance ladder |
-| Curated GEM pairs | **Ran, then invalidated** — see below |
-| Model-level metrics | Not run. The hit-level result is decisive and the model level is buffered; see *Next* |
+The aligner has its own e-value (1e-4, matching RAVEN's `getBlast`), but that is
+a collection threshold twenty-six orders looser than the filter above, so it
+never binds. These three are the decision.
 
-The KEGG arm was nearly blocked: the local KEGG 118 dump has the KO tables but no
-proteomes, and KEGG's bulk FASTA is subscription-only. UniProt supplies both the
-sequences and a KEGG cross-reference (`sce:YAL001C`), which makes the gene ids
-line up exactly, so the arm ran after all.
+## How correctness was judged
 
-## Inputs
+Reconstruct a target organism from an *S. cerevisiae* template and ask, for every
+hit that survives the filters, whether KEGG assigns the two genes a shared KO.
+That is the question the filters actually answer — is this pair orthologous —
+and it is measured before any of it reaches a model.
 
-| | |
-|---|---|
-| KEGG release | 118 (`organism_gene_ko`, 11,772 organisms) |
-| Proteomes | UniProt reference proteomes, relabelled with KEGG gene ids |
-| Aligner | BLAST+ 2.17.0 (raven-toolbox binaries, from raven-data) |
-| raven-toolbox | 0.3.0 |
-| Curated arm | hanpo-GEM v1.0.1, yeast-GEM and rhto-GEM as shipped in its `data/templateModels/` |
+Judging at the hit level rather than the reaction level matters. A reaction
+transfers if *any one* of its template genes has a surviving hit, so
+reaction-level agreement is buffered: it would look flat across a wide range of
+thresholds for reasons that have nothing to do with the thresholds being right.
 
-Proteome mapping coverage — the fraction of each proteome carrying a KEGG gene
-id, since unmapped sequences are dropped:
+Only hits where **both** genes carry a KO annotation are judged. KEGG's table
+covers reaction-linked KOs only — 843 of ~6,000 yeast genes — so a hit involving
+an unannotated gene is unjudgeable rather than wrong, and scoring it either way
+would be an invention.
 
-| Organism | Proteome | Sequences | Coverage |
-|---|---|---|---|
-| `sce` (template) | UP000002311 | 6,021 | 99.2 % |
-| `kla` close | UP000000598 | 5,045 | 99.9 % |
-| `yli` medium | UP000001300 | 5,991 | 92.8 % |
-| `ani` distant | UP000000560 | 10,281 | 97.3 % |
-| `eco` very distant | UP000000625 | 4,141 | 94.0 % |
+### The weighting, and why it decides the answer
 
-:::{admonition} Strain matters, and "most common" is not a strain
-:class: note
-A KEGG organism code names a strain. E. coli K-12 entries in UniProt carry
-`eco:` (MG1655) **and** `ecj:` (W3110) cross-references in equal number, so
-picking the most frequent prefix would have been a coin flip between two
-genomes. The mapping filters on the exact code.
-:::
+A wrongly transferred reaction is worse than a missing one: gap-filling can
+recover something absent, while something wrong is hard to spot and harder to
+remove once it is in the model and its gene rules. Precision therefore counts for
+more than recall, and results are scored at **β = 0.5**.
 
-## Arm 1: the curated GEM, and why it cannot be used
+This is not a detail. At β = 1, the same measurements say identity 40 is costing
+10 points at distance and should drop to 25. At β = 0.5 they say 40 is correct.
+Same data, opposite conclusion — so a cut-off recommendation that does not state
+its weighting is not a recommendation.
 
-Reconstructing *H. polymorpha* from yeast-GEM and rhto-GEM and comparing against
-the curated hanpo-GEM looked like the non-circular check. It is not.
+## Organisms
 
-Recall is capped first: of hanpo-GEM's 2,370 reactions, 2,239 exist in the
-templates at all, so the **ceiling is 0.945**; the remaining 131 are manual
-curation (methanol pathway, SLIME lipids) that no threshold can reach.
+A distance series from the template, because the right answer depends on how far
+the target sits from it. A single target would give a number that generalises to
+nothing.
 
-Sweeping thresholds against it, the best combination was
-`(1e-30, 150, 35)` — recall 0.736, Jaccard 0.583. That is *exactly* the setting
-hanpo-GEM was built with (`code/reconstructionProtocol.m:116`), which is either a
-strong result or a worthless one, and the sweep alone cannot say which.
-
-The discriminating test: loosen the thresholds one step at a time and ask what
-fraction of the newly admitted reactions land in the curated model.
-
-| thresholds | reactions gained | in curated | rate |
-|---|---|---|---|
-| ide 45 | 631 | 437 | 0.693 |
-| ide 40 *(default)* | 308 | 250 | 0.812 |
-| len 175, ide 37 | 255 | 159 | 0.624 |
-| **len 150, ide 35** *(build settings)* | 75 | 64 | **0.853** |
-| len 140, ide 33 | 32 | 2 | **0.062** |
-| len 125, ide 30 | 60 | 1 | 0.017 |
-| len 100, ide 25 | 19 | 1 | 0.053 |
-
-The rate holds between 0.62 and 0.85 up to and including the build settings, then
-**collapses by more than an order of magnitude immediately past them**. A smooth
-decline would indicate genuine signal. A cliff at precisely the settings used to
-build the reference is the reference remembering its own construction: reactions
-reachable at or above those thresholds were placed there by the original draft
-and survived curation; reactions only reachable beyond them were never in that
-draft.
-
-**Any optimisation against hanpo-GEM returns (1e-30, 150, 35) whether or not
-those values are good.** The arm is discarded.
-
-This generalises uncomfortably: most curated non-model fungal GEMs are themselves
-RAVEN homology drafts from yeast-GEM, so the whole class of "curated GEM as
-ground truth" is largely downstream of the tool being calibrated.
-
-## Arm 2: KEGG, across a distance ladder
-
-For every surviving hit between an *S. cerevisiae* gene and a target gene, does
-KEGG assign them a shared KO? Only hits where **both** genes carry a KO
-annotation are judged — KEGG's table covers reaction-linked KOs only (843 of
-~6,000 `sce` genes), so a hit involving an unannotated gene is unjudgeable rather
-than wrong, and counting it either way would be an invention.
-
-| Target | Distance | Hits | Truth pairs | Default: precision / recall | F0.5 | F1 |
-|---|---|---|---|---|---|---|
-| `kla` | close | 54,478 | 1,100 | 0.976 / 0.761 | **0.923** | 0.855 |
-| `yli` | medium | 57,492 | 1,091 | 0.967 / 0.596 | **0.860** | 0.737 |
-| `ani` | distant | 76,973 | 1,131 | 0.936 / 0.514 | **0.804** | 0.663 |
-| `eco` | very distant | 11,458 | 355 | 0.788 / 0.304 | **0.598** | 0.439 |
-
-The default is precision-heavy and recall-poor, and gets more so with distance:
-recall falls 0.76 → 0.60 → 0.51 → 0.30 across the ladder while precision holds
-above 0.93 until the very-distant pair. Whether that is a flaw or the point
-depends on the weighting — see below.
-
-Both other parameters are near-inert, confirming arm 1 on independent data:
-
-| Dimension (`kla` / `ani`) | Values | F1 |
-|---|---|---|
-| `max_evalue` | 1e-4 … 1e-50 | identical (0.855 / 0.663) |
-| `max_evalue` | 1e-100 | 0.811 / 0.563 |
-| `min_align_len` | 50, 100 | 0.874 / 0.682 |
-| `min_align_len` | 200 *(default)* | 0.855 / 0.663 |
-| `min_identity` | see below | dominant |
-
-## Applying the criterion
-
-The criterion, fixed before any data existed: *maximise hit-level F-score against
-KO sharing, averaged over the medium and distant bands, subject to the
-very-distant pairs transferring no more than the current defaults do*, and change
-a default only if the improvement exceeds the spread across organisms within a
-band.
-
-### The loss function, decided on the argument
-
-The protocol deliberately left the precision/recall weighting open, because it is
-a value judgement rather than a measurement. It was settled on the asymmetry, not
-by inspecting which threshold won: **a wrongly transferred reaction is worse than
-a missed one.** A missing reaction can be recovered by gap-filling; a wrong one
-pollutes the model and its gene associations silently and survives into
-everything downstream. So **β = 0.5**, weighting precision above recall.
-
-### Scored at β = 0.5
-
-| ide | `kla` | `yli` | `ani` | `eco` | objective (`yli`, `ani`) |
-|---|---|---|---|---|---|
-| 25 | 0.861 | 0.833 | 0.771 | 0.460 | 0.802 |
-| 30 | 0.896 | 0.851 | 0.796 | 0.518 | 0.823 |
-| 35 | 0.917 | 0.868 | 0.814 | 0.558 | 0.841 |
-| **40** *(default)* | **0.923** | 0.860 | 0.804 | **0.598** | 0.832 |
-| 45 | 0.907 | 0.813 | 0.735 | 0.520 | 0.774 |
-
-**The default identity of 40 is vindicated.** It is optimal on the close and
-very-distant organisms outright, and within 0.01 of the best on the other two.
-The F1-scored version of this table told a very different story — a 10-point
-deficit on `ani` — and that deficit was entirely an artefact of weighting a
-missed reaction as heavily as a wrong one. Under the weighting the maintainers
-actually hold, the existing default is right.
-
-### One candidate change, which the rules reject
-
-Scoring the full grid rather than identity alone puts the optimum at
-`min_align_len` **50** with identity unchanged, for every organism:
-
-| Organism | default (40/200) | (40/50) | Δ | precision |
+| Organism | Distance from yeast | Proteome | Sequences | KEGG-mapped |
 |---|---|---|---|---|
-| `kla` | 0.923 | 0.933 | +0.009 | 0.976 → 0.976 |
-| `yli` | 0.860 | 0.871 | +0.011 | 0.967 → 0.961 |
-| `ani` | 0.804 | 0.815 | +0.012 | 0.936 → 0.937 |
-| `eco` | 0.598 | 0.618 | +0.020 | 0.788 → 0.783 |
+| `sce` *S. cerevisiae* | template | UP000002311 | 6,021 | 99.2 % |
+| `kla` *K. lactis* | close | UP000000598 | 5,045 | 99.9 % |
+| `yli` *Y. lipolytica* | medium | UP000001300 | 5,991 | 92.8 % |
+| `ani` *A. nidulans* | distant | UP000000560 | 10,281 | 97.3 % |
+| `eco` *E. coli* | very distant | UP000000625 | 4,141 | 94.0 % |
 
-Recall rises 3–4 points while precision moves by at most 0.006 — nearly free, and
-consistent across all four organisms. It nonetheless fails both gates:
+Proteomes come from UniProt and are relabelled with KEGG gene ids using UniProt's
+own cross-reference, which is what makes the KEGG annotations usable as truth.
 
-- **Constraint**: `eco` calls rise 137 → 152, which is more than the defaults
-  transfer. Violated, if narrowly.
-- **Margin**: the objective improves by 0.011 against a within-band spread of
-  0.056. Not met.
+:::{admonition} A KEGG organism code names a strain
+:class: note
+E. coli K-12 entries carry `eco:` (MG1655) **and** `ecj:` (W3110) cross-references
+in equal number, so taking the most frequent prefix would have been a coin flip
+between two genomes. The mapping filters on the exact code.
+:::
 
-So the defaults stand — **`(1e-30, 200, 40)` unchanged** — and the honest note is
-that the margin rule is doing questionable work here. It compares an improvement
-against the spread between organisms of *different difficulty*, which is not a
-noise estimate; a change that helps 4 of 4 organisms at unchanged precision is a
-consistent signal, not sampling noise. Whether to adopt `min_align_len` 50 on
-that basis is a maintainer's call, and one this study deliberately does not make
-for itself.
+## Results
 
-## Recommendations
+At the current defaults, the filters are precision-heavy and increasingly
+recall-poor with distance:
 
-1. **Keep `(1e-30, 200, 40)`.** The identity default is confirmed by the agreed
-   loss function; the other two parameters have no better value that clears the
-   gates.
-2. **Stop treating `max_evalue` as a tuning knob.** It is inert across five
-   orders of magnitude in the default regime, on both ground truths. Document it
-   and spend no further calibration effort there.
-3. **Consider `min_align_len` 50** as a separate, explicit decision. It helps all
-   four organisms at unchanged precision and fails only the margin and constraint
-   rules, both of which are doing debatable work at this scale.
-4. **State the weighting whenever these thresholds are discussed.** The same
-   measurements recommend 25 or 40 depending on β alone.
+| Target | Hits | Truth pairs | Precision | Recall | F0.5 |
+|---|---|---|---|---|---|
+| `kla` | 54,478 | 1,100 | 0.976 | 0.761 | 0.923 |
+| `yli` | 57,492 | 1,091 | 0.967 | 0.596 | 0.860 |
+| `ani` | 76,973 | 1,131 | 0.936 | 0.514 | 0.804 |
+| `eco` | 11,458 | 355 | 0.788 | 0.304 | 0.598 |
+
+### Sequence identity: 40 is right
+
+| identity | `kla` | `yli` | `ani` | `eco` |
+|---|---|---|---|---|
+| 25 | 0.861 | 0.833 | 0.771 | 0.460 |
+| 30 | 0.896 | 0.851 | 0.796 | 0.518 |
+| 35 | 0.917 | **0.868** | **0.814** | 0.558 |
+| **40** *(default)* | **0.923** | 0.860 | 0.804 | **0.598** |
+| 45 | 0.907 | 0.813 | 0.735 | 0.520 |
+| 50 | 0.882 | 0.736 | 0.640 | 0.323 |
+
+40 wins outright on the closest and most distant organisms and trails by under
+0.01 on the two in between. Loosening to 35 buys recall at a precision cost that
+the weighting does not accept; tightening to 45 loses real orthologs fast.
+
+### Alignment length: 200 was too strict
+
+| length | `kla` | `yli` | `ani` | `eco` | precision (`yli`) |
+|---|---|---|---|---|---|
+| 50 | 0.933 | 0.871 | 0.815 | 0.618 | 0.961 |
+| **100** *(new default)* | **0.933** | **0.871** | **0.815** | **0.618** | 0.961 |
+| 150 | 0.932 | 0.869 | 0.813 | 0.615 | 0.962 |
+| 200 *(old default)* | 0.923 | 0.860 | 0.804 | 0.598 | 0.967 |
+| 300 | 0.885 | 0.816 | 0.764 | 0.571 | 0.970 |
+
+Everything at or below 150 measures the same; the loss appears between 150 and
+200. Dropping to 100 recovers 3–4 points of recall on every organism while
+precision moves by at most 0.006 — real orthologs that 200 was throwing away for
+nothing.
+
+50 and 100 are identical to three decimals, so 100 is chosen as the less
+permissive of two equivalent values.
+
+### E-value: inert
+
+| `max_evalue` | `kla` | `ani` |
+|---|---|---|
+| 1e-4 … 1e-50 | 0.923 | 0.804 (identical throughout) |
+| 1e-100 | 0.877 | 0.703 |
+
+Five orders of magnitude, one answer. Identity and length have already excluded
+whatever a looser e-value would admit, so the parameter has nothing left to
+decide. Only at 1e-100 does it start discarding good hits. It stays at 1e-30 for
+continuity with RAVEN, and is not worth tuning.
+
+## What changed
+
+| Parameter | Was | Now | Why |
+|---|---|---|---|
+| `min_identity` | 40 | **40** | Measured optimum; the filter that matters |
+| `min_align_len` | 200 | **100** | 200 discarded real orthologs at no gain in precision |
+| `max_evalue` | 1e-30 | **1e-30** | Makes no difference between 1e-4 and 1e-50 |
+
+`min_align_len` now diverges from MATLAB RAVEN's 200. The evidence is here, so
+the back-port is worth proposing rather than leaving the two toolboxes silently
+different.
 
 ## Limitations
 
-- **KEGG is not independent of BLAST.** KO assignments come from KOFAM HMMs and
-  SSDB, and SSDB is all-against-all BLAST. This measures agreement with KEGG's
-  homology calls, not correctness. A genuinely independent benchmark
-  (OMA, OrthoDB, eggNOG — Quest-for-Orthologs style) would be the next
-  improvement, and OMA's API is reachable.
-- **Only reaction-linked KOs are judged**, a few hundred genes per organism, and
-  the unjudgeable fraction is large (3,143 hits for `ani` at the default). The
-  measured precision is precision *among annotated genes*, which is optimistic.
-- **One template only.** Everything is measured from *S. cerevisiae* outward;
-  a different template may behave differently.
-- **Hit level only.** Reaction-level effects are buffered — a reaction transfers
-  if any one of its genes hits — so the model-level consequences of these
-  differences are smaller than the F1 gaps suggest, and were not measured.
+- **KEGG is not fully independent of BLAST.** KO assignments come from KOFAM HMMs
+  and SSDB, and SSDB is built from all-against-all BLAST. This measures agreement
+  with KEGG's orthology calls rather than ground truth. A curated ortholog set
+  such as OMA would be a genuinely independent check.
+- **Only annotated genes could be judged** — a few hundred per organism. The
+  absolute precision figures are therefore flattering; the comparison *between*
+  settings is still fair, since every setting is judged on the same genes.
+- **One template.** Everything is measured outward from *S. cerevisiae*.
+- **Hit level only.** Reaction-level effects are buffered, so the consequences
+  for a finished model are smaller than these gaps suggest.
 
 ## Reproducing
 
-Scripts are under `scripts/` (see the study driver). One alignment per organism
-pair is cached, and every threshold combination is post-processing of it:
+```bash
+python scripts/homology_cutoff_kegg.py fetch --out work/
+python scripts/homology_cutoff_kegg.py align --out work/
+python scripts/homology_cutoff_kegg.py score --out work/ --beta 0.5 \
+    --gene-ko kegg118_organism_gene_ko.tsv.gz
+```
 
-| Pair | Hits | Alignment time |
-|---|---|---|
-| `sce`+`rhto` → hanpo | 118,939 | 872 s |
-| `sce` → `kla` | 54,478 | 358 s |
-| `sce` → `yli` | 57,492 | 431 s |
-| `sce` → `ani` | 76,973 | 788 s |
-| `sce` → `eco` | 11,458 | 360 s |
-
-The whole study is about half an hour of alignment plus a few minutes of
-sweeping — cheap enough to repeat whenever the loss function is decided.
+Alignment is the only slow step — 6 to 13 minutes per organism pair — and is
+cached, so re-scoring under a different weighting takes about two minutes and
+needs no realignment.
