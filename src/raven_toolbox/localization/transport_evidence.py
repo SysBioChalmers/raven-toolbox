@@ -167,6 +167,12 @@ def evidence_aware_transport_cost(
 
     Parameters
     ----------
+    model:
+        the model to cost; every compartment-agnostic metabolite base in it gets an entry in the
+        result.
+    annotation:
+        gene -> transporter evidence, as returned by :func:`annotate_transporters` or
+        :func:`annotate_proteome`.
     gene_compartments:
         gene -> predicted compartment ids (the reliable DeepLoc *compartment* calls). A carrier at
         compartment *X* is taken to support transports across *X*'s boundary.
@@ -186,9 +192,15 @@ def evidence_aware_transport_cost(
     base_cost:
         the flat cost for an unsupported transport (recovers today's constant behaviour when no gene
         supports the metabolite).
+    base_metabolite:
+        metabolite -> the compartment-agnostic key to group it under (default: strip a trailing
+        ``_<compartment>`` from the id).
 
-    Returns every metabolite base -> cost (unsupported metabolites map to ``base_cost``), so the result
-    is a self-contained ``transport_cost`` mapping.
+    Returns
+    -------
+    dict[str, float]
+        every metabolite base -> cost (unsupported metabolites map to ``base_cost``), so the result
+        is a self-contained ``transport_cost`` mapping.
     """
     base_of = base_metabolite or _default_base
     chebi_of = metabolite_chebi or default_metabolite_chebi
