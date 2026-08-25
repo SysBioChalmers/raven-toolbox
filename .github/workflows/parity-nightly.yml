@@ -107,7 +107,7 @@ jobs:
                  "licence is tied to a specific machine and will not authenticate on a" \
                  "hosted runner."
           fi
-          echo "GRB_LICENSE_FILE=$licence" >> "$GITHUB_ENV\"
+          echo "GRB_LICENSE_FILE=$licence" >> "$GITHUB_ENV"
 
       # Well past the 2000x2000 limit of the bundled licence, so this step fails
       # unless the WLS licence really is in effect -- better to find out here
