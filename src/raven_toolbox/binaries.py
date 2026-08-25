@@ -183,6 +183,18 @@ def _safe_extract_zip(zf: zipfile.ZipFile, dest_dir: Path) -> None:
     zf.extractall(dest_dir)
 
 
+def _make_executable(path: Path) -> None:
+    """Add the execute bit for everyone who can already read the file.
+
+    ZIP archives carry Unix permissions in a field ``zipfile`` does not restore,
+    so every extracted file arrives non-executable on Linux and macOS. Derived
+    from the read bits rather than set to a fixed 0o755 so a restrictive umask
+    is not silently widened.
+    """
+    mode = path.stat().st_mode
+    path.chmod(mode | ((mode & 0o444) >> 2))
+
+
 def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
     """Download (if needed) and return the path to a bundled ``executable``.
 
@@ -217,6 +229,10 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
 
     cached = _find_exe()
     if cached is not None:
+        # Re-applied on the cached path too, not only after extraction: a bundle
+        # left behind by an older version of this function has only the one
+        # executable it was asked for marked, and the rest still unusable.
+        _make_executable(cached)
         return cached
 
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -245,7 +261,15 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
         raise FileNotFoundError(
             f"None of {candidates} found in the extracted bundle at {dest_dir}."
         )
-    exe.chmod(0o755)
+    # Every executable the bundle provides, not just the one asked for. The BLAST
+    # bundle ships blastp *and* makeblastdb; marking only the requested one left
+    # the other non-executable, and the failure surfaced much later as a
+    # PermissionError from whichever tool happened to be called second.
+    for provided in bundle.get("provides", []):
+        for name in ([f"{provided}.exe", provided] if key.startswith("windows-") else [provided]):
+            sibling = dest_dir / name
+            if sibling.is_file():
+                _make_executable(sibling)
     return exe
 
 
