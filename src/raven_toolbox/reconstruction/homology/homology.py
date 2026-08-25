@@ -33,10 +33,16 @@ class HomologyResult:
         The draft ``cobra.Model``.
     gene_map
         ``{model_id: {template_gene: [new_gene, ...]}}`` ortholog mapping used.
+    candidates
+        Reactions that just missed the identity threshold, with the best hit
+        supporting each, sorted strongest first. ``None`` unless
+        ``review_identity`` was given. These are *not* in ``model``: they are the
+        near misses, for a curator to accept or reject deliberately.
     """
 
     model: cobra.Model
     gene_map: dict = field(default_factory=dict)
+    candidates: pd.DataFrame | None = None
 
 
 class _Unmapped:
@@ -202,13 +208,35 @@ def get_model_from_homology(
     complex_policy: str = "flag",
     only_genes_in_models: bool = False,
     max_evalue: float = 1e-30,
-    min_align_len: int = 200,
+    min_align_len: int = 100,
     min_identity: float = 40,
+    review_identity: float | None = None,
     strictness: int | None = None,
 ) -> HomologyResult:
     """Build a draft model for ``model_for`` by transferring reactions from templates.
 
     ``strictness`` (1/2/3) is a legacy alias for ``bidirectional`` / ``best_hits_only``.
+
+    Defaults for the three filters come from
+    :doc:`a calibration against KEGG orthology </studies/homology_cutoff_calibration>`,
+    scored with precision weighted above recall (a wrongly transferred reaction
+    is harder to undo than a missing one):
+
+    * ``min_identity`` 40 is the binding filter and the measured optimum.
+    * ``min_align_len`` 100 replaces RAVEN's 200, which discarded real orthologs
+      for no gain in precision. Anything at or below 150 measured the same; 200
+      cost 1-2 points on every organism tested.
+    * ``max_evalue`` makes no difference anywhere between 1e-4 and 1e-50 -- the
+      other two filters have already excluded whatever it would exclude -- so
+      1e-30 is kept for continuity with RAVEN rather than for any measured effect.
+
+    ``review_identity`` (e.g. 25) collects what those thresholds turn away. Any
+    reaction that *would* have transferred at the looser identity is reported in
+    ``HomologyResult.candidates`` with its strongest supporting hit, and is not
+    added to the model. The two error types are not symmetric -- a missing
+    reaction can be gap-filled, a wrong one is hard to find and harder to remove
+    -- so the filters stay strict, but the evidence for the near misses is handed
+    to the curator instead of being discarded silently.
     """
     if isinstance(models, cobra.Model):
         models = [models]
@@ -216,6 +244,11 @@ def get_model_from_homology(
         raise ValueError(f"complex_policy must be flag/keep/drop, got {complex_policy!r}")
     if map_direction not in ("new_to_old", "old_to_new"):
         raise ValueError(f"map_direction must be new_to_old/old_to_new, got {map_direction!r}")
+    if review_identity is not None and review_identity >= min_identity:
+        raise ValueError(
+            f"review_identity ({review_identity}) must be below min_identity "
+            f"({min_identity}); it exists to catch what min_identity rejects."
+        )
     bidirectional, best_hits_only, complex_policy, map_direction = _strictness_to_params(
         strictness, bidirectional, best_hits_only, complex_policy, map_direction
     )
@@ -250,7 +283,36 @@ def get_model_from_homology(
     if preferred_order and len(models) > 1:
         ortho = _apply_preferred_order(ortho, order)
 
-    # Build a per-template model holding only the transferred reactions with rewritten GPRs.
+    draft = _transfer(model_by_id, order, ortho, model_for, model_ids, complex_policy)
+
+    candidates = None
+    if review_identity is not None:
+        # Reactions that only a looser identity would have transferred: reported
+        # for review, never added. Rejecting a real ortholog and silently binning
+        # the evidence are different things, and only the first is intended.
+        loose_ortho = _ortholog_map(
+            hits, model_for, model_ids, bidirectional=bidirectional,
+            best_hits_only=best_hits_only, score=score, map_direction=map_direction,
+            model_genes=model_genes, max_evalue=max_evalue,
+            min_align_len=min_align_len, min_identity=review_identity,
+        )
+        if preferred_order and len(models) > 1:
+            loose_ortho = _apply_preferred_order(loose_ortho, order)
+        loose = _transfer(
+            model_by_id, order, loose_ortho, model_for, model_ids, complex_policy
+        )
+        extra = {r.id for r in loose.reactions} - {r.id for r in draft.reactions}
+        candidates = _candidate_evidence(
+            extra, model_by_id, order, loose_ortho, hits,
+            max_evalue=max_evalue, min_align_len=min_align_len,
+            min_identity=review_identity,
+        )
+
+    return HomologyResult(model=draft, gene_map=ortho, candidates=candidates)
+
+
+def _transfer(model_by_id, order, ortho, model_for, model_ids, complex_policy) -> cobra.Model:
+    """Assemble the draft: per-template reactions whose GPRs survive rewriting."""
     transferred = []
     for mid in order:
         model = model_by_id.get(mid)
@@ -272,16 +334,79 @@ def get_model_from_homology(
         if m.reactions:
             transferred.append(m)
 
-    if transferred:
-        draft = merge_models(transferred, match_by="name")
-    else:
-        draft = cobra.Model()
+    draft = merge_models(transferred, match_by="name") if transferred else cobra.Model()
     draft.id = model_for
     draft.name = "Generated by get_model_from_homology using " + ", ".join(model_ids)
 
-    # Drop OLD_ placeholder genes that ended up orphaned (none survive in OR branches by construction).
-    orphan_genes = [g for g in draft.genes if not g.reactions]
-    for g in orphan_genes:
+    # Drop OLD_ placeholder genes left orphaned (none survive in OR branches by construction).
+    for g in [g for g in draft.genes if not g.reactions]:
         draft.genes.remove(g)
+    return draft
 
-    return HomologyResult(model=draft, gene_map=ortho)
+
+def _candidate_evidence(
+    reaction_ids, model_by_id, order, ortho, hits, *,
+    max_evalue, min_align_len, min_identity,
+) -> pd.DataFrame:
+    """One row per candidate reaction, carrying the hit that held it back.
+
+    The reported identity is the *limiting* one. A bidirectional match has to
+    clear the threshold in both directions, so a pair whose forward hit is 44 %
+    and reverse hit 30 % is rejected on the 30 -- and reporting the 44 would
+    leave a curator wondering why a comfortable match was turned away.
+
+    Sorted strongest first, so the most defensible candidates are read first: the
+    point is a list somebody will actually skim, not an exhaustive dump.
+    """
+    usable = hits[
+        (hits.evalue <= max_evalue)
+        & (hits.align_len >= min_align_len)
+        & (hits.identity >= min_identity)
+    ]
+    # Weakest hit per ordered (gene, gene) pair, then the weaker of the two
+    # directions: whichever value the threshold actually acted on.
+    weakest: dict[tuple[str, str], tuple] = {}
+    for row in usable.itertuples():
+        key = (row.from_gene, row.to_gene)
+        current = weakest.get(key)
+        if current is None or row.identity < current[0]:
+            weakest[key] = (row.identity, row.align_len, row.evalue, row.bitscore)
+
+    def limiting(template_gene: str, target_gene: str):
+        both = [
+            weakest.get((template_gene, target_gene)),
+            weakest.get((target_gene, template_gene)),
+        ]
+        found = [x for x in both if x is not None]
+        return min(found, key=lambda x: x[0]) if found else None
+
+    rows = []
+    for rid in sorted(reaction_ids):
+        for mid in order:
+            model = model_by_id.get(mid)
+            if model is None or rid not in model.reactions:
+                continue
+            per_model = ortho.get(mid, {})
+            support = []
+            for gene in (g.id for g in model.reactions.get_by_id(rid).genes):
+                for target_gene in per_model.get(gene, ()):
+                    evidence = limiting(gene, target_gene)
+                    if evidence is not None:
+                        support.append((gene, target_gene, *evidence))
+            if not support:
+                continue
+            support.sort(key=lambda s: s[2], reverse=True)  # by identity
+            gene, target_gene, identity, align_len, evalue, bitscore = support[0]
+            rows.append({
+                "reaction": rid, "template_model": mid, "template_gene": gene,
+                "target_gene": target_gene, "identity": identity,
+                "align_len": align_len, "evalue": evalue, "bitscore": bitscore,
+                "n_support": len(support),
+            })
+            break  # first template in preferred order wins, as for the draft
+
+    frame = pd.DataFrame(rows, columns=[
+        "reaction", "template_model", "template_gene", "target_gene",
+        "identity", "align_len", "evalue", "bitscore", "n_support",
+    ])
+    return frame.sort_values("identity", ascending=False).reset_index(drop=True)

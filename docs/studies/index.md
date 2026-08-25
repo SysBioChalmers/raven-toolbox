@@ -54,6 +54,10 @@ its equivalence claims against MATLAB RAVEN.
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
 - **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
+- **[Homology cut-off calibration](homology_cutoff_calibration.md)** — what the three
+  homology filters are worth, measured against two independent references across four
+  organisms. `min_identity` 40 confirmed, `min_align_len` lowered 200 → 100, `max_evalue`
+  shown to make no difference at all, and DIAMOND shown to need the same settings as BLAST.
 
 ```{toctree}
 :hidden:
@@ -73,6 +77,7 @@ carvefungi_analysis
 carvefungi_milp_benchmark
 deeploc_normalisation_benchmark
 kegg_hmm_cutoff_calibration
+homology_cutoff_calibration
 localization_redesign
 curation_priority_signals
 yeast_validation
