@@ -34,17 +34,22 @@ The test model is solved to the global optimum in < 0.1 s regardless of gap;
 the MIP gap parameter only matters when solving a hard instance where the branch-
 and-bound tree is large.
 
-**Decision: keep `mip_gap=None`.** Gurobi's default `MIPGap=1e-4` is already tight.
-MATLAB's `0.0004` is marginally looser (4× relative to optimal vs 1×), which
-speeds up genome-scale solves at the cost of a small optimality gap. Document in
-the docstring:
+**Genome-scale answer (2026-06-2x, Human-GEM HCT116 — see
+[init_param_calibration.md](../../studies/init_param_calibration.md)):** this was
+run already; it just hadn't been cross-referenced from this file. Findings:
+- ftINIT single step: solve time is flat across the gap (model build dominates),
+  so `mip_gap=0.001` is nearly free and reproduces the tightest-gap model exactly
+  (Jaccard 1.0).
+- ftINIT full genome-scale pipeline: **does** benefit from a looser gap —
+  `mip_gap=0.01` is ~37% faster than `0.001` at Jaccard 0.995 (essentially the
+  same model).
+- tINIT (`get_init_model`): `mip_gap=0.001` for stability, `0.01` for ~30% faster
+  at ~3% reaction-set drift.
 
-> For large genome-scale models (>5000 reactions) where solver time is a
-> bottleneck, `mip_gap=0.0004` (MATLAB default) is a reasonable starting point.
-
-**Still needed:** Run tINIT with real expression data on yeast-GEM at `mip_gap=None`
-vs `0.0004`; compare model size (retained reactions) and quality (task satisfaction
-rate).
+**Decision: keep `mip_gap=None`** (Gurobi's default `MIPGap≈1e-4` is already at
+least as tight as the measured-good `0.001`). Docstring guidance updated in
+`run_init`/`run_ftinit` to cite the measured genome-scale numbers above instead
+of MATLAB's never-independently-tested `0.0004`.
 
 ---
 
@@ -59,10 +64,25 @@ within that time. For hard instances this can mean a sub-optimal reaction set.
 
 **Measured solve times (2026-06-20, synthetic toy model):** < 0.1 s — not informative.
 
-**Decision: keep `time_limit=None`.** For small-to-medium models the solver completes
-in seconds. For genome-scale models, Python's uncapped solver will find a better
-solution than MATLAB's 5-second cap at the cost of longer runtime. Document
-MATLAB's 5 s as a starting point for genome-scale models where runtime is critical.
+**Genome-scale answer:** also already measured, in the same
+[init_param_calibration.md](../../studies/init_param_calibration.md) robustness
+study. This is the one place the two toolboxes' choices both turn out to be
+wrong in the same direction (uncapped) or too aggressive (MATLAB's fixed 5 s):
+genome-scale solves in that study routinely took 42–901 s depending on
+configuration, and one severely-degraded-input case ran **>75 minutes**
+uncapped before being killed — MATLAB's 5 s would truncate genome-scale solves
+far too early for a useful incumbent; Python's `None` has a real, observed
+runaway-time failure mode under hard/degraded input. The study's own working
+value for genome-scale ftINIT is a `time_limit` of **≈120–600 s/step**; its
+tINIT harness used **400 s**.
+
+**Decision: keep `time_limit=None` as the code default** (still correct for
+small/medium models, and for genome-scale runs on clean data where a step-0
+build dominates anyway — see `init_param_calibration.md` §1.1). Docstring
+guidance in `run_init`/`run_ftinit` updated to cite the measured 120–600 s
+(ftINIT) / 400 s (tINIT) working values instead of MATLAB's untested 5 s, and to
+flag the >75 min uncapped failure mode explicitly so users degrading input
+quality know to set a cap.
 
 ---
 

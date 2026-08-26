@@ -92,6 +92,22 @@ either dramatically increase thinning (1000+), increase n_samples to compensate,
 check ESS diagnostics post-sampling, or switch to a different sampler
 (`method='optgp'` via cobrapy's OptGPSampler).
 
+**Follow-up (2026-08-26):** this ESS number is a *single-chain* diagnostic — it
+doesn't check whether independent chains agree with each other. See
+[sampling_convergence_calibration.md](../../studies/sampling_convergence_calibration.md)
+for the between-chain (Gelman-Rubin R-hat) picture. On yeast-GEM at these exact
+default settings (4 chains, `n_samples=300`, `thinning=100`, `warmup=1000`),
+**the median reaction already fails the R-hat>1.1 "not converged" threshold**,
+and two-thirds of all reactions fail it (96.5% fail the stricter 1.01 bar).
+This is worse than the ESS number alone implies — it's not just that samples
+are autocorrelated within a chain, it's that independent chains frequently
+land on different distributions entirely within the default sample budget.
+**Revised guidance: at genome scale, treat `random_sampling`'s default-settings
+output as unconverged for most reactions, not as a caveat for a minority of
+hard ones.** Whether increasing `thinning`/`n_samples` or switching to
+`method='optgp'` actually fixes this (and at what wall-time cost) is not yet
+measured — see the study's "Open question" section.
+
 ---
 
 ## `warmup` — number of warmup steps before storing samples

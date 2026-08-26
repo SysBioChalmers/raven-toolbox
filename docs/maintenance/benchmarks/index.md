@@ -19,7 +19,7 @@ e_coli_core 95 rxns, synthetic toy models. Binaries: BLAST 2.17.0.
 | `random_sampling` | `n_samples` | `1000` | 1000 | ✓ keep |
 | `random_sampling` | `method` | `'achr'` | `'random_objective'` | ✓ keep (ACHR is preferred) |
 | `random_sampling` | `seed` | `None` | unseeded | ✓ keep |
-| `random_sampling` | `thinning` | `100` | N/A | ⚠ keep value but add docstring warning: yeast-GEM gives ESS≈12 from 300 samples; ~12 effective samples. Use `n_samples≥2600` or switch sampler for genome scale. |
+| `random_sampling` | `thinning` | `100` | N/A | ⚠ keep value but warn hard: yeast-GEM gives ESS≈12 from 300 samples (single-chain), **and** the median reaction fails Gelman-Rubin R-hat>1.1 between independent chains (see `sampling_convergence_calibration.md`) — genome-scale default-settings output should be treated as unconverged for most reactions, not a minority caveat. Use `n_samples≥2600` or switch sampler for genome scale. |
 | `random_sampling` | `warmup` | `1000` | N/A | ✓ keep (cobrapy default) |
 | `random_sampling` | `n_objectives` | `2` | 2 | ✓ keep (Bordel 2010) |
 | `random_sampling` | `replace_max_bound` | `False` | `True` | ✓ keep `False` (MATLAB `True` → solver unbounded) |
@@ -55,15 +55,15 @@ e_coli_core 95 rxns, synthetic toy models. Binaries: BLAST 2.17.0.
 | `run_init` | `prod_weight` | `0.5` | 0.5 | ✓ keep (Agren 2012) |
 | `run_init` | `allow_excretion` | `False` | `false` | ✓ keep |
 | `run_init` | `eps` | `1.0` | 1.0 | ✓ keep |
-| `run_init` | `mip_gap` | `None` | `0.0004` | ⚠ not yet resolved — see [parity decisions](#cross-toolbox-parity-decisions) |
-| `run_init` | `time_limit` | `None` | 5000 ms | ⚠ not yet resolved — see [parity decisions](#cross-toolbox-parity-decisions) |
+| `run_init` | `mip_gap` | `None` | `0.0004` | ✓ keep `None`; docstring now cites measured genome-scale values, not MATLAB's untested one — see [parity decisions](#cross-toolbox-parity-decisions) |
+| `run_init` | `time_limit` | `None` | 5000 ms | ✓ keep `None`; docstring now flags the measured >75 min uncapped risk on hard inputs — see [parity decisions](#cross-toolbox-parity-decisions) |
 | `get_init_model` | `allow_excretion` | `False` | `false` | ✓ implemented (was `True`; fixed 2026-06-20, `6f3b57c`) |
 | `get_init_model` | `eps` | `1.0` | 1.0 | ✓ keep |
 | `run_ftinit` | `series` | `'1+1'` | `'1+1'` | ✓ keep (Gustafsson 2023) |
 | `run_ftinit` | `force_on` | `0.1` | 0.1 | ✓ keep |
 | `run_ftinit` | `big_m` | `100.0` | 100 | ✓ keep (intentional LP tightener; see `init.md`) |
-| `run_ftinit` | `mip_gap` | `None` | `0.0004` | ⚠ not yet resolved — see [parity decisions](#cross-toolbox-parity-decisions) |
-| `run_ftinit` | `time_limit` | `None` | 5000 ms | ⚠ not yet resolved — see [parity decisions](#cross-toolbox-parity-decisions) |
+| `run_ftinit` | `mip_gap` | `None` | `0.0004` | ✓ keep `None`; docstring now cites measured genome-scale values, not MATLAB's untested one — see [parity decisions](#cross-toolbox-parity-decisions) |
+| `run_ftinit` | `time_limit` | `None` | 5000 ms | ✓ keep `None`; docstring now flags the measured >75 min uncapped risk on hard inputs — see [parity decisions](#cross-toolbox-parity-decisions) |
 | `gene_scores_from_expression` | `factor` | `5.0` | 5 | ✓ keep (Wang 2012) |
 | `gene_scores_from_expression` | `max_score` | `10.0` | 10 | ✓ keep |
 | `gene_scores_from_expression` | `min_score` | `-5.0` | -5 | ✓ keep |
@@ -204,12 +204,37 @@ change, or explains why it stays split.
 | `get_init_model.allow_excretion` | `False` ✓ done | `False` | **`False`** | ~~Python~~ done (2026-06-20) | High | Zero effect at default `prod_weight`, pure inconsistency; see `manipulation.md` |
 | `predict_localization.time_limit` | `None` | `900 s` | **`None`**, tentatively | MATLAB | Medium | Wall-clock caps are hardware-relative, not portable; Python's `None` already validated on the primary dev-scale model. No cross-solver test run for this function specifically. |
 
-### Gated — not a simple value choice, resolve the underlying issue first
+### Resolved without unifying — `run_init`/`run_ftinit` `mip_gap`/`time_limit`
 
-| Parameter | Why this isn't just "pick one value" |
-|---|---|
-| `run_init`/`run_ftinit` `mip_gap` | [`init_solver_benchmark.md`](../../studies/init_solver_benchmark.md) found GLPK doesn't converge in 1h+ and HiGHS doesn't work with cobra in this stack at all — Gurobi is the only viable genome-scale backend today. `mip_gap=None` resolves to Gurobi's own default (`~1e-4`), which is already *tighter* than MATLAB's `0.0004`, so there's no known correctness gap on the one backend that actually works. Revisit once the pending genome-scale expression-data test (below) exists, and once the GLPK/HiGHS upstream issues are fixed enough that solver choice is a real option. |
-| `run_init`/`run_ftinit` `time_limit` | Same study found GLPK **does not honor `configuration.timeout` at all** — a `time_limit` value is silently ignored on that backend regardless of what default is picked, so unifying the number doesn't unify the behaviour. On Gurobi, `None` (uncapped) is what's actually been run successfully at genome scale ([humangem_validation.md](../../studies/humangem_validation.md)); MATLAB's `5000 ms` cap has not been shown to be necessary or sufficient there. Needs the genome-scale test below before picking a firm value. |
+These were listed as gated pending a genome-scale test with real expression
+data. That test already existed on this branch
+([init_param_calibration.md](../../studies/init_param_calibration.md), Human-GEM
+HCT116/Hart2015) — it just hadn't been connected to this question. It resolves
+both parameters, but not by matching MATLAB's numbers:
+
+- **`mip_gap`:** solve time is flat across the gap at single-step scale (model
+  build dominates), so a tight gap is nearly free there; the full genome-scale
+  pipeline *does* benefit from loosening to `0.01` (~37% faster, Jaccard 0.995).
+  Neither number is MATLAB's `0.0004` specifically, and the right choice depends
+  on single-step vs. full-pipeline use, so this stays a documented choice rather
+  than a new hardcoded default. **Keep `None`** (Gurobi's own `~1e-4` default is
+  at least as tight as the measured-good `0.001`); docstring updated with the
+  measured numbers.
+- **`time_limit`:** the more consequential finding. MATLAB's `5000 ms` cap is far
+  too tight for genome scale (measured solves there took 42-901s+); Python's
+  uncapped `None` has a real, measured failure mode — one severely-degraded-input
+  case ran **>75 minutes** before being manually killed. The study's own working
+  values are `120-600 s/step` (ftINIT) and `400 s` (tINIT). **Keep `None`** as the
+  code default (still correct for clean-data / single-step use where it's never
+  observed to run away), but the docstring now states the measured working values
+  and the >75 min risk explicitly, so users degrading input quality know to set a
+  cap rather than discovering the runaway case themselves.
+
+This doesn't touch the separate, still-valid finding in
+[`init_solver_benchmark.md`](../../studies/init_solver_benchmark.md) that GLPK
+ignores `configuration.timeout` entirely and HiGHS doesn't work with cobra in
+this stack — Gurobi remains the only backend genome-scale numbers above were
+measured on, and the only one a `time_limit` value does anything on today.
 
 ### Keep different — forcing identical values would break correctness
 
@@ -232,7 +257,7 @@ change, or explains why it stays split.
 | ~~`get_model_from_homology` `min_align_len` default: `200` → `100`~~ | `src/raven_toolbox/reconstruction/homology/homology.py` | **Done** 2026-08-26 |
 | ~~`run_blast`/`run_diamond` `evalue` default: `1e-5` → `1e-4`~~ | `src/raven_toolbox/reconstruction/homology/blast.py` | **Done** 2026-08-26 |
 | Docstring: `time_limit` note in `predict_localization` | `src/raven_toolbox/localization/predict.py` | Low |
-| Docstring: `mip_gap`/`time_limit` note in INIT functions | `src/raven_toolbox/init/init.py`, `ftinit.py`, `build.py` | Low |
+| ~~Docstring: `mip_gap`/`time_limit` note in INIT functions~~ | `src/raven_toolbox/init/init.py`, `ftinit.py` | **Done** 2026-08-26 — updated with measured genome-scale values instead of untested MATLAB ones |
 
 ## Changes needed in MATLAB RAVEN for parity
 
@@ -247,8 +272,12 @@ change, or explains why it stays split.
 
 ## Parameters needing further benchmarks
 
-- Sampling `thinning`/`warmup` autocorrelation on ACHR: yeast-GEM multi-chain analysis pending
-- INIT `mip_gap`/`time_limit` genome-scale, across solvers: gated on the GLPK-timeout and HiGHS-cobra upstream issues in `init_solver_benchmark.md`; needs real expression data to distinguish solution quality at different gaps once a second working backend exists
+- Sampling `thinning`/`warmup` between-chain convergence: **answered**, see
+  [sampling_convergence_calibration.md](../../studies/sampling_convergence_calibration.md) —
+  at genome scale (yeast-GEM, default settings) the *median* reaction fails the R-hat>1.1
+  convergence threshold, far worse than the existing single-chain ESS number implied on its
+  own. Follow-up still open: does a larger `thinning`/`n_samples`, or `method='optgp'`,
+  actually fix it, and at what wall-time cost (~40 min/config observed at genome scale)?
 
 ---
 

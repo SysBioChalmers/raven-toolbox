@@ -127,9 +127,13 @@ def run_init(
     `gene_scores_from_expression`) instead of 0.
 
     ``mip_gap`` / ``time_limit``: the default ``None`` uses the solver's own
-    defaults (Gurobi: MIPGap≈1e-4, no time cap). For genome-scale models where
-    solver time is a bottleneck, ``mip_gap=0.0004`` and ``time_limit=5.0``
-    (MATLAB RAVEN values) are a reasonable starting point.
+    defaults (Gurobi: MIPGap≈1e-4, no time cap). Measured on genome-scale
+    Human-GEM (see :doc:`/studies/init_param_calibration`): ``mip_gap=0.001``
+    reproduces the tightest-gap model exactly (Jaccard 1.0); ``mip_gap=0.01``
+    is ~30% faster at ~3% reaction-set drift. Set an explicit ``time_limit``
+    for degraded or hard inputs — an unbounded solve was observed to run
+    >75 min on one severely-degraded case; ``time_limit=400`` (seconds) is a
+    working genome-scale value from that study.
     """
     scores = dict(rxn_scores or {})
     essential = set(essential_rxns or [])

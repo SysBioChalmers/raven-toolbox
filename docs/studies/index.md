@@ -17,6 +17,9 @@ its equivalence claims against MATLAB RAVEN.
 - **[Homology cut-off calibration](homology_cutoff_calibration.md)** — `get_model_from_homology`
   thresholds against independent KEGG/OMA ortholog references, across a relatedness series;
   copied from `develop` PR #92 (not yet ported to this branch's code).
+- **[Sampling convergence calibration](sampling_convergence_calibration.md)** — between-chain
+  Gelman-Rubin R-hat for ACHR sampling, complementing the existing single-chain ESS result;
+  in progress.
 
 ```{toctree}
 :hidden:
@@ -27,4 +30,5 @@ init_solver_benchmark
 yeast_localization_benchmark
 kegg_hmm_cutoff_calibration
 homology_cutoff_calibration
+sampling_convergence_calibration
 ```

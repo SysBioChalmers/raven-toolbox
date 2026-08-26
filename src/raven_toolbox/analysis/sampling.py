@@ -103,9 +103,15 @@ def random_sampling(
         The default is calibrated for small models (~200–500 reactions). On genome-scale
         models (>2000 reactions) lag-1 autocorrelation remains high even at thinning=100
         (measured: 0.926 on yeast-GEM with 4102 reactions), giving roughly 12 effective
-        samples from 300 stored samples (ESS ≈ n × (1−ρ)/(1+ρ)). For genome-scale
-        analyses either increase thinning substantially (≥1000), increase n_samples to
-        compensate, or use an ESS diagnostic to assess sample quality.
+        samples from 300 stored samples (ESS ≈ n × (1−ρ)/(1+ρ)). Independent chains at
+        these default settings also frequently fail to agree with each other: on
+        yeast-GEM, the *median* reaction fails the Gelman-Rubin R-hat>1.1 convergence
+        threshold across 4 independent chains (67.5% of reactions fail it; 96.5% fail
+        the stricter R-hat>1.01). Treat default-settings genome-scale output as
+        unconverged for most reactions, not a caveat for a minority of hard ones. For
+        genome-scale analyses either increase thinning substantially (≥1000), increase
+        n_samples to compensate, or use an ESS/R-hat diagnostic to assess sample quality
+        (see :doc:`/studies/sampling_convergence_calibration`).
     warmup:
         ``chrr`` — burn-in steps discarded before the first recorded sample.
     fixed_width_tol:
