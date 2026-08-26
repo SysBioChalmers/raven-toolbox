@@ -57,7 +57,7 @@ e_coli_core 95 rxns, synthetic toy models. Binaries: BLAST 2.17.0.
 | `run_init` | `eps` | `1.0` | 1.0 | ✓ keep |
 | `run_init` | `mip_gap` | `None` | `0.0004` | ⚠ not yet resolved — see [parity decisions](#cross-toolbox-parity-decisions) |
 | `run_init` | `time_limit` | `None` | 5000 ms | ⚠ not yet resolved — see [parity decisions](#cross-toolbox-parity-decisions) |
-| `get_init_model` | `allow_excretion` | `True` | `false` | ⚠ **change to `False`** (inconsistency with `run_init`) |
+| `get_init_model` | `allow_excretion` | `False` | `false` | ✓ implemented (was `True`; fixed 2026-06-20, `6f3b57c`) |
 | `get_init_model` | `eps` | `1.0` | 1.0 | ✓ keep |
 | `run_ftinit` | `series` | `'1+1'` | `'1+1'` | ✓ keep (Gustafsson 2023) |
 | `run_ftinit` | `force_on` | `0.1` | 0.1 | ✓ keep |
@@ -201,7 +201,7 @@ change, or explains why it stays split.
 | `assign_kos.min_score_ratio_g` | `0.9` | `0.8` | **`0.9`** | MATLAB | High | Directly measured, same study |
 | `fseof.flux_eps` | `1e-6` | implicit `1e-8` | **`1e-6`** | MATLAB (needs exposing as a tunable first) | High | Measured — `1e-8` catches 21 solver-noise false positives (std≈5e-7, below Gurobi's feasibility tolerance accumulated genome-wide); see `fseof.md` |
 | `remove_genes.blocked_reactions` | `'remove'` | `'keep'` | **`'remove'` semantics** | MATLAB | High | Measured on e_coli_core — `'keep'` gives false-positive growth after an essential gene is removed; see `manipulation.md` |
-| `get_init_model.allow_excretion` | `True` (pending) | `False` | **`False`** | Python | High | Already established — zero effect at default `prod_weight`, pure inconsistency; see `manipulation.md` |
+| `get_init_model.allow_excretion` | `False` ✓ done | `False` | **`False`** | ~~Python~~ done (2026-06-20) | High | Zero effect at default `prod_weight`, pure inconsistency; see `manipulation.md` |
 | `predict_localization.time_limit` | `None` | `900 s` | **`None`**, tentatively | MATLAB | Medium | Wall-clock caps are hardware-relative, not portable; Python's `None` already validated on the primary dev-scale model. No cross-solver test run for this function specifically. |
 
 ### Gated — not a simple value choice, resolve the underlying issue first
@@ -228,7 +228,7 @@ change, or explains why it stays split.
 
 | Change | File | Priority |
 |---|---|---|
-| `get_init_model` `allow_excretion` default: `True` → `False` | `src/raven_toolbox/init/build.py` | Medium |
+| ~~`get_init_model` `allow_excretion` default: `True` → `False`~~ | `src/raven_toolbox/init/build.py` | **Done** 2026-06-20 |
 | ~~`get_model_from_homology` `min_align_len` default: `200` → `100`~~ | `src/raven_toolbox/reconstruction/homology/homology.py` | **Done** 2026-08-26 |
 | ~~`run_blast`/`run_diamond` `evalue` default: `1e-5` → `1e-4`~~ | `src/raven_toolbox/reconstruction/homology/blast.py` | **Done** 2026-08-26 |
 | Docstring: `time_limit` note in `predict_localization` | `src/raven_toolbox/localization/predict.py` | Low |

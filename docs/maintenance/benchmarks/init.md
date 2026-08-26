@@ -70,8 +70,8 @@ MATLAB's 5 s as a starting point for genome-scale models where runtime is critic
 
 See [manipulation.md](manipulation.md) for the full benchmark. Summary:
 - Effect is **zero** at default `prod_weight=0.5`
-- Inconsistency with `run_init`/`run_ftinit` (both default to `False`)
-- **Decision: change `get_init_model` default to `False`**
+- Was inconsistent with `run_init`/`run_ftinit` (both default to `False`)
+- **Decision: `get_init_model` default changed to `False`** — done 2026-06-20, `6f3b57c`
 
 ---
 

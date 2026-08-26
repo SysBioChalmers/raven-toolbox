@@ -37,11 +37,11 @@ explicitly — add a migration note to the docstring.
 
 ## `allow_excretion` in `get_init_model`
 
-**Context:** `get_init_model` defaults to `allow_excretion=True`; the higher-level
-wrappers `run_init` and `run_ftinit` default to `allow_excretion=False`. This is an
-inconsistency in default values, not a difference in algorithm.
+**Context:** `get_init_model` used to default to `allow_excretion=True` while the
+higher-level wrappers `run_init` and `run_ftinit` default to `allow_excretion=False`.
+This was an inconsistency in default values, not a difference in algorithm.
 
-**Parameters tested:** `True` (current `get_init_model` default), `False` (correct default)
+**Parameters tested:** `True` (former `get_init_model` default), `False` (now the default)
 
 Test model: synthetic dead-end model with a blocked metabolite `r_BD`.
 Test condition: `prod_weight=0.5` (the default) and `prod_weight=0` (edge case).
@@ -62,10 +62,11 @@ additional exchange reaction pathway that is redundant when sinks are present.
 With `prod_weight=0` the sinks are removed, so `allow_excretion=True` is the only
 way to allow net metabolite production — and gives a different (larger) objective.
 
-**Decision: change `get_init_model` default to `allow_excretion=False`** to match
-`run_init` and `run_ftinit`. This has no effect on results in the default workflow
-(`prod_weight=0.5`) but removes the confusing inconsistency. Add a docstring note
-that `allow_excretion` only has an effect when `prod_weight=0`.
+**Decision: `get_init_model` default changed to `allow_excretion=False`** (done
+2026-06-20, `6f3b57c`) to match `run_init` and `run_ftinit`. This has no effect on
+results in the default workflow (`prod_weight=0.5`) but removes the confusing
+inconsistency. The docstring note that `allow_excretion` only has an effect when
+`prod_weight=0` was added in the same commit.
 
 ---
 
