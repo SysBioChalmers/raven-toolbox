@@ -202,13 +202,21 @@ def get_model_from_homology(
     complex_policy: str = "flag",
     only_genes_in_models: bool = False,
     max_evalue: float = 1e-30,
-    min_align_len: int = 200,
+    min_align_len: int = 100,
     min_identity: float = 40,
     strictness: int | None = None,
 ) -> HomologyResult:
     """Build a draft model for ``model_for`` by transferring reactions from templates.
 
     ``strictness`` (1/2/3) is a legacy alias for ``bidirectional`` / ``best_hits_only``.
+
+    Defaults for the three filters come from a calibration against KEGG and OMA
+    orthology (:doc:`/studies/homology_cutoff_calibration`), scored with precision
+    weighted above recall (a wrongly transferred reaction is harder to undo than a
+    missing one). ``min_identity`` 40 is the binding filter and the measured
+    optimum; ``min_align_len`` 100 recovers 3-4 points of recall over MATLAB
+    RAVEN's ``200`` for negligible precision cost; ``max_evalue`` is confirmed
+    inert between ``1e-4`` and ``1e-50`` and kept at ``1e-30`` for continuity.
     """
     if isinstance(models, cobra.Model):
         models = [models]

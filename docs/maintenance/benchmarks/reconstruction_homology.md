@@ -4,7 +4,9 @@ Functions: `raven_toolbox.reconstruction.homology.blast.run_blast`,
 `raven_toolbox.reconstruction.homology.blast.run_diamond`,
 `raven_toolbox.reconstruction.homology.homology.get_model_from_homology`
 
-Date: 2026-06-20. Binary: BLAST 2.17.0
+Date: 2026-06-20 (evalue/threads sections below); `get_model_from_homology`
+thresholds section updated 2026-08-26 with results from the 2026-08-25 study.
+Binary: BLAST 2.17.0
 (`~/.cache/raven_toolbox/binaries/blast-2.17.0-windows-x86_64/blastp.exe`).
 FASTAs: `hanpo-GEM/data/genomes/` — sce.faa (6717 seqs), rhto.faa (8140 seqs),
 hanpo.faa (5177 seqs).
@@ -86,22 +88,55 @@ correctness risk.
 These parameters act as post-BLAST filters on the homology table before mapping
 genes from a template model to a new organism.
 
-| Parameter | Default | Notes |
-|---|---|---|
-| `max_evalue` | `1e-30` | Very stringent; only strong alignments pass. This is ~25 orders of magnitude tighter than the BLAST E-value cutoff. |
-| `min_align_len` | `200` | Minimum alignment length in amino acids (~60 aa per functional domain). |
-| `min_identity` | `40` | Minimum percent identity. Below 40% the structural homology is uncertain. |
+| Parameter | Default (this branch) | MATLAB | Notes |
+|---|---|---|---|
+| `max_evalue` | `1e-30` | `1e-30` | Very stringent; only strong alignments pass. This is ~25 orders of magnitude tighter than the BLAST E-value cutoff. |
+| `min_align_len` | `100` | `200` | Minimum alignment length in amino acids (~60 aa per functional domain). Lowered from `200` on 2026-08-26, see below. |
+| `min_identity` | `40` | `40` | Minimum percent identity. Below 40% the structural homology is uncertain. |
 
-These values match MATLAB RAVEN and were chosen based on standard practice in
-metabolic network reconstruction. They have not been benchmarked against a
-gold-standard gene essentiality or ortholog dataset.
+**Status: measured, and ported to this branch's code.** See
+[Homology cut-off calibration](../../studies/homology_cutoff_calibration.md) for
+the full study (done on `develop`, PR #92, 2026-08-25; doc copied here 2026-08-26,
+`min_align_len` default changed here the same day — see below for what's still
+`develop`-only).
 
-**Status: untested.** The most important parameter is `min_identity=40` —
-the 40% threshold is a well-established heuristic (Doolittle 1981) for inferring
-functional equivalence from sequence homology, but the right value depends on
-the target organism pair.
+**Method, in brief:** reconstruct four organisms from an *S. cerevisiae* template
+across a relatedness series (*K. lactis* close → *Y. lipolytica* moderate →
+*A. nidulans* distant → *E. coli* very distant), and check each transferred gene
+match against two references that don't share BLAST's biases with each other:
+KEGG gene annotations and OMA ortholog calls. A wrong transfer is scored worse
+than a missed one (β=0.5: gap-filling can add a missing reaction; a wrongly
+transferred one is hard to notice and hard to remove).
 
-Proposed benchmark: run `get_model_from_homology` on a yeast-GEM template with
-H. polymorpha as the target organism at `min_identity` ∈ {30, 40, 50}, then
-compare the number of genes mapped and the coverage of known H. polymorpha
-metabolic functions (from the published hanpo-GEM).
+**Results:**
+
+| Parameter | Finding |
+|---|---|
+| `min_identity=40` | **Confirmed optimal.** Both KEGG and OMA put the best value between 35–45; 40 sits inside that band and wins outright on the closest and most distant organisms. |
+| `min_align_len=200` | **Too strict — should be 100.** Performance is flat from 50–150 and drops between 150–200; 100 recovers 3–4 points of recall on every organism tested for ≤0.6 points of precision. Diverges from MATLAB (200), which was never itself measured. |
+| `max_evalue=1e-30` | **Confirmed inert.** Identical model output from 1e-4 to 1e-50 — identity and length have already excluded whatever a looser e-value would admit. Kept at 1e-30 for RAVEN continuity; not worth tuning further. |
+
+**The circularity problem was tested directly, not just avoided.** An earlier
+arm of the same study scored thresholds against curated GEMs (hanpo-GEM,
+rhto-GEM) built by this same homology function. It confirmed the concern raised
+earlier in this doc empirically: walking thresholds loose one step at a time, the
+fraction of newly-admitted reactions already present in the curated model held
+between 0.62–0.85 right up to the curated model's own build settings, then
+collapsed to 0.06 one step past them. That cliff is the reference recognising its
+own construction — optimising against it just returns the build settings,
+regardless of whether they're good. That arm was retired in favour of the
+KEGG/OMA references above. See the study's "A curated-GEM reference was tried and
+retired" section for the full account.
+
+**Done on this branch (2026-08-26):** `min_align_len` in
+[`homology.py`](../../../src/raven_toolbox/reconstruction/homology/homology.py)
+changed `200` → `100`, matching the measured optimum. `run_blast`/`run_diamond`
+`evalue` also changed `1e-5` → `1e-4` in the same pass (unifying with MATLAB;
+no measured downstream effect either way — see the "Cross-toolbox parity
+decisions" section of [index.md](index.md)).
+
+**Still `develop`-only, not ported here:** `min_align_len=200` remains MATLAB
+RAVEN's own default (a back-port is proposed but not this session's call to
+make), and `develop`'s `review_identity` parameter (surfaces near-miss
+candidates instead of silently discarding them) — a follow-on feature to this
+study, out of scope for a parameter-default change.

@@ -14,6 +14,9 @@ its equivalence claims against MATLAB RAVEN.
   `predict_localization` against curated yeast-GEM, with a predictor-noise sweep.
 - **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
   score-ratio sensitivity for the KEGG HMM-query reconstruction path.
+- **[Homology cut-off calibration](homology_cutoff_calibration.md)** — `get_model_from_homology`
+  thresholds against independent KEGG/OMA ortholog references, across a relatedness series;
+  copied from `develop` PR #92 (not yet ported to this branch's code).
 
 ```{toctree}
 :hidden:
@@ -23,4 +26,5 @@ init_param_calibration
 init_solver_benchmark
 yeast_localization_benchmark
 kegg_hmm_cutoff_calibration
+homology_cutoff_calibration
 ```

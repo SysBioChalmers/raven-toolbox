@@ -5,7 +5,9 @@ Functions: `raven_toolbox.reconstruction.kegg.query.assign_kos`,
 `raven_toolbox.reconstruction.kegg.hmm.build_ko_hmm`,
 `raven_toolbox.reconstruction.kegg.assemble.*`
 
-Date: 2026-06-20. HMMER binary available at
+Date: 2026-06-20 (threads section below); `assign_kos` score-ratio section
+updated 2026-08-26 — study predates this file (pre-0.2.0 release) and was
+already on this branch under `docs/studies/`. HMMER binary available at
 `~/.cache/raven_toolbox/binaries/hmmer-3.4.0-windows-x86_64/hmmsearch.exe`.
 
 ---
@@ -50,20 +52,49 @@ default for protein sequences.
 bit score is at least 30% of the best score for that KO. This is a relative
 threshold that accounts for KO-specific variation in HMM length.
 
-**`min_score_ratio_g=0.9`** — within a KO, only genes scoring ≥90% of the best
-gene-level score are kept as candidate gene assignments.
+**`min_score_ratio_g=0.9`** — within a gene, only KOs scoring ≥90% of the best
+KO-level score are kept as candidate assignments.
 
 **`cutoff=1e-30`** — minimum E-value for any hmmsearch hit to be considered.
 
-Both Python and MATLAB use these values. They originate from RAVEN's original
-KEGG reconstruction workflow and have not been independently benchmarked against
-a held-out genome with known KO assignments.
+**These values already diverge from MATLAB RAVEN**, deliberately:
+`cutoff` (RAVEN `1e-50` vs here `1e-30`) and `min_score_ratio_g` (RAVEN `0.8` vs
+here `0.9`) were both changed based on the measurements below; only
+`min_score_ratio_ko=0.3` matches RAVEN, because it was found to have no effect.
 
-**Status: untested.** Proposed benchmark: run `assign_kos` on *Saccharomyces
-cerevisiae* (sce.faa, 6717 sequences) against the KEGG KO HMM library; compare
-the resulting KO-gene assignments against the official KEGG organism page for
-yeast (known true positives) at `min_score_ratio_ko` ∈ {0.2, 0.3, 0.4} and
-`cutoff` ∈ {1e-20, 1e-30, 1e-40}.
+**Status: measured.** See
+[KEGG HMM cut-off calibration](../../studies/kegg_hmm_cutoff_calibration.md) for
+the full study — already present on this branch, reproducible via
+`scripts/analyze_hmm_cutoffs.py`.
+
+**Method, in brief:** run `assign_kos` on four organisms of varying study depth
+(*S. cerevisiae*, *C. merolae*, *E. coli* K-12, and the minimal genome
+*M. genitalium*) against the real KEGG release-118 KO HMM libraries, and compare
+predicted gene→KO assignments to each organism's own curated KEGG annotations
+(precision/recall/F1 at the gene→KO level, plus reaction-level recovery via
+KO→reaction mapping).
+
+**Results:**
+
+| Parameter | Finding |
+|---|---|
+| `cutoff` (RAVEN `1e-50` → **`1e-30`**) | RAVEN's `1e-50` sits *inside* the tail of real (matched) hits, not at the noise boundary — matched E-values cluster at 1e-100…1e-155 (even the weakest 1% sit at 1e-15…1e-36), while noise clusters at ~1e-8, so there is a ~20-order-of-magnitude gap between them. `1e-50` discards real annotations for no gain against noise. Effect is worst on the divergent minimal genome (`mge`): reaction recall 0.87 at `1e-50` vs 0.98 at `1e-30`. |
+| `min_score_ratio_g` (RAVEN `0.8` → **`0.9`**) | The real precision lever: 0.80→0.95 lifts precision ~0.07–0.10 for ~0.02 recall loss, consistently across all four organisms. 0.9 was chosen to offset the precision cost of loosening `cutoff`. |
+| `min_score_ratio_ko=0.3` | **Confirmed empirically inert** — varying 0.0/0.3/0.5 changes precision/recall by ≤0.02 (mostly 0.00) on every organism. Kept at RAVEN's value since it does nothing either way. |
+
+**Net effect of the new defaults** `(1e-30, 0.3, 0.9)` vs RAVEN's `(1e-50, 0.3, 0.8)`:
+model organisms (`sce`, `eco`) see small precision/recall trade-offs in both
+directions; the divergent minimal genome `mge` — the case this parameter path
+exists for — gains ~10 points of reaction recall (0.87 → 0.97) for a similar
+precision cost. Full per-organism tables are in the study.
+
+**Caveat carried over from the study:** all four organisms are in the HMM
+libraries' own training set, so recall is an upper bound — this calibrates how
+the parameters trade off relative to each other and relative to RAVEN's default,
+not an absolute accuracy figure on a genome KEGG has never seen. `rxn_novel`
+(predicted reactions absent from the reference) is also a lower bound on real
+precision, since some of it is legitimate homology KEGG simply hasn't
+curated for that organism yet.
 
 ---
 
