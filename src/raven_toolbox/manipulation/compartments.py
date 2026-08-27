@@ -10,6 +10,7 @@ constructing dual-localised pathways. cobra has no equivalents.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+import warnings
 
 import cobra
 
@@ -55,10 +56,13 @@ def merge_compartments(
     with; this transform only ever inherits them.)
 
     Metabolites that share a key collapse into one entity in the merged compartment; their
-    stoichiometric contributions are summed per reaction. Reactions that end up with
-    only one metabolite (e.g. ``A[c] → A[m]`` becomes ``A → A`` = nothing) are deleted
-    by default (RAVEN's ``deleteRxnsWithOneMet``). Reactions that become identical
-    after merging are deduplicated (one survives).
+    stoichiometric contributions are summed per reaction. Reactions that *become* trivial
+    through the merge (e.g. ``A[c] → A[m]`` becomes ``A → A`` = nothing) are deleted by
+    default (RAVEN's ``deleteRxnsWithOneMet``). A reaction that already had a single
+    metabolite before merging is an exchange (``=> glucose``) and is always kept —
+    dropping those would silently remove the model's medium and its biomass reaction.
+    Reactions that become identical after merging are deduplicated (one survives). The
+    objective is carried over to the returned model.
     """
     out = model.copy()
     key = base_metabolite if base_metabolite is not None else _base_id
@@ -112,7 +116,12 @@ def merge_compartments(
     keep_reactions: list[cobra.Reaction] = []
     for r in out.reactions:
         stoich = rewritten[r.id]
-        if drop_single_metabolite_reactions and len(stoich) <= 1:
+        # Only reactions that *became* trivial through merging are dropped. One
+        # that already had a single metabolite is an exchange/boundary reaction
+        # (``=> glucose``), and deleting those silently strips the model of its
+        # medium and its biomass reaction. RAVEN reserves them the same way.
+        was_single = len(r.metabolites) <= 1
+        if drop_single_metabolite_reactions and len(stoich) <= 1 and not was_single:
             deleted_single.append(r.id)
             continue
         if not stoich:  # everything cancelled
@@ -132,6 +141,25 @@ def merge_compartments(
         new_r.notes = dict(r.notes or {})
         keep_reactions.append(new_r)
     merged.add_reactions(keep_reactions)
+
+    # The merged model is built from scratch, so the objective has to be carried
+    # over explicitly -- without this the caller gets a model that optimises to
+    # 0.0 with no indication why.
+    surviving = {r.id for r in keep_reactions}
+    objective = {
+        merged.reactions.get_by_id(r.id): r.objective_coefficient
+        for r in out.reactions
+        if r.objective_coefficient and r.id in surviving
+    }
+    if objective:
+        merged.objective = objective
+        merged.objective_direction = out.objective_direction
+    elif any(r.objective_coefficient for r in out.reactions):
+        warnings.warn(
+            "merge_compartments: every reaction carrying an objective coefficient was "
+            "removed by the merge; the returned model has no objective.",
+            stacklevel=2,
+        )
     return merged, deleted_single, deduplicated
 
 
