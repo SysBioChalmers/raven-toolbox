@@ -49,12 +49,29 @@ from pathlib import Path
 import cobra
 from cobra.io.dict import model_from_dict, model_to_dict
 from cobra.io.yaml import yaml as _cobra_yaml  # ruamel round-trip YAML (handles !!omap)
+from ruamel.yaml import YAML
 
 from raven_toolbox.io.ec_data import (
     EcData,
     ec_data_from_yaml_sections,
     ec_data_to_yaml_sections,
 )
+
+# A dedicated instance for *writing* only (reading still goes through
+# _cobra_yaml, whose parsing is unaffected by any of this). Mutating
+# _cobra_yaml's own width would also change cobra.io.save_yaml_model for
+# the rest of the process, so this module gets its own ruamel round-trip
+# instance instead. `width` is set far past any real line length so
+# ruamel never folds a long scalar onto a continuation line: RAVEN's
+# writeYAMLmodel.m doesn't reproduce ruamel's fold algorithm either, and
+# matching "no folding" is both the easy side of that trade and better
+# for the model repositories' diffs (a one-word edit to a long note no
+# longer reflows several lines). Everything else about this instance
+# (indent, quoting) is left at ruamel's own defaults, which already
+# agree with RAVEN's writer: 2-space indentation, single-quote only when
+# YAML requires it.
+_write_yaml = YAML(typ="rt")
+_write_yaml.width = 1_000_000
 
 
 def _open_text(path: str | Path, mode: str):
@@ -398,6 +415,53 @@ def _emit_entry_fields(entries, fields):
             entry["notes"] = notes
 
 
+def _coerce_floats(obj):
+    """Recursively coerce every plain ``int`` in ``obj`` to ``float``.
+
+    RAVEN's model struct stores every numeric field as a MATLAB ``double``
+    regardless of source, so it cannot preserve cobra's own int-vs-float
+    distinction (e.g. an integer ``charge`` next to a float
+    ``lower_bound``). Rather than have byte-identity depend on which
+    fields cobra happens to treat as which, both writers apply one
+    deterministic rule: every number is written as an explicit float
+    (``2.0``, not ``2``). ``bool`` is checked first since it is a ``int``
+    subclass in Python and must not be turned into ``0.0``/``1.0``.
+    """
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, int):
+        return float(obj)
+    if isinstance(obj, dict):
+        return type(obj)((k, _coerce_floats(v)) for k, v in obj.items())
+    if isinstance(obj, list):
+        return [_coerce_floats(v) for v in obj]
+    return obj
+
+
+def _normalize_subsystems(reactions) -> None:
+    """Drop a reaction's ``subsystem`` key when it carries no subsystem.
+
+    cobra's own round trip preserves whatever it read verbatim, including
+    older RAVEN files whose writer represented "no subsystem" as a
+    single-item list holding a blank/``None`` entry rather than omitting
+    the key. RAVEN/raven-toolbox's shared format instead omits `subsystem`
+    entirely when empty, like every other optional field; a reaction that
+    does carry one or more subsystems is normalised to a plain list of
+    non-empty strings (even for a single subsystem), matching
+    writeYAMLmodel.m. Normalises in place.
+    """
+    for rxn in reactions:
+        if not isinstance(rxn, dict) or "subsystem" not in rxn:
+            continue
+        value = rxn["subsystem"]
+        items = value if isinstance(value, list) else [value]
+        cleaned = [str(s) for s in items if s]
+        if cleaned:
+            rxn["subsystem"] = cleaned
+        else:
+            del rxn["subsystem"]
+
+
 def write_yaml_model(
     model: cobra.Model, path: str | Path, *, sort_ids: bool = False
 ) -> None:
@@ -440,6 +504,7 @@ def write_yaml_model(
     _emit_entry_fields(doc.get("metabolites", []), _MET_FIELDS)
     _emit_entry_fields(doc.get("reactions", []), _RXN_FIELDS)
     _emit_entry_fields(doc.get("genes", []), _GENE_FIELDS)
+    _normalize_subsystems(doc.get("reactions", []) or ())
 
     # cobra's _gene_to_dict always emits `name: ''` because name is a
     # required attribute; RAVEN MATLAB skips empty names. Drop the
@@ -498,4 +563,4 @@ def write_yaml_model(
         ordered.setdefault(key, value)
 
     with _open_text(path, "w") as handle:
-        _cobra_yaml.dump(ordered, handle)
+        _write_yaml.dump(_coerce_floats(ordered), handle)

@@ -251,7 +251,11 @@ def test_code_built_model_round_trips(tmp_path):
     assert rr.get_coefficient("a_c") == -1
     assert rr.get_coefficient("b_c") == 2
     assert rr.gene_reaction_rule == "G1"
-    assert rr.subsystem == "glycolysis"
+    # RAVEN/raven-toolbox's shared format always writes subsystem as a
+    # list (a reaction can carry more than one), even for the single-
+    # subsystem case set here as a plain string — so it round-trips as
+    # a one-item list, not the original bare string.
+    assert rr.subsystem == ["glycolysis"]
     ma = back.metabolites.get_by_id("a_c")
     assert ma.formula == "C6H12O6"
     assert ma.annotation["kegg.compound"] == ["C00031"]
