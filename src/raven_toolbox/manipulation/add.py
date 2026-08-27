@@ -158,7 +158,10 @@ def _resolve_metabolite(
                 f"Cannot create metabolite {token!r}: no compartment given."
             )
         _warn_unknown_compartment(model, compartment, token)
-        met = Metabolite(token, compartment=compartment)
+        # name defaults to the id, matching RAVEN's addRxns --- an unnamed
+        # metabolite is invisible to anything that keys on name (merge_compartments,
+        # add_reactions_from_model, mergeCompartments on the MATLAB side).
+        met = Metabolite(token, name=token, compartment=compartment)
         model.add_metabolites([met])
         met_index.setdefault((met.name, met.compartment), met)
         return met
