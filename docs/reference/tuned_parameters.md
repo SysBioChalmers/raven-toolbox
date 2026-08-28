@@ -13,7 +13,7 @@ and methodology, follow the linked study.
 :class: note
 
 RAVEN has existed as MATLAB since 2013 and gained a Python implementation
-(raven-toolbox) from 2024; a handful of parameters have only been re-measured on
+(raven-toolbox) from 2026; a handful of parameters have only been re-measured on
 one side and haven't yet been ported to the other. Neither implementation's
 un-measured default was assumed correct going in — where the two disagreed, the
 answer was to measure, not to defer to whichever came first. Every row below
