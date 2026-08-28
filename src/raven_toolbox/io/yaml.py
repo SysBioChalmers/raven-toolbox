@@ -44,6 +44,7 @@ from __future__ import annotations
 import gzip
 import warnings
 from collections import OrderedDict
+from datetime import date
 from pathlib import Path
 
 import cobra
@@ -220,6 +221,20 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     # current cobra-shaped files.
     _lift_eccodes_to_annotation(raw.get("reactions"))
 
+    # A bare scalar annotation value (writeYAMLmodel.m/write_yaml_model both
+    # collapse a single-value MIRIAM entry to one) is wrapped into a
+    # single-item list here, before model_from_dict, so cobra/geckopy always
+    # see annotation[key] as list[str] regardless of whether the source file
+    # used a scalar or a list — cobra's own model_from_dict does not do this
+    # normalisation itself.
+    for section in ("metabolites", "reactions", "genes"):
+        _normalize_annotation_values(raw.get(section))
+
+    # A metabolite with no explicit compartment defaults to the first one,
+    # matching readYAMLmodel.m's own convention — cobra's model_from_dict
+    # would otherwise leave met.compartment as None.
+    _default_missing_compartment(raw.get("metabolites"), raw.get("compartments"))
+
     # Normalise legacy reaction-side YAML keys (e.g. RAVEN MATLAB's
     # ``rxnNotes`` -> the canonical ``notes``) before any field capture so
     # the capture step sees a single key per concept.
@@ -297,6 +312,51 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
 # --------------------------------------------------------------------------- #
 # Legacy quirk normalisers
 # --------------------------------------------------------------------------- #
+
+def _normalize_annotation_values(entries) -> None:
+    """Wrap a bare scalar annotation value into a single-item list.
+
+    Both writers collapse a singleton MIRIAM value to a scalar (see
+    :func:`_collapse_singleton_annotations`), so a file can carry either
+    form for the same key. Normalising here — rather than leaving cobra to
+    store whatever shape the source used — means ``annotation[key]`` is
+    always ``list[str]`` however the file spelled it, matching what cobra
+    and geckopy expect and keeping a scalar-collapsed value from coming
+    back as a bare string after a write/read round trip. Normalises in
+    place; a no-op when ``entries`` is falsy.
+    """
+    if not entries:
+        return
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        annotation = entry.get("annotation")
+        if not isinstance(annotation, dict):
+            continue
+        for key, value in annotation.items():
+            if not isinstance(value, list):
+                annotation[key] = [value]
+
+
+def _default_missing_compartment(metabolites, compartments) -> None:
+    """Default a metabolite's missing compartment to the first compartment.
+
+    Matches readYAMLmodel.m's own convention (a metabolite with no
+    explicit compartment is assigned index 1, i.e. the first entry of
+    ``compartments:``) — cobra's ``model_from_dict`` has no equivalent
+    default and would otherwise leave ``met.compartment`` as ``None``.
+    "First" is the first key of the ``compartments`` mapping, in file
+    order (preserved by the round-trip YAML loader), matching
+    ``model.comps{1}`` on the MATLAB side. Normalises in place; a no-op
+    when there is no compartments section to default to.
+    """
+    if not compartments or not metabolites:
+        return
+    first = next(iter(compartments))
+    for met in metabolites:
+        if isinstance(met, dict) and not met.get("compartment"):
+            met["compartment"] = first
+
 
 def _lift_smiles_to_annotation(metabolites) -> None:
     """Move per-metabolite top-level ``smiles`` into ``annotation['smiles']``.
@@ -438,6 +498,91 @@ def _coerce_floats(obj):
     return obj
 
 
+_LIST_ONLY_ANNOTATION_KEYS = frozenset({"ec-code", "smiles"})
+
+
+def _collapse_singleton_annotations(entries) -> None:
+    """Collapse a one-item annotation list to a bare scalar.
+
+    Matches writeYAMLmodel.m's MIRIAM handling: every annotation entry
+    collapses to a scalar when it carries a single value, except
+    ``ec-code``/``smiles`` — RAVEN's own writer marks exactly those two
+    ``forceList`` — which stay a list even for one value, since cobra and
+    geckopy read them as ``list[str]``. Normalises in place.
+    """
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        annotation = entry.get("annotation")
+        if not isinstance(annotation, dict):
+            continue
+        for key, value in annotation.items():
+            if (
+                key not in _LIST_ONLY_ANNOTATION_KEYS
+                and isinstance(value, list)
+                and len(value) == 1
+            ):
+                annotation[key] = value[0]
+
+
+_META_ANNOTATION_FIELDS = (
+    "givenName",
+    "familyName",
+    "authors",
+    "email",
+    "organization",
+    "taxonomy",
+    "note",
+    "sourceUrl",
+)
+
+
+def _default_bounds(model: cobra.Model) -> tuple[float, float] | None:
+    """The model's ``(min lower_bound, max upper_bound)`` across all reactions.
+
+    Mirrors readYAMLmodel.m's ``defaultLB``/``defaultUB``
+    (``min(model.lb)``/``max(model.ub)``), recomputed fresh from the
+    model's current bounds — like the MATLAB reader recomputes them from
+    the just-parsed bounds — rather than echoed from a stored value, so a
+    model whose bounds changed after loading still gets a correct
+    default. ``None`` for a model with no reactions (nothing to derive
+    from).
+    """
+    if not model.reactions:
+        return None
+    lbs = [rxn.lower_bound for rxn in model.reactions]
+    ubs = [rxn.upper_bound for rxn in model.reactions]
+    return min(lbs), max(ubs)
+
+
+def _build_metadata(model: cobra.Model, stored_meta: dict, version) -> OrderedDict:
+    """Assemble the ``metaData`` block in writeYAMLmodel.m's fixed field order.
+
+    ``id``/``name`` are always present (``"blankID"``/``"blankName"`` when
+    unset, matching writeMetadata's own ``valueOrDefault``), as is
+    ``date`` (today's date when the model carries none). ``defaultLB``/
+    ``defaultUB`` are recomputed from the model's current bounds (see
+    :func:`_default_bounds`) rather than merely echoed from a stored
+    value. The remaining fields follow in the same order
+    writeYAMLmodel.m's ``annoFields`` emits them, each only when present
+    and non-empty.
+    """
+    metadata: OrderedDict = OrderedDict()
+    metadata["id"] = model.id or "blankID"
+    metadata["name"] = model.name or "blankName"
+    if version is not None:
+        metadata["version"] = version
+    metadata["date"] = stored_meta.get("date") or date.today().isoformat()
+    bounds = _default_bounds(model)
+    if bounds is not None:
+        metadata["defaultLB"], metadata["defaultUB"] = bounds
+    for key in _META_ANNOTATION_FIELDS:
+        value = stored_meta.get(key)
+        if value:
+            metadata[key] = value
+    return metadata
+
+
 def _normalize_subsystems(reactions) -> None:
     """Drop a reaction's ``subsystem`` key when it carries no subsystem.
 
@@ -500,6 +645,17 @@ def write_yaml_model(
     _emit_entry_fields(doc.get("reactions", []), _RXN_FIELDS)
     _emit_entry_fields(doc.get("genes", []), _GENE_FIELDS)
     _normalize_subsystems(doc.get("reactions", []) or ())
+    # An unset charge is left omitted (cobra's own default), not defaulted to
+    # 0 — readYAMLmodel.m's own fill-missing-fields step is a positional
+    # backfill shared by several columns, not a "charge defaults to 0" rule:
+    # a gap before some later metabolite that does carry a charge parses as
+    # NaN (omitted on write, like deltaG); only a gap at the very end of the
+    # metabolite list — after the last one with any charge — hits the
+    # different, unrelated tail-padding branch and becomes a real 0. That is
+    # a position-dependent side effect of shared fill code, not a
+    # convention worth reproducing here.
+    for section in ("metabolites", "reactions", "genes"):
+        _collapse_singleton_annotations(doc.get(section, []) or ())
 
     # cobra's _gene_to_dict always emits `name: ''` because name is a
     # required attribute; RAVEN MATLAB skips empty names. Drop the
@@ -527,13 +683,7 @@ def write_yaml_model(
     # are NOT emitted at root level. Cobra reading such a file recovers
     # the lists and compartments and leaves model.id empty (consistent
     # with how RAVEN MATLAB has always laid these files out).
-    metadata = OrderedDict(stored_meta)
-    if model.id:
-        metadata.setdefault("id", model.id)
-    if model.name:
-        metadata.setdefault("name", model.name)
-    if version is not None:
-        metadata.setdefault("version", version)
+    metadata = _build_metadata(model, stored_meta, version)
 
     # cobra's model_to_dict put id / name at root level; drop them so they
     # don't duplicate the metaData copy.
@@ -541,8 +691,7 @@ def write_yaml_model(
     doc.pop("name", None)
 
     ordered = OrderedDict()
-    if metadata:
-        ordered["metaData"] = metadata
+    ordered["metaData"] = metadata
     for key in ("metabolites", "reactions", "genes", "compartments", "notes"):
         if key in doc:
             ordered[key] = doc.pop(key)
