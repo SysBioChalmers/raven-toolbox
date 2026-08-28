@@ -12,6 +12,7 @@ from raven_toolbox.annotation import (
     load_delta_g_csv,
     save_delta_g_csv,
 )
+from raven_toolbox.annotation.delta_g import DELTA_G_MISSING
 from raven_toolbox.annotation.sbo import _default_transport_detector
 
 # --- shared tiny model -------------------------------------------------
@@ -195,7 +196,7 @@ def test_load_skips_the_missing_sentinel(tmp_path):
     csv = tmp_path / "met_dg.csv"
     pd.DataFrame({"Var1": ["atp_c", "glc_e"], "Var2": [10000000.0, 1.0]}).to_csv(csv, index=False)
 
-    stamped = load_delta_g_csv(m.metabolites, csv)
+    stamped = load_delta_g_csv(m.metabolites, csv, missing_value=DELTA_G_MISSING)
     assert stamped == 1                                              # only the real value
     assert m.metabolites.get_by_id("atp_c").notes["deltaG"] == "preserved"
     assert m.metabolites.get_by_id("glc_e").notes["deltaG"] == "1.0"
@@ -217,7 +218,7 @@ def test_sentinel_recognised_whatever_dtype_the_csv_round_trip_produces(tmp_path
     csv = tmp_path / "met_dg.csv"
     pd.DataFrame({"Var1": ["atp_c", "glc_e"], "Var2": ["10000000.0", "-2.5"]}).to_csv(csv, index=False)
 
-    assert load_delta_g_csv(m.metabolites, csv) == 1
+    assert load_delta_g_csv(m.metabolites, csv, missing_value=DELTA_G_MISSING) == 1
     assert "deltaG" not in m.metabolites.get_by_id("atp_c").notes
     assert m.metabolites.get_by_id("glc_e").notes["deltaG"] == "-2.5"
 

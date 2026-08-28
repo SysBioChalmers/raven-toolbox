@@ -21,8 +21,10 @@ import pandas as pd
 #: The "no valid ΔG" sentinel used by the ΔG side-car tables (e.g. yeast-GEM's
 #: ``model_rxnDeltaG.csv``). yeast-GEM's ``checkrxnDirection.m`` gates on it verbatim:
 #: ``if ~isequal(seed_rxnInfo{...},'10000000.0') %check if database contains valid deltaG
-#: value``. Stamping it would present a physically impossible 10⁷ kJ/mol as a measurement,
-#: so it is treated as missing.
+#: value``. Stamping it would present a physically impossible 10⁷ kJ/mol as a measurement.
+#: Pass this as ``load_delta_g_csv``'s ``missing_value`` to have it treated as missing
+#: instead of stored verbatim — RAVEN's own ``deltaGCSV`` has no sentinel concept by
+#: default either, so this is opt-in on both sides, not automatic on either.
 DELTA_G_MISSING = 1e7
 
 
@@ -45,7 +47,7 @@ def load_delta_g_csv(
     id_column: str = "Var1",
     value_column: str = "Var2",
     note_key: str = "deltaG",
-    missing_value: float | None = DELTA_G_MISSING,
+    missing_value: float | None = None,
     verbose: bool = False,
 ) -> int:
     """Stamp ``note_key`` on each entity from a CSV of ``id → value``.
@@ -64,10 +66,11 @@ def load_delta_g_csv(
         Default ``"deltaG"``.
     missing_value
         A sentinel standing for "no value", left unstamped rather than
-        recorded as a measurement. Defaults to
-        :data:`DELTA_G_MISSING` (10⁷), which covers 777 of
-        yeast-GEM's 4102 reaction rows. Pass ``None`` to stamp every
-        value verbatim.
+        recorded as a measurement. Default ``None``: every matched value
+        is stamped verbatim, matching RAVEN's own ``deltaGCSV`` (which has
+        no sentinel concept of its own). Pass :data:`DELTA_G_MISSING`
+        (10⁷) to opt into yeast-GEM's own convention, which covers 777 of
+        yeast-GEM's 4102 reaction rows.
     verbose
         Print a summary of unmatched entity ids.
 
