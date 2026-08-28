@@ -40,17 +40,17 @@ methods through one entry point.
 | `method` | `'achr'` (Python) / `'random_objective'` (MATLAB) | Literature: ACHR gives near-uniform interior sampling; the random-objective method draws polytope vertices instead. Both algorithms are implemented and selectable on both sides — only which one is the *default* differs. |
 | `thinning` | `100` | Upstream convention (cobrapy's own ACHR default, which RAVEN's Python side inherited). **Measured insufficient at genome scale**: yeast-GEM gives only ~12 effective samples from 300 stored (ESS), and independent chains frequently disagree entirely (median Gelman-Rubin R-hat fails the convergence threshold). No cheap fix found — see the [convergence study](../studies/sampling_convergence_calibration.md). |
 | `warmup` | `1000` | Upstream convention (cobrapy). |
-| `n_objectives` | `2` | Literature: Bordel et al. 2010. |
+| `n_objectives` | `2` | Literature: [Bordel et al. 2010](https://doi.org/10.1371/journal.pcbi.1000859). |
 | `replace_max_bound` | `False` | Measured: applying the alternative (`True`) inside the Python/cobrapy solver stack makes the sampler unbounded on standard RAVEN-convention models (±1000 bounds). Kept different by design between implementations — a solver-stack constraint, not a preference; whether MATLAB's own solver path handles it safely wasn't tested here. |
 | `loopless_good_reactions` | `True` | Measured more correct than the alternative fixed-threshold (±999) heuristic, which over-excludes reactions that legitimately reach capacity. The proper technique is implemented on the Python side only so far; porting it is a bigger project than a default flip. |
 | `n_samples`, `seed`, `min_flux`, `max_attempts` | `1000`, `None`, `False`, `100` | Same on both sides / no evidence favoured a different value. |
 | `find_good_reactions.flux_tol` | `1e-9` | Python-only helper (supports the random-objective method's target selection); no cross-implementation comparison. |
-| `max_volume_ellipsoid.maxiter` | `150` | Literature: Zhang & Gao 2003. |
+| `max_volume_ellipsoid.maxiter` | `150` | Literature: [Zhang & Gao 2003](https://doi.org/10.1137/S1052623401397230). |
 | `max_volume_ellipsoid.tol`, `.reg` | `1e-6`, `1e-8` | Same on both sides. |
 
-**Full detail:** [sampling.md](../maintenance/benchmarks/sampling.md) ·
-[sampling convergence study](../studies/sampling_convergence_calibration.md) ·
-[CHRR/ACHR algorithm reference](flux_sampling_algorithms.md)
+**Full detail:** [sampling convergence study](../studies/sampling_convergence_calibration.md)
+(the primary measurement) · [CHRR/ACHR algorithm reference](flux_sampling_algorithms.md) ·
+[sampling.md](../maintenance/benchmarks/sampling.md) (quick-reference benchmark notes)
 
 ---
 
@@ -60,9 +60,9 @@ RAVEN MATLAB: `FSEOF`. raven-toolbox: `analysis.fseof`.
 
 | Parameter | Default | How determined |
 |---|---|---|
-| `n_steps` | `10` | Literature: Choi et al. 2010. |
-| `max_fraction` | `0.9` | Literature: Choi et al. 2010; measured — values below 0.9 pick up spurious targets on iJO1366. |
-| `correlation_threshold` | `0.9` | Literature: Choi et al. 2010; measured — 0.7 adds 4 spurious amplification targets on iJO1366. |
+| `n_steps` | `10` | Literature: [Choi et al. 2010](https://doi.org/10.1128/AEM.00115-10). |
+| `max_fraction` | `0.9` | Literature: [Choi et al. 2010](https://doi.org/10.1128/AEM.00115-10); measured — values below 0.9 pick up spurious targets on iJO1366. |
+| `correlation_threshold` | `0.9` | Literature: [Choi et al. 2010](https://doi.org/10.1128/AEM.00115-10); measured — 0.7 adds 4 spurious amplification targets on iJO1366. |
 | `flux_eps` | `1e-6` on the Python side; MATLAB has no threshold at all | Measured: an explicit `1e-6` floor avoids classifying accumulated solver noise as a false-positive knockdown target on genome-scale models. MATLAB's target classification is a bare float comparison with no tolerance whatsoever, stricter than any fixed floor — real solver noise there is expected to produce at least as many spurious classifications as measured here, likely more. |
 
 **Full detail:** [fseof.md](../maintenance/benchmarks/fseof.md)
@@ -79,20 +79,23 @@ RAVEN MATLAB: `runINIT`, `scoreComplexModel`, `getINITModel`, `ftINIT`, `prepINI
 
 | Parameter | Default | How determined |
 |---|---|---|
-| `prod_weight` | `0.5` | Literature: Ågren et al. 2012 (the original INIT paper). |
+| `prod_weight` | `0.5` | Literature: [Ågren et al. 2012](https://doi.org/10.1371/journal.pcbi.1002518) (the original INIT paper). |
 | `allow_excretion` | `False` (all three entry points) | Measured zero effect at the default `prod_weight` across all three entry points. |
 | `mip_gap` | `None` on the Python side (solver default); `0.0004` on the MATLAB side | Measured on genome-scale Human-GEM: the solver's own gap (~1e-4 on Gurobi) is already at least as tight as the measured-good value, so Python's `None` needs no change; genome-scale users get concrete numbers (`0.01` for the full ftINIT pipeline) documented rather than a single hardcoded default, since the right value depends on single-step vs. full-pipeline use. |
 | `time_limit` | `None` (uncapped) on the Python side; `5000 ms` on the MATLAB side | The same genome-scale study found the MATLAB value far too tight (real solves took 42–901s+) but also a real >75-minute uncapped runaway case on degraded input on the Python side — `None` was kept as the safer default there, with the measured working range (120–600s/step) documented for users pushing hard or noisy input. |
-| `series` | `'1+1'` | Literature: Gustafsson et al. 2023 (the ftINIT paper). |
+| `series` | `'1+1'` | Literature: [Gustafsson et al. 2023](https://doi.org/10.1073/pnas.2217868120) (the ftINIT paper). |
 | `force_on` | `0.1` | RAVEN's original value; measured near-insensitive across a 0.02–0.5 range. |
 | `big_m` | `100.0` | RAVEN's original value; confirmed as an intentional LP-relaxation tightener (not a flux cap) — see the linked study for why. |
 | `eps` | `1.0` | Same on both sides. |
-| `gene_scores_from_expression.factor`, `.max_score`, `.min_score` | `5.0`, `10.0`, `-5.0` | Literature: Wang et al. 2012. |
+| `gene_scores_from_expression.factor`, `.max_score`, `.min_score` | `5.0`, `10.0`, `-5.0` | RAVEN's own formula; previously attributed to "Wang et al. 2012" here, which was checked and could not be confirmed — no source in either implementation cites a paper for it. |
 | `score_reactions_from_genes.*`, `classify_reactions.*` | various | Same on both sides / standard practice. |
 
-**Full detail:** [init.md](../maintenance/benchmarks/init.md) ·
-[INIT parameter calibration study](../studies/init_param_calibration.md) ·
-[INIT solver benchmark](../studies/init_solver_benchmark.md)
+**Full detail:** [INIT parameter calibration study](../studies/init_param_calibration.md)
+(the primary measurement, genome-scale Human-GEM) ·
+[INIT solver benchmark](../studies/init_solver_benchmark.md) ·
+[Human-GEM validation vs MATLAB RAVEN](../studies/humangem_validation.md)
+(Jaccard 0.975–0.980 across 5 cell lines) ·
+[init.md](../maintenance/benchmarks/init.md) (quick-reference benchmark notes)
 
 ---
 
@@ -104,10 +107,10 @@ methods added to the Python implementation, with no MATLAB RAVEN counterpart.
 
 | Parameter | Default | How determined |
 |---|---|---|
-| `fill_gaps_fast_lp.epsilon` | `0.0001` | Literature: Thiele et al. 2014 (the fastGapFill paper). |
+| `fill_gaps_fast_lp.epsilon` | `0.0001` | Literature: [Thiele et al. 2014](https://doi.org/10.1093/bioinformatics/btu321) (the fastGapFill paper). |
 | `connect_blocked_reactions.eps` | `1.0` | Measured on a synthetic supply-limited model; reliable noise filter for RAVEN-convention (±1000-bound) models — lower it for tightly-constrained exchanges. |
 | `connect_blocked_reactions.penalty`, `.allow_net_production` | `1.0`, `False` | Measured / standard practice for reconstruction (vs. curation) use. |
-| `fill_gaps_kumar_milp.weights` | `(1.0, 2.0)` | Literature: Kumar et al. 2007; measured — confirms reversal is preferred over adding a new reaction at the intended 2:1 ratio. |
+| `fill_gaps_kumar_milp.weights` | `(1.0, 2.0)` | Literature: [Kumar et al. 2007](https://doi.org/10.1186/1471-2105-8-212); measured — confirms reversal is preferred over adding a new reaction at the intended 2:1 ratio. |
 | `fill_gaps_kumar_milp.big_m` | `1000.0` | Measured: matches RAVEN's ±1000 bound convention; a smaller value artificially caps reversed-reaction flux. |
 
 **Full detail:** [gapfilling.md](../maintenance/benchmarks/gapfilling.md)
@@ -133,8 +136,10 @@ rhto-GEM) built by this same reconstruction method, and was retired once it show
 the obvious circularity directly: agreement with the curated model peaked exactly
 at that model's own build settings and collapsed one step past them.
 
-**Full detail:** [reconstruction_homology.md](../maintenance/benchmarks/reconstruction_homology.md) ·
-[homology cut-off calibration study](../studies/homology_cutoff_calibration.md)
+**Full detail:** [homology cut-off calibration study](../studies/homology_cutoff_calibration.md)
+(the primary measurement, including the retired curated-GEM arm) ·
+[reconstruction_homology.md](../maintenance/benchmarks/reconstruction_homology.md)
+(quick-reference benchmark notes)
 
 ---
 
@@ -153,8 +158,10 @@ name hasn't been independently confirmed). raven-toolbox: `reconstruction.kegg.a
 | `run_hmmsearch.threads`, `build_ko_hmm.threads` | `max(1, cpu_count-1)` | Performance-only; HMMER is deterministic (to within insignificant float noise) across thread counts. |
 | `get_kegg_model_*.keep_spontaneous`, `.keep_undefined_stoich`, `.keep_incomplete`, `.keep_general` | `True`, `True`, `True`, `False` | Same on both sides / standard draft-reconstruction practice. |
 
-**Full detail:** [reconstruction_kegg.md](../maintenance/benchmarks/reconstruction_kegg.md) ·
-[KEGG HMM cut-off calibration study](../studies/kegg_hmm_cutoff_calibration.md)
+**Full detail:** [KEGG HMM cut-off calibration study](../studies/kegg_hmm_cutoff_calibration.md)
+(the primary measurement, 4 organisms against real KEGG annotations) ·
+[reconstruction_kegg.md](../maintenance/benchmarks/reconstruction_kegg.md)
+(quick-reference benchmark notes)
 
 ---
 
@@ -174,8 +181,9 @@ a heuristic's search budget than in a solver's optimality gap.
 | `time_limit` (Python) / `maxTime` (MATLAB) | `None` (uncapped) on the Python side; MATLAB's `maxTime` defaults to `15` minutes | Not a value to unify: MATLAB's number is a simulated-annealing search budget (more time generally means a better heuristic answer, not a proof of optimality), while Python's is a MILP solver cutoff (returns a proven-bounded incumbent). Python's `None` was validated at ~2.5 minutes on yeast-GEM, the primary development-scale model. Whether the MILP needs a cap at all for harder cases hasn't been stress-tested. |
 | `mip_gap` | `None` | Python-side-only — MATLAB's heuristic has no analogous optimality-gap concept. |
 
-**Full detail:** [localization.md](../maintenance/benchmarks/localization.md) ·
-[yeast-GEM localisation benchmark](../studies/yeast_localization_benchmark.md)
+**Full detail:** [yeast-GEM localisation benchmark](../studies/yeast_localization_benchmark.md)
+(the primary measurement, real yeast-GEM data with a predictor-noise sweep) ·
+[localization.md](../maintenance/benchmarks/localization.md) (quick-reference benchmark notes)
 
 ---
 
@@ -220,3 +228,46 @@ RAVEN MATLAB: `checkTasks`. raven-toolbox: `tasks.check_tasks`, `tasks.find_task
   FSEOF's noise floor (which needs adding to MATLAB rather than changing, since none
   exists there today). Tracked in
   [the master parameter index](../maintenance/benchmarks/index.md#changes-needed-in-matlab-raven-for-parity).
+- The `gene_scores_from_expression` scoring constants (`factor=5.0`, `max_score=10.0`,
+  `min_score=-5.0`) have no confirmed literature source on either side — see the
+  INIT section above.
+
+---
+
+## References
+
+- Choi HS, Lee SY, Kim TY, Woo HM (2010). **In silico identification of gene
+  amplification targets for improvement of lycopene production.**
+  *Appl Environ Microbiol* 76(10):3097–3105.
+  [10.1128/AEM.00115-10](https://doi.org/10.1128/AEM.00115-10)
+- Bordel S, Ågren R, Nielsen J (2010). **Sampling the solution space in
+  genome-scale metabolic networks reveals transcriptional regulation in key
+  enzymes.** *PLoS Comput Biol* 6(7):e1000859.
+  [10.1371/journal.pcbi.1000859](https://doi.org/10.1371/journal.pcbi.1000859)
+- Zhang Y, Gao L (2003). **On numerical solution of the maximum volume
+  ellipsoid problem.** *SIAM J Optim* 14(1):53–76.
+  [10.1137/S1052623401397230](https://doi.org/10.1137/S1052623401397230)
+- Ågren R, Bordel S, Mardinoglu A, Pornputtapong N, Nookaew I, Nielsen J
+  (2012). **Reconstruction of genome-scale active metabolic networks for 69
+  human cell types and 16 cancer types using INIT.** *PLoS Comput Biol*
+  8(5):e1002518.
+  [10.1371/journal.pcbi.1002518](https://doi.org/10.1371/journal.pcbi.1002518)
+- Gustafsson J, Anton M, Roshanzamir F, et al. (2023). **Generation and
+  analysis of context-specific genome-scale metabolic models derived from
+  single-cell RNA-Seq data.** *Proc Natl Acad Sci USA* 120(6):e2217868120.
+  [10.1073/pnas.2217868120](https://doi.org/10.1073/pnas.2217868120)
+- Kumar VS, Dasika MS, Maranas CD (2007). **Optimization based automated
+  curation of metabolic reconstructions.** *BMC Bioinformatics* 8:212.
+  [10.1186/1471-2105-8-212](https://doi.org/10.1186/1471-2105-8-212)
+- Thiele I, Vlassis N, Fleming RMT (2014). **fastGapFill: efficient gap
+  filling in metabolic networks.** *Bioinformatics* 30(17):2529–2531.
+  [10.1093/bioinformatics/btu321](https://doi.org/10.1093/bioinformatics/btu321)
+
+Not listed: the `gene_scores_from_expression` constants (`factor`, `max_score`,
+`min_score`) were previously attributed to "Wang et al. 2012" in this and
+other raven-toolbox docs. That attribution was checked against RAVEN's and
+raven-toolbox's own source (neither cites a paper) and against the one 2012
+Wang metabolic-modelling paper findable (mCADRE, a categorical method
+unrelated to this continuous formula), and could not be confirmed. Treat the
+scoring constants as RAVEN's own choice with no confirmed literature source
+until a real citation turns up.

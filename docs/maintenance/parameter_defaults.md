@@ -1,5 +1,29 @@
 # Parameter defaults — inventory and evaluation plan
 
+:::{admonition} Superseded by later work
+:class: warning
+
+This was the original inventory and planning document for the parameter-defaults
+effort, written before most of the actual benchmarking happened. The
+**[Evaluation methodology](#evaluation-methodology)** section below is still the
+governing methodology and is current. The **data tables below it are not** — they
+capture a snapshot from 2026-06-20, before six of the "open" items were actually
+benchmarked (with real binaries, real proteomes, and in three cases genome-scale
+studies), before two defaults changed in code, and before a couple of the
+MATLAB-side comparison values in this file turned out to be wrong once checked
+directly against MATLAB source. Those tables were never updated to match, so they
+now disagree with the current, actively-maintained state in places.
+
+For the current state, use:
+- **[Parameter benchmark index](benchmarks/index.md)** — the master to-do list,
+  kept up to date.
+- **[Tuned parameter defaults](../reference/tuned_parameters.md)** — the polished
+  reference, one line per parameter with why, plus links to the full studies.
+
+This file is kept for the methodology and as a historical record of how the
+effort started, not as a current source of truth for any specific parameter.
+:::
+
 This document inventories every optional parameter (i.e. those with a current default value) in
 raven-toolbox's public API, and provides a systematic methodology for deciding whether each
 default is well-chosen.
@@ -74,10 +98,10 @@ require BLAST/Diamond/HMMER binaries not available in this environment and remai
 | # | Parameter | Test outcome | Decision |
 |---|---|---|---|
 | 1 | `replace_max_bound` | `True` → **solver unbounded** on yeast-GEM (4083/4102 rxns at big-M bound); `False` → 200 samples complete. | **Python `False` is correct. MATLAB `True` is broken on real models.** |
-| 2 | `evalue` (BLAST/Diamond) | Not testable — no BLAST/Diamond binaries available. Python `1e-5` matches the BLAST command-line default. | **Open. Leave at `1e-5` pending proteome benchmark.** |
+| 2 | `evalue` (BLAST/Diamond) | Was "not testable" here (no binaries). Since then, benchmarked with real BLAST 2.17.0 on hanpo.faa vs sce.faa — see `benchmarks/reconstruction_homology.md`. | **Resolved: unified at `1e-4`, matching MATLAB (no downstream effect either way).** No longer open — see `benchmarks/index.md`. |
 | 3 | `allow_excretion` inconsistency | Effect is **zero** with default `prod_weight=0.5` — sinks absorb net production either way. Only differs when `prod_weight=0`. | **Fix inconsistency for clarity, but it has no computational effect.** |
 | 4 | `flux_eps` in FSEOF | `1e-6` filters 21 reactions with std ~5e-7 that `1e-8` picks up. Those 21 are numerical noise (below solver precision). | **Python `1e-6` is correct. MATLAB `1e-8` produces false-positive targets.** |
-| 5 | `threads` | Not testable — no BLAST/Diamond/HMMER binaries. BLAST is documented as deterministic across threads. | **Open. Change default to `os.cpu_count() - 1` as a pure performance fix.** |
+| 5 | `threads` | Was "not testable" here (no binaries). Since then, benchmarked with real BLAST — see `benchmarks/reconstruction_homology.md` (1.9× speedup measured, deterministic hit counts confirmed). | **Resolved and implemented: `max(1, os.cpu_count()-1)` across all BLAST/Diamond/HMMER entry points.** No longer open — see the Action items below (this row previously contradicted them). |
 | 6 | `remove_genes.blocked_reactions` | `'remove'` → essentiality correct (b1779 essential gene growth=0); `'keep'` → **wrong** prediction (growth remains at max). | **Python `'remove'` is correct. MATLAB `'keep'` silently breaks essentiality predictions.** |
 | 7 | `time_limit` in `predict_localization` | yeast-GEM (2682 gene-assoc. reactions) solves in ~2.6 min; Human-GEM scale extrapolates to ~18 min (linear extrapolation, unreliable for MILP). | **Leave `None`; document MATLAB's 900s as a safe cap for Human-GEM scale.** |
 | 8 | `mip_gap`/`time_limit` in init | Toy model solves identically at all gaps (too small to distinguish). No genome-scale expression data available. | **Leave `None`; document MATLAB's `0.0004`/5s as a recommended starting point.** |
@@ -238,9 +262,9 @@ preventing runaway solves on difficult instances.
 
 | Parameter | Python default | MATLAB default | Reference | Status |
 |---|---|---|---|---|
-| `factor` | `5.0` | 5 | Wang et al. 2012 | ✓ |
-| `max_score` | `10.0` | 10 | Wang et al. 2012 | ✓ |
-| `min_score` | `-5.0` | -5 | Wang et al. 2012 | ✓ |
+| `factor` | `5.0` | 5 | unconfirmed — see `init.md` | ✓ |
+| `max_score` | `10.0` | 10 | unconfirmed — see `init.md` | ✓ |
+| `min_score` | `-5.0` | -5 | unconfirmed — see `init.md` | ✓ |
 
 ### `raven_toolbox.init.score` — `score_reactions_from_genes`
 
@@ -486,9 +510,12 @@ Code changes to implement:
 
 ## Remaining work
 
-- [ ] **evalue benchmark** — needs BLAST/Diamond: compare precision/recall at `1e-4` vs `1e-5` on a proteome with known KO annotations.
-- [ ] **mip_gap benchmark** — needs genome-scale expression data: run tINIT on a real dataset with `mip_gap=None` vs `0.0004`; compare size and quality of reconstructed models.
-- [ ] **Numerical tolerances** (`eps`, `tol`, `reg`, `stoichiometry_tol`, `constrain_reversible_reactions.eps`) — run on ill-conditioned models to confirm numerical stability.
-- [ ] **MILP big-M** (`init.build.big_m`, `gapfilling.kumar_milp.big_m`) — verify against the largest observed flux bound in yeast-GEM/Human-GEM.
-- [ ] **Homology thresholds** (`max_evalue`, `min_align_len`, `min_identity`, `cutoff`, `min_score_ratio_ko`, `min_score_ratio_g`) — benchmark on a proteome with known KO assignments.
-- [ ] **Sampling parameters** (`thinning`, `warmup`, `n_samples`, `fixed_width_tol`) — run autocorrelation analysis on ACHR/CHRR chains on yeast-GEM.
+**Stale — kept as a historical record of what this list originally said, not as a live
+checklist.** Cross-checked against the current state on 2026-08-28:
+
+- [x] ~~**evalue benchmark**~~ — done: `homology_cutoff_calibration.md`, scored against KEGG and OMA orthology across a 4-organism relatedness series (not the precision/recall-on-KO-annotations design originally proposed here, but the same question answered more rigorously).
+- [x] ~~**mip_gap benchmark**~~ — done: `init_param_calibration.md`, genome-scale Human-GEM (HCT116 and others), both single-step and full-pipeline ftINIT plus tINIT.
+- [x] ~~**MILP big-M**~~ — done: `benchmarks/init.md` (`run_ftinit.big_m`) and `benchmarks/gapfilling.md` (`fill_gaps_kumar_milp.big_m`), both confirmed against real model bounds.
+- [x] ~~**Homology thresholds**~~ — done, same study as the evalue benchmark above: `max_evalue`, `min_align_len`, `min_identity` all measured; `min_align_len` changed `200`→`100` in code as a result.
+- [x] ~~**Sampling parameters**~~ (`thinning`, `warmup`) — done: single-chain ESS in `benchmarks/sampling.md`, between-chain Gelman-Rubin R-hat in `sampling_convergence_calibration.md`. `n_samples` and `fixed_width_tol` (the CHRR rounding tolerance) were not part of either study and remain untested.
+- [ ] **Numerical tolerances** (`eps`, `tol`, `reg`, `stoichiometry_tol`, `constrain_reversible_reactions.eps`) — still genuinely open; see `manipulation.md`.

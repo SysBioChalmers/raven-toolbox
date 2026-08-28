@@ -38,7 +38,9 @@ standard RAVEN-convention models. Note: this parameter only applies to
 ## `thinning` — ACHR thinning factor (samples discarded between stored samples)
 
 **Python default:** `100` (cobrapy ACHRSampler default)
-**MATLAB default:** N/A (MATLAB's randomSampling only implements random_objective)
+**MATLAB default:** N/A — `randomSampling` implements ACHR too (`method='achr'`), it
+just isn't the default there (see the `method` section below); `thinning` has no
+MATLAB-side default to compare against regardless.
 
 In ACHR sampling, `thinning=k` means k random walks are taken between each stored
 sample. Higher thinning reduces autocorrelation at the cost of more computation.

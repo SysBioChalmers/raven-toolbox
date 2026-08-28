@@ -145,15 +145,24 @@ not constrained by big_m and retain their full ±1000 bounds.
 
 ## Scoring parameters (`factor`, `max_score`, `min_score`)
 
-These control how RNA expression values are converted to INIT gene scores:
+These control how RNA expression values are converted to INIT gene scores.
+**Correction (2026-08-28):** this section previously documented the formula as
+`log2(TPM)`; the actual implementation (`src/raven_toolbox/init/score.py`,
+confirmed directly) and RAVEN's own `scoreComplexModel.m` both use the natural
+logarithm, not log2:
 
 ```
-score = clip(factor × (log2(TPM) - log2(threshold)), min_score, max_score)
+score = clip(factor × ln(level / reference), min_score, max_score)
 ```
 
 **Parameters:** `factor=5.0`, `max_score=10.0`, `min_score=-5.0`
-(Python and MATLAB both use these values from Wang et al. 2012)
+(Python and MATLAB both use these values.) **This section previously attributed
+these to "Wang et al. 2012", which was checked and could not be confirmed** —
+neither raven-toolbox's nor RAVEN's own source cites a paper for this formula,
+and the one "Wang 2012" metabolic-modelling paper found (the mCADRE method)
+uses a different, categorical scoring approach, not this continuous log-ratio
+formula. Treat this as RAVEN's own formula with no confirmed literature source.
 
-These are literature values from the original INIT publication and are consistent
-across both implementations. No empirical test needed unless a new scoring
-approach is proposed.
+Both implementations use the same values, so there is no cross-implementation
+disagreement to test — but the source of the specific numbers (5, 10, -5) is
+open, and worth resolving if the origin is known.

@@ -64,7 +64,7 @@ e_coli_core 95 rxns, synthetic toy models. Binaries: BLAST 2.17.0.
 | `run_ftinit` | `big_m` | `100.0` | 100 | ✓ keep (intentional LP tightener; see `init.md`) |
 | `run_ftinit` | `mip_gap` | `None` | `0.0004` | ✓ keep `None`; docstring now cites measured genome-scale values, not MATLAB's untested one — see [parity decisions](#cross-toolbox-parity-decisions) |
 | `run_ftinit` | `time_limit` | `None` | 5000 ms | ✓ keep `None`; docstring now flags the measured >75 min uncapped risk on hard inputs — see [parity decisions](#cross-toolbox-parity-decisions) |
-| `gene_scores_from_expression` | `factor` | `5.0` | 5 | ✓ keep (Wang 2012) |
+| `gene_scores_from_expression` | `factor` | `5.0` | 5 | ✓ keep (RAVEN's own formula; "Wang 2012" attribution checked and could not be confirmed, see `init.md`) |
 | `gene_scores_from_expression` | `max_score` | `10.0` | 10 | ✓ keep |
 | `gene_scores_from_expression` | `min_score` | `-5.0` | -5 | ✓ keep |
 | `score_reactions_from_genes` | `isozyme_scoring` | `'max'` | `'max'` | ✓ keep |
