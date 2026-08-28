@@ -42,7 +42,6 @@ Legacy quirks the reader also accepts (silent normalisation):
 from __future__ import annotations
 
 import gzip
-import re
 import warnings
 from collections import OrderedDict
 from datetime import date
@@ -52,7 +51,6 @@ import cobra
 from cobra.io.dict import model_from_dict, model_to_dict
 from cobra.io.yaml import yaml as _cobra_yaml  # ruamel round-trip YAML (handles !!omap)
 from ruamel.yaml import YAML
-from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 from raven_toolbox.io.ec_data import (
     EcData,
@@ -75,10 +73,8 @@ from raven_toolbox.io.ec_data import (
 # each entry two spaces past its parent key, matching writeYAMLmodel.m's
 # own hand-indented style — it would only read as flush-with-the-key for
 # a plain `key: [list]` mapping, which this format never emits at any
-# level. Quoting still only happens when YAML requires it; the quote
-# *character* is double, matching Prettier's YAML default and
-# writeYAMLmodel.m (see _needs_quote below for why this needs its own
-# check rather than ruamel's default single-quote-when-needed behaviour).
+# level. Quoting is left at ruamel's own defaults (single-quote only when
+# YAML requires it), which already match RAVEN's writer.
 _write_yaml = YAML(typ="rt")
 _write_yaml.width = 1_000_000
 _write_yaml.indent(mapping=2, sequence=2, offset=0)
@@ -502,86 +498,6 @@ def _coerce_floats(obj):
     return obj
 
 
-_QUOTE_RESOLVER_PATTERN = re.compile(
-    r"^(true|True|TRUE|false|False|FALSE)$"
-    r"|^[-+]?[0-9][0-9_]*\.[0-9_]*([eE][-+]?[0-9]+)?$"
-    r"|^[-+]?[0-9][0-9_]*[eE][-+]?[0-9]+$"
-    r"|^[-+]?\.[0-9_]+([eE][-+][0-9]+)?$"
-    r"|^[-+]?\.(inf|Inf|INF)$"
-    r"|^\.(nan|NaN|NAN)$"
-    r"|^[-+]?0b[01_]+$"
-    r"|^[-+]?0o?[0-7_]+$"
-    r"|^[-+]?[0-9_]+$"
-    r"|^[-+]?0x[0-9a-fA-F_]+$"
-    r"|^(~|[Nn]ull|NULL)$"
-    r"|^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-)
-
-
-def _is_ws(ch: str) -> bool:
-    """The four characters writeYAMLmodel.m's needsQuote treats as whitespace.
-
-    Deliberately narrower than str.isspace(), which also matches \\v, \\f and
-    other Unicode whitespace the MATLAB port never considered.
-    """
-    return ch in (" ", "\t", "\n", "\r")
-
-
-def _needs_quote(s: str) -> bool:
-    """Whether this scalar needs quoting when written as YAML.
-
-    Ports writeYAMLmodel.m's needsQuote so both writers quote exactly the
-    same set of values, for the same two reasons: a plain (bare) reading
-    would resolve to a non-string YAML type (bool/int/float/null/
-    timestamp — neither writer emits explicit type tags), or the text
-    itself is not valid as a plain block scalar (leading indicator
-    character, a mid-string ": "/" #", leading/trailing whitespace, or an
-    embedded line break).
-    """
-    if not s:
-        return True
-    if _QUOTE_RESOLVER_PATTERN.match(s):
-        return True
-    first = s[0]
-    if first in "#,[]{}&*!|>'\"%@`":
-        return True
-    followed_by_ws = len(s) == 1 or _is_ws(s[1])
-    if first in "?:" and followed_by_ws:
-        return True
-    if first == "-" and followed_by_ws:
-        return True
-    if _is_ws(first) or _is_ws(s[-1]):
-        return True
-    if "\n" in s or "\r" in s:
-        return True
-    for i in range(1, len(s)):
-        ch = s[i]
-        if ch == ":" and (i == len(s) - 1 or _is_ws(s[i + 1])):
-            return True
-        if ch == "#" and _is_ws(s[i - 1]):
-            return True
-    return False
-
-
-def _prefer_double_quotes(obj):
-    """Recursively mark every scalar string that needs quoting as double-quoted.
-
-    ruamel's round-trip dumper single-quotes a plain ``str`` when quoting
-    is syntactically required; there is no global "quote with this
-    character when needed" switch, only a per-value style override. Wrap
-    exactly the values :func:`_needs_quote` says need quoting in
-    ``DoubleQuotedScalarString`` — never unconditionally, or every scalar
-    would end up quoted regardless of whether YAML requires it.
-    """
-    if isinstance(obj, str):
-        return DoubleQuotedScalarString(obj) if _needs_quote(obj) else obj
-    if isinstance(obj, dict):
-        return type(obj)((k, _prefer_double_quotes(v)) for k, v in obj.items())
-    if isinstance(obj, list):
-        return [_prefer_double_quotes(v) for v in obj]
-    return obj
-
-
 _LIST_ONLY_ANNOTATION_KEYS = frozenset({"ec-code", "smiles"})
 
 
@@ -791,4 +707,4 @@ def write_yaml_model(
         ordered.setdefault(key, value)
 
     with _open_text(path, "w") as handle:
-        _write_yaml.dump(_prefer_double_quotes(_coerce_floats(ordered)), handle)
+        _write_yaml.dump(_coerce_floats(ordered), handle)
