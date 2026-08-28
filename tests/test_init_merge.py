@@ -1,4 +1,4 @@
-"""Phase 4d.2: linear reaction merging (merge_linear + group_rxn_scores).
+"""Linear reaction merging (merge_linear + group_rxn_scores).
 
 Oracles: RAVEN tinitTests T0004. testModel merges {R1,R2},{R3,R5},{R4,R6},{R7,R8},
 {R9,R10}; testModel4 merges {R5,R6},{R7,R8},{R9,R10} with two reactions flipped.

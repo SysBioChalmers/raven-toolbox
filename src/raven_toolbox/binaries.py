@@ -229,9 +229,9 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
 
     cached = _find_exe()
     if cached is not None:
-        # Re-applied on the cached path too, not only after extraction: a bundle
-        # left behind by an older version of this function has only the one
-        # executable it was asked for marked, and the rest still unusable.
+        # Re-applied on the cached path too, not only after extraction: a stale
+        # cache dir may only have the one executable it was asked for marked,
+        # leaving the rest unusable.
         _make_executable(cached)
         return cached
 
@@ -262,9 +262,8 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
             f"None of {candidates} found in the extracted bundle at {dest_dir}."
         )
     # Every executable the bundle provides, not just the one asked for. The BLAST
-    # bundle ships blastp *and* makeblastdb; marking only the requested one left
-    # the other non-executable, and the failure surfaced much later as a
-    # PermissionError from whichever tool happened to be called second.
+    # bundle ships blastp *and* makeblastdb; marking only the requested one would
+    # leave the other non-executable.
     for provided in bundle.get("provides", []):
         for name in ([f"{provided}.exe", provided] if key.startswith("windows-") else [provided]):
             sibling = dest_dir / name

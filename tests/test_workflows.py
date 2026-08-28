@@ -3,9 +3,6 @@
 Nothing checks a workflow's shell until the job runs. For the workflows that run
 on a schedule, that means a quoting mistake sits there silently and costs a whole
 night -- and PR CI never exercises them, so review will not catch it either.
-
-Not hypothetical: a stray backslash-quote at the end of one line in
-``parity-nightly.yml`` killed the job at its licence step.
 """
 
 from __future__ import annotations

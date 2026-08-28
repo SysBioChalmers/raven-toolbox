@@ -51,7 +51,7 @@ def test_reaction_fields(reactions):
 
 def test_stoichiometry_cached(reactions):
     """parse_kegg_reactions populates the cached stoichiometry so
-    build_reference_model doesn't have to re-parse (known_issues.md D2)."""
+    build_reference_model doesn't have to re-parse."""
     r = next(r for r in reactions if r.id == "R90010")
     assert r.stoichiometry  # non-empty
     # Reactants negative, products positive.

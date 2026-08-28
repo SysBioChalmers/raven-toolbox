@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cut-off sensitivity for the KEGG HMM query path (step 3b.5).
+"""Cut-off sensitivity for the KEGG HMM query path.
 
 Cross-validates ``assign_kos`` against an organism's *real* KEGG gene→KO
 annotation (from the ``organism_gene_ko`` table) and sweeps the E-value cut-off

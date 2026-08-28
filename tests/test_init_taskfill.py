@@ -1,4 +1,4 @@
-"""Phase 4d.4: task gap-filling (fill_tasks).
+"""Task gap-filling (fill_tasks).
 
 Oracle: RAVEN tinitTests T0003. Remove the exchange reactions and create a gap by
 deleting R7 (e[c] -> e[s]); gap-filling against the full reference must add R7 back so
@@ -84,10 +84,10 @@ def test_prefers_cheaper_reactions_by_score():
 
 
 # --------------------------------------------------------------------------- #
-# Regression tests for the gap-fill rewrite in this PR (faithful RAVEN
-# ftINITFillGaps port): reactions are reconstructed rather than deep-copied
-# (cobra Reaction.copy() recurses without bound on genome-scale models), the
-# candidates are never copied into the model, and un-fillable tasks are surfaced.
+# Regression tests for gap-fill reaction construction: reactions are reconstructed
+# rather than deep-copied (cobra Reaction.copy() recurses without bound on
+# genome-scale models), candidates are never copied into the model, and
+# un-fillable tasks are surfaced.
 # --------------------------------------------------------------------------- #
 def test_gap_filled_reaction_keeps_its_gpr():
     """A gap-filled reaction retains its GPR, stoichiometry and bounds.
@@ -95,7 +95,7 @@ def test_gap_filled_reaction_keeps_its_gpr():
     The gap-fill reconstructs each chosen reaction (id/bounds/stoichiometry/GPR) instead
     of deep-copying it. Dropping the gene rule would make the added reaction look
     gene-less, so every gene controlling only that reaction would be silently missed by
-    the downstream gene-essentiality analysis — the very failure mode this PR fixes.
+    downstream gene-essentiality analysis.
     """
     ref = _reference_without_exchanges()
     gapped = ref.copy()
@@ -129,8 +129,7 @@ def test_add_reference_reactions_recreates_missing_metabolites():
 
 def test_unfillable_task_is_reported_and_warns():
     """A task the reference cannot satisfy is returned in ``failed_tasks`` and warned
-    about, not silently dropped into a discarded list (the old behaviour that let a
-    non-growing context model pass unnoticed)."""
+    about, not silently dropped."""
     import pytest
 
     ref = _reference_without_exchanges()

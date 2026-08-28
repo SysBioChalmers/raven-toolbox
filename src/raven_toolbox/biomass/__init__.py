@@ -1,9 +1,8 @@
 """Biomass equation manipulation — growth-associated maintenance, amino-
 acid ratios, component scaling, and biomass-fraction reporting.
 
-The yeast-GEM port (see yeast-GEM/code/python/PORTING_PLAN.md) was the
-first consumer; the API is parameterised by a :class:`BiomassConfig`
-so other GEMs can describe their own component layout.
+The API is parameterised by a :class:`BiomassConfig` so other GEMs
+can describe their own component layout.
 
 A typical caller assembles ``BiomassConfig`` once (often from a
 project-level YAML) and passes it to every operation:

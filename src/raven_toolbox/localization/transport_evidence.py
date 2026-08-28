@@ -16,7 +16,7 @@ Evidence is carrier-general (any transporter family/membrane) and organism-agnos
 the only per-organism input is the proteome). :func:`annotate_proteome` runs the bundled ``hmmsearch``
 (Pfam transporter families) + ``diamond`` (TCDB) back-ends against a proteome FASTA;
 :func:`annotate_transporters` takes a pre-computed table instead. Substrate matching is *coarse-first*
-(family → coarse class); the per-substrate ChEBI layer is a later increment. See
+(family → coarse class), with a finer per-substrate ChEBI layer available via ``ontology``. See
 :doc:`/reference/transport_evidence_scoring` for the full design.
 """
 from __future__ import annotations
@@ -106,7 +106,8 @@ def annotate_transporters(
     """Parse a per-gene transporter-annotation table into :class:`TransporterAnnotation` objects.
 
     This is the **bring-your-own** path: the table can come from any tool (eggNOG-mapper, InterProScan,
-    a web service) or, in a later increment, from the bundled ``hmmsearch``/``diamond`` back-ends. List
+    a web service); use :func:`annotate_proteome` instead for the bundled ``hmmsearch``/``diamond``
+    back-ends. List
     columns (``families``, ``substrate_classes``) may be real lists or ``sep``-joined strings. A gene
     appearing on several rows keeps its highest-confidence annotation and the union of families /
     substrate classes.
@@ -344,8 +345,8 @@ def annotate_proteome(
 
 
 # ------------------------------------------------- metabolite -> coarse substrate class (model side)
-# Name-keyword heuristic over the shared coarse vocabulary; the principled ChEBI-ontology roll-up
-# (from the metabolite's ChEBI/KEGG annotation) is a later increment.
+# Name-keyword heuristic over the shared coarse vocabulary; does not derive classes from a
+# metabolite's ChEBI/KEGG annotation.
 _SUBSTRATE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "amino_acid": ("glycine", "alanine", "valine", "leucine", "isoleucine", "proline", "phenylalanine",
         "tryptophan", "methionine", "serine", "threonine", "cysteine", "cystine", "tyrosine",
@@ -386,9 +387,9 @@ def default_substrate_of(metabolite: cobra.Metabolite) -> frozenset[str]:
     A dependency-free first pass over :data:`transporter_tables.COARSE_CLASSES`: it matches the
     metabolite's name against curated keyword lists, so ``(S)-malate`` → ``carboxylate``,
     ``D-glucose`` → ``sugar``, ``NADPH`` → ``nucleotide`` + ``cofactor_vitamin``. Pass it as
-    ``substrate_of`` to :func:`evidence_aware_transport_cost`. The principled ChEBI-ontology roll-up
-    (using the metabolite's ChEBI/KEGG annotation) is a later increment; an unmatched metabolite
-    returns the empty set — no substrate support, so the parsimony prior stands (a safe default).
+    ``substrate_of`` to :func:`evidence_aware_transport_cost`. It does not derive classes from a
+    metabolite's ChEBI/KEGG annotation; an unmatched metabolite returns the empty set — no substrate
+    support, so the parsimony prior stands (a safe default).
     """
     name = (metabolite.name or metabolite.id or "").lower()
     return frozenset(cls for cls, kws in _SUBSTRATE_KEYWORDS.items() if any(k in name for k in kws))

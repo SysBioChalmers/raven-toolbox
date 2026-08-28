@@ -47,9 +47,8 @@ from raven_toolbox.analysis.flux_sampling import (
 
 logger = logging.getLogger(__name__)
 
-# Backwards-compatible alias. The historical RandomSamplingResult is now the
-# unified FluxSamplingResult returned by every sampling method (its
-# ``good_reactions`` field is populated for method='random_objective' only).
+# Alias for the FluxSamplingResult returned by every sampling method; its
+# ``good_reactions`` field is populated for method='random_objective' only.
 RandomSamplingResult = FluxSamplingResult
 
 
@@ -82,8 +81,7 @@ def random_sampling(
       polytopes such as enzyme-constrained models.
     * ``"random_objective"`` — the random-objective vertex method of Bordel et al.
       (2010): each sample maximises a small random objective, returning a polytope
-      vertex. This was ``random_sampling``'s historical behaviour; it is no longer
-      the default.
+      vertex.
 
     The ``"achr"``/``"chrr"`` methods draw the (near-)uniform interior distribution;
     ``"random_objective"`` draws diverse vertices. Set any constraints you want to

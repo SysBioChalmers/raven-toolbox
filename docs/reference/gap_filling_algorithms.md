@@ -5,8 +5,8 @@ models (GEMs), characterises each by its mathematical formulation, candidate-rea
 objective function, assumptions, and limitations, and argues which strategies are most
 suitable for implementation in RAVEN Toolbox.
 
-All claims marked **[verified]** were adversarially confirmed by independent evaluators; claims
-marked **[inferred]** rely on published descriptions combined with source-code inspection.
+Claims marked **[verified]** are confirmed against primary sources; claims marked **[inferred]**
+rely on published descriptions combined with source-code inspection.
 
 ---
 
@@ -807,9 +807,3 @@ fillGaps(model, universalModel, varargin)
 13. Pires DEV et al. (2023) Reconstructor: automated ensemble-based metabolic network
     reconstruction. *Nature Communications* 14:2584.
     DOI: [10.1038/s41467-023-38110-7](https://doi.org/10.1038/s41467-023-38110-7)
-
----
-
-*Last updated: 2026-06-19. Research conducted via adversarial multi-source verification
-(111 agent calls, 28 primary sources fetched, 25 claims independently verified with 2-of-3
-adversarial voting — 19 confirmed, 6 refuted).*

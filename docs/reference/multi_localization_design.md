@@ -111,15 +111,14 @@ dead-placement exploit "structurally" as hoped above. Two things were learned:
    **regardless of whether it carries flux**, so a conditionally-dead placement can *tie or beat*
    the genuinely function-driven solution.
 
-   **This is NOT a GLPK artifact — Gurobi is just as unsound** (verified by a 6-agent adversarial
-   workflow, 3/3 independent angles, high confidence). On the dual-target toy at `transport_cost=0.1`,
+   **This is NOT a GLPK artifact — Gurobi is just as unsound.** On the dual-target toy at `transport_cost=0.1`,
    Gurobi itself returns `r1 = {c, m}, r2 = {c, m}` where the `m`-copies carry **zero flux**
    (materialized FVA `r1_m = r2_m = [0, 0]`; the MILP primals show `x_r2_m = 1, v_r2_m = 0,
    y_g2_m = 1` harvesting `g2`'s `m`-score), while the live pathway runs entirely in `c`. At
    `transport_cost = 0.3` the dead-placement solution (objective 1.8) **strictly beats** the honest
-   function-driven one (1.6) — not a tie, and unchanged across reruns/seeds/`MIPFocus`. (An earlier
-   note claimed "Gurobi returns the intended `r1 = {c, m}`"; that was wrong — the test only asserted
-   `r1 ∈ {c, m}`, which a *dead* `r1_m` also satisfies.) The GLPK `ub = 0` bug is **orthogonal**: the
+   function-driven one (1.6) — not a tie, and unchanged across reruns/seeds/`MIPFocus`. Asserting
+   `r1 ∈ {c, m}` alone is insufficient — a *dead* `r1_m` also satisfies it; the check must confirm
+   the placement actually carries flux. The GLPK `ub = 0` bug is **orthogonal**: the
    dead placements pass the capability pre-pass, so the forbid never applies to them. The defect is in
    the *formulation*, not the solver.
 

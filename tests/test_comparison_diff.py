@@ -110,8 +110,8 @@ def _canon(rule: str) -> str:
         ("A and B", "a AND b"),                 # case + AND spelling
         ("A  and   B", "A and B"),              # whitespace
         ("(A or B) and C", "(a OR b) AND c"),   # case, nested
-        ("A and B", "B and A"),                 # AND operand order  (the back-port)
-        ("A or B", "B or A"),                   # OR isozyme order   (the back-port)
+        ("A and B", "B and A"),                 # AND operand order
+        ("A or B", "B or A"),                   # OR isozyme order
         ("(A or B) and C", "C and (B or A)"),   # nested, reordered at both levels
         ("A and A", "A"),                       # duplicate gene collapses
     ],
@@ -132,8 +132,7 @@ def test_canonical_gpr_keeps_real_differences(ga, gb):
 
 
 def test_diff_models_ignores_gpr_operand_order():
-    # Two models identical but for GPR operand order must compare equal — the RAVEN diffModels
-    # behaviour this back-port adds. The string heuristic used to flag this as a GPR difference.
+    # GPR operand order alone must not count as a difference, matching RAVEN's diffModels.
     a = _mini_model("a")  # r1 GPR is "g1 AND g2"
     b = _mini_model("b")
     b.reactions.r1.gene_reaction_rule = "g2 and g1"

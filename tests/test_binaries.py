@@ -287,9 +287,9 @@ def test_every_executable_in_a_bundle_is_made_executable(tmp_path, monkeypatch):
     """Not only the one that triggered the download.
 
     zipfile does not restore Unix permissions, so an extracted file is not
-    executable. Marking only the requested one left the rest of the bundle
-    unusable: fetching blastp then calling makeblastdb raised PermissionError,
-    which is what broke the parity nightly.
+    executable. Marking only the requested one leaves the rest of the bundle
+    unusable -- fetching blastp then calling makeblastdb would raise
+    PermissionError.
     """
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     registry = _two_tool_bundle(tmp_path)
@@ -302,12 +302,12 @@ def test_every_executable_in_a_bundle_is_made_executable(tmp_path, monkeypatch):
 
 @pytest.mark.skipif(_WINDOWS, reason="the execute bit is meaningless on Windows")
 def test_a_cached_bundle_is_repaired_rather_than_trusted(tmp_path, monkeypatch):
-    """A cache written by the older code has the bit missing and never re-extracts."""
+    """A cached bundle missing the execute bit is repaired, not trusted as valid."""
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     registry = _two_tool_bundle(tmp_path)
 
     fetched = Path(binaries.ensure_binary("blastp", registry=registry))
-    fetched.chmod(0o644)  # simulate what the previous version left behind
+    fetched.chmod(0o644)  # simulate a bundle cached without the execute bit
 
     again = Path(binaries.ensure_binary("blastp", registry=registry))
 

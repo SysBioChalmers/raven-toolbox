@@ -33,12 +33,12 @@ external merge sort bounded to `chunk_rows` in memory (see
 `stream_organism_gene_ko`), so it stays scalable. On the real dump this lands
 around ~74 MB.
 
-We previously xz-compressed this one file (≈27 MB, ~2.9× smaller). We switched it
-to **gzip** so the *same* artefact is readable by MATLAB's built-in `gunzip` with
-no external tool — the artefacts are shared with MATLAB RAVEN, and `.xz` would
-force an external `xz`/`unxz` dependency. The size cost (~74 vs ~27 MB on a
-once-per-release download) buys a dependency-free, cross-tool, cross-platform
-read; xz's larger dictionary is not worth a MATLAB toolchain requirement.
+**Gzip**, not the smaller xz (≈27 MB, ~2.9× smaller), so the *same* artefact is
+readable by MATLAB's built-in `gunzip` with no external tool — the artefacts are
+shared with MATLAB RAVEN, and `.xz` would force an external `xz`/`unxz`
+dependency. The size cost (~74 vs ~27 MB on a once-per-release download) buys a
+dependency-free, cross-tool, cross-platform read; xz's larger dictionary is not
+worth a MATLAB toolchain requirement.
 
 - **pandas reads/writes gzip with zero extra dependencies** — compression is
   inferred from the `.gz` suffix; `gzip` is stdlib, so this works natively on

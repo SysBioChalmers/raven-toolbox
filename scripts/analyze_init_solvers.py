@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-solver benchmark for ftINIT on a genome-scale model (Phase 4d.7).
+"""Cross-solver benchmark for ftINIT on a genome-scale model.
 
 The clean-data calibration and robustness studies tuned (and ran) on Gurobi. The CI
 ``tests/test_init_solvers.py`` checks correctness on toy models for every installed MILP

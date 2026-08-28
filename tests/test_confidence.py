@@ -170,8 +170,8 @@ def test_mark_curated_and_scorer_respects_it():
 
 
 def test_mark_curated_can_pin_any_facet():
-    # mark_curated used to hardcode "localization", which made every other scorer's `curated` guard
-    # unreachable through the public API.
+    # mark_curated must support any facet -- hardcoding "localization" would leave every other
+    # scorer's `curated` guard unreachable through the public API.
     m = _model()
     mark_curated(m.reactions.r1, facet="equation", source="curator:eduardk")
     assert get_confidence(m.reactions.r1).facets["equation"].level == "curated"

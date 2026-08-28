@@ -284,8 +284,8 @@ def constrain_reversible_reactions(
         pass
     # Infeasible models surface as either OptimizationError (Gurobi/HiGHS) or
     # NaN-filled ranges (some optlang backends silently). Catch both and raise
-    # a single clear error — the original ``abs(NaN) < eps`` comparison would
-    # have silently no-op'd, letting bogus "all reactions truly reversible"
+    # a single clear error — an unguarded ``abs(NaN) < eps`` comparison silently
+    # evaluates to False, letting bogus "all reactions truly reversible"
     # decisions sneak through.
     try:
         fva = flux_variability_analysis(
@@ -350,8 +350,8 @@ def group_linear_reactions(
 
     # Worklist of metabolites to (re)consider for merging. Each metabolite
     # participating in a merge can expose new linear chains in its neighbours,
-    # so we re-enqueue the touched mets rather than restart the whole scan
-    # (the old O(n²·m) restart-after-every-merge loop).
+    # so touched mets are re-enqueued rather than restarting a full scan of
+    # all metabolites after every merge.
     pending: list = list(model.metabolites)
     seen_in_pass: set = set()
     while pending:

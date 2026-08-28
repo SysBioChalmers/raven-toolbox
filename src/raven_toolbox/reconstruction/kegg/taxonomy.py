@@ -1,8 +1,7 @@
 """Parse the KEGG ``taxonomy`` file into lineages, domains, and phylogenetic distances.
 
 Ports RAVEN ``getPhylDist``: the file-reading half (per-organism category lineages and
-the domain split) **and** the distance-matrix half (:func:`phyl_dist`), which earlier
-ports deferred. The ``taxonomy`` file is an indented tree: ``#``-prefixed lines name a
+the domain split) **and** the distance-matrix half (:func:`phyl_dist`). The ``taxonomy`` file is an indented tree: ``#``-prefixed lines name a
 category, the number of leading ``#`` giving its depth; organism lines are tab-separated
 ``T-number<tab>org_id<tab>T-number<tab>name``. Each organism inherits the stack of
 categories above it, the first of which is its domain (``Prokaryotes`` / ``Eukaryotes``).

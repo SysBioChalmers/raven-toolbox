@@ -1,7 +1,4 @@
-"""Tests for expand_model (RAVEN expandModel.m) — splitting isozymes into reactions.
-
-Adopted from geckopy's tests/test_expand.py.
-"""
+"""Tests for expand_model (RAVEN expandModel.m) — splitting isozymes into reactions."""
 import cobra
 
 from raven_toolbox.manipulation import expand_model

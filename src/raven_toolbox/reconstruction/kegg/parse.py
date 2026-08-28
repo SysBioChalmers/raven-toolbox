@@ -10,16 +10,16 @@ Maintainer-side, build-time tooling. Produces the published raven_toolbox KEGG a
 Genes live only in ``organism_gene_ko``; per-organism GPRs are built at runtime
 (3b.4/3b.5), so the reference model stays small.
 
-Improvements over the RAVEN port (logged in IMPROVEMENTS.md):
+Diverges from the RAVEN port in three ways:
 
-* **K1** — equations are read from each reaction entry's own ``EQUATION`` field,
-  dropping RAVEN's fragile dependence on ``reaction.lst`` being in the exact same
-  line order as ``reaction``.
-* **K2** — undefined-stoichiometry terms (``n C00001``, ``(n+1) C00002``) keep
-  their real compound id with coefficient 1 and the reaction is *flagged*, rather
-  than minting ``"n C00001"`` pseudo-metabolites and renaming them ``undefined_N``.
-* **K3** — quality labels become a tidy boolean ``rxn_flags`` table instead of
-  free-text appended to ``rxnNotes``.
+* equations are read from each reaction entry's own ``EQUATION`` field, not
+  from ``reaction.lst``, whose line order would otherwise have to exactly
+  match ``reaction``;
+* undefined-stoichiometry terms (``n C00001``, ``(n+1) C00002``) keep their
+  real compound id with coefficient 1 and the reaction is *flagged*, rather
+  than minting ``"n C00001"`` pseudo-metabolites renamed ``undefined_N``;
+* quality labels are a tidy boolean ``rxn_flags`` table instead of free-text
+  appended to ``rxnNotes``.
 
 The KEGG flat-file format: each entry is a block of lines terminated by ``///``;
 a field label occupies columns 1-12, continuation lines are indented 12 spaces.
@@ -140,7 +140,7 @@ def _parse_equation(equation: str) -> tuple[dict[str, float], bool, bool]:
 
     Reactants get negative coefficients, products positive. Non-numeric
     coefficients (``n``, ``(n+1)``, ``2n``) are treated as 1.0 and flag the
-    reaction as having undefined stoichiometry (improvement K2).
+    reaction as having undefined stoichiometry.
     """
     reversible = "<=>" in equation
     parts = re.split(r"\s(?:<=>|=>|<=)\s", equation, maxsplit=1)

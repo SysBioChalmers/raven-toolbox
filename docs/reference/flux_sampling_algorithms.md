@@ -131,7 +131,7 @@ variables `y`, computes residuals for dual feasibility, primal slack, and comple
 and takes a fraction-to-boundary step. The returned lower-triangular factor `E` (with
 `E Eᵀ = E2`) is the rounding transform.
 
-A subtlety worth noting: the MVE of a triangle is its **Steiner inellipse** (centred at the
+The MVE of a triangle is its **Steiner inellipse** (centred at the
 centroid, tangent at the side midpoints), *not* its incircle — the largest inscribed *ellipse*
 generally has larger area than the largest inscribed *circle*. This is used as an exact
 validation case (§9): the solver must recover the off-diagonal Steiner shape, confirming it

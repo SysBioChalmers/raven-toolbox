@@ -98,7 +98,7 @@ def test_duplicate_task_ids_all_contribute():
     """Tasks that share an id must each contribute to the union, not overwrite each other.
 
     Real task lists reuse a handful of ids across many tasks (metabolicTasks_Essential.txt
-    has 57 tasks under 5 ids). Keying results by id used to drop all but the last task per
+    has 57 tasks under 5 ids). Keying results by id would drop all but the last task per
     id, under-counting the essential set. Here two tasks share id 't', each making a
     different reaction essential; both must appear.
     """

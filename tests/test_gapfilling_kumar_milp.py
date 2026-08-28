@@ -13,11 +13,8 @@ def _met(mid):
 def growth_gap():
     """Draft model that cannot grow because the biomass precursor B is unreachable.
 
-    Chain: EX_A (uptake) -> A -(r1)-> B -(biomass)-> [objective]
-    But r1 is blocked because it is irreversible and something upstream is missing.
-
-    Actually simpler: draft = EX_A, biomass(A -> ), but the biomass needs B which
-    requires r_missing: A -> B. Template supplies r_missing.
+    draft: EX_A (uptake of A), biomass (consumes B). Producing B requires
+    r_missing: A -> B, which only the template supplies.
     """
     A, B = _met("A_c"), _met("B_c")
     draft = cobra.Model("draft")

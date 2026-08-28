@@ -144,9 +144,8 @@ def run_diamond(
 
 
 def blast_from_table(source: str | Path | pd.DataFrame) -> pd.DataFrame:
-    """Load a precomputed homology hits table (CSV path or DataFrame).
+    """Load a precomputed homology hits table (CSV path or DataFrame, not Excel).
 
-    a plain CSV/DataFrame, not Excel.
     Must contain the ``HIT_COLUMNS`` columns.
     """
     # Force gene-id columns to str: an all-numeric gene-id column (e.g. Entrez ids)

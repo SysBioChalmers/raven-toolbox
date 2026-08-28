@@ -107,7 +107,7 @@ def test_bad_match_by(model_a, model_b):
         merge_models([model_a, model_b], match_by="oops")
 
 
-# --- regression: formula/charge conflict (known_issues.md B1) --------------
+# --- regression: formula/charge conflict ------------------------------------
 
 def test_formula_conflict_warns():
     """Two models sharing a name[comp] but with different formulas warn instead

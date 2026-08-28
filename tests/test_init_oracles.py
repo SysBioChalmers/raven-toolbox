@@ -1,10 +1,8 @@
 """Validate the ftINIT toy oracles and that our scoring reproduces RAVEN's.
 
-This is Phase 4d.0: the correctness scaffold. The (ft)INIT MILP itself is not yet
-ported, so the on/off-output oracles in tinit_oracles live there as constants for the
-later sub-phases; here we lock down the pieces that already exist — the score→
-expression inversion and scoreComplexModel-equivalent scoring (RAVEN tinitTests
-T0009).
+Locks down the score→expression inversion and the scoreComplexModel-equivalent
+scoring (RAVEN tinitTests T0009); the oracle constants in tinit_oracles are shared
+with the tests that exercise the full MILP.
 """
 import pytest
 from tinit_oracles import (

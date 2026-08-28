@@ -1,8 +1,7 @@
 """Read and write RAVEN/cobrapy YAML models.
 
-Aligned to RAVEN ``writeYAMLmodel.m`` / ``readYAMLmodel.m`` as of the
-``feat/geckopy-compat-yaml`` work (commit fa281a1), whose writer emits **cobra's
-native ``!!omap`` YAML**. Because the format *is* cobra's, the standard model
+Aligned to RAVEN ``writeYAMLmodel.m`` / ``readYAMLmodel.m``, whose writer emits
+**cobra's native ``!!omap`` YAML**. Because the format *is* cobra's, the standard model
 content — id, name, compartments, and per-entry id/name/compartment/formula/
 charge/bounds/gene_reaction_rule/objective_coefficient/subsystem/metabolites and
 the whole ``annotation`` block (which carries ``smiles`` for metabolites,
