@@ -230,6 +230,11 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     for section in ("metabolites", "reactions", "genes"):
         _normalize_annotation_values(raw.get(section))
 
+    # A metabolite with no explicit compartment defaults to the first one,
+    # matching readYAMLmodel.m's own convention — cobra's model_from_dict
+    # would otherwise leave met.compartment as None.
+    _default_missing_compartment(raw.get("metabolites"), raw.get("compartments"))
+
     # Normalise legacy reaction-side YAML keys (e.g. RAVEN MATLAB's
     # ``rxnNotes`` -> the canonical ``notes``) before any field capture so
     # the capture step sees a single key per concept.
@@ -331,6 +336,26 @@ def _normalize_annotation_values(entries) -> None:
         for key, value in annotation.items():
             if not isinstance(value, list):
                 annotation[key] = [value]
+
+
+def _default_missing_compartment(metabolites, compartments) -> None:
+    """Default a metabolite's missing compartment to the first compartment.
+
+    Matches readYAMLmodel.m's own convention (a metabolite with no
+    explicit compartment is assigned index 1, i.e. the first entry of
+    ``compartments:``) — cobra's ``model_from_dict`` has no equivalent
+    default and would otherwise leave ``met.compartment`` as ``None``.
+    "First" is the first key of the ``compartments`` mapping, in file
+    order (preserved by the round-trip YAML loader), matching
+    ``model.comps{1}`` on the MATLAB side. Normalises in place; a no-op
+    when there is no compartments section to default to.
+    """
+    if not compartments or not metabolites:
+        return
+    first = next(iter(compartments))
+    for met in metabolites:
+        if isinstance(met, dict) and not met.get("compartment"):
+            met["compartment"] = first
 
 
 def _lift_smiles_to_annotation(metabolites) -> None:
