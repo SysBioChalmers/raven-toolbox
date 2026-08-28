@@ -9,8 +9,8 @@ constructing dual-localised pathways. cobra has no equivalents.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
 import warnings
+from collections.abc import Callable, Iterable
 
 import cobra
 
