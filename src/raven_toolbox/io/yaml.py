@@ -751,6 +751,15 @@ def write_yaml_model(
         if isinstance(gene, dict) and gene.get("name") == "":
             gene.pop("name", None)
 
+    # Same deal for gene_reaction_rule: cobra's _reaction_to_dict always
+    # emits it (also a required attribute), but a GPR-less reaction reads
+    # back the same way with the key absent — cobra defaults it to '',
+    # and nothing here ever indexes the key directly — so RAVEN MATLAB
+    # drops it too. Match that rather than cobra's own convention.
+    for rxn in doc.get("reactions", []) or ():
+        if isinstance(rxn, dict) and rxn.get("gene_reaction_rule") == "":
+            rxn.pop("gene_reaction_rule", None)
+
     # ec sections come from the typed model.ec (when present), not from the
     # opaque foreign-keys stash. Drop any stale ec-* entries in `foreign` so
     # they can't conflict with the EcData-derived ones.
