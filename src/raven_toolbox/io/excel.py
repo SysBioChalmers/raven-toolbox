@@ -63,6 +63,30 @@ def _blank_if_empty(value: str) -> str | None:
     return value or None
 
 
+def _rxn_bound_cells(
+    rxn: cobra.Reaction, default_lb: float | None, default_ub: float | None
+) -> tuple[float | None, float | None]:
+    """(LOWER BOUND, UPPER BOUND) cell values for the RXNS sheet.
+
+    Blank (``None``) when a bound matches the model's own declared default,
+    matching ``exportToExcelFormat`` exactly rather than always writing the
+    literal number: a reversible reaction (``lb < 0``) hides its lower bound
+    only when it equals the declared default; an irreversible one hides it
+    whenever it is exactly 0, regardless of the declared default. Neither rule
+    applies when the model declares no default at all (both bounds are then
+    always shown literally, matching exportToExcelFormat's own fallback).
+    """
+    lb, ub = rxn.lower_bound, rxn.upper_bound
+    if default_lb is None:
+        lb_cell = lb
+    elif lb < 0:
+        lb_cell = None if lb == default_lb else lb
+    else:
+        lb_cell = None if lb == 0 else lb
+    ub_cell = ub if default_ub is None or ub != default_ub else None
+    return lb_cell, ub_cell
+
+
 def _fmt_count(value: float) -> str:
     """Subunit count as an integer string when integral, else as-is."""
     value = float(value)
@@ -111,6 +135,8 @@ def export_to_excel(
     )
     genes = sorted(model.genes, key=lambda g: g.id) if sort_ids else list(model.genes)
     metadata = dict(model.notes.get("metaData", {})) if model.notes else {}
+    default_lb = metadata.get("defaultLB")
+    default_ub = metadata.get("defaultUB")
 
     wb = Workbook()
     wb.remove(wb.active)  # drop the default empty sheet
@@ -124,9 +150,10 @@ def export_to_excel(
     )
     for r in reactions:
         subsystem = subsystem_to_str(r.subsystem)
+        lb_cell, ub_cell = _rxn_bound_cells(r, default_lb, default_ub)
         ws.append([
             None, r.id, r.name, _equation(r), _ec_codes(r), r.gene_reaction_rule,
-            r.lower_bound, r.upper_bound,
+            lb_cell, ub_cell,
             r.objective_coefficient or None, None,
             _miriam_string(r.annotation, exclude=("ec-code",)), subsystem, None,
             r.notes.get("note"), r.notes.get("references"), r.notes.get("confidence_score"),
