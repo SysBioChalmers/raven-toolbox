@@ -5,7 +5,7 @@ import cobra
 import pytest
 
 from raven_toolbox.comparison import DiffReport, diff_models
-from raven_toolbox.comparison.diff import _normalise_gpr
+from raven_toolbox.comparison.diff import _canonical_gpr
 
 
 def _mini_model(model_id: str = "m") -> cobra.Model:
@@ -98,16 +98,55 @@ def test_extra_annotations_picked_up():
     assert not diff_models(a, b, extra_annotations={"custom-key"}).equal
 
 
+def _canon(rule: str) -> str:
+    r = cobra.Reaction("r")
+    r.gene_reaction_rule = rule
+    return _canonical_gpr(r)
+
+
 @pytest.mark.parametrize(
     "ga, gb",
     [
-        ("A and B", "a AND b"),
-        ("A  and   B", "A and B"),
-        ("(A or B) and C", "(a OR b) AND c"),
+        ("A and B", "a AND b"),                 # case + AND spelling
+        ("A  and   B", "A and B"),              # whitespace
+        ("(A or B) and C", "(a OR b) AND c"),   # case, nested
+        ("A and B", "B and A"),                 # AND operand order  (the back-port)
+        ("A or B", "B or A"),                   # OR isozyme order   (the back-port)
+        ("(A or B) and C", "C and (B or A)"),   # nested, reordered at both levels
+        ("A and A", "A"),                       # duplicate gene collapses
     ],
 )
-def test_gpr_normalisation(ga, gb):
-    assert _normalise_gpr(ga) == _normalise_gpr(gb)
+def test_canonical_gpr_is_order_insensitive(ga, gb):
+    assert _canon(ga) == _canon(gb)
+
+
+@pytest.mark.parametrize(
+    "ga, gb",
+    [
+        ("A and B", "A or B"),   # AND vs OR is a real logic difference, not formatting
+        ("A and B", "A and C"),  # a different gene really differs
+    ],
+)
+def test_canonical_gpr_keeps_real_differences(ga, gb):
+    assert _canon(ga) != _canon(gb)
+
+
+def test_diff_models_ignores_gpr_operand_order():
+    # Two models identical but for GPR operand order must compare equal — the RAVEN diffModels
+    # behaviour this back-port adds. The string heuristic used to flag this as a GPR difference.
+    a = _mini_model("a")  # r1 GPR is "g1 AND g2"
+    b = _mini_model("b")
+    b.reactions.r1.gene_reaction_rule = "g2 and g1"
+    assert diff_models(a, b).equal
+
+
+def test_diff_models_flags_real_gpr_difference():
+    a = _mini_model("a")  # r1 GPR is "g1 AND g2"
+    b = _mini_model("b")
+    b.reactions.r1.gene_reaction_rule = "g1 or g2"  # AND -> OR is genuine
+    report = diff_models(a, b)
+    assert not report.equal
+    assert any("GPR" in d for d in report.differences)
 
 
 def test_max_per_category_truncates():

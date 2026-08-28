@@ -1,10 +1,10 @@
 """Per-reaction, multi-facet confidence — persisted in the model, ignored by plain cobra.
 
-Attaches a small structured record to a reaction scoring how well-supported each *facet* of it is
-(``localization``, ``equation``, ``gene_association``; ``reversibility`` follows the same shape). Each
-facet is a :class:`ConfidenceEntry` — a continuous 0-1 ``score`` plus optional provenance (a categorical
-``level``, the ``basis`` evidence, ``method``/``source``/``note``). A reaction carries a
-:class:`ReactionConfidence` (facet → entry) whose ``overall`` is the weakest facet.
+Attaches a small structured record to a reaction scoring how well-supported each *facet* of it is:
+``localization``, ``equation`` and ``gene_association``. Each facet is a :class:`ConfidenceEntry` — a
+continuous 0-1 ``score`` plus optional provenance (a categorical ``level``, the ``basis`` evidence,
+``method``/``source``/``note``). A reaction carries a :class:`ReactionConfidence` (facet → entry) whose
+``overall`` is the weakest facet.
 
 **Two rules govern every score**, because ``overall = min(facets)`` and :func:`_write` drops the record
 when no facet remains:
@@ -30,9 +30,9 @@ SBO terms the scorers warn, because they cannot then tell a biomass pseudo-react
 defect. Detecting biomass by name instead is deliberately *not* done: ``\\bgrowth\\b`` matches
 "non-growth associated maintenance reaction", and a name regex must never silence a chemistry check.
 
-The design and roadmap (the ``reversibility`` facet, ECO/SBO and Thiele-Palsson mapping) are in
-``docs/studies/confidence_tracking.md``. Wire it in by calling :func:`score_localization_confidence` on
-an :class:`~raven_toolbox.localization.AssignmentProposal`, :func:`score_equation_confidence` and
+The design and the measured yeast-GEM distributions are in ``docs/studies/confidence_tracking.md``; the
+facet set above is closed. Wire it in by calling :func:`score_localization_confidence` on an
+:class:`~raven_toolbox.localization.AssignmentProposal`, :func:`score_equation_confidence` and
 :func:`score_gene_association_confidence` on any model, and :func:`mark_curated` when a curator firmly
 fixes a facet (e.g. after :func:`~raven_toolbox.localization.relocate_reactions`).
 """
@@ -43,6 +43,7 @@ import html
 import json
 import math
 import warnings
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -54,6 +55,7 @@ from raven_toolbox.utils.balance import get_elemental_balance
 __all__ = [
     "ConfidenceEntry",
     "ReactionConfidence",
+    "annotate_confidence",
     "clear_confidence",
     "confidence_report",
     "equation_exempt",
@@ -66,6 +68,7 @@ __all__ = [
     "score_gene_association_confidence",
     "score_localization_confidence",
     "set_confidence",
+    "thiele_palsson_score",
 ]
 
 _KEY = "raven_confidence"
@@ -390,7 +393,8 @@ def _warn_if_no_sbo(model: cobra.Model) -> None:
     if model.reactions and not any(_sbo(r) for r in model.reactions):
         warnings.warn(
             "no reaction carries an SBO term, so biomass and pool pseudo-reactions cannot be told from "
-            "chemistry defects and will be scored as defects. Annotate SBO terms first.",
+            "chemistry defects and will be scored as defects. Annotate SBO terms first with "
+            "raven_toolbox.annotation.add_sbo_terms(model).",
             stacklevel=3,
         )
 
@@ -592,6 +596,67 @@ def score_gene_association_confidence(model, *, overwrite_curated: bool = False,
         set_confidence(reaction, "gene_association", entry)
         n += 1
     return n
+
+
+#: ``gene_association`` facet ``basis`` -> Thiele & Palsson reconstruction confidence score (0-4). A
+#: homology-derived GPR is sequence evidence (2); a GPR with a literature citation is
+#: experimental/genetic (3); a reaction that should have a catalyst but has none is a modelling
+#: inference (1). ``curated`` is deliberately absent: a curator's assertion does not, on its own, name
+#: the *evidence class* it rests on (the score's ``basis`` is ``"curator"``), so its Thiele-Palsson
+#: class must be set from the evidence the curator used, not inferred here (see the study doc §9).
+_THIELE_PALSSON_FROM_GA_BASIS = {"gpr+literature": 3, "gpr": 2, "no-gpr": 1}
+
+
+def thiele_palsson_score(reaction: cobra.Reaction) -> int | None:
+    """The reaction's Thiele & Palsson reconstruction confidence score (0-4), or ``None``.
+
+    Derived from the ``gene_association`` facet's ``basis`` (:func:`score_gene_association_confidence`),
+    the facet that captures reaction-inclusion evidence: ``gpr+literature`` -> 3 (experimental/genetic),
+    ``gpr`` -> 2 (sequence), ``no-gpr`` -> 1 (modelling). Returns ``None`` when the facet is absent (the
+    reaction was not scored, or ``gene_association`` does not apply to it) or ``curated`` (whose evidence
+    class the curator must name — see the module note and the study doc §9). The ``localization`` and
+    ``equation`` facets are quality checks, not Thiele-Palsson evidence classes, and are not consulted.
+    """
+    entry = get_confidence(reaction).facets.get("gene_association")
+    if entry is None:
+        return None
+    return _THIELE_PALSSON_FROM_GA_BASIS.get(entry.basis)
+
+
+def annotate_confidence(
+    model: cobra.Model,
+    *,
+    proposal: Any = None,
+    scores: Any = None,
+    facets: Iterable[str] | None = None,
+    overwrite_curated: bool = False,
+    updated: str | None = None,
+) -> dict[str, int]:
+    """Run every applicable confidence scorer in one call; return ``{facet: reactions_scored}``.
+
+    ``equation`` and ``gene_association`` need only the model and always run; ``localization`` runs
+    only when both ``proposal`` (an :class:`~raven_toolbox.localization.AssignmentProposal`) and
+    ``scores`` (a :class:`~raven_toolbox.localization.LocalizationScores`) are given, and is otherwise
+    **skipped rather than failing** — the same abstain-rather-than-guess rule the scores follow, so a
+    caller without a localisation proposal still gets the other two facets. ``facets=[...]`` restricts
+    to a subset (names outside the facet set are ignored). ``overwrite_curated`` and ``updated`` pass
+    through to each scorer.
+    """
+    requested = {"localization", "equation", "gene_association"} if facets is None else set(facets)
+    counts: dict[str, int] = {}
+    if "localization" in requested and proposal is not None and scores is not None:
+        counts["localization"] = score_localization_confidence(
+            model, proposal, scores, overwrite_curated=overwrite_curated, updated=updated
+        )
+    if "equation" in requested:
+        counts["equation"] = score_equation_confidence(
+            model, overwrite_curated=overwrite_curated, updated=updated
+        )
+    if "gene_association" in requested:
+        counts["gene_association"] = score_gene_association_confidence(
+            model, overwrite_curated=overwrite_curated, updated=updated
+        )
+    return counts
 
 
 def _score(df, g: str, c: str) -> float:

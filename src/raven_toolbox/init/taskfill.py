@@ -125,9 +125,53 @@ def _set_fill_solver(model: cobra.Model, time_limit: float | None, seed: int) ->
             model.solver.configuration.timeout = int(time_limit)
 
 
+def _canonicalize_fill(work, prob, candidates, cost_expr, time_limit) -> list[str] | None:
+    """Pin the degenerate min-cost gap-fill to a single canonical set (in place on ``work``).
+
+    Like the extraction MILP, the fill has many equal-cost solutions and the solver returns
+    an arbitrary one (seed/version dependent). Hold the cost at its optimum, then lexicographically
+    minimise the number of added reactions and then their summed id rank — both integer
+    objectives, provable with a cheap absolute gap below 1. Returns the chosen reaction ids,
+    or ``None`` if a phase did not converge (the caller then keeps the arbitrary min-cost fill).
+    """
+    yvars = {cid: work.variables[f"_fill_{cid}"] for cid in candidates}
+    primary_cost = work.objective.value or 0.0
+    tol = max(abs(primary_cost) * 1e-7, 1e-7)
+    work.add_cons_vars([prob.Constraint(cost_expr, ub=primary_cost + tol, name="_fill_cost_floor")])
+    count = add([mul([Real(1.0), y]) for y in yvars.values()])
+
+    def _phase(objective) -> bool:
+        work.objective = objective
+        try:  # integer objective → an absolute gap < 1 proves the optimum cheaply.
+            work.solver.problem.Params.MIPGap = 0.0
+            work.solver.problem.Params.MIPGapAbs = 0.4
+        except Exception:  # noqa: BLE001 - harmless on other backends
+            pass
+        work.slim_optimize()
+        if work.solver.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
+            return False
+        try:
+            return work.solver.problem.SolCount > 0
+        except Exception:  # noqa: BLE001 - non-Gurobi backend: status is authoritative
+            return True
+
+    # fewest added reactions (parsimony) ...
+    if not _phase(prob.Objective(count, direction="min")):
+        return None
+    kmin = work.objective.value or 0.0
+    # ... then, among the sparsest, the unique lowest-id set.
+    work.add_cons_vars([prob.Constraint(count, ub=kmin + 0.5, name="_fill_count_cap")])
+    ranks = {cid: i for i, cid in enumerate(sorted(candidates))}
+    idsum = add([mul([Real(float(1 + ranks[cid])), yvars[cid]]) for cid in candidates])
+    if not _phase(prob.Objective(idsum, direction="min")):
+        return None
+    return [cid for cid in candidates if (yvars[cid].primal or 0.0) > 0.5]
+
+
 def _gap_fill_task(
     reference_model: cobra.Model, present_ids: set[str], task: Task,
     costs: dict[str, float], *, time_limit: float | None, seed: int,
+    canonical: bool = False,
 ) -> list[str]:
     """Min-cost reference reactions that make ``task`` feasible (RAVEN ``ftINITFillGaps``).
 
@@ -169,7 +213,8 @@ def _gap_fill_task(
     work.add_cons_vars(extras)
     # add() over a flat list, not Python sum() — the latter is O(n²) in sympy and with
     # thousands of candidates dominates gap-fill runtime (see ftINIT/tINIT, same fix).
-    work.objective = prob.Objective(add(objective_terms), direction="min")
+    cost_expr = add(objective_terms)
+    work.objective = prob.Objective(cost_expr, direction="min")
     _set_fill_solver(work, time_limit, seed)
     work.slim_optimize()
     # Accept a near-optimal incumbent (time_limit); only a truly infeasible fill (no
@@ -177,8 +222,16 @@ def _gap_fill_task(
     if work.solver.status not in ("optimal", "feasible", "suboptimal", "time_limit") or \
             work.variables[f"_fill_{candidates[0]}"].primal is None:
         raise OptimizationError(f"gap-filling found no way to make task {task.id!r} feasible.")
-    return [cid for cid in candidates
-            if (work.variables[f"_fill_{cid}"].primal or 0.0) > 0.5]
+
+    chosen = [cid for cid in candidates
+              if (work.variables[f"_fill_{cid}"].primal or 0.0) > 0.5]
+    # canonical (best-effort): pin the degenerate min-cost fill to the fewest, lowest-id
+    # reactions so the added set does not depend on the solver seed/version.
+    if canonical:
+        canon = _canonicalize_fill(work, prob, candidates, cost_expr, time_limit)
+        if canon is not None:
+            chosen = canon
+    return chosen
 
 
 def fill_tasks(
@@ -189,6 +242,7 @@ def fill_tasks(
     rxn_scores: Mapping[str, float] | None = None,
     time_limit: float | None = _FILL_TIME_LIMIT,
     seed: int = _FILL_SEED,
+    canonical: bool = False,
 ) -> TaskFillResult:
     """Add minimum-cost reference reactions so every task is feasible in ``model``.
 
@@ -199,7 +253,9 @@ def fill_tasks(
     the model, excluding exchange/boundary reactions); ``rxn_scores`` (original reaction id →
     score) sets each candidate's cost as ``−min(score, −0.1)`` (missing → cost 1).
     ``should_fail`` tasks are ignored. Each gap-fill MILP is single-threaded with a fixed
-    ``seed`` and bounded by ``time_limit`` (RAVEN's 300 s).
+    ``seed`` and bounded by ``time_limit`` (RAVEN's 300 s). ``canonical`` (opt-in) pins the
+    degenerate min-cost fill to the fewest, lowest-id reactions so the added set does not
+    depend on the solver seed/version — see :func:`_canonicalize_fill`.
 
     Boundary reactions are closed while testing/solving each task, so task inputs and outputs
     come solely from the task's ranged metabolite bounds (RAVEN gap-fills the exchange-free
@@ -225,7 +281,7 @@ def fill_tasks(
                  for r in reference_model.reactions if r.id not in present and not r.boundary}
         try:
             chosen = _gap_fill_task(reference_model, present, task, costs,
-                                    time_limit=time_limit, seed=seed)
+                                    time_limit=time_limit, seed=seed, canonical=canonical)
         except OptimizationError:
             failed.append(task.id)
             continue

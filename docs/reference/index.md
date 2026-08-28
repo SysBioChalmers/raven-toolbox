@@ -2,6 +2,10 @@
 
 Conceptual and API reference for raven-toolbox.
 
+- **[Roadmap](roadmap.md)** — the phased development plan: what ships in which
+  order, what each phase depends on, and the decisions still open. The item-level
+  backlog behind it is [Open work](todo.md).
+
 - **[RAVEN ↔ raven-toolbox migration map](migration.md)** — the function-by-function map
   from MATLAB RAVEN to raven-toolbox (and cobrapy where appropriate). Start here if you're
   porting RAVEN code.
@@ -30,6 +34,7 @@ Conceptual and API reference for raven-toolbox.
 ```{toctree}
 :hidden:
 
+roadmap
 migration
 yaml_format
 matlab_raven_backports

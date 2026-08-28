@@ -29,6 +29,7 @@ See ``docs/studies/localization_redesign.md`` for the design rationale.
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 
@@ -126,6 +127,31 @@ def _prepare_scope(model, scores, reactions_to_relocate, *, transportable, base_
 
 
 # --------------------------------------------------------------------------- master
+def _pin_deterministic(prob, opt) -> None:
+    """Pin solver parameters so a degenerate placement objective is resolved the
+    same way every run and across solvers/machines. On a benchmark of the yeast
+    master (identical model, one parameter varied at a time) exactly three
+    settings changed which co-optimal placement Gurobi returned -- thread count,
+    seed, and presolve level -- while the MIP gap only mattered once loosened
+    past ~1e-2 (which also loses optimality) and every tolerance was irrelevant.
+    So: single thread and fixed seed remove thread/seed nondeterminism, a fixed
+    presolve level (2, matching the MATLAB port's optimizeProb default) removes
+    the presolve divergence, and a zero MIP gap forces the exact optimum. Only
+    Gurobi exposes these by the names used here; other backends keep defaults."""
+    if "gurobi" not in getattr(prob, "__name__", ""):
+        return
+    try:
+        gp_model = opt.problem
+        gp_model.update()
+        gp_model.setParam("Threads", 1)
+        gp_model.setParam("Seed", 0)
+        gp_model.setParam("Presolve", 2)
+        gp_model.setParam("MIPGap", 0.0)
+        gp_model.setParam("IntFeasTol", 1e-9)
+    except Exception:  # noqa: BLE001 — reproducibility hint, never fatal
+        pass
+
+
 def _score(score_df, g: str, c: str) -> float:
     if c not in score_df.columns or g not in score_df.index:
         return 0.0
@@ -133,8 +159,14 @@ def _score(score_df, g: str, c: str) -> float:
     return 0.0 if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
 
 
+# Tie-break weight for the placement master's second pass: small enough never to override a real
+# per-reaction score difference (DeepLoc scores are ~[0, 1] summed over a reaction's genes), just enough
+# to send a genes-free or score-tied reaction to the default compartment deterministically.
+_DEFAULT_COMPARTMENT_PRIOR = 1e-3
+
+
 def _solve_placement_master(
-    model, movable, genes_in_scope, gene_rxns, score_df, compartments, *,
+    model, movable, genes_in_scope, gene_rxns, score_df, compartments, default_compartment, *,
     multi_compartment_penalty, forced, colocation_groups, time_limit,
 ):
     """Flux-free score-maximising placement MILP (mono-localisation).
@@ -144,24 +176,36 @@ def _solve_placement_master(
     compartment (``x[a, c] = x[b, c]``), letting the score objective pick which one. No flux and no
     growth floor at all in the master — the placement can never harvest a compartment's score through
     leaked flux.
+
+    Solved in two lexicographic passes: the primary objective places genes by score (and penalises
+    spread), which leaves the per-reaction placement ``x`` a free co-optimum; the second pass then fixes
+    the gene layout and places each reaction in the compartment its own enzymes score highest for, so the
+    reaction placement is deterministic and evidence-aligned rather than an arbitrary co-optimal vertex.
     """
     model.solver  # noqa: B018 — initialise the solver so model.problem is usable
     prob = model.problem
     opt = prob.Model()
+    # Build the MILP in a canonical order so the solver is handed the same
+    # problem every run and across the MATLAB port: movable is already sorted by
+    # id, but genes_in_scope is a set whose iteration order is randomised per
+    # process (string hash randomisation), which would otherwise reorder the
+    # variables/constraints and let a degenerate objective pick a different
+    # co-optimal placement each run. Iterate it sorted everywhere.
+    genes_sorted = sorted(genes_in_scope)
     x = {(r.id, c): prob.Variable(f"x_{r.id}_{c}", type="binary")
          for r in movable for c in compartments}
     y = {(g, c): prob.Variable(f"y_{g}_{c}", type="binary")
-         for g in genes_in_scope for c in compartments}
+         for g in genes_sorted for c in compartments}
     cons: list = []
 
     for r in movable:
         cons.append(prob.Constraint(add([x[r.id, c] for c in compartments]),
                                     lb=1.0, ub=1.0, name=f"place_{r.id}"))
-        for g in {gg.id for gg in r.genes} & genes_in_scope:
+        for g in sorted({gg.id for gg in r.genes} & genes_in_scope):
             for c in compartments:
                 cons.append(prob.Constraint(x[r.id, c] - y[g, c], ub=0.0,
                                             name=f"couple_{r.id}_{g}_{c}"))
-    for g in genes_in_scope:
+    for g in genes_sorted:
         cons.append(prob.Constraint(add([y[g, c] for c in compartments]),
                                     lb=1.0, name=f"gene1_{g}"))
         for c in compartments:
@@ -180,20 +224,52 @@ def _solve_placement_master(
 
     opt.add(list(x.values()) + list(y.values()) + cons)
 
-    obj = []
-    for g in genes_in_scope:
+    # Primary objective: place each gene in the compartment(s) its DeepLoc score favours, penalising
+    # spread across compartments. This fixes the gene layout but leaves the *reaction* placement x a free
+    # co-optimum (the objective never mentions x), which a deterministic solver resolves to an arbitrary
+    # vertex -- yeast-GEM reaction agreement 52.8%. A lexicographically-lower second pass then chooses x.
+    primary = []
+    for g in genes_sorted:
         for c in compartments:
             s = _score(score_df, g, c)
             if s:
-                obj.append(mul([Real(s), y[g, c]]))
+                primary.append(mul([Real(s), y[g, c]]))
     if multi_compartment_penalty:
         for v in y.values():
-            obj.append(mul([Real(-multi_compartment_penalty), v]))
-    opt.objective = prob.Objective(add(obj) if obj else Real(0.0), direction="max")
+            primary.append(mul([Real(-multi_compartment_penalty), v]))
+    opt.objective = prob.Objective(add(primary) if primary else Real(0.0), direction="max")
     if time_limit is not None:
         opt.configuration.timeout = int(time_limit)
+    _pin_deterministic(prob, opt)
     opt.optimize()
+    if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
+        return opt.status, {}, {}
 
+    # Lexicographic second pass. Fix the gene layout to the primary optimum -- fixing the *solution* (each
+    # y binary), not the objective value, so there is no near-optimal tolerance to tune -- then place each
+    # reaction in the compartment its own enzymes are predicted to occupy: reward x[r, c] by the summed
+    # gene score of r's genes for c, with a small prior for `default_compartment` so genes-free and
+    # score-tied reactions fall there deterministically rather than to an arbitrary co-optimal vertex.
+    # The gene layout (agreement, multi-compartment consolidation) is untouched; only reaction placement,
+    # which was free, is now meaningful.
+    try:  # read every primal before touching any bound -- the first bound change discards the solution
+        y_star = {k: 1.0 if (v.primal or 0.0) >= 0.5 else 0.0 for k, v in y.items()}
+    except (AttributeError, ValueError):
+        return "no_incumbent", {}, {}
+    for k, v in y.items():
+        v.lb = v.ub = y_star[k]
+    secondary = []
+    for r in movable:
+        r_genes = sorted({gg.id for gg in r.genes} & genes_in_scope)
+        for c in compartments:
+            w = sum(_score(score_df, g, c) for g in r_genes)
+            if c == default_compartment:
+                w += _DEFAULT_COMPARTMENT_PRIOR
+            if w:
+                secondary.append(mul([Real(w), x[r.id, c]]))
+    opt.objective = prob.Objective(add(secondary) if secondary else Real(0.0), direction="max")
+    _pin_deterministic(prob, opt)
+    opt.optimize()
     if opt.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
         return opt.status, {}, {}
     try:
@@ -588,7 +664,7 @@ def assign_compartments(
         seen.add(signature)
 
         status, placements, gene_comps = _solve_placement_master(
-            model, movable, genes_in_scope, gene_rxns, score_df, compartments,
+            model, movable, genes_in_scope, gene_rxns, score_df, compartments, default_compartment,
             multi_compartment_penalty=multi_compartment_penalty,
             forced=forced, colocation_groups=groups, time_limit=time_limit)
         if not placements:
@@ -664,19 +740,63 @@ def assign_compartments(
 
 
 def _gapfill(applied, universal, biomass_reaction, min_growth) -> list[str]:
-    """Minimal gap-fill reactions (from ``universal``) that restore the primary growth floor.
+    """The ``universal`` reactions whose addition restores the primary growth floor, via a flux-based fill.
 
-    Uses ``cobra.flux_analysis.gapfill``; the result is validated by the caller's certification FBA,
-    so any tolerance quirk in cobra's own MILP cannot produce a false certificate here.
+    On a working copy: add every ``universal`` candidate not already present in one batch, check the floor
+    is even reachable, hold biomass at the floor, run pFBA (maximise biomass, then minimise total flux),
+    and return -- sorted -- the added reactions that carry flux. pFBA makes the set flux-parsimonious (not
+    guaranteed reaction-count-minimal); the caller re-certifies with a real FBA regardless, so no false
+    certificate is possible.
+
+    An LP, not cobra's indicator MILP — ``cobra.flux_analysis.gapfill`` at genome scale fails to find a
+    valid fill in the *majority* of cases even when the exact restoring reaction is present in the
+    universal (its own validation then rejects the broken incumbent and raises); on single-reaction
+    knockout-recovery this restores every case where that MILP restores under half.
+
+    **Namespace.** Candidates are matched to the model by metabolite id (as cobra's gapfill required): the
+    universal must share the draft's metabolite namespace. A candidate whose metabolites do not resolve
+    becomes a dead-end that cannot carry flux and is left out — and a warning fires when most candidates
+    fail to resolve, so a silent empty result is distinguishable from a namespace mismatch.
     """
+    if biomass_reaction not in applied.reactions:
+        return []
+    floor = max(min_growth, 1e-4)
     try:
-        from cobra.flux_analysis import gapfill as cobra_gapfill
-        with applied:
-            applied.objective = biomass_reaction
-            solutions = cobra_gapfill(applied, universal, lower_bound=max(min_growth, 1e-4),
-                                      demand_reactions=False, iterations=1)
-        return [r.id for r in solutions[0]] if solutions else []
-    except Exception:  # noqa: BLE001 — infeasible gap-fill / backend quirk: report none added
+        from cobra.flux_analysis import pfba
+        # Work on a copy: no context-manager rollback (whose failure on some optlang backends would
+        # otherwise discard a valid result), and the caller rebuilds `applied` from the proposal anyway.
+        work = applied.copy()
+        candidates = [u for u in universal.reactions if u.id not in work.reactions]
+        if not candidates:
+            return []
+        fresh = [cobra.Reaction(u.id, name=u.name, lower_bound=u.lower_bound, upper_bound=u.upper_bound)
+                 for u in candidates]
+        work.add_reactions(fresh)  # one batch — per-reaction adds are super-linear at scale
+        fully_unresolved = 0
+        for nr, urxn in zip(fresh, candidates, strict=True):
+            stoich, n_unres = {}, 0
+            for met, coeff in urxn.metabolites.items():
+                if met.id in work.metabolites:
+                    stoich[work.metabolites.get_by_id(met.id)] = coeff
+                else:
+                    n_unres += 1
+                    stoich[cobra.Metabolite(met.id, name=met.name, formula=met.formula,
+                                            charge=met.charge, compartment=met.compartment)] = coeff
+            nr.add_metabolites(stoich)
+            fully_unresolved += n_unres == len(urxn.metabolites) and len(urxn.metabolites) > 0
+        if fully_unresolved > 0.5 * len(candidates):
+            warnings.warn(
+                f"gap-fill: {fully_unresolved}/{len(candidates)} universal candidates share no metabolite "
+                "id with the model — a likely namespace mismatch; gap-fill will find little or nothing.",
+                stacklevel=2)
+
+        work.objective = biomass_reaction
+        if (work.slim_optimize(error_value=0.0) or 0.0) < floor - 1e-9:
+            return []  # unfixable even with every candidate present
+        work.reactions.get_by_id(biomass_reaction).lower_bound = floor
+        fluxes = pfba(work).fluxes
+        return sorted(nr.id for nr in fresh if abs(fluxes.get(nr.id, 0.0)) > 1e-9)
+    except Exception:  # noqa: BLE001 — infeasible / backend quirk: report none added
         return []
 
 

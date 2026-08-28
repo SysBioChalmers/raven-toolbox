@@ -4,7 +4,19 @@ from __future__ import annotations
 import cobra
 import pytest
 
-from raven_toolbox.manipulation.compartments import copy_to_compartment, merge_compartments
+from raven_toolbox import manipulation
+from raven_toolbox.manipulation import copy_to_compartment, merge_compartments
+
+
+def test_exported_from_the_package():
+    """Both are public API, not just importable from the submodule.
+
+    They were missing from ``manipulation.__all__`` for a long time precisely because these
+    tests reached into ``manipulation.compartments`` directly, so nothing exercised the path
+    a user actually takes.
+    """
+    assert "merge_compartments" in manipulation.__all__
+    assert "copy_to_compartment" in manipulation.__all__
 
 
 def _two_compartment_model() -> cobra.Model:
@@ -99,6 +111,40 @@ def test_merge_compartments_keeps_single_met_reactions_when_asked():
     # With keep, sym survives as a one-met reaction (consumes H).
     assert "sym" not in deleted_keep
     assert "sym" in {r.id for r in merged_keep.reactions}
+
+
+def test_merge_compartments_keeps_pre_existing_exchange_reactions():
+    """An exchange had one metabolite *before* merging, so it never became trivial and must
+    survive. Dropping these silently strips a model of its medium and its biomass reaction:
+    smallYeast grows at 0.1222 before flattening and at 0.0000 after, with no warning."""
+    m = _two_compartment_model()
+    uptake = cobra.Reaction("EX_A", lower_bound=-1000, upper_bound=1000)
+    uptake.add_metabolites({m.metabolites.A_c: 1})
+    m.add_reactions([uptake])
+
+    merged, deleted, _ = merge_compartments(m)
+
+    assert "EX_A" not in deleted
+    assert "EX_A" in {r.id for r in merged.reactions}
+    assert len(merged.boundary) == 1
+    # the genuinely-collapsed transport is still dropped
+    assert "tr_A" in deleted
+
+
+def test_merge_compartments_carries_the_objective_over():
+    """The merged model is rebuilt from scratch, so the objective must be copied across.
+    Without this the caller gets a model that silently optimises to 0.0."""
+    m = _two_compartment_model()
+    m.objective = "r_c"
+
+    merged, _, dupes = merge_compartments(m)
+
+    # r_c and r_m merge to the same reaction; whichever survives carries the objective.
+    survivor = next(r for r in merged.reactions if r.id in {"r_c", "r_m"})
+    assert str(merged.objective.expression) != "0"
+    if survivor.id == "r_c":
+        assert survivor.objective_coefficient == 1.0
+    assert merged.objective_direction == m.objective_direction
 
 
 def test_merge_compartments_deduplicate_off_keeps_both():

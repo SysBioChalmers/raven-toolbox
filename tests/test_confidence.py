@@ -7,6 +7,7 @@ import pytest
 from raven_toolbox.confidence import (
     ConfidenceEntry,
     ReactionConfidence,
+    annotate_confidence,
     confidence_report,
     equation_exempt,
     facet_summary,
@@ -18,6 +19,7 @@ from raven_toolbox.confidence import (
     score_gene_association_confidence,
     score_localization_confidence,
     set_confidence,
+    thiele_palsson_score,
 )
 from raven_toolbox.localization import AssignmentProposal
 from raven_toolbox.localization.scores import LocalizationScores
@@ -447,3 +449,67 @@ def test_facet_summary_separates_scored_from_exempt():
     assert eq["n"].sum() == 3
     assert int(eq[eq["basis"] == "balanced"]["n"].iloc[0]) == 2
     assert int(eq[eq["basis"] == "mass-imbalanced"]["n"].iloc[0]) == 1   # SPONT: H2O -> H
+
+
+# --------------------------------------------------------------------------- annotate_confidence umbrella
+
+def _proposal_for(model_reaction_id="r1"):
+    return AssignmentProposal(
+        placements={model_reaction_id: ["c"]}, added_transports=[], added_reactions=[],
+        unplaced_reactions=[], min_growth=1.0, status="optimal",
+    )
+
+
+def test_annotate_confidence_runs_model_facets_and_skips_localization_without_inputs():
+    m = _model()
+    counts = annotate_confidence(m)                          # no proposal/scores
+    # equation and gene_association need only the model; localization is skipped, not failed
+    assert set(counts) == {"equation", "gene_association"}
+    assert counts["equation"] == 1 and counts["gene_association"] == 1   # only r1 is non-boundary
+    assert "localization" not in get_confidence(m.reactions.r1).facets
+
+
+def test_annotate_confidence_runs_localization_with_proposal_and_scores():
+    m = _model()
+    scores = LocalizationScores(pd.DataFrame({"c": [0.8]}, index=["g1"]))
+    counts = annotate_confidence(m, proposal=_proposal_for("r1"), scores=scores)
+    assert set(counts) == {"localization", "equation", "gene_association"}
+    assert set(get_confidence(m.reactions.r1).facets) == {"localization", "equation", "gene_association"}
+
+
+def test_annotate_confidence_respects_facets_arg():
+    m = _model()
+    counts = annotate_confidence(m, facets=["equation"])
+    assert set(counts) == {"equation"}
+    assert set(get_confidence(m.reactions.r1).facets) == {"equation"}
+
+
+def test_sbo_warning_names_add_sbo_terms():
+    m = _model()                                             # carries no SBO terms
+    with pytest.warns(UserWarning, match=r"add_sbo_terms"):
+        score_equation_confidence(m)
+
+
+# --------------------------------------------------------------------------- Thiele-Palsson mapping
+
+def test_thiele_palsson_score_maps_gene_association_basis():
+    m = _model()
+    r = m.reactions.r1
+    for basis, expected in (("gpr+literature", 3), ("gpr", 2), ("no-gpr", 1)):
+        set_confidence(r, "gene_association", ConfidenceEntry(0.6, basis=basis))
+        assert thiele_palsson_score(r) == expected
+    # curated: the evidence class is the curator's to name, not inferred here -> None
+    mark_curated(r, facet="gene_association")
+    assert thiele_palsson_score(r) is None
+    # no gene_association facet at all (an exempt boundary reaction) -> None
+    assert thiele_palsson_score(m.reactions.EX_A) is None
+
+
+def test_thiele_palsson_score_end_to_end():
+    m = _model()
+    score_gene_association_confidence(m)
+    assert get_confidence(m.reactions.r1).facets["gene_association"].basis == "gpr"
+    assert thiele_palsson_score(m.reactions.r1) == 2               # sequence-only GPR
+    m.reactions.r1.annotation["pubmed"] = ["12345"]
+    score_gene_association_confidence(m)
+    assert thiele_palsson_score(m.reactions.r1) == 3               # GPR + literature

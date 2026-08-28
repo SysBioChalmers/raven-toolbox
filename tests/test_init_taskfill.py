@@ -157,3 +157,29 @@ def test_additions_carry_forward_to_later_tasks():
     res = fill_tasks(gapped, ref, [first, second])
     assert res.added_reactions == ["R7"]  # added once; the second task saw R7 already there
     assert not res.failed_tasks
+
+
+def test_canonical_gap_fill_breaks_tie_by_id():
+    """Two equal-cost candidate fills: canonical adds the lower-id one deterministically."""
+    import cobra
+
+    from raven_toolbox.tasks import Task
+
+    ref = cobra.Model("ref")
+    A, M, P = (cobra.Metabolite(x, name=x, compartment="s") for x in ("A", "M", "P"))
+    ref.add_metabolites([A, M, P])
+    RA = cobra.Reaction("RA", lower_bound=0, upper_bound=1000)
+    RA.add_metabolites({A: -1, M: 1})
+    RB = cobra.Reaction("RB", lower_bound=0, upper_bound=1000)
+    RB.add_metabolites({A: -1, M: 1})
+    RP = cobra.Reaction("RP", lower_bound=0, upper_bound=1000)
+    RP.add_metabolites({M: -1, P: 1})
+    ref.add_reactions([RA, RB, RP])
+    task = Task(id="mkP", inputs=[("A[s]", 0.0, 1000.0)], outputs=[("P[s]", 1.0, 1000.0)])
+
+    gapped = ref.copy()
+    gapped.remove_reactions(["RA", "RB"], remove_orphans=False)  # both routes to M removed
+    # exactly one equal-cost route is needed; canonical must pick the lower id (RA).
+    res = fill_tasks(gapped, ref, [task], canonical=True)
+    assert res.added_reactions == ["RA"]
+    assert not res.failed_tasks

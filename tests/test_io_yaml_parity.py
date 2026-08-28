@@ -98,7 +98,11 @@ def test_round_trip_preserves_every_raven_field(src, tmp_path):
     r = reloaded.reactions.get_by_id("R1")
     assert r.bounds == (-1000.0, 1000.0)
     assert r.gene_reaction_rule == "G1"
-    assert r.subsystem == "glycolysis"
+    # RAVEN/raven-toolbox's shared format always writes subsystem as a
+    # list (a reaction can carry more than one), even for the single-
+    # subsystem case here — so it round-trips as a one-item list, not
+    # the source fixture's bare string.
+    assert r.subsystem == ["glycolysis"]
 
     # Metabolite RAVEN extras.
     a = reloaded.metabolites.get_by_id("s_0001")

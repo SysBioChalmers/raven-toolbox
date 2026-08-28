@@ -26,13 +26,17 @@ second an exact FVA-based sweep that also removes flux-blocked reactions the fir
 """
 from __future__ import annotations
 
+import ast
 import math
+import re
 from collections.abc import Iterable
 
 import cobra
 from cobra.flux_analysis import find_blocked_reactions, flux_variability_analysis
 
 from raven_toolbox.manipulation.irreversible import convert_to_irreversible
+
+_EXP_SUFFIX = re.compile(r"_EXP_\d+$")
 
 
 def _prune_orphan_metabolites(model: cobra.Model) -> list[str]:
@@ -182,6 +186,17 @@ def remove_duplicate_reactions(
     Reactions are duplicates when they have identical stoichiometry, bounds, and
     objective coefficient. One of each set is kept (reserved reactions are never
     removed). Returns the removed reaction IDs.
+
+    The survivor is the first-encountered reaction in ``model.reactions`` order
+    (matching RAVEN's ``contractModel``). Its ``gene_reaction_rule`` becomes the
+    union of every duplicate's top-level OR-clauses, deduplicated, rather than
+    just its own — an isozyme relationship recorded on a *different* duplicate
+    would otherwise be silently dropped, and ``contractModel`` merges this way.
+    If every reaction in the group shares an ``_EXP_<digits>`` suffix
+    (:func:`~raven_toolbox.manipulation.expand.expand_model`'s naming), the model
+    is assumed to have gone through ``expand_model``, and the suffix is stripped
+    from the survivor's id — so an expand-then-remove-duplicates round trip
+    returns the original reaction id, not an arbitrarily-numbered expansion copy.
     """
     reserved = set(reserved or [])
     groups: dict = {}
@@ -192,12 +207,53 @@ def remove_duplicate_reactions(
     for rxns in groups.values():
         if len(rxns) <= 1:
             continue
-        keep = rxns[-1]
+        keep = rxns[0]
         to_remove = [r for r in rxns if r is not keep and r.id not in reserved]
-        if to_remove:
-            removed += [r.id for r in to_remove]
-            model.remove_reactions(to_remove)
+        if not to_remove:
+            continue
+
+        _merge_gene_reaction_rules(keep, rxns)
+        if all(_EXP_SUFFIX.search(r.id) for r in rxns):
+            keep.id = _EXP_SUFFIX.sub("", keep.id)
+
+        removed += [r.id for r in to_remove]
+        model.remove_reactions(to_remove)
     return removed
+
+
+def _top_level_or_clauses(gpr: cobra.core.gene.GPR) -> list[str]:
+    """The top-level OR-clauses of a GPR, as strings, via cobra's own AST.
+
+    A clause containing "and" is parenthesised for readability when rejoined
+    with " or " — not required for correctness (Python's own operator
+    precedence already makes "A and B or C" parse as "(A and B) or C"), but
+    matches how a human, and RAVEN's own ``contractModel``, would write it.
+    """
+    body = gpr.body
+    if body is None:
+        return []
+    is_or = isinstance(body, ast.BoolOp) and isinstance(body.op, ast.Or)
+    clauses = body.values if is_or else [body]
+    out = []
+    for clause in clauses:
+        text = ast.unparse(clause)
+        if isinstance(clause, ast.BoolOp) and isinstance(clause.op, ast.And):
+            text = f"({text})"
+        out.append(text)
+    return out
+
+
+def _merge_gene_reaction_rules(keep: cobra.Reaction, group: list[cobra.Reaction]) -> None:
+    """Set ``keep``'s GPR to the union of every reaction in ``group``'s OR-clauses."""
+    clauses: list[str] = []
+    seen: set[str] = set()
+    for rxn in group:
+        for clause in _top_level_or_clauses(rxn.gpr):
+            if clause not in seen:
+                seen.add(clause)
+                clauses.append(clause)
+    if clauses:
+        keep.gene_reaction_rule = clauses[0] if len(clauses) == 1 else " or ".join(clauses)
 
 
 def constrain_reversible_reactions(

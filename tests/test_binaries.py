@@ -1,5 +1,6 @@
 """Tests for raven_toolbox.binaries (binary resolution + bundled-ZIP provisioning)."""
 import hashlib
+import os
 import shutil
 import stat
 import zipfile
@@ -8,6 +9,8 @@ from pathlib import Path
 import pytest
 
 from raven_toolbox import binaries
+
+_WINDOWS = os.name == "nt"
 
 
 def test_resolve_explicit_path():
@@ -261,3 +264,52 @@ def test_ensure_binary_passes_download_timeout(tmp_path, monkeypatch):
     monkeypatch.setattr(binaries, "urlopen", spy)
     binaries.ensure_binary("footool", registry=registry)
     assert isinstance(seen["timeout"], (int, float)) and seen["timeout"] > 0
+
+
+def _two_tool_bundle(tmp_path):
+    """A bundle providing two executables, like BLAST's blastp + makeblastdb."""
+    archive = tmp_path / "blast.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("blastp", "#!/bin/sh\nexit 0\n")
+        zf.writestr("makeblastdb", "#!/bin/sh\nexit 0\n")
+    sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    return {
+        "blast": {
+            "version": "2.17.0",
+            "provides": ["blastp", "makeblastdb"],
+            "platforms": {binaries.platform_key(): {"url": archive.as_uri(), "sha256": sha}},
+        }
+    }
+
+
+@pytest.mark.skipif(_WINDOWS, reason="the execute bit is meaningless on Windows")
+def test_every_executable_in_a_bundle_is_made_executable(tmp_path, monkeypatch):
+    """Not only the one that triggered the download.
+
+    zipfile does not restore Unix permissions, so an extracted file is not
+    executable. Marking only the requested one left the rest of the bundle
+    unusable: fetching blastp then calling makeblastdb raised PermissionError,
+    which is what broke the parity nightly.
+    """
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    registry = _two_tool_bundle(tmp_path)
+
+    fetched = binaries.ensure_binary("blastp", registry=registry)
+
+    sibling = Path(fetched).parent / "makeblastdb"
+    assert sibling.stat().st_mode & stat.S_IXUSR, "the other tool in the bundle is not executable"
+
+
+@pytest.mark.skipif(_WINDOWS, reason="the execute bit is meaningless on Windows")
+def test_a_cached_bundle_is_repaired_rather_than_trusted(tmp_path, monkeypatch):
+    """A cache written by the older code has the bit missing and never re-extracts."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    registry = _two_tool_bundle(tmp_path)
+
+    fetched = Path(binaries.ensure_binary("blastp", registry=registry))
+    fetched.chmod(0o644)  # simulate what the previous version left behind
+
+    again = Path(binaries.ensure_binary("blastp", registry=registry))
+
+    assert again == fetched, "expected the cached copy, not a fresh download"
+    assert again.stat().st_mode & stat.S_IXUSR

@@ -1,0 +1,28 @@
+{
+  "source": "raven-toolbox",
+  "description": "Reactions kept by run_init on RAVEN's tutorial/smallYeast.yml with the scores from scripts/parity/record_baseline.py. Seeded from raven-toolbox, so this detects drift in this package rather than disagreement with MATLAB RAVEN.",
+  "fixture": "tutorial/smallYeast.yml",
+  "model_reactions": 53,
+  "kept_reactions": [
+    "ACO",
+    "ADH1",
+    "CO2TRANS",
+    "ENO",
+    "FBA",
+    "FUM1",
+    "GLD",
+    "LSC1LSC2",
+    "PGI",
+    "PGK",
+    "RPE",
+    "TKI1TKI2a",
+    "TKI1TKI2b"
+  ],
+  "recorded": {
+    "date": "2026-08-23",
+    "raven_toolbox": "0.3.0",
+    "cobra": "0.30.0",
+    "solver": "gurobi_interface",
+    "python": "3.14.3"
+  }
+}

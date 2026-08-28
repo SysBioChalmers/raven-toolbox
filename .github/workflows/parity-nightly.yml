@@ -1,0 +1,142 @@
+name: Parity (nightly, licensed solver)
+
+# The genome-scale checks the studies rest on need a Gurobi licence that will
+# accept a model with thousands of reactions. The licence bundled with
+# pip-installed gurobipy caps out well below that, so this workflow uses a
+# Gurobi Web License Service (WLS) licence, supplied in either of two shapes:
+#
+#   GUROBI_EDUARD        an organisation secret holding a licence file verbatim
+#
+# or, failing that, three separate secrets:
+#
+#   GUROBI_WLSACCESSID   the WLS access id
+#   GUROBI_WLSSECRET     the WLS secret
+#   GUROBI_LICENSEID     the numeric licence id
+#
+# WLS is the licence type intended for containers and CI; a named-user academic
+# licence is tied to a specific machine and is not appropriate for a hosted
+# runner.
+
+on:
+  schedule:
+    # 03:17 UTC, offset off the hour so it does not queue behind everything
+    # else scheduled on the hour.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: parity-nightly
+  cancel-in-progress: false
+
+jobs:
+  genome-scale:
+    name: genome-scale parity
+    # Forks do not have the secrets, and a scheduled run there would fail every
+    # night for no reason.
+    if: github.repository == 'SysBioChalmers/raven-toolbox'
+    runs-on: ubuntu-latest
+    # Measured: the Human-GEM extraction takes ~68 minutes on a fast
+    # workstation, of which only ~2 are parsing and copying. run_init's
+    # time_limit does not bound the call -- a 60-second limit still ran for
+    # well over 15 minutes -- so the real stop is pytest-timeout below, and
+    # this budget only has to be comfortably larger than that so the timeout
+    # is reported as a test failure instead of a killed job.
+    timeout-minutes: 150
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check out MATLAB RAVEN
+        uses: actions/checkout@v5
+        with:
+          repository: SysBioChalmers/RAVEN
+          ref: develop3
+          path: .raven
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - run: pip install --upgrade pip
+      - run: pip install -e ".[dev]" gurobipy
+
+      # Fail here, loudly, rather than let the tests skip and the job go green
+      # having checked nothing -- which is the failure mode this whole harness
+      # exists to avoid.
+      - name: Install the Gurobi WLS licence
+        env:
+          # Two shapes exist in the organisation. GUROBI_EDUARD is an organisation
+          # secret holding a licence file verbatim; the three-field form below is
+          # what this workflow was originally written against. Only WLSACCESSID was
+          # ever created, so the three-field branch has never fired and this job has
+          # failed here every night since it was added. Accept either.
+          LICENCE_FILE: ${{ secrets.GUROBI_EDUARD }}
+          WLSACCESSID: ${{ secrets.GUROBI_WLSACCESSID }}
+          WLSSECRET: ${{ secrets.GUROBI_WLSSECRET }}
+          LICENSEID: ${{ secrets.GUROBI_LICENSEID }}
+        run: |
+          umask 077
+          licence="$HOME/gurobi.lic"
+          if [ -n "$LICENCE_FILE" ]; then
+            printf '%s\n' "$LICENCE_FILE" > "$licence"
+          elif [ -n "$WLSACCESSID" ] && [ -n "$WLSSECRET" ] && [ -n "$LICENSEID" ]; then
+            { echo "WLSACCESSID=$WLSACCESSID"
+              echo "WLSSECRET=$WLSSECRET"
+              echo "LICENSEID=$LICENSEID"
+            } > "$licence"
+          else
+            # Fail here, loudly, rather than let the tests skip and the job go green
+            # having checked nothing -- which is the failure mode this whole harness
+            # exists to avoid.
+            echo "::error::No Gurobi licence configured. Set the GUROBI_EDUARD" \
+                 "organisation secret to a WLS licence file, or set GUROBI_WLSACCESSID," \
+                 "GUROBI_WLSSECRET and GUROBI_LICENSEID. The genome-scale checks cannot" \
+                 "run without one."
+            exit 1
+          fi
+
+          # Report the shape without printing the value. A named-user academic licence
+          # is tied to one machine and cannot authenticate on a hosted runner, so
+          # finding one here explains a failure that otherwise looks like a solver bug.
+          if grep -q '^[[:space:]]*WLSACCESSID=' "$licence"; then
+            echo "Gurobi WLS licence installed"
+          else
+            echo "::warning::the configured licence is not a WLS licence. A named-user" \
+                 "licence is tied to a specific machine and will not authenticate on a" \
+                 "hosted runner."
+          fi
+          echo "GRB_LICENSE_FILE=$licence" >> "$GITHUB_ENV"
+
+      # Well past the 2000x2000 limit of the bundled licence, so this step fails
+      # unless the WLS licence really is in effect -- better to find out here
+      # than to have the tests skip and the job go green having checked nothing.
+      - name: Verify the licence accepts a genome-scale problem
+        run: |
+          python scripts/parity/check_license.py
+
+      - name: Download Human-GEM
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/Human-GEM.yml" \
+            https://raw.githubusercontent.com/SysBioChalmers/Human-GEM/main/model/Human-GEM.yml
+          ls -lh "$RUNNER_TEMP/Human-GEM.yml"
+
+      - name: Run the parity suite, including the slow checks
+        run: pytest -m parity -v -rs --timeout=5400 --timeout-method=thread
+        env:
+          RAVEN_ROOT: ${{ github.workspace }}/.raven
+          HUMAN_GEM_YML: ${{ runner.temp }}/Human-GEM.yml
+          RAVEN_PARITY_REPORT_DIR: ${{ runner.temp }}/parity-report
+          PYTHONUNBUFFERED: "1"
+
+      # The numbers are what make the run useful: they are the candidate for the
+      # next recorded baseline. Uploaded even when the tests fail, since a
+      # failure is exactly when the actual reaction set needs inspecting.
+      - name: Upload the run report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genome-scale-parity-report
+          path: ${{ runner.temp }}/parity-report
+          if-no-files-found: warn

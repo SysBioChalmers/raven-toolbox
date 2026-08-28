@@ -8,8 +8,12 @@ infeasible).
 Inputs/outputs are encoded as ranges on the per-metabolite mass-balance constraint
 (``model.constraints[met.id]``): an input allows net consumption (``Sv ∈ [-UB, -LB]``)
 and an output allows / requires net production (``Sv ≤ UB``, and ``≥ LB`` if
-``LB > 0``). Existing boundary reactions are closed first, so inputs/outputs are
-defined solely by the task (closed-model semantics).
+``LB > 0``). By default, existing boundary reactions are left exactly as they are: a
+task's inputs/outputs *add to* whatever the model's own open exchanges already allow,
+rather than replacing them (RAVEN's ``checkTasks`` semantics, and what the published
+task lists this module reads were curated against). Pass ``close_boundaries=True`` for
+the stricter reading, where a task's declared inputs/outputs are the complete boundary
+of the system for that check.
 """
 from __future__ import annotations
 
@@ -200,13 +204,16 @@ def check_tasks(
     model: cobra.Model,
     tasks: str | Iterable[Task],
     *,
-    close_boundaries: bool = True,
+    close_boundaries: bool = False,
 ) -> list[TaskResult]:
     """Run a task list against ``model`` and return a :class:`TaskResult` per task.
 
-    ``tasks`` is a parsed list of :class:`Task` or a path to a task-list file. With
-    ``close_boundaries`` (default), existing exchange/sink/demand reactions are
-    closed so inputs/outputs are defined purely by the tasks (as RAVEN assumes).
+    ``tasks`` is a parsed list of :class:`Task` or a path to a task-list file. By
+    default (``close_boundaries=False``), existing exchange/sink/demand reactions are
+    left open, so a task's inputs/outputs add to whatever the model's own boundary
+    already allows — matching RAVEN's ``checkTasks``, which published task lists were
+    curated against. Pass ``close_boundaries=True`` for the stricter reading, where
+    inputs/outputs are defined purely by the tasks.
     """
     tasks = _as_tasks(tasks)
     base, name_to_id, comp_to_ids = _prepare_base(model, close_boundaries)
@@ -222,10 +229,11 @@ def _as_tasks(tasks: str | Iterable[Task]) -> list[Task]:
 def _prepare_base(model: cobra.Model, close_boundaries: bool):
     base = model.copy()
     if close_boundaries:
-        # RAVEN closeModel: close reactions whose |coeff| sum to 1 (unit exchanges), not
-        # just cobra .boundary (any single-metabolite reaction). Task I/O is then defined
-        # solely by the task constraints, and the same exchange bypasses are open as in
-        # RAVEN — required for the essential-reaction discovery to match.
+        # Opt-in only: RAVEN's own checkTasks does not close boundary reactions before
+        # applying a task's constraints (confirmed directly — a task's inputs/outputs
+        # add to whatever the model's own exchanges already allow, not replace them),
+        # so close_model_in_place is skipped by default to match. Kept as an option for
+        # callers that want the stricter, task-is-the-complete-boundary reading.
         close_model_in_place(base)
     name_to_id, comp_to_ids = task_name_maps(base)
     return base, name_to_id, comp_to_ids
@@ -325,7 +333,7 @@ def find_task_essential_reactions(
     model: cobra.Model,
     tasks: str | Iterable[Task],
     *,
-    close_boundaries: bool = True,
+    close_boundaries: bool = False,
     cache_path: str | Path | None = None,
 ) -> EssentialReactionsResult:
     """Find the reactions a model must use to satisfy a task list.
@@ -336,7 +344,9 @@ def find_task_essential_reactions(
     test). This is the ``prepINITModel`` step that feeds (ft)INIT: essential reactions are
     kept regardless of expression score and made irreversible in their forced direction.
     When a reaction is essential in several tasks with conflicting directions, the majority
-    wins (ties → forward), matching RAVEN's ``pos < neg``.
+    wins (ties → forward), matching RAVEN's ``pos < neg``. ``close_boundaries`` defaults to
+    ``False``, matching RAVEN: a task's inputs/outputs add to whatever the model's own
+    open exchanges already allow, rather than replacing them.
 
     The solver is configured per task to match RAVEN's ``solveLP`` (``FeasibilityTol =
     1e-9``, single-threaded with a fixed seed) so the degenerate min-flux vertex — and thus
