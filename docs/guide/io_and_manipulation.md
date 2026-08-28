@@ -10,7 +10,8 @@ unchanged. On top of that it adds the RAVEN-specific formats:
   GECKO `ec-*` side-fields are preserved on each entry's `notes` so a read→write round-trip is
   lossless. The full schema (top-level layout, field order, quoting rules, the GECKO
   `ec-*` and `metaData` extensions) is documented in
-  [the YAML model format reference](../reference/yaml_format.md).
+  [the YAML model format reference](https://github.com/edkerk/raven-docs/blob/main/docs/yaml-format.md)
+  (raven-docs — it also covers RAVEN MATLAB's writer/reader).
 - {func}`raven_toolbox.io.export_model_to_sif` — Cytoscape SIF (`rc` / `rr` / `cc` graphs).
 - {func}`raven_toolbox.io.export_to_excel` — the RAVEN 5-sheet workbook (RXNS / METS / COMPS /
   GENES / MODEL). Requires the `excel` extra. Excel **import** is intentionally not provided.

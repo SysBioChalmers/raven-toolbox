@@ -106,8 +106,10 @@ def run_ftinit(
     ``mip_gap`` / ``time_limit``: the default ``None`` uses the solver's own
     defaults (Gurobi: MIPGap≈1e-4, no time cap), which is fine for a single step
     — solve time here is dominated by model construction, so a tight gap is
-    nearly free (measured on genome-scale Human-GEM, see
-    :doc:`/studies/init_param_calibration`). For the genome-scale staged
+    nearly free (measured on genome-scale Human-GEM, see the `INIT parameter
+    calibration study
+    <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-param-calibration.md>`_
+    on raven-docs). For the genome-scale staged
     schedule (:func:`raven_toolbox.init.ftinit`), an essential-forced step can
     run away without a cap (one severely-degraded case ran >75 min unbounded);
     set ``time_limit`` ≈120-600 s/step, and loosen ``mip_gap`` to ``0.01`` (or

@@ -112,7 +112,9 @@ def random_sampling(
         genome-scale analyses either increase thinning substantially (≥1000), increase
         n_samples to compensate, try ``method='chrr'`` (raven-toolbox's rounding-based
         alternative, not wired into ACHR), or use an ESS/R-hat diagnostic to assess
-        sample quality (see :doc:`/studies/sampling_convergence_calibration`).
+        sample quality (see the `sampling convergence calibration study
+        <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/sampling-convergence-calibration.md>`_
+        on raven-docs).
     warmup:
         ``chrr`` — burn-in steps discarded before the first recorded sample.
     fixed_width_tol:

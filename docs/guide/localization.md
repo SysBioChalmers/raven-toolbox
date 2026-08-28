@@ -17,4 +17,5 @@
 
 The defaults and accuracy (including a predictor-noise sweep) are validated against curated
 yeast-GEM in the
-[yeast localization benchmark](../studies/yeast_localization_benchmark.md).
+[yeast-GEM localisation benchmark](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/yeast-localization-benchmark.md)
+(raven-docs).

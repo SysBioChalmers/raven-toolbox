@@ -14,11 +14,13 @@ MATLAB-side comparison values in this file turned out to be wrong once checked
 directly against MATLAB source. Those tables were never updated to match, so they
 now disagree with the current, actively-maintained state in places.
 
-For the current state, use:
-- **[Parameter benchmark index](benchmarks/index.md)** — the master to-do list,
-  kept up to date.
-- **[Tuned parameter defaults](../reference/tuned_parameters.md)** — the polished
-  reference, one line per parameter with why, plus links to the full studies.
+For the current state, use (both now live on raven-docs, since they cover MATLAB
+RAVEN and raven-toolbox side by side, not just this package):
+- **[Parameter benchmark index](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/benchmarks/index.md)**
+  — the master to-do list, kept up to date.
+- **[Tuned parameter defaults](https://github.com/edkerk/raven-docs/blob/main/docs/tuned-parameters.md)**
+  — the polished reference, one line per parameter with why, plus links to the
+  full studies.
 
 This file is kept for the methodology and as a historical record of how the
 effort started, not as a current source of truth for any specific parameter.
@@ -98,10 +100,10 @@ require BLAST/Diamond/HMMER binaries not available in this environment and remai
 | # | Parameter | Test outcome | Decision |
 |---|---|---|---|
 | 1 | `replace_max_bound` | `True` → **solver unbounded** on yeast-GEM (4083/4102 rxns at big-M bound); `False` → 200 samples complete. | **Python `False` is correct. MATLAB `True` is broken on real models.** |
-| 2 | `evalue` (BLAST/Diamond) | Was "not testable" here (no binaries). Since then, benchmarked with real BLAST 2.17.0 on hanpo.faa vs sce.faa — see `benchmarks/reconstruction_homology.md`. | **Resolved: unified at `1e-4`, matching MATLAB (no downstream effect either way).** No longer open — see `benchmarks/index.md`. |
+| 2 | `evalue` (BLAST/Diamond) | Was "not testable" here (no binaries). Since then, benchmarked with real BLAST 2.17.0 on hanpo.faa vs sce.faa — see [reconstruction-homology.md](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/benchmarks/reconstruction-homology.md) (raven-docs). | **Resolved: unified at `1e-4`, matching MATLAB (no downstream effect either way).** No longer open — see [the benchmark index](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/benchmarks/index.md) (raven-docs). |
 | 3 | `allow_excretion` inconsistency | Effect is **zero** with default `prod_weight=0.5` — sinks absorb net production either way. Only differs when `prod_weight=0`. | **Fix inconsistency for clarity, but it has no computational effect.** |
 | 4 | `flux_eps` in FSEOF | `1e-6` filters 21 reactions with std ~5e-7 that `1e-8` picks up. Those 21 are numerical noise (below solver precision). | **Python `1e-6` is correct. MATLAB `1e-8` produces false-positive targets.** |
-| 5 | `threads` | Was "not testable" here (no binaries). Since then, benchmarked with real BLAST — see `benchmarks/reconstruction_homology.md` (1.9× speedup measured, deterministic hit counts confirmed). | **Resolved and implemented: `max(1, os.cpu_count()-1)` across all BLAST/Diamond/HMMER entry points.** No longer open — see the Action items below (this row previously contradicted them). |
+| 5 | `threads` | Was "not testable" here (no binaries). Since then, benchmarked with real BLAST — see [reconstruction-homology.md](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/benchmarks/reconstruction-homology.md) (raven-docs) (1.9× speedup measured, deterministic hit counts confirmed). | **Resolved and implemented: `max(1, os.cpu_count()-1)` across all BLAST/Diamond/HMMER entry points.** No longer open — see the Action items below (this row previously contradicted them). |
 | 6 | `remove_genes.blocked_reactions` | `'remove'` → essentiality correct (b1779 essential gene growth=0); `'keep'` → **wrong** prediction (growth remains at max). | **Python `'remove'` is correct. MATLAB `'keep'` silently breaks essentiality predictions.** |
 | 7 | `time_limit` in `predict_localization` | yeast-GEM (2682 gene-assoc. reactions) solves in ~2.6 min; Human-GEM scale extrapolates to ~18 min (linear extrapolation, unreliable for MILP). | **Leave `None`; document MATLAB's 900s as a safe cap for Human-GEM scale.** |
 | 8 | `mip_gap`/`time_limit` in init | Toy model solves identically at all gaps (too small to distinguish). No genome-scale expression data available. | **Leave `None`; document MATLAB's `0.0004`/5s as a recommended starting point.** |
@@ -500,7 +502,7 @@ note in the docstring for users porting MATLAB workflows that expect the `'keep'
 Code changes to implement:
 
 - [x] **#1 `replace_max_bound`:** Python default `False` confirmed correct — no change needed. MATLAB `True` causes solver unbounded on yeast-GEM.
-- [x] **#2 `evalue`:** Benchmarked with BLAST 2.17.0 (hanpo vs sce). See `docs/maintenance/benchmarks/reconstruction_homology.md`. Leave at `1e-5` (matches BLAST default).
+- [x] **#2 `evalue`:** Benchmarked with BLAST 2.17.0 (hanpo vs sce). See [reconstruction-homology.md](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/benchmarks/reconstruction-homology.md) (raven-docs). Leave at `1e-5` (matches BLAST default).
 - [x] **#3 `allow_excretion`:** Changed `get_init_model` default to `False` in `src/raven_toolbox/init/build.py`. Added docstring note.
 - [x] **#4 `flux_eps`:** Python default `1e-6` confirmed correct — no change needed. `1e-8` picks up solver noise as false-positive targets.
 - [x] **#5 `threads`:** Changed default to `max(1, os.cpu_count()-1)` in `run_blast`, `run_diamond` (blast.py), `run_hmmsearch`, `get_kegg_model_from_sequences` (query.py), `build_ko_hmm`, `build_hmm_library` (hmm.py). Pure performance fix; BLAST is documented as deterministic across threads.
@@ -513,9 +515,12 @@ Code changes to implement:
 **Stale — kept as a historical record of what this list originally said, not as a live
 checklist.** Cross-checked against the current state on 2026-08-28:
 
-- [x] ~~**evalue benchmark**~~ — done: `homology_cutoff_calibration.md`, scored against KEGG and OMA orthology across a 4-organism relatedness series (not the precision/recall-on-KO-annotations design originally proposed here, but the same question answered more rigorously).
-- [x] ~~**mip_gap benchmark**~~ — done: `init_param_calibration.md`, genome-scale Human-GEM (HCT116 and others), both single-step and full-pipeline ftINIT plus tINIT.
-- [x] ~~**MILP big-M**~~ — done: `benchmarks/init.md` (`run_ftinit.big_m`) and `benchmarks/gapfilling.md` (`fill_gaps_kumar_milp.big_m`), both confirmed against real model bounds.
+All of the following are on raven-docs now (`docs/parameter-tuning/`), alongside
+the benchmark index and homology page linked above:
+
+- [x] ~~**evalue benchmark**~~ — done: [homology cut-off calibration study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/homology-cutoff-calibration.md), scored against KEGG and OMA orthology across a 4-organism relatedness series (not the precision/recall-on-KO-annotations design originally proposed here, but the same question answered more rigorously).
+- [x] ~~**mip_gap benchmark**~~ — done: [INIT parameter calibration study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-param-calibration.md), genome-scale Human-GEM (HCT116 and others), both single-step and full-pipeline ftINIT plus tINIT.
+- [x] ~~**MILP big-M**~~ — done: [init.md](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/benchmarks/init.md) (`run_ftinit.big_m`) and [gapfilling.md](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/benchmarks/gapfilling.md) (`fill_gaps_kumar_milp.big_m`), both confirmed against real model bounds.
 - [x] ~~**Homology thresholds**~~ — done, same study as the evalue benchmark above: `max_evalue`, `min_align_len`, `min_identity` all measured; `min_align_len` changed `200`→`100` in code as a result.
-- [x] ~~**Sampling parameters**~~ (`thinning`, `warmup`) — done: single-chain ESS in `benchmarks/sampling.md`, between-chain Gelman-Rubin R-hat in `sampling_convergence_calibration.md`. `n_samples` and `fixed_width_tol` (the CHRR rounding tolerance) were not part of either study and remain untested.
-- [ ] **Numerical tolerances** (`eps`, `tol`, `reg`, `stoichiometry_tol`, `constrain_reversible_reactions.eps`) — still genuinely open; see `manipulation.md`.
+- [x] ~~**Sampling parameters**~~ (`thinning`, `warmup`) — done: single-chain ESS in [sampling.md](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/benchmarks/sampling.md), between-chain Gelman-Rubin R-hat in the [sampling convergence calibration study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/sampling-convergence-calibration.md). `n_samples` and `fixed_width_tol` (the CHRR rounding tolerance) were not part of either study and remain untested.
+- [ ] **Numerical tolerances** (`eps`, `tol`, `reg`, `stoichiometry_tol`, `constrain_reversible_reactions.eps`) — still genuinely open; see [manipulation.md](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/benchmarks/manipulation.md) (raven-docs).

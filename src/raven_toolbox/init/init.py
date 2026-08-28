@@ -128,7 +128,9 @@ def run_init(
 
     ``mip_gap`` / ``time_limit``: the default ``None`` uses the solver's own
     defaults (Gurobi: MIPGap≈1e-4, no time cap). Measured on genome-scale
-    Human-GEM (see :doc:`/studies/init_param_calibration`): ``mip_gap=0.001``
+    Human-GEM (see the `INIT parameter calibration study
+    <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-param-calibration.md>`_
+    on raven-docs): ``mip_gap=0.001``
     reproduces the tightest-gap model exactly (Jaccard 1.0); ``mip_gap=0.01``
     is ~30% faster at ~3% reaction-set drift. Set an explicit ``time_limit``
     for degraded or hard inputs — an unbounded solve was observed to run

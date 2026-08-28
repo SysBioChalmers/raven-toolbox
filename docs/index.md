@@ -66,11 +66,12 @@ Every public function and class, generated from the docstrings.
 ## Status
 
 raven-toolbox has been validated against MATLAB RAVEN on **Human-GEM** (5 Hart2015 cell-line
-models, Jaccard 0.975–0.980 — see [the Human-GEM validation study](studies/humangem_validation.md)).
-The functional scope of the original toolbox is covered, with two principled omissions:
-**MetaCyc-based reconstruction** (flagged for removal from MATLAB RAVEN too) and **dynamic
-FBA** (well covered by other maintained Python packages). What's still open is catalogued in
-[the to-do list](reference/todo.md).
+models, Jaccard 0.975–0.980 — see
+[the Human-GEM validation study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/humangem-validation.md)
+on raven-docs). The functional scope of the original toolbox is covered, with two principled
+omissions: **MetaCyc-based reconstruction** (flagged for removal from MATLAB RAVEN too) and
+**dynamic FBA** (well covered by other maintained Python packages). Candidates for back-porting
+to MATLAB RAVEN are catalogued in [the improvements list](reference/improvements.md).
 
 ```{toctree}
 :hidden:
@@ -96,33 +97,7 @@ reference/index
 
 ```{toctree}
 :hidden:
-:caption: Studies & validation
-
-studies/index
-```
-
-```{toctree}
-:hidden:
 :caption: Maintenance
 
-maintenance/index
-```
-
-```{toctree}
-:hidden:
-:caption: Project
-
-reference/changelog
-reference/todo
-reference/known_issues
-```
-
-```{toctree}
-:hidden:
-:caption: Design archive
-
-archive/binary_provisioning_plan
-archive/ftinit_review_and_plan
-archive/localization_design
-archive/plan_get_model_from_homology
+maintenance/parameter_defaults
 ```
