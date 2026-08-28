@@ -63,11 +63,20 @@ from raven_toolbox.io.ec_data import (
 # the rest of the process, so this module gets its own ruamel round-trip
 # instance instead. `width` is set far past any real line length so
 # ruamel never folds a long scalar onto a continuation line, matching
-# writeYAMLmodel.m. Everything else about this instance (indent,
-# quoting) is left at ruamel's own defaults, which already match RAVEN's
-# writer: 2-space indentation, single-quote only when YAML requires it.
+# writeYAMLmodel.m. `indent` is pinned explicitly (to the values ruamel
+# already used implicitly, verified byte-identical) rather than left for
+# ruamel to pick, so a future ruamel version can't silently change the
+# on-disk layout out from under either writer. Every list in this format
+# is itself a block sequence of single-key `!!omap` entries (reactions,
+# a reaction's metabolites, ...), so `sequence=2, offset=0` still nests
+# each entry two spaces past its parent key, matching writeYAMLmodel.m's
+# own hand-indented style — it would only read as flush-with-the-key for
+# a plain `key: [list]` mapping, which this format never emits at any
+# level. Quoting is left at ruamel's own defaults (single-quote only when
+# YAML requires it), which already match RAVEN's writer.
 _write_yaml = YAML(typ="rt")
 _write_yaml.width = 1_000_000
+_write_yaml.indent(mapping=2, sequence=2, offset=0)
 
 
 def _open_text(path: str | Path, mode: str):
