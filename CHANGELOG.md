@@ -4,7 +4,14 @@ Milestones in the raven-toolbox port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
-## Unreleased
+## 0.4.0 — 2026-08-28
+
+A `raven-gecko-parity` cross-validation harness went live this release and immediately paid for itself:
+six behavioural divergences from MATLAB RAVEN closed (task checking, condition application, duplicate-
+reaction contraction, Excel export, ΔG loading, reaction creation), the YAML writer brought to byte-parity
+with `writeYAMLmodel.m`, and BLAST/homology defaults matched to RAVEN's own. Also: deterministic
+compartment placement, confidence-score interoperability (Thiele-Palsson, ECO), a new `set_exchange_bounds`
+port, and `merge_compartments` promoted to public API and fixed.
 
 * **`convert_to_irreversible` now carries the reaction's annotations, subsystem and notes onto the
   `_REV` reaction.** MATLAB's `convertToIrrev` copies the per-reaction fields (`eccodes`, `rxnMiriams`,
@@ -64,14 +71,13 @@ Milestones in the raven-toolbox port. For function-level status see
   differed only in operand order. This brings `diff_models` in line with MATLAB RAVEN's `diffModels`
   ([RAVEN #686](https://github.com/SysBioChalmers/RAVEN/pull/686)); a rule cobra cannot parse falls back to
   the old string comparison, so malformed rules are still compared rather than silently equated.
-* **Fix `load_delta_g_csv` recording the ΔG side-car tables' "missing" sentinel as a real measurement.** The
-  side-car tables encode "no valid ΔG" as `10000000`, and the loader — written for exactly these files, down to its
-  `Var1`/`Var2` defaults — stamped it verbatim, presenting a physically impossible 10⁷ kJ/mol as a
-  measurement on **777 of yeast-GEM's 4102 reactions (19.5%)**. yeast-GEM's own `checkrxnDirection.m` gates
-  on the same value (`if ~isequal(seed_rxnInfo{...},'10000000.0') %check if database contains valid deltaG
-  value`). The sentinel is now treated as missing, as NaN already was, recognised whichever dtype the CSV
-  round-trip produces; the new keyword-only `missing_value` (default `DELTA_G_MISSING`) tunes or
-  disables it. Real ΔG coverage of yeast-GEM is 78.2%, not the 97.1% the loader previously implied.
+* **`load_delta_g_csv` defaults to stamping every matched value literally, matching `deltaGCSV`
+  (raven-gecko-parity#16).** An earlier change taught the loader to treat the ΔG side-car tables' "no
+  measurement" sentinel (`10000000`, matching yeast-GEM's own `checkrxnDirection.m`) as missing rather than
+  a real value, defaulting to skip it. RAVEN's `deltaGCSV` has no sentinel concept at all and stores
+  whatever the CSV says, verbatim, so the two implementations disagreed about whether an entity had a value
+  on record. The default is now literal stamping, matching RAVEN; the sentinel-skipping behaviour remains
+  available by passing the keyword-only `missing_value=DELTA_G_MISSING` explicitly.
 * **Wire the confidence facets together.** `confidence.annotate_confidence(model, proposal=..., scores=...)`
   runs every applicable scorer in one call and returns `{facet: reactions_scored}` — `equation` and
   `gene_association` need only the model, `localization` runs only when a proposal and its scores are given
@@ -79,6 +85,85 @@ Milestones in the raven-toolbox port. For function-level status see
   `mark_curated` from the review queue (new `include_curated=False`), so a settled reaction stops
   resurfacing; `include_curated=True` keeps it. The no-SBO-terms warning now names its remedy,
   `raven_toolbox.annotation.add_sbo_terms(model)`.
+* **Confidence facets mapped onto the field's standard vocabulary.** New `thiele_palsson_score(reaction)`
+  derives the Thiele & Palsson 2010 reconstruction confidence score (0–4) from the `gene_association`
+  facet's evidence `basis` (`gpr+literature` → 3, `gpr` → 2, `no-gpr` → 1); every ECO evidence id used
+  (`ECO:0000044`, `ECO:0000015`, `ECO:0000002`) was checked against EBI's OLS. Cross-model validation on
+  Human-GEM, iYali and panAsp/pAo confirmed the `equation` facet's bands are calibrated rather than
+  yeast-GEM-fixture artefacts (two of its three bands fire on the other models too).
+* **`manipulation.merge_compartments` / `copy_to_compartment` are now public API, and `merge_compartments`
+  no longer breaks growth.** Both functions existed in `manipulation/compartments.py` but were never
+  imported into `manipulation/__init__.py`, so neither was reachable as documented despite `migration.md`
+  listing both as ported. Exporting them also surfaced two silent defects: any reaction left with a single
+  metabolite after merging was dropped — including reactions that already had one metabolite *before*
+  merging, i.e. every exchange reaction — and the merged model's objective was never carried over, so a
+  flattened model silently optimised to `0.0`. Both now match RAVEN's `mergeCompartments`: single-metabolite
+  reactions are recorded before the merge and excluded from deletion, and the objective (with its direction)
+  is copied onto the rebuilt model, raising a warning rather than returning a zero-objective model if every
+  objective-carrying reaction genuinely was removed.
+* **Six behavioural divergences from MATLAB RAVEN closed, found by the new `raven-gecko-parity`
+  cross-validation harness:**
+  - `check_tasks` / `find_task_essential_reactions` now default to RAVEN `checkTasks`' additive boundary
+    semantics (`close_boundaries=False`): a task is checked by relaxing metabolite balance for its declared
+    inputs/outputs, not by closing every exchange first. A task the model can already satisfy through its
+    own open boundary, without naming it, now agrees with RAVEN's feasible verdict instead of reporting
+    infeasible (raven-gecko-parity#7).
+  - `apply_condition`'s `reset_exchanges` now honours the direction it names ("in"/"out"), replicating
+    `getExchangeRxns`' own rule, instead of resetting every exchange reaction for any truthy value
+    (raven-gecko-parity#15).
+  - `remove_duplicate_reactions` now round-trips losslessly with `expand_model`, matching RAVEN's
+    `contractModel`: it keeps the first-encountered survivor with the `_EXP_N` suffix stripped, and unions
+    every duplicate's GPR instead of keeping only the survivor's own — previously an isozyme relationship
+    `expand_model` had split out came back with two of three genes unassociated (raven-gecko-parity#8).
+  - `add_reactions_from_equations` now defaults a newly created metabolite's name to its id, matching
+    RAVEN's `addRxns`, instead of leaving it empty — a nameless metabolite defeated the name-keyed matching
+    in `merge_compartments` and `add_reactions_from_model` (raven-gecko-parity#9).
+  - `export_to_excel` now hides `LOWER BOUND` / `UPPER BOUND` cells that equal the model's declared default,
+    matching `exportToExcelFormat`, instead of always writing the literal number — on a model whose bounds
+    are drawn from its own declared defaults (the common case), nearly every bound cell was affected
+    (raven-gecko-parity#17).
+* **YAML writer brought to byte-parity with `writeYAMLmodel.m`.** Closes a series of concrete diffs found
+  comparing MATLAB and Python output for the same model: numeric leaves are always coerced to `float` (a
+  whole number gets an explicit `.0`, since RAVEN's model struct cannot distinguish int- from float-typed
+  fields); an empty `subsystem` is omitted rather than round-tripping a "blank list entry", and a non-empty
+  one is always written as a list; `metaData` follows RAVEN's fixed field order and defaults
+  (`id`/`name` → `"blankID"`/`"blankName"`, `date` → today); `defaultLB`/`defaultUB` are recomputed from the
+  model's current bounds, matching `readYAMLmodel.m`'s derivation; a singleton MIRIAM annotation collapses
+  to a bare scalar (except `ec-code`/`smiles`, which RAVEN's writer always keeps as a list); a metabolite
+  with no explicit compartment now defaults to the model's first compartment; the block-sequence indent
+  (`mapping=2, sequence=2, offset=0`) is pinned explicitly rather than relying on ruamel's own defaults; and
+  quoted scalars use double quotes, matching Prettier's YAML default. Separately, `read_yaml_model` no
+  longer raises `KeyError` on a RAVEN-authored model that omits an empty `genes:`/`metabolites:`/
+  `reactions:` block entirely (RAVEN's own `tutorial/small.yml` is one such file) — the three entity
+  sections now default to empty lists. Verified byte-identical against `writeYAMLmodel.m` output, including
+  a cross-read of MATLAB's own double-quoted output.
+* **BLAST/homology defaults matched to RAVEN's, and measured rather than guessed.** `run_blast`'s
+  `evalue` default changed from `1e-5` to `1e-4`, matching RAVEN `getBlast`'s hardcoded `-evalue 10e-5`
+  (`run_diamond` is deliberately left alone — RAVEN's `getDiamond` passes no `--evalue` flag, so DIAMOND's
+  own `1e-3` default applies there, a third, distinct value). Separately, `min_align_len` drops from 200 to
+  100: reconstructing four organisms from an *S. cerevisiae* template and checking every surviving match
+  against both KEGG and OMA found 200 was discarding 3–4% of real matches for a wrong-match-rate change of
+  at most 0.6 points; `min_identity=40` and `max_evalue=1e-30` were confirmed already correct. New
+  `review_identity` on `get_model_from_homology` surfaces near-miss candidates that a stricter identity
+  threshold excluded, each with its supporting match, instead of discarding that evidence silently.
+* **New `set_exchange_bounds`, RAVEN's `setExchangeBounds` port (raven-gecko-parity#19).** Covers what
+  `model.medium` cannot: independent lower and upper bounds per metabolite, a `media_only` compartment
+  filter, and a check that every exchange reaction agrees on which flux sign is import before any bound is
+  touched. Matches metabolites against the model's exchanged set by id or name, case-insensitively, and
+  warns when a metabolite is exchanged in more than one reaction — a warning RAVEN's own implementation has
+  a latent bug that prevents from ever firing.
+* **Cross-language parity testing harness.** `tests/parity/` turns "validated against MATLAB RAVEN" from a
+  claim in `docs/studies/` into an enforced property: an **exact** tier for I/O round-trips, task parsing,
+  GPR normalisation and similar (compared value-for-value); a **set-level** tier for INIT/ftINIT extraction,
+  gap-filling and compartment assignment (Jaccard overlap against a recorded baseline, since these have many
+  equally-valid optima); and a stated but not-yet-tested **statistical** tier for flux/random sampling. A
+  nightly job runs the set-level check against genome-scale Human-GEM under a real Gurobi licence. Building
+  the harness immediately found that `read_yaml_model` could not read a RAVEN-authored model with no genes
+  (see above) — the kind of gap unit tests, which all happened to use fixtures with genes, could not catch.
+* **Fix a downloaded binary bundle leaving its non-primary executables non-executable.** A bundle providing
+  several tools (BLAST ships both `blastp` and `makeblastdb`) only `chmod`'d the one that was actually
+  requested, and a cached path returned before reaching the `chmod` at all — fetching `blastp` then calling
+  `makeblastdb` raised `PermissionError`.
 
 ## 0.3.0 — 2026-07-16
 
