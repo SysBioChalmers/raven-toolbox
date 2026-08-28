@@ -135,7 +135,7 @@ e_coli_core 95 rxns, synthetic toy models. Binaries: BLAST 2.17.0.
 |---|---|---|---|---|
 | `predict_localization` | `default_compartment` | `'c'` | required arg | ✓ keep (better UX) |
 | `predict_localization` | `transport_cost` | `0.5` | 0.5 | ✓ keep |
-| `predict_localization` | `time_limit` | `None` | 900 s | ⚠ **tentatively unify at `None`** (MATLAB changes) — Medium confidence; see [parity decisions](#cross-toolbox-parity-decisions) |
+| `predict_localization` | `time_limit` | `None` | `maxTime=15` (minutes; MATLAB's simulated-annealing budget, not a MILP cutoff) | ✓ keep `None` — not a value to unify, see [parity decisions](#cross-toolbox-parity-decisions) |
 | `predict_localization` | `mip_gap` | `None` | N/A | ✓ keep |
 
 **Benchmark file:** [localization.md](localization.md)
@@ -202,7 +202,6 @@ change, or explains why it stays split.
 | `fseof.flux_eps` | `1e-6` | implicit `1e-8` | **`1e-6`** | MATLAB (needs exposing as a tunable first) | High | Measured — `1e-8` catches 21 solver-noise false positives (std≈5e-7, below Gurobi's feasibility tolerance accumulated genome-wide); see `fseof.md` |
 | `remove_genes.blocked_reactions` | `'remove'` | `'keep'` | **`'remove'` semantics** | MATLAB | High | Measured on e_coli_core — `'keep'` gives false-positive growth after an essential gene is removed; see `manipulation.md` |
 | `get_init_model.allow_excretion` | `False` ✓ done | `False` | **`False`** | ~~Python~~ done (2026-06-20) | High | Zero effect at default `prod_weight`, pure inconsistency; see `manipulation.md` |
-| `predict_localization.time_limit` | `None` | `900 s` | **`None`**, tentatively | MATLAB | Medium | Wall-clock caps are hardware-relative, not portable; Python's `None` already validated on the primary dev-scale model. No cross-solver test run for this function specifically. |
 
 ### Resolved without unifying — `run_init`/`run_ftinit` `mip_gap`/`time_limit`
 
@@ -244,6 +243,7 @@ measured on, and the only one a `time_limit` value does anything on today.
 | `random_sampling.replace_max_bound` | `False` | `True` | Applying MATLAB's `True` inside cobrapy/optlang makes the sampler unbounded on standard RAVEN-convention models (measured — see `sampling.md`). Whether MATLAB's own solver path handles `True` safely wasn't tested here; either way this is a solver-stack constraint, not a preference. |
 | `random_sampling.loopless_good_reactions` | `True` (loopless FVA) | heuristic (exclude FVA ≥ 999) | Different techniques, not a value. Python's is more correct; MATLAB's heuristic over-excludes reactions that legitimately reach capacity. Porting the proper technique to MATLAB is a bigger project than a default flip. |
 | `merge_models.match_by` | `'name'` | `'metNames'` | Same semantic field (metabolite display name), different field name — an artifact of cobrapy vs COBRA Toolbox schemas, not a tunable behaviour. |
+| `predict_localization.time_limit` | `None` | `maxTime=15` (minutes) | Confirmed by reading `core/predictLocalization.m` directly (2026-08-28): MATLAB solves the problem with simulated annealing (`maxTime` is its search budget — more time generally improves the heuristic answer, no optimality guarantee either way), while Python solves a deterministic MILP (`time_limit` is a solver cutoff — returns a proven-bounded incumbent). The same number plays a structurally different role in each; not a value to unify. Previously listed as a tentative unify-at-`None` candidate, which assumed both sides were solving the same kind of problem. |
 | `predict_localization.default_compartment` | `'c'` | required arg (no default) | MATLAB has no default at all; Python's `'c'` is a convenience default for the near-universal correct choice, produces no output difference (a MATLAB user must already supply `'c'` explicitly in the common case). Optional, low-priority: MATLAB could add the same default. |
 | `run_blast`/`run_diamond`/`run_hmmsearch`/`build_ko_hmm` `threads` | `max(1, cpu_count-1)` | all cores | Confirmed deterministic regardless of thread count — doesn't affect output, so this is a resource-policy choice (leave one core free), not a correctness-relevant value. Both are dynamic ("use available cores") in spirit. |
 
@@ -256,28 +256,47 @@ measured on, and the only one a `time_limit` value does anything on today.
 | ~~`get_init_model` `allow_excretion` default: `True` → `False`~~ | `src/raven_toolbox/init/build.py` | **Done** 2026-06-20 |
 | ~~`get_model_from_homology` `min_align_len` default: `200` → `100`~~ | `src/raven_toolbox/reconstruction/homology/homology.py` | **Done** 2026-08-26 |
 | ~~`run_blast`/`run_diamond` `evalue` default: `1e-5` → `1e-4`~~ | `src/raven_toolbox/reconstruction/homology/blast.py` | **Done** 2026-08-26 |
-| Docstring: `time_limit` note in `predict_localization` | `src/raven_toolbox/localization/predict.py` | Low |
+| ~~Docstring: `time_limit` note in `predict_localization`~~ | `src/raven_toolbox/localization/predict.py` | **Done** 2026-06-20, `f06faa4` |
 | ~~Docstring: `mip_gap`/`time_limit` note in INIT functions~~ | `src/raven_toolbox/init/init.py`, `ftinit.py` | **Done** 2026-08-26 — updated with measured genome-scale values instead of untested MATLAB ones |
 
 ## Changes needed in MATLAB RAVEN for parity
 
+All rows below were re-checked directly against `core/*.m` on `origin/develop` in
+the RAVEN MATLAB repo on 2026-08-28 (not just inferred from raven-toolbox's own
+prior write-ups, which is how the FSEOF and localization rows below turned out
+to need correcting from an earlier version of this table).
+
 | Change | Priority | Evidence |
 |---|---|---|
-| KO-assignment cut-off in the `getKEGGModelForOrganism` pipeline (exact sub-function unconfirmed): `1e-50` → `1e-30` | High | `kegg_hmm_cutoff_calibration.md` |
-| Same step, gene score ratio: `0.8` → `0.9` | High | Same study |
-| `getModelFromHomology` `min_align_len` (confirmed function name, via PR #91's reference to its sibling `getBlast`): `200` → `100` | Medium | `homology_cutoff_calibration.md` |
-| Gene-deletion blocked-reaction policy (likely `deleteGenes`, name not confirmed this session): default to removing single-gene reactions rather than keeping them with an empty gene rule | Medium | `manipulation.md` — measured false-positive growth on e_coli_core after essential-gene deletion |
-| `FSEOF`: expose the flux noise-floor as a tunable and default it to `1e-6`, not the current implicit `1e-8` | Low | `fseof.md` — measured solver-noise false positives |
-| Localization prediction (Python: `predict_localization`; MATLAB name not confirmed this session): consider dropping the 900 s default cap, or confirming it's still needed | Low (tentative) | Wall-clock caps aren't portable across hardware; not yet tested against MATLAB's own solver stack |
+| `getKEGGModelForOrganism`'s `cutOff` parameter: `10^-50` → `10^-30` | High | `kegg_hmm_cutoff_calibration.md`; current value confirmed directly in `external/kegg/getKEGGModelForOrganism.m` |
+| Same function, `minScoreRatioG`: `0.8` → `0.9` | High | Same study and same confirmation |
+| `getModelFromHomology`'s `minLen`: `200` → `100` | Medium | `homology_cutoff_calibration.md`; confirmed directly in `core/getModelFromHomology.m`. A fix already exists as an uncommitted local branch (`fix/homology-minlen`) but is stale relative to current `origin/develop` (file moved `reconstruction/homology/` → `core/`) and hasn't been pushed. |
+| `removeGenes`'s `removeBlockedRxns` parameter (default `false`, i.e. keep blocked reactions): default to `true` instead, matching raven-toolbox's `'remove'` | Medium | `manipulation.md` — measured false-positive growth on e_coli_core after essential-gene deletion. Confirmed directly in `core/removeGenes.m`: `removeBlockedRxns` defaults to `false`. |
+| `FSEOF`: add an explicit noise floor — currently there is **no tolerance at all** (bare `>0`/`<0`/`>`/`<` float comparison), not merely a looser fixed one as an earlier version of this row said | Medium | `fseof.md` measured `1e-8` catching solver-noise false positives *in raven-toolbox*; confirmed directly in `core/FSEOF.m` that MATLAB has no threshold whatsoever, which was not previously checked and is likely a worse version of the same problem, though not independently measured on the MATLAB side |
+
+Localisation's time-budget parameter was removed from this table: `core/predictLocalization.m`
+confirmed MATLAB solves the problem with simulated annealing (`maxTime`, default 15 minutes,
+a search budget), not the deterministic MILP raven-toolbox uses (`time_limit`, a solver
+cutoff) — different algorithms, not a value to port. See the "Keep different" table above.
 
 ## Parameters needing further benchmarks
 
-- Sampling `thinning`/`warmup` between-chain convergence: **answered**, see
-  [sampling_convergence_calibration.md](../../studies/sampling_convergence_calibration.md) —
-  at genome scale (yeast-GEM, default settings) the *median* reaction fails the R-hat>1.1
-  convergence threshold, far worse than the existing single-chain ESS number implied on its
-  own. Follow-up still open: does a larger `thinning`/`n_samples`, or `method='optgp'`,
-  actually fix it, and at what wall-time cost (~40 min/config observed at genome scale)?
+None remaining as a concrete action item. The one open research question —
+sampling between-chain convergence — was investigated as far as it reasonably
+goes without a genuinely new approach:
+
+- Sampling `thinning`/`warmup` between-chain convergence (Gelman-Rubin R-hat):
+  **investigated, no cheap fix found.** At genome scale (yeast-GEM, default
+  ACHR settings) the *median* reaction fails the R-hat>1.1 threshold. Neither
+  follow-up tried fixes it cheaply: reallocating the same step budget onto a
+  bigger `thinning` makes no measurable difference; `method='chrr'` genuinely
+  converges on a small model but its genome-scale cost (a fixed per-chain
+  rounding step alone costing ~80 min in a trivial probe) makes it impractical
+  as a drop-in fix today. See
+  [sampling_convergence_calibration.md](../../studies/sampling_convergence_calibration.md)
+  for the full investigation, including a possible future unblock (caching
+  CHRR's rounding transform across calls — an engineering change, not a
+  parameter default, so out of scope here).
 
 ---
 

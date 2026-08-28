@@ -11,7 +11,9 @@ Date: 2026-06-20, Gurobi solver.
 
 ## `flux_eps` — noise floor for flat/near-zero reactions
 
-**Parameters tested:** `1e-8` (MATLAB implicit), `1e-7`, `1e-6` (Python default)
+**Parameters tested:** `1e-8`, `1e-7`, `1e-6` (Python default) — all three run through
+raven-toolbox's own `_classify()`; MATLAB's `FSEOF.m` itself was not run for this
+comparison, see the correction below.
 
 Three roles in `_classify()`:
 1. Skip reaction if `flux.std() < flux_eps` (flat across all steps — likely unconstrained or constant)
@@ -30,8 +32,19 @@ tolerance (1e-9) accumulated across ~2583 reactions — textbook floating-point
 summation noise. Labelling them knockdown targets would mislead users into
 targeting reactions that are functionally zero throughout the scan.
 
-**Decision: keep `flux_eps=1e-6`.** The MATLAB-implicit `1e-8` produces false-positive
-knockdown targets from solver noise on genome-scale models.
+**Decision: keep `flux_eps=1e-6`.** The `1e-8` row above was originally labelled
+"MATLAB implicit" as a stand-in for "very tight tolerance", not from actually running
+MATLAB's `FSEOF.m`. **Correction (2026-08-28):** reading `core/FSEOF.m` on
+`origin/develop` directly shows it has no tolerance at all — target classification is
+a bare `fseof.results(j,i) > fseof.results(j,i-1)`-style comparison against the
+previous iteration's exact float value, not against any threshold, fixed or
+otherwise. That's stricter than even the `1e-8` row here, so the 21-reaction
+false-positive count above is a *lower* bound on what MATLAB's zero-tolerance
+comparison would flag, not an equivalent measurement of it — the true MATLAB-side
+number wasn't measured and is expected to be higher. Either way the conclusion
+holds: an explicit floor is needed, `1e-6` measured to be safely above the solver-noise
+band, and porting one to MATLAB is a bigger change than exposing an existing
+implicit value (there isn't one to expose).
 
 ---
 

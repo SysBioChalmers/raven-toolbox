@@ -70,9 +70,12 @@ the cobrapy validation models (~200–300 reactions) on which thinning=100 was c
 1. For large genome-scale models (>2000 reactions), ACHR samples with the default
    thinning=100 are highly autocorrelated and should not be treated as independent.
 2. Effective sample size (ESS) diagnostics should be run post-sampling.
-3. For production analyses on yeast-GEM or Human-GEM, consider using cobrapy's
-   `OptGPSampler` (which has better large-model mixing via a different hit-and-run
-   direction scheme) rather than ACHR.
+3. For production analyses on yeast-GEM or Human-GEM, consider `method='chrr'`
+   (raven-toolbox's rounding-based sampler, better mixing on ill-conditioned
+   polytopes) rather than ACHR. (Correction 2026-08-26: this point previously
+   named cobrapy's `OptGPSampler`, but that class is not wired into
+   `random_sampling` — see `flux_sampling_algorithms.md`. Using it means
+   calling `cobra.sampling.OptGPSampler` directly, bypassing this wrapper.)
 4. The `thinning` parameter trades compute time linearly for autocorrelation reduction —
    but the reduction is logarithmically slow, so large thinning values alone do not solve
    the problem at genome scale.
@@ -89,8 +92,9 @@ correct upstream default to track). Add a docstring warning that the default is
 calibrated for small models. On genome-scale models (>2000 reactions) the ACHR ESS
 at thinning=100 is very low (~12 effective samples from 300 stored); users should
 either dramatically increase thinning (1000+), increase n_samples to compensate,
-check ESS diagnostics post-sampling, or switch to a different sampler
-(`method='optgp'` via cobrapy's OptGPSampler).
+check ESS diagnostics post-sampling, or switch to `method='chrr'`
+(raven-toolbox's own rounding-based sampler — cobrapy's `OptGPSampler` is not
+reachable through `random_sampling`, see `flux_sampling_algorithms.md`).
 
 **Follow-up (2026-08-26):** this ESS number is a *single-chain* diagnostic — it
 doesn't check whether independent chains agree with each other. See
@@ -104,9 +108,22 @@ are autocorrelated within a chain, it's that independent chains frequently
 land on different distributions entirely within the default sample budget.
 **Revised guidance: at genome scale, treat `random_sampling`'s default-settings
 output as unconverged for most reactions, not as a caveat for a minority of
-hard ones.** Whether increasing `thinning`/`n_samples` or switching to
-`method='optgp'` actually fixes this (and at what wall-time cost) is not yet
-measured — see the study's "Open question" section.
+hard ones.** Two follow-ups were tried, with results:
+- Reallocating the *same* total step budget onto a bigger `thinning` (300
+  instead of 100, fewer samples to compensate) **does not help** — R-hat is
+  essentially unchanged. Turning that dial within a fixed budget is not a fix.
+- `method='chrr'` genuinely fixes convergence on a small model
+  (e_coli_core: R-hat max drops from 1.30 to 1.02) but costs ~20x more per
+  sample there, and its genome-scale cost is dominated by a fixed per-chain
+  rounding step that alone took ~80 minutes in a tiny 20-sample probe — not a
+  cheap drop-in fix today. See the study's "Bottom line" section for the full
+  picture, including why that probe's R-hat numbers themselves aren't
+  trustworthy (too few samples to estimate variance stably).
+
+**No cheap, validated fix exists yet.** The honest guidance for genome-scale
+users remains: increase `thinning`/`n_samples` substantially and check
+ESS/R-hat yourself, or accept the cost of `method='chrr'` if it's tractable
+for your model size — there's no default-settings shortcut.
 
 ---
 

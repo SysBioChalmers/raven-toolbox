@@ -12,6 +12,9 @@ Conceptual and API reference for raven-toolbox.
   raven-toolbox makes that are candidates to back-port into the MATLAB toolbox.
 - **[Improvements over RAVEN](improvements.md)** — the full catalogue of correctness /
   ergonomics improvements (the `IMPROVEMENTS.md` master list).
+- **[Tuned parameter defaults](tuned_parameters.md)** — every non-trivial default, grouped
+  by function, with a one-line reason: literature value, empirical measurement, or
+  upstream/MATLAB consistency.
 - **[API reference](api/index.md)** — every public function and class, generated from the
   docstrings.
 - **[Gap-filling algorithms — literature review](gap_filling_algorithms.md)** — survey of
@@ -28,6 +31,7 @@ migration
 yaml_format
 matlab_raven_backports
 improvements
+tuned_parameters
 api/index
 gap_filling_algorithms
 cobra_raven_comparison

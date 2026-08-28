@@ -110,8 +110,9 @@ def random_sampling(
         the stricter R-hat>1.01). Treat default-settings genome-scale output as
         unconverged for most reactions, not a caveat for a minority of hard ones. For
         genome-scale analyses either increase thinning substantially (≥1000), increase
-        n_samples to compensate, or use an ESS/R-hat diagnostic to assess sample quality
-        (see :doc:`/studies/sampling_convergence_calibration`).
+        n_samples to compensate, try ``method='chrr'`` (raven-toolbox's rounding-based
+        alternative, not wired into ACHR), or use an ESS/R-hat diagnostic to assess
+        sample quality (see :doc:`/studies/sampling_convergence_calibration`).
     warmup:
         ``chrr`` — burn-in steps discarded before the first recorded sample.
     fixed_width_tol:

@@ -48,7 +48,7 @@ import numpy as np
 import pandas as pd
 
 
-def _run_one_chain(model_path: str, seed: int, n_samples: int, thinning: int, warmup: int) -> pd.DataFrame:
+def _run_one_chain(model_path: str, seed: int, n_samples: int, thinning: int, warmup: int, method: str) -> pd.DataFrame:
     # Re-imported in the child process (ProcessPoolExecutor pickles by reference,
     # not by closure), and the model is reloaded from disk rather than pickling a
     # cobra.Model across the process boundary (its solver interface doesn't pickle
@@ -57,7 +57,7 @@ def _run_one_chain(model_path: str, seed: int, n_samples: int, thinning: int, wa
 
     model = cobra.io.read_sbml_model(model_path)
     result = random_sampling(
-        model, n_samples, method="achr", seed=seed, thinning=thinning, warmup=warmup,
+        model, n_samples, method=method, seed=seed, thinning=thinning, warmup=warmup,
     )
     return result.samples
 
@@ -80,14 +80,14 @@ def _gelman_rubin(chains: list[pd.DataFrame]) -> pd.Series:
     return pd.Series(r_hat, index=chains[0].columns, name="r_hat")
 
 
-def _cache_path(out: Path, model_name: str, n_chains: int, n_samples: int, thinning: int, warmup: int) -> Path:
-    return out / f"chains_{model_name}_m{n_chains}_n{n_samples}_t{thinning}_w{warmup}.pkl"
+def _cache_path(out: Path, model_name: str, n_chains: int, n_samples: int, thinning: int, warmup: int, method: str) -> Path:
+    return out / f"chains_{model_name}_{method}_m{n_chains}_n{n_samples}_t{thinning}_w{warmup}.pkl"
 
 
-def run(model_path: Path, out: Path, n_chains: int, n_samples: int, thinning: int, warmup: int, workers: int | None) -> pd.Series:
+def run(model_path: Path, out: Path, n_chains: int, n_samples: int, thinning: int, warmup: int, workers: int | None, method: str = "achr") -> pd.Series:
     out.mkdir(parents=True, exist_ok=True)
     model_name = model_path.stem
-    cache = _cache_path(out, model_name, n_chains, n_samples, thinning, warmup)
+    cache = _cache_path(out, model_name, n_chains, n_samples, thinning, warmup, method)
 
     if cache.exists():
         print(f"[cache hit] {cache}")
@@ -97,11 +97,11 @@ def run(model_path: Path, out: Path, n_chains: int, n_samples: int, thinning: in
         t0 = time.time()
         with ProcessPoolExecutor(max_workers=workers or n_chains) as pool:
             futures = [
-                pool.submit(_run_one_chain, str(model_path), seed, n_samples, thinning, warmup)
+                pool.submit(_run_one_chain, str(model_path), seed, n_samples, thinning, warmup, method)
                 for seed in range(n_chains)
             ]
             chains = [f.result() for f in futures]
-        print(f"{n_chains} chains x {n_samples} samples on {model_name}: {time.time() - t0:.1f}s wall")
+        print(f"{n_chains} chains x {n_samples} samples ({method}) on {model_name}: {time.time() - t0:.1f}s wall")
         with open(cache, "wb") as fh:
             pickle.dump(chains, fh)
 
@@ -129,6 +129,7 @@ if __name__ == "__main__":
     p.add_argument("--thinning", type=int, default=100)
     p.add_argument("--warmup", type=int, default=1000)
     p.add_argument("--workers", type=int, default=None, help="default: one per chain")
+    p.add_argument("--method", choices=["achr", "chrr"], default="achr")
     args = p.parse_args()
 
-    run(args.model, args.out, args.n_chains, args.n_samples, args.thinning, args.warmup, args.workers)
+    run(args.model, args.out, args.n_chains, args.n_samples, args.thinning, args.warmup, args.workers, args.method)

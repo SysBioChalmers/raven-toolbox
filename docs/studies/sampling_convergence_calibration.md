@@ -100,14 +100,115 @@ warning (increase `thinning`/`n_samples`, check ESS, or switch to
 problem — this justifies raising it from an FYI-level note to an explicit
 warning with numbers attached.
 
-## Open question this raises but doesn't answer
+## Does `method='chrr'` fix it? Yes on e_coli_core — but at a cost that may not scale
 
-Does a fix that's cheap to *describe* (bigger `thinning`, bigger `n_samples`,
-`method='optgp'`) actually bring genome-scale R-hat down to a reasonable
-level, and at what cost in wall time? Not measured here — each additional
-4-chain genome-scale configuration costs on the order of 40 minutes (see
-timing below), so this is left as a deliberate next step rather than
-open-endedly sweeping configurations in the same run.
+Same 4 chains × 300 samples on e_coli_core, `method='chrr'` instead of `'achr'`:
+
+| | ACHR | CHRR |
+|---|---:|---:|
+| wall time | 34.7 s | **702.0 s** |
+| reactions scored | 87 | 95 (0 excluded as constant) |
+| R-hat median | 1.0071 | **1.0049** |
+| R-hat p90 | 1.0369 | 1.0146 |
+| R-hat max | 1.3028 | **1.0248** |
+| R-hat > 1.01 | 48.3% | 17.9% |
+| R-hat > 1.1 | 1.1% | **0.0%** |
+
+CHRR converges properly here — the worst reaction (`ICDHyr`, 1.0248) doesn't
+even reach the loose 1.1 threshold, versus ACHR's `EX_succ_e` at 1.30. This is
+a real, substantial fix, not a marginal one.
+
+The cost is the problem: **~20x slower on a 95-reaction model.** CHRR's
+up-front max-volume-ellipsoid rounding step is the likely driver, and MVE
+computation typically scales worse than linearly with dimension — so a naive
+extrapolation of 20x to yeast-GEM's 4102 reactions (43x more reactions than
+e_coli_core) could plausibly land anywhere from "worse than 20x" to much
+worse, not better. At ACHR's already-measured 2524s for 4 genome-scale chains,
+a proportional 20x would be ~14 hours — not attempted blind. See the bounded
+probe below for what was actually measured.
+
+## Follow-up: does reallocating the same ACHR budget help? No.
+
+Same total step budget as the default config (`thinning × n_samples` =
+30,000 either way), just distributed differently: `thinning=300,
+n_samples=100` instead of `thinning=100, n_samples=300`. 4 chains, yeast-GEM.
+
+| | default (t=100, n=300) | reallocated (t=300, n=100) |
+|---|---:|---:|
+| wall time | 2524.4 s | 3451.0 s |
+| R-hat median | 1.1671 | 1.1636 |
+| R-hat p90 | 1.6414 | 1.6542 |
+| R-hat max | 9.9416 | 9.8345 |
+| R-hat > 1.01 | 96.5% | 95.2% |
+| R-hat > 1.1 | 67.5% | 67.2% |
+| worst reaction | `r_0318` (9.94) | `r_0318` (9.83) |
+
+Essentially no change — same worst reactions, same rough ordering, same
+overall failure rate, and it took *longer* (57.5 min vs 42 min) despite equal
+total steps. **This rules out "just thin more within a fixed budget" as a
+fix.** If more thinning genuinely bought better mixing, spending the same
+budget on longer gaps between fewer stored samples should have moved R-hat;
+it didn't move it meaningfully in either direction. The non-convergence looks
+structural to ACHR's mixing on this polytope, not a matter of turning an
+existing dial — consistent with CHRR (a different algorithm entirely) fixing
+it on e_coli_core while this reallocation, still ACHR, does not.
+
+## Does CHRR fix it at genome scale, and is it practical?
+
+Not run at matching scale (4 chains × 300 samples) given the ~20x
+e_coli_core cost multiplier implies perhaps 14 hours. A small bounded probe
+(2 chains, 20 samples, same `thinning=100`) was run instead purely to get a
+real genome-scale CHRR timing number before deciding whether a full run is
+worth attempting.
+
+(cobrapy's `OptGPSampler` was not a candidate here: `random_sampling` doesn't
+wire it in, only `'achr'` and `'chrr'` — see
+[flux_sampling_algorithms.md](../reference/flux_sampling_algorithms.md).)
+
+**Result: 4815.3 s (~80 min) for 2 chains × 20 samples.** This settles the
+timing question on its own, independent of sample-count effects: CHRR's cost
+at genome scale is dominated by a fixed per-chain cost (almost certainly the
+max-volume-ellipsoid rounding step, computed once before any samples are
+drawn) that doesn't shrink with a smaller sample request. A trivial 20-sample
+probe already costs comparable wall time to a *full* 300-sample ACHR run
+(2524 s). CHRR is not a cheap drop-in genome-scale fix with the current
+implementation, regardless of what its converged quality would turn out to
+be at a matching sample count.
+
+The R-hat computed from this probe (median **5.16**, p90 86, max in the
+billions) should **not** be read as "CHRR converges worse than ACHR at genome
+scale." With only 20 samples per chain, within-chain variance (R-hat's
+denominator) is estimated from too little data to be stable — a reaction
+that happens to show near-zero variance in 20 draws by chance, combined with
+any between-chain difference, produces an enormous, physically meaningless
+ratio. (Contrast e_coli_core, where 300 samples/chain gave stable,
+well-behaved R-hat throughout.) This run cannot distinguish "CHRR doesn't
+work at genome scale" from "R-hat needs more than 20 samples to mean
+anything" — telling those apart would need a genome-scale CHRR run with
+enough samples for a stable R-hat, which circles back to the cost problem
+above.
+
+## Bottom line
+
+- **Default settings are unconverged for most reactions at genome scale** —
+  robust finding, confirmed by two independent lines of evidence (ESS and
+  R-hat).
+- **Reallocating the same ACHR budget doesn't help** — ruling out the
+  cheapest possible fix.
+- **CHRR fixes it on a small model, but its current genome-scale cost (a
+  fixed ~80 min+ per chain before any samples are even drawn) makes it
+  impractical as a drop-in fix today.** Whether CHRR *would* converge well at
+  genome scale given enough samples to trust the R-hat is still open — it
+  would need a run long enough to be informative, which is itself the
+  problem.
+- **No cheap, validated fix exists yet.** Users doing genome-scale flux
+  sampling with `random_sampling`'s defaults should treat per-reaction flux
+  ranges as unconverged for most reactions, not as a caveat affecting a
+  minority. The most concrete unblock identified but not pursued here: CHRR's
+  rounding transform is recomputed from scratch per chain/call — caching or
+  reusing it across calls on the same model would remove the dominant fixed
+  cost and is worth a future look, but is an engineering change, not a
+  parameter default.
 
 ## Reproducing
 

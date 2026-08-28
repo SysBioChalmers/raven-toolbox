@@ -180,11 +180,18 @@ vertices.
 | MVE solver | `sampleMaxVolEllipse.m` | `analysis.max_volume_ellipsoid` |
 | Interior point | `sampleChebyshevCenter.m` | `_chebyshev_center` (scipy `linprog`) |
 
-**Does cobrapy already have these?** cobrapy ships a mature **ACHR** (`ACHRSampler`, plus the
-parallel `OptGPSampler`), so the Python side **wraps** it rather than reimplementing — both
-methods are reachable through the one `random_sampling` entry point and return the same
-`FluxSamplingResult`. cobrapy has **no CHRR** (no rounding sampler), so the Python CHRR is a
+**Does cobrapy already have these?** cobrapy ships a mature **ACHR** (`ACHRSampler`), so the
+Python side **wraps** it rather than reimplementing — reachable through the one
+`random_sampling` entry point (`method='achr'`) and returning the same `FluxSamplingResult`.
+cobrapy has **no CHRR** (no rounding sampler), so the Python CHRR (`method='chrr'`) is a
 genuine addition. MATLAB RAVEN had neither, so both are implemented there from scratch.
+
+cobrapy also ships a parallel **`OptGPSampler`**, but it is *not* wired into `random_sampling`
+— only ACHR and CHRR are (verified 2026-08-26; a previous version of this note incorrectly
+claimed OptGP was reachable through the same entry point). Using it means calling
+`cobra.sampling.OptGPSampler` directly, bypassing this wrapper entirely — it won't return a
+`FluxSamplingResult` or go through raven-toolbox's constraint handling. `method='chrr'` is the
+better-mixing alternative actually available through `random_sampling`.
 
 The MATLAB filenames are prefixed `sample*` to avoid clashing with COBRA Toolbox's
 `sampleCbModel` / `ACHRSampler` / `CHRRSampler` / `mve_solver` on case-insensitive
