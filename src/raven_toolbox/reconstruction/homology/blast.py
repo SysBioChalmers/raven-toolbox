@@ -64,7 +64,9 @@ def run_blast(
     Returns the hits DataFrame (filtered at
     ``evalue``). Requires BLAST+ (`blastp`, `makeblastdb`).
 
-    ``evalue`` matches MATLAB RAVEN's ``getBlast`` (``10e-5``); it's a loose
+    The default matches MATLAB RAVEN's ``getBlast``, which hardcodes
+    ``-evalue 10e-5`` -- that is 1e-4, not 1e-5. Unlike RAVEN's, this one is an
+    argument, so a stricter search stays available; it's also a loose
     pre-filter only, dominated downstream by
     :func:`~raven_toolbox.reconstruction.homology.homology.get_model_from_homology`'s
     much stricter ``max_evalue``/``min_align_len``/``min_identity``.
@@ -103,17 +105,21 @@ def run_diamond(
     model_ids: Sequence[str],
     ref_fastas: Sequence[str | Path],
     *,
-    evalue: float = 1e-4,
+    evalue: float = 1e-3,
     threads: int = max(1, (os.cpu_count() or 2) - 1),
     sensitivity: str = "--more-sensitive",
     diamond: str | Path | None = None,
 ) -> pd.DataFrame:
     """Bidirectional DIAMOND between an organism and template organisms.
 
-    Returns the hits DataFrame. Requires DIAMOND. ``evalue`` matches
-    ``run_blast`` for a consistent pre-filter across aligners (RAVEN's MATLAB
-    ``getDiamond`` passes no ``-evalue`` at all, so DIAMOND's own looser
-    ``1e-3`` applies there instead).
+    Returns the hits DataFrame. Requires DIAMOND.
+
+    The default matches MATLAB RAVEN's ``getDiamond``, which passes no
+    ``--evalue`` at all and so inherits DIAMOND's own default of 1e-3. Stated
+    explicitly here rather than left implicit, since the two aligners disagree:
+    ``run_blast`` uses 1e-4, following ``getBlast``. Neither cutoff has been
+    calibrated against data on either side -- unlike the KO-assignment cutoffs,
+    where measurement did justify diverging from RAVEN.
     """
     model_ids = list(model_ids)
     ref_fastas = _as_list(ref_fastas)

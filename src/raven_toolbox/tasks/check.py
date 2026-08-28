@@ -8,8 +8,12 @@ infeasible).
 Inputs/outputs are encoded as ranges on the per-metabolite mass-balance constraint
 (``model.constraints[met.id]``): an input allows net consumption (``Sv ∈ [-UB, -LB]``)
 and an output allows / requires net production (``Sv ≤ UB``, and ``≥ LB`` if
-``LB > 0``). Existing boundary reactions are closed first, so inputs/outputs are
-defined solely by the task (closed-model semantics).
+``LB > 0``). By default, existing boundary reactions are left exactly as they are: a
+task's inputs/outputs *add to* whatever the model's own open exchanges already allow,
+rather than replacing them (RAVEN's ``checkTasks`` semantics, and what the published
+task lists this module reads were curated against). Pass ``close_boundaries=True`` for
+the stricter reading, where a task's declared inputs/outputs are the complete boundary
+of the system for that check.
 """
 from __future__ import annotations
 
@@ -21,10 +25,11 @@ from typing import cast
 
 import cobra
 from cobra.exceptions import OptimizationError
-from cobra.flux_analysis import flux_variability_analysis, pfba
-from optlang.symbolics import Zero
+from cobra.flux_analysis import pfba
+from optlang.symbolics import Zero, add
 
 from raven_toolbox.manipulation.add import add_reactions_from_equations
+from raven_toolbox.manipulation.boundary import close_model_in_place
 from raven_toolbox.tasks.tasklist import Task, parse_task_list
 
 _ALLMETS = "ALLMETS"
@@ -199,13 +204,16 @@ def check_tasks(
     model: cobra.Model,
     tasks: str | Iterable[Task],
     *,
-    close_boundaries: bool = True,
+    close_boundaries: bool = False,
 ) -> list[TaskResult]:
     """Run a task list against ``model`` and return a :class:`TaskResult` per task.
 
-    ``tasks`` is a parsed list of :class:`Task` or a path to a task-list file. With
-    ``close_boundaries`` (default), existing exchange/sink/demand reactions are
-    closed so inputs/outputs are defined purely by the tasks (as RAVEN assumes).
+    ``tasks`` is a parsed list of :class:`Task` or a path to a task-list file. By
+    default (``close_boundaries=False``), existing exchange/sink/demand reactions are
+    left open, so a task's inputs/outputs add to whatever the model's own boundary
+    already allows — matching RAVEN's ``checkTasks``, which published task lists were
+    curated against. Pass ``close_boundaries=True`` for the stricter reading, where
+    inputs/outputs are defined purely by the tasks.
     """
     tasks = _as_tasks(tasks)
     base, name_to_id, comp_to_ids = _prepare_base(model, close_boundaries)
@@ -221,10 +229,32 @@ def _as_tasks(tasks: str | Iterable[Task]) -> list[Task]:
 def _prepare_base(model: cobra.Model, close_boundaries: bool):
     base = model.copy()
     if close_boundaries:
-        for rxn in base.boundary:
-            rxn.bounds = (0.0, 0.0)
+        # Opt-in only: RAVEN's own checkTasks does not close boundary reactions before
+        # applying a task's constraints (confirmed directly — a task's inputs/outputs
+        # add to whatever the model's own exchanges already allow, not replace them),
+        # so close_model_in_place is skipped by default to match. Kept as an option for
+        # callers that want the stricter, task-is-the-complete-boundary reading.
+        close_model_in_place(base)
     name_to_id, comp_to_ids = task_name_maps(base)
     return base, name_to_id, comp_to_ids
+
+
+def _set_deterministic_solver(model: cobra.Model) -> None:
+    """Configure the solver to match RAVEN's ``solveLP`` and be deterministic.
+
+    RAVEN's ``getEssentialRxns`` runs ``solveLP`` (Gurobi via ``optimizeProb``) at
+    ``FeasibilityTol/OptimalityTol = 1e-9`` and single-threaded. Multi-threaded Gurobi
+    picks among the degenerate min-flux optima non-deterministically, so the candidate set
+    (and the discovered essential-reaction count) varies run to run; ``Threads=1`` plus a
+    fixed ``Seed`` makes it reproducible. Gurobi-specific; a no-op on other backends.
+    """
+    try:
+        model.solver.problem.Params.Threads = 1
+        model.solver.problem.Params.Seed = 1234
+        model.solver.problem.Params.FeasibilityTol = 1e-9
+        model.solver.problem.Params.OptimalityTol = 1e-9
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @dataclass
@@ -246,28 +276,56 @@ class EssentialReactionsResult:
 
 
 def _task_essential_reactions(
-    task_model: cobra.Model, candidates: list[str], tol: float
+    task_model: cobra.Model, original_ids: set[str]
 ) -> dict[str, int]:
-    """Reactions in ``candidates`` forced to carry flux, with direction, via FVA.
+    """Reactions whose removal makes the task infeasible — faithful port of ``getEssentialRxns``.
 
-    A reaction is *essential* for the task iff zero is not attainable in any feasible
-    solution — i.e. its FVA range excludes 0. This is exactly RAVEN's
-    "constrain to 0 → infeasible" definition, but obtained from FVA ranges (no
-    per-reaction knockout loop). The nonzero side of the range gives the forced
-    direction. FVA is restricted to ``candidates`` — the reactions carrying flux in a
-    minimal feasible solution, the only ones that *can* be essential (an essential
-    reaction is nonzero in every feasible solution, so also in that one) — which keeps
-    this cheap on genome-scale templates instead of ranging all reactions.
+    Mirrors RAVEN ``getEssentialRxns.m`` step for step:
+
+    1. **Min-flux solve** (``solveLP(model,1)`` = pFBA, minimise ``Σ|flux|``); candidates are
+       the reactions carrying ``|flux| > 1e-12``.
+    2. **Shrink loop** (``getEssentialRxns.m:38-55``): minimise, then maximise, the *sum of
+       the candidate fluxes*, each time keeping only candidates still carrying
+       ``|flux| > 1e-8``; repeat within a phase until it stops shrinking, then switch
+       min→max, then stop. This yields a candidate set that does not depend on which
+       degenerate min-flux vertex the solver happened to pick.
+    3. **Exact test** (``:57-63``): constrain each remaining candidate to 0 and re-solve; if
+       the task is then infeasible the reaction is essential. Direction is the sign it
+       carries in the min-flux solution (RAVEN's ``essentialFluxes``).
+
+    Returns ``{reaction id: +1 forward | -1 reverse}``.
     """
-    if not candidates:
-        return {}
-    fva = flux_variability_analysis(task_model, reaction_list=candidates, fraction_of_optimum=0.0)
+    fluxes = pfba(task_model).fluxes
+    candidates = [rid for rid in original_ids if abs(fluxes.get(rid, 0.0)) > 1e-12]
+
+    n_to_check = len(candidates)
+    minimize = True
+    while candidates:
+        expr = add([task_model.reactions.get_by_id(rid).flux_expression for rid in candidates])
+        task_model.objective = task_model.problem.Objective(
+            expr, direction="min" if minimize else "max"
+        )
+        sol = task_model.optimize()
+        candidates = [rid for rid in candidates if abs(sol.fluxes[rid]) > 1e-8]
+        if len(candidates) >= n_to_check:   # no reduction this pass
+            if minimize:
+                minimize = False            # switch to the maximise phase
+            else:
+                break                       # maximise also stable → done
+        else:
+            n_to_check = len(candidates)
+
+    # Pure feasibility for the constrain-to-0 test (RAVEN solveLP with c = 0).
+    task_model.objective = task_model.problem.Objective(Zero, direction="max")
     essential: dict[str, int] = {}
-    for rxn_id, lo, hi in zip(fva.index, fva["minimum"], fva["maximum"], strict=True):
-        if lo > tol:
-            essential[rxn_id] = 1
-        elif hi < -tol:
-            essential[rxn_id] = -1
+    for rid in candidates:
+        rxn = task_model.reactions.get_by_id(rid)
+        saved = rxn.bounds
+        rxn.bounds = (0.0, 0.0)
+        task_model.slim_optimize()
+        if task_model.solver.status != "optimal":   # infeasible ⇒ essential
+            essential[rid] = 1 if fluxes.get(rid, 0.0) >= 0 else -1
+        rxn.bounds = saved
     return essential
 
 
@@ -275,62 +333,85 @@ def find_task_essential_reactions(
     model: cobra.Model,
     tasks: str | Iterable[Task],
     *,
-    close_boundaries: bool = True,
-    tol: float = 1e-8,
+    close_boundaries: bool = False,
     cache_path: str | Path | None = None,
 ) -> EssentialReactionsResult:
     """Find the reactions a model must use to satisfy a task list.
 
-    For each task the model is constrained as in :func:`check_tasks`, then FVA
-    identifies reactions whose flux can never be zero (essential) and their forced
-    direction. This is the ``prepINITModel`` step that feeds (ft)INIT: essential
-    reactions are kept regardless of expression score and made irreversible in their
-    forced direction. When a reaction is essential in several tasks with conflicting
-    directions, the majority wins (ties → forward), matching RAVEN's ``pos < neg``.
+    A faithful port of RAVEN's ``checkTasks(getEssential=true)`` → ``getEssentialRxns``:
+    each task is constrained as in :func:`check_tasks`, then :func:`_task_essential_reactions`
+    finds the reactions it must use (min-flux solve → shrink loop → exact constrain-to-0
+    test). This is the ``prepINITModel`` step that feeds (ft)INIT: essential reactions are
+    kept regardless of expression score and made irreversible in their forced direction.
+    When a reaction is essential in several tasks with conflicting directions, the majority
+    wins (ties → forward), matching RAVEN's ``pos < neg``. ``close_boundaries`` defaults to
+    ``False``, matching RAVEN: a task's inputs/outputs add to whatever the model's own
+    open exchanges already allow, rather than replacing them.
 
-    On a genome-scale model this is slow (an FVA per task). Pass ``cache_path`` to make
-    it **resumable**: each task's result is written there as it completes (atomically),
-    and a re-run skips tasks already cached — so it survives interruptions and finishes
-    across several sessions.
+    The solver is configured per task to match RAVEN's ``solveLP`` (``FeasibilityTol =
+    1e-9``, single-threaded with a fixed seed) so the degenerate min-flux vertex — and thus
+    the discovered essential set — is reproducible.
+
+    On a genome-scale model this is slow (a min-flux solve plus a feasibility LP per
+    candidate, per task). Pass ``cache_path`` to make it **resumable**: each task's result
+    is written there as it completes (atomically), and a re-run skips tasks already cached —
+    so it survives interruptions across sessions.
     """
     tasks = _as_tasks(tasks)
     base, name_to_id, comp_to_ids = _prepare_base(model, close_boundaries)
     original_ids = {r.id for r in base.reactions}
 
-    per_task: dict[str, dict[str, int]] = {}
+    # Results are tracked by task *position*, not by task id. A task list routinely
+    # reuses one id for many distinct tasks (metabolicTasks_Essential.txt has 57 tasks
+    # under just 5 ids: ER/BS/SU/IC/…); keying by id lets later same-id tasks overwrite
+    # earlier ones and silently drop their essential reactions from the union — which
+    # under-counted the essential set by ~35% (259 vs 397 on Human-GEM).
+    per_index: dict[int, dict[str, int]] = {}
+    failed_index: list[int] = []
     task_metabolites: set[str] = set()
-    failed: list[str] = []
     if cache_path is not None and Path(cache_path).exists():
         cached = pickle.load(open(cache_path, "rb"))
-        per_task, task_metabolites, failed = cached["per_task"], set(cached["mets"]), list(cached["failed"])
+        if "per_index" in cached:  # ignore any pre-fix, id-keyed cache and recompute
+            per_index = {int(k): v for k, v in cached["per_index"].items()}
+            task_metabolites = set(cached["mets"])
+            failed_index = list(cached["failed"])
 
-    done = set(per_task) | set(failed)
-    for task in tasks:
-        if task.should_fail or task.id in done:
+    done = set(per_index) | set(failed_index)
+    for i, task in enumerate(tasks):
+        if task.should_fail or i in done:
             continue  # a should-fail task defines no essentials; cached ones are skipped
         task_model, task_mets, error = _build_task_model(base, task, name_to_id, comp_to_ids)
         if error is not None:
-            failed.append(task.id)
+            failed_index.append(i)
         else:
-            # One min-flux solve both proves feasibility and yields the essential-reaction
-            # candidates (the original reactions carrying flux in a sparse solution).
+            _set_deterministic_solver(task_model)  # match RAVEN solveLP + reproducibility
             try:
-                fluxes = pfba(task_model).fluxes
-                candidates = [rid for rid in original_ids if abs(fluxes.get(rid, 0.0)) > tol]
                 task_metabolites |= task_mets
-                per_task[task.id] = _task_essential_reactions(task_model, candidates, tol)
+                per_index[i] = _task_essential_reactions(task_model, original_ids)
             except OptimizationError:
-                failed.append(task.id)
+                failed_index.append(i)
         if cache_path is not None:  # atomic checkpoint after each task
             tmp = Path(f"{cache_path}.part")
-            pickle.dump({"per_task": per_task, "mets": task_metabolites, "failed": failed},
+            pickle.dump({"per_index": per_index, "mets": task_metabolites, "failed": failed_index},
                         open(tmp, "wb"))
             tmp.replace(cache_path)
 
-    # Majority direction; tie (sum == 0) → forward, as RAVEN's `pos < neg`.
+    # Majority direction across *all* tasks; tie (sum == 0) → forward, as RAVEN's `pos < neg`.
     direction_votes: dict[str, int] = {}
-    for essential in per_task.values():
+    for essential in per_index.values():
         for rxn_id, direction in essential.items():
             direction_votes[rxn_id] = direction_votes.get(rxn_id, 0) + direction
     reactions = {rid: (-1 if votes < 0 else 1) for rid, votes in direction_votes.items()}
+
+    # Public per-task view, merged by id (union of the same-id tasks' essentials). This is
+    # not used for the overall result — that comes from `reactions` above — so the merge is
+    # only for inspection and stays lossless for the union.
+    per_task: dict[str, dict[str, int]] = {}
+    for i, essential in per_index.items():
+        slot = per_task.setdefault(tasks[i].id, {})
+        for rxn_id, direction in essential.items():
+            slot[rxn_id] = slot.get(rxn_id, 0) + direction
+    per_task = {tid: {r: (-1 if v < 0 else 1) for r, v in d.items()} for tid, d in per_task.items()}
+
+    failed = sorted({tasks[i].id for i in failed_index})
     return EssentialReactionsResult(reactions, per_task, task_metabolites, failed)

@@ -1,0 +1,90 @@
+---
+- metaData: !!omap
+  - id: parityTiny
+  - name: Parity fixture - a tiny balanced network
+  - description: >-
+      Authored for raven-toolbox's cross-language parity checks. Deliberately
+      small, fully specified (formulas and charges on every metabolite), and
+      free of any content taken from RAVEN, so the same file can be fed to both
+      implementations without licence entanglement.
+  - version: '1'
+- metabolites:
+    - !!omap
+      - id: glc_c
+      - name: glucose
+      - compartment: c
+      - formula: C6H12O6
+      - charge: 0
+    - !!omap
+      - id: g6p_c
+      - name: glucose 6-phosphate
+      - compartment: c
+      - formula: C6H11O9P
+      - charge: -2
+    - !!omap
+      - id: atp_c
+      - name: ATP
+      - compartment: c
+      - formula: C10H12N5O13P3
+      - charge: -4
+    - !!omap
+      - id: adp_c
+      - name: ADP
+      - compartment: c
+      - formula: C10H12N5O10P2
+      - charge: -3
+    - !!omap
+      - id: h_c
+      - name: H+
+      - compartment: c
+      - formula: H
+      - charge: 1
+    - !!omap
+      - id: unknown_c
+      - name: unspecified cofactor
+      - compartment: c
+- reactions:
+    - !!omap
+      - id: HEX1
+      - name: hexokinase
+      - metabolites: !!omap
+          - adp_c: 1
+          - atp_c: -1
+          - g6p_c: 1
+          - glc_c: -1
+          - h_c: 1
+      - lower_bound: 0
+      - upper_bound: 1000
+      - gene_reaction_rule: (G1 and G2) or G3
+    - !!omap
+      - id: IMBAL
+      - name: deliberately unbalanced reaction
+      - metabolites: !!omap
+          - g6p_c: -1
+          - glc_c: 1
+      - lower_bound: 0
+      - upper_bound: 1000
+    - !!omap
+      - id: UNKN
+      - name: reaction with an unspecified metabolite
+      - metabolites: !!omap
+          - g6p_c: -1
+          - unknown_c: 1
+      - lower_bound: 0
+      - upper_bound: 1000
+    - !!omap
+      - id: EX_glc
+      - name: glucose exchange
+      - metabolites: !!omap
+          - glc_c: -1
+      - lower_bound: -1000
+      - upper_bound: 1000
+- genes:
+    - !!omap
+      - id: G1
+    - !!omap
+      - id: G2
+    - !!omap
+      - id: G3
+- compartments: !!omap
+  - c: cytoplasm

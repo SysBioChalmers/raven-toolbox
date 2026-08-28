@@ -12,6 +12,7 @@ from raven_toolbox.annotation import (
     load_delta_g_csv,
     save_delta_g_csv,
 )
+from raven_toolbox.annotation.delta_g import DELTA_G_MISSING
 from raven_toolbox.annotation.sbo import _default_transport_detector
 
 # --- shared tiny model -------------------------------------------------
@@ -183,6 +184,43 @@ def test_load_skips_nan_rows(tmp_path):
     load_delta_g_csv(m.metabolites, csv)
     assert m.metabolites.get_by_id("atp_c").notes["deltaG"] == "preserved"
     assert m.metabolites.get_by_id("glc_e").notes["deltaG"] == "1.0"
+
+
+def test_load_skips_the_missing_sentinel(tmp_path):
+    """The ΔG side-car tables write 10000000 for "no valid ΔG", and yeast-GEM's side-car carries it on
+    777 of its 4102 reaction rows. Stamping it would record a physically impossible 10^7 kJ/mol as a
+    measurement. yeast-GEM's own checkrxnDirection.m gates on the same value."""
+    m = _toy_model()
+    m.metabolites.get_by_id("atp_c").notes["deltaG"] = "preserved"
+
+    csv = tmp_path / "met_dg.csv"
+    pd.DataFrame({"Var1": ["atp_c", "glc_e"], "Var2": [10000000.0, 1.0]}).to_csv(csv, index=False)
+
+    stamped = load_delta_g_csv(m.metabolites, csv, missing_value=DELTA_G_MISSING)
+    assert stamped == 1                                              # only the real value
+    assert m.metabolites.get_by_id("atp_c").notes["deltaG"] == "preserved"
+    assert m.metabolites.get_by_id("glc_e").notes["deltaG"] == "1.0"
+
+
+def test_sentinel_skipping_can_be_opted_out_of(tmp_path):
+    m = _toy_model()
+    csv = tmp_path / "met_dg.csv"
+    pd.DataFrame({"Var1": ["atp_c"], "Var2": [10000000.0]}).to_csv(csv, index=False)
+
+    assert load_delta_g_csv(m.metabolites, csv, missing_value=None) == 1
+    assert m.metabolites.get_by_id("atp_c").notes["deltaG"] == "10000000.0"
+
+
+def test_sentinel_recognised_whatever_dtype_the_csv_round_trip_produces(tmp_path):
+    """The same sentinel arrives as 10000000, 10000000.0 or "10000000.0" depending on the writer and
+    the column's inferred dtype -- a string column appears as soon as one row holds text."""
+    m = _toy_model()
+    csv = tmp_path / "met_dg.csv"
+    pd.DataFrame({"Var1": ["atp_c", "glc_e"], "Var2": ["10000000.0", "-2.5"]}).to_csv(csv, index=False)
+
+    assert load_delta_g_csv(m.metabolites, csv, missing_value=DELTA_G_MISSING) == 1
+    assert "deltaG" not in m.metabolites.get_by_id("atp_c").notes
+    assert m.metabolites.get_by_id("glc_e").notes["deltaG"] == "-2.5"
 
 
 def test_custom_columns_and_note_key(tmp_path):

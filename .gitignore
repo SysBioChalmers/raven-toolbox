@@ -16,6 +16,9 @@ htmlcov/
 venv/
 env/
 
+# Local research scratch (solver envs, solution caches, solver logs)
+.research_tmp/
+
 # Editor / OS
 .vscode/
 .idea/

@@ -32,7 +32,7 @@ from raven_toolbox.io.yaml import read_yaml_model
 from raven_toolbox.reconstruction.kegg.assemble import assemble_model_from_ko_genes
 from raven_toolbox.reconstruction.kegg.parse import _resolve_artefact, read_kegg_table
 
-_NOTE = "Included by get_kegg_model_from_sequences (using HMMs)"
+_NOTE = "Included by KEGG HMM reconstruction"
 _MIN_EVALUE = 1e-250  # floor for a reported E-value of 0, to keep logs finite
 
 
@@ -199,6 +199,11 @@ def get_kegg_model_from_sequences(
     (:func:`assign_kos`), and assembles the model against ``reference_model`` /
     ``ko_reaction``. Genes are the query proteome's identifiers.
     """
+    if model_id is None:
+        # RAVEN always sets model.id (to organismID); default it here so the
+        # draft never inherits the reference model's id. Pass model_id explicitly
+        # for byte-identical parity with a specific MATLAB organismID.
+        model_id = Path(fasta).stem
     hits = parse_hmmsearch_tblout(run_hmmsearch(fasta, library, threads=threads, hmmsearch=hmmsearch))
     ko_to_genes = assign_kos(
         hits,
@@ -217,6 +222,7 @@ def get_kegg_model_from_sequences(
         keep_general=keep_general,
         model_id=model_id,
         note=_NOTE,
+        prune_orthology=True,
     )
     return model
 

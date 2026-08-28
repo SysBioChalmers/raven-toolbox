@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # Lets an already-pushed tag be released: the tag is cut first and this is
+  # dispatched against it afterwards. ``push.tags`` cannot fire retroactively.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release (e.g. v0.3.0)"
+        required: true
+        type: string
+
+# Least privilege by default; each job widens only what it needs.
+permissions: {}
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # On a tag push this is the tag itself; on manual dispatch it is the
+          # tag the operator named. Either way the build comes from the tag,
+          # never from a branch that may have moved on.
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install --upgrade pip
+      - run: pip install build
+      - run: python -m build
+
+      # The tag is the source of truth. A version is immutable once uploaded to
+      # PyPI, so a mismatch between the tag and the built dist is the one
+      # release mistake that cannot be undone — fail before publishing, not after.
+      - name: Verify the built version matches the tag
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          version="${tag#v}"
+          for f in "dist/raven_toolbox-${version}-py3-none-any.whl" "dist/raven_toolbox-${version}.tar.gz"; do
+            test -f "$f" || {
+              echo "::error::expected $f; dist/ holds: $(ls dist/)"
+              exit 1
+            }
+          done
+
+      # The CHANGELOG section for this version becomes the release notes, which
+      # is how the 0.2.0 notes were written by hand. Keeps one source of truth.
+      - name: Extract the release notes from CHANGELOG.md
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          version="${tag#v}"
+          awk -v v="$version" '
+            $0 ~ "^## " v "( |$)" { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || {
+            echo "::error::no '## ${version}' section in CHANGELOG.md"
+            exit 1
+          }
+          cat notes.md
+
+      # dist/ and notes.md share the workspace root as their least common
+      # ancestor, so the artifact holds ``dist/*`` beside ``notes.md`` — the
+      # layout both downstream jobs expect.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: |
+            dist/
+            notes.md
+
+  github-release:
+    name: github release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload its assets
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          # --verify-tag refuses to invent a tag that does not already exist.
+          gh release create "$tag" dist/* \
+            --repo "${{ github.repository }}" \
+            --title "raven-toolbox ${tag#v}" \
+            --notes-file notes.md \
+            --verify-tag \
+            --latest
+
+  pypi:
+    name: pypi
+    needs: build
+    runs-on: ubuntu-latest
+    # Trusted Publishing: PyPI verifies this workflow's OIDC identity, so no
+    # long-lived token is stored in the repo. Requires a one-time publisher on
+    # PyPI for raven-toolbox with:
+    #   owner: SysBioChalmers   repo: raven-toolbox
+    #   workflow: release.yml   environment: pypi
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        # Only dist/ is uploaded; notes.md sits outside it and is ignored.

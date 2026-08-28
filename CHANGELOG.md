@@ -4,6 +4,388 @@ Milestones in the raven-toolbox port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
+## 0.4.0 — 2026-08-28
+
+A `raven-gecko-parity` cross-validation harness went live this release and immediately paid for itself:
+six behavioural divergences from MATLAB RAVEN closed (task checking, condition application, duplicate-
+reaction contraction, Excel export, ΔG loading, reaction creation), the YAML writer brought to byte-parity
+with `writeYAMLmodel.m`, and BLAST/homology defaults matched to RAVEN's own. Also: deterministic
+compartment placement, confidence-score interoperability (Thiele-Palsson, ECO), a new `set_exchange_bounds`
+port, and `merge_compartments` promoted to public API and fixed.
+
+* **`convert_to_irreversible` now carries the reaction's annotations, subsystem and notes onto the
+  `_REV` reaction.** MATLAB's `convertToIrrev` copies the per-reaction fields (`eccodes`, `rxnMiriams`,
+  `subSystems`, `rxnNotes`, ...) across when it splits a reversible reaction; the Python port copied only
+  the name and the gene rule. Downstream that silently cost the reverse reaction its EC code — in geckopy,
+  `fill_eccodes_from_gem` returned `''` for every `_REV` reaction, fuzzy BRENDA matching then found no
+  kcat, and the reverse direction ended up unconstrained.
+
+* **Opt-in deterministic ftINIT extraction: `ftinit(..., strict_gap=True, canonical=True)`.** The extraction
+  MILP is highly degenerate — many reaction subsets reach the same score optimum — so `Threads=1` + a fixed
+  `Seed` make the solver's choice *reproducible* but not *unique*: a different Gurobi version or platform
+  lands on a different optimum. Two new keyword flags, **both default off** so existing behaviour is
+  unchanged, pin it instead. `strict_gap` proves each step to a fixed *absolute* gap (0.05, below the 0.1
+  reaction-score granularity) in a single solve, replacing RAVEN's relative-gap escalation, whose final
+  near-zero-objective run otherwise accepts an arbitrary within-gap incumbent. `canonical` adds a
+  lexicographic phase 2 over the removable reactions — hold the score objective at its optimum, minimise the
+  count of kept reactions, then their summed id rank — selecting the sparsest, lowest-id optimum instead of a
+  solver tie-break; it applies to both each extraction step and the task gap-fill (`fill_tasks(...,
+  canonical=True)`). A solve that ends at the time limit with no incumbent now raises a clear error (or, for
+  the canonical phase, falls back to the primary optimum) rather than an opaque `AttributeError` on a null
+  primal. **These are a reproducibility/parsimony tool, not an accuracy or a gene-essentiality fix**: on
+  Human-GEM/DLD1 they cut the reaction-level seed-swing 125 → 34 but *worsened* essential-gene determinism
+  (5 → 19 flips) at a 3–7× build-time cost, because the sparser model is more sensitive to the residual
+  transport degeneracy. For reproducible essentiality, pin the solver stack instead. Measurements and the
+  full trade-off: [docs/studies/ftinit_determinism.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/studies/ftinit_determinism.md).
+* **`assign_compartments` gap-fill: a reliable flux-based fill instead of cobra's MILP.** The
+  universal-DB gap-fill in `localization.certify` no longer calls `cobra.flux_analysis.gapfill`, whose
+  indicator MILP, at genome scale, fails to find a valid fill in the **majority** of cases *even when the
+  exact reaction that restores growth is present in the universal* (it returns an incumbent its own
+  validation rejects, and raises rather than offering a fill). The replacement adds the candidates on a
+  working copy, holds biomass at the floor, runs pFBA, and returns the flux-carrying additions — **sorted**,
+  so the result does not depend on which co-optimal vertex the solver picked. A plain LP cannot have the
+  MILP's failure mode: a returned set is a real flux solution that reaches the floor. On single-reaction
+  knockout-recovery (remove an essential reaction, fill from a universal that contains it), recall is
+  **60/60 — the exact reaction each time — vs cobra's 45 %**; on realistic incomplete drafts (12% of
+  internal reactions dropped, many simultaneous gaps) it restores growth **12/12 vs cobra's 0/12**. The universal must share the draft's
+  metabolite namespace: candidates are matched by id, as cobra's gapfill required, and a mismatch now
+  **warns** instead of returning `[]` silently. The set is flux-parsimonious (pFBA) but not guaranteed
+  reaction-count-minimal; the caller re-certifies with a real FBA, so no false certificate is possible.
+* **Deterministic, score-aligned reaction placement in `assign_compartments`.** The placement master
+  maximises a gene-localisation objective that never mentions the per-reaction placement variable, so
+  each reaction's compartment was a free co-optimum: the pinned solver returned it reproducibly but
+  *arbitrarily*, and reaction agreement with curated yeast-GEM was only **52.8 %** (an earlier un-pinned
+  build happened to land ~72 %). A lexicographic second pass now fixes the gene layout to the primary
+  optimum, then places each reaction in the compartment its own enzymes are predicted to occupy — the
+  summed DeepLoc score of the reaction's genes, with a small `default_compartment` prior so genes-free
+  and score-tied reactions fall there deterministically. Yeast reaction agreement rises to **72.5 %**
+  (1408/1943) and now rests on the localisation evidence rather than a solver tie-break; **gene agreement
+  is unchanged** (88.7 %, 716/807 — the gene layout is untouched); coherent placement fragments fewer
+  metabolites, so it adds **fewer transports** (1001 → 967); growth and blocked-fraction are unchanged;
+  the second solve is warm-started and adds ~4 s. Reproducible run-to-run (identical placement across
+  independent runs).
+* **`diff_models` compares grRules as logic, not text.** The GPR check now DNF-expands each rule (via the
+  existing `manipulation.gpr_to_dnf`), sorts the genes within each isozyme clause and sorts the clauses, so
+  operand order no longer registers as a difference: `a and b` == `b and a` and `a or b` == `b or a`. The
+  previous heuristic only lowercased and collapsed whitespace, so it flagged logically identical rules that
+  differed only in operand order. This brings `diff_models` in line with MATLAB RAVEN's `diffModels`
+  ([RAVEN #686](https://github.com/SysBioChalmers/RAVEN/pull/686)); a rule cobra cannot parse falls back to
+  the old string comparison, so malformed rules are still compared rather than silently equated.
+* **`load_delta_g_csv` defaults to stamping every matched value literally, matching `deltaGCSV`
+  (raven-gecko-parity#16).** An earlier change taught the loader to treat the ΔG side-car tables' "no
+  measurement" sentinel (`10000000`, matching yeast-GEM's own `checkrxnDirection.m`) as missing rather than
+  a real value, defaulting to skip it. RAVEN's `deltaGCSV` has no sentinel concept at all and stores
+  whatever the CSV says, verbatim, so the two implementations disagreed about whether an entity had a value
+  on record. The default is now literal stamping, matching RAVEN; the sentinel-skipping behaviour remains
+  available by passing the keyword-only `missing_value=DELTA_G_MISSING` explicitly.
+* **Wire the confidence facets together.** `confidence.annotate_confidence(model, proposal=..., scores=...)`
+  runs every applicable scorer in one call and returns `{facet: reactions_scored}` — `equation` and
+  `gene_association` need only the model, `localization` runs only when a proposal and its scores are given
+  (skipped, not failed, otherwise). `curation_priority` now drops a placement a curator has settled with
+  `mark_curated` from the review queue (new `include_curated=False`), so a settled reaction stops
+  resurfacing; `include_curated=True` keeps it. The no-SBO-terms warning now names its remedy,
+  `raven_toolbox.annotation.add_sbo_terms(model)`.
+* **Confidence facets mapped onto the field's standard vocabulary.** New `thiele_palsson_score(reaction)`
+  derives the Thiele & Palsson 2010 reconstruction confidence score (0–4) from the `gene_association`
+  facet's evidence `basis` (`gpr+literature` → 3, `gpr` → 2, `no-gpr` → 1); every ECO evidence id used
+  (`ECO:0000044`, `ECO:0000015`, `ECO:0000002`) was checked against EBI's OLS. Cross-model validation on
+  Human-GEM, iYali and panAsp/pAo confirmed the `equation` facet's bands are calibrated rather than
+  yeast-GEM-fixture artefacts (two of its three bands fire on the other models too).
+* **`manipulation.merge_compartments` / `copy_to_compartment` are now public API, and `merge_compartments`
+  no longer breaks growth.** Both functions existed in `manipulation/compartments.py` but were never
+  imported into `manipulation/__init__.py`, so neither was reachable as documented despite `migration.md`
+  listing both as ported. Exporting them also surfaced two silent defects: any reaction left with a single
+  metabolite after merging was dropped — including reactions that already had one metabolite *before*
+  merging, i.e. every exchange reaction — and the merged model's objective was never carried over, so a
+  flattened model silently optimised to `0.0`. Both now match RAVEN's `mergeCompartments`: single-metabolite
+  reactions are recorded before the merge and excluded from deletion, and the objective (with its direction)
+  is copied onto the rebuilt model, raising a warning rather than returning a zero-objective model if every
+  objective-carrying reaction genuinely was removed.
+* **Six behavioural divergences from MATLAB RAVEN closed, found by the new `raven-gecko-parity`
+  cross-validation harness:**
+  - `check_tasks` / `find_task_essential_reactions` now default to RAVEN `checkTasks`' additive boundary
+    semantics (`close_boundaries=False`): a task is checked by relaxing metabolite balance for its declared
+    inputs/outputs, not by closing every exchange first. A task the model can already satisfy through its
+    own open boundary, without naming it, now agrees with RAVEN's feasible verdict instead of reporting
+    infeasible (raven-gecko-parity#7).
+  - `apply_condition`'s `reset_exchanges` now honours the direction it names ("in"/"out"), replicating
+    `getExchangeRxns`' own rule, instead of resetting every exchange reaction for any truthy value
+    (raven-gecko-parity#15).
+  - `remove_duplicate_reactions` now round-trips losslessly with `expand_model`, matching RAVEN's
+    `contractModel`: it keeps the first-encountered survivor with the `_EXP_N` suffix stripped, and unions
+    every duplicate's GPR instead of keeping only the survivor's own — previously an isozyme relationship
+    `expand_model` had split out came back with two of three genes unassociated (raven-gecko-parity#8).
+  - `add_reactions_from_equations` now defaults a newly created metabolite's name to its id, matching
+    RAVEN's `addRxns`, instead of leaving it empty — a nameless metabolite defeated the name-keyed matching
+    in `merge_compartments` and `add_reactions_from_model` (raven-gecko-parity#9).
+  - `export_to_excel` now hides `LOWER BOUND` / `UPPER BOUND` cells that equal the model's declared default,
+    matching `exportToExcelFormat`, instead of always writing the literal number — on a model whose bounds
+    are drawn from its own declared defaults (the common case), nearly every bound cell was affected
+    (raven-gecko-parity#17).
+* **YAML writer brought to byte-parity with `writeYAMLmodel.m`.** Closes a series of concrete diffs found
+  comparing MATLAB and Python output for the same model: numeric leaves are always coerced to `float` (a
+  whole number gets an explicit `.0`, since RAVEN's model struct cannot distinguish int- from float-typed
+  fields); an empty `subsystem` is omitted rather than round-tripping a "blank list entry", and a non-empty
+  one is always written as a list; `metaData` follows RAVEN's fixed field order and defaults
+  (`id`/`name` → `"blankID"`/`"blankName"`, `date` → today); `defaultLB`/`defaultUB` are recomputed from the
+  model's current bounds, matching `readYAMLmodel.m`'s derivation; a singleton MIRIAM annotation collapses
+  to a bare scalar (except `ec-code`/`smiles`, which RAVEN's writer always keeps as a list); a metabolite
+  with no explicit compartment now defaults to the model's first compartment; the block-sequence indent
+  (`mapping=2, sequence=2, offset=0`) is pinned explicitly rather than relying on ruamel's own defaults; and
+  quoted scalars use double quotes, matching Prettier's YAML default. Separately, `read_yaml_model` no
+  longer raises `KeyError` on a RAVEN-authored model that omits an empty `genes:`/`metabolites:`/
+  `reactions:` block entirely (RAVEN's own `tutorial/small.yml` is one such file) — the three entity
+  sections now default to empty lists. Verified byte-identical against `writeYAMLmodel.m` output, including
+  a cross-read of MATLAB's own double-quoted output.
+* **BLAST/homology defaults matched to RAVEN's, and measured rather than guessed.** `run_blast`'s
+  `evalue` default changed from `1e-5` to `1e-4`, matching RAVEN `getBlast`'s hardcoded `-evalue 10e-5`
+  (`run_diamond` is deliberately left alone — RAVEN's `getDiamond` passes no `--evalue` flag, so DIAMOND's
+  own `1e-3` default applies there, a third, distinct value). Separately, `min_align_len` drops from 200 to
+  100: reconstructing four organisms from an *S. cerevisiae* template and checking every surviving match
+  against both KEGG and OMA found 200 was discarding 3–4% of real matches for a wrong-match-rate change of
+  at most 0.6 points; `min_identity=40` and `max_evalue=1e-30` were confirmed already correct. New
+  `review_identity` on `get_model_from_homology` surfaces near-miss candidates that a stricter identity
+  threshold excluded, each with its supporting match, instead of discarding that evidence silently.
+* **New `set_exchange_bounds`, RAVEN's `setExchangeBounds` port (raven-gecko-parity#19).** Covers what
+  `model.medium` cannot: independent lower and upper bounds per metabolite, a `media_only` compartment
+  filter, and a check that every exchange reaction agrees on which flux sign is import before any bound is
+  touched. Matches metabolites against the model's exchanged set by id or name, case-insensitively, and
+  warns when a metabolite is exchanged in more than one reaction — a warning RAVEN's own implementation has
+  a latent bug that prevents from ever firing.
+* **Cross-language parity testing harness.** `tests/parity/` turns "validated against MATLAB RAVEN" from a
+  claim in `docs/studies/` into an enforced property: an **exact** tier for I/O round-trips, task parsing,
+  GPR normalisation and similar (compared value-for-value); a **set-level** tier for INIT/ftINIT extraction,
+  gap-filling and compartment assignment (Jaccard overlap against a recorded baseline, since these have many
+  equally-valid optima); and a stated but not-yet-tested **statistical** tier for flux/random sampling. A
+  nightly job runs the set-level check against genome-scale Human-GEM under a real Gurobi licence. Building
+  the harness immediately found that `read_yaml_model` could not read a RAVEN-authored model with no genes
+  (see above) — the kind of gap unit tests, which all happened to use fixtures with genes, could not catch.
+* **Fix a downloaded binary bundle leaving its non-primary executables non-executable.** A bundle providing
+  several tools (BLAST ships both `blastp` and `makeblastdb`) only `chmod`'d the one that was actually
+  requested, and a cached path returned before reaching the `chmod` at all — fetching `blastp` then calling
+  `makeblastdb` raised `PermissionError`.
+
+## 0.3.0 — 2026-07-16
+
+Compartment localisation and per-reaction confidence tracking, new gap-filling and flux-sampling
+algorithms, ftINIT parity with RAVEN, and KEGG artefact hosting moved to the dedicated `raven-data`
+repository.
+
+* **`export_for_git` can pin the MATLAB `.mat` variable name.** New keyword-only `varname`, forwarded
+  to `save_matlab_model`, so a repository that expects a specific struct name (Human-GEM expects
+  `humanGEM`) no longer has to write the `.mat` itself. Default `None` keeps cobra's own fallback (the
+  model id), so existing callers are unaffected.
+* **ftINIT now matches RAVEN's model preparation, solver parameters, and gap schedule.** A line-by-line
+  review against RAVEN's `ftINIT` / `prepINITModel` found the formulation faithfully ported, with the
+  real divergences concentrated in model simplification and solver/gap handling. `prep_init_model` runs
+  both RAVEN simplifications in `prepINITModel` order and broadens the exchange mask to RAVEN
+  `getExchangeRxns`' one-sided rule (any reaction with no products or no substrates) — previously only
+  the topological dead-end pass ran, leaving a ~10 % larger model. `ftinit` adopts RAVEN `optimizeProb`
+  solver parameters (`Threads=1` for a deterministic MILP incumbent, `Presolve=2`, `1e-9` feasibility /
+  optimality / integrality tolerances), nudges tiny reaction scores off zero, forces permanent essential
+  reactions at `min(0.99*|carried flux|, force_on)` while tracking carried flux across steps, and
+  escalates the MIP gap per step (RAVEN `MILPParams` / `AbsMIPGaps`). New `manipulation.simplify_model`
+  mirrors RAVEN's `simplifyModel` boolean-flag interface, adding `remove_zero_interval_reactions`
+  (`deleteZeroInterval`) and `remove_no_flux_reactions` (FVA-blocked removal, `deleteMinMax`).
+  Task-essential discovery follows RAVEN `checkTasks`, and task gap-fill follows `ftINITFillGaps`. On
+  Human-GEM / DLD1 the prep model now matches RAVEN's sizes (`ref_model` 10240 against RAVEN's ~10198;
+  merged `min_model` 6959 against ~6917 — previously 11532 / 8252). `allow_excretion` deliberately keeps
+  `S*v >= 0`, matching the flag's name and classic INIT rather than RAVEN's `csense 'L'`; it is unused in
+  the default `'1+1'` schedule and documented inline.
+* **Structural confidence facets: `equation` and `gene_association`.** `confidence` gains
+  `score_equation_confidence` (mass & charge balance, formula completeness) and
+  `score_gene_association_confidence` (GPR presence + literature corroboration), plus the public
+  `equation_exempt` / `gene_association_exempt` predicates and `facet_summary`. Two rules govern every
+  score, both forced by `overall = min(facets)`: a facet that does not apply to a reaction is **not
+  written at all** (an exchange reaction is imbalanced by construction, so writing `1.0` would make 469
+  never-checked yeast-GEM reactions indistinguishable from the 3617 verified ones), and `0.0` always means
+  *evidence contradicts the model* — never *evidence is missing*, which keeps `overall == 0.0` a usable
+  filter. Exemptions are SBO-driven, never name-driven: a `\bgrowth\b` regex would silence the chemistry
+  check on "non-growth associated maintenance reaction". Validated on yeast-GEM, where the gene rubric
+  recovers the model's own curator-assigned `Confidence Level` (99.9% / 91.5% / 95.3% per band) without
+  ever reading it. `mark_curated` now takes a `facet`, and `clear_confidence` is exported
+  ([design](docs/studies/confidence_tracking.md)).
+* **Fix `get_elemental_balance` crashing on an unparseable formula.** A parenthesised polymer such as
+  `(C5H8)n` (glycogen, starch) makes cobra's `Metabolite.elements` return `None`, which
+  `check_mass_balance()` turns into a `ValueError` — so the shipped helper raised part-way through a model
+  instead of reporting it. A present-but-uninterpretable formula is now `unknown`, which is what the
+  function's own contract already promised.
+* **Fix `score_localization_confidence` vetoing reactions it could not measure.** A reaction whose genes are
+  absent from the score table was written `0.0`/`connectivity`, which under `overall = min(facets)` vetoed
+  the whole reaction on the strength of a *missing input* rather than of evidence. It now abstains; a gene
+  that is scored but scores zero at the assigned compartment still earns a real `0.0`.
+* **Fix gap-fill materialisation landing on the wrong compartment metabolite.**
+  `apply_assignment`'s `_add_universal_reaction` matched a universal candidate's metabolite ids
+  verbatim against the target model instead of resolving them through the same base-id/compartment
+  lookup `_move_reaction` already uses for relocated reactions. Wherever a draft's non-default-
+  compartment species only exist because a relocated reaction created them (any id scheme other
+  than the universal database's own), the gap-fill reaction silently materialised as a disconnected
+  island: the assignment's own solved objective already accounted for the correct shared node, only
+  the applied model was wrong. Fixed with a regression test
+  (`test_gapfill_reuses_relocated_compartment_metabolite`).
+* **Evidence-aware transport scoring (first increment).** New `localization.transport_evidence` turns
+  per-gene transporter evidence into the per-metabolite `transport_cost` mapping the assignment MILPs
+  already accept, so a transport is cheap when a transporter gene supports it (right substrate, right
+  membrane) and pays the full prior otherwise: `evidence_aware_transport_cost`
+  (`cost = base·(1−evidence)`), `annotate_transporters` (bring-your-own annotation table), and
+  `TransporterAnnotation`. Carrier-general and organism-agnostic; the `hmmsearch` (Pfam) / `diamond`
+  (TCDB) annotation back-ends are the next increment
+  ([plan](docs/reference/transport_evidence_scoring.md)).
+* **Consolidated `assign_compartments` into raven-toolbox.** The functionality-constrained
+  compartment-assignment MILP — biomass/growth floor + flux gating + optional gap-fill + sound
+  reaction-level multi-localisation — moves from the standalone `edkerk/assignCompartments` repo into
+  `localization/` (as `assign_compartments`/`apply_assignment`/`AssignmentProposal`), coexisting with
+  the score-driven `predict_localization` ([design](docs/reference/multi_localization_design.md)). The
+  MATLAB port is tracked in [MATLAB back-ports](docs/reference/matlab_raven_backports.md).
+* **CarveFungi assignment head-to-head on its own MILP.** Ran CarveFungi's *own* `minmax_reduction`
+  carve-MILP (CPLEX, unmodified) with our transport-minimising term swapped into its objective, on its
+  real universal-DB candidate set + DeepLoc-injected scores
+  ([study](docs/studies/carvefungi_milp_benchmark.md), `scripts/run_carvefungi_cplex.py`;
+  `scripts/benchmark_carvefungi_milp.py` is a Gurobi re-implementation for the formulation study).
+  Adversarially verified (which caught and fixed a compartment-id parsing bug). Findings: adding our
+  transport cost yields ~1.6× fewer inter-compartment transports per reaction (41% fewer) at no
+  detectable assignment-accuracy cost (86.0% vs 85.5% recall; 93% identical placements). The carve's
+  MILP formulation is hard — neither CPLEX nor a tighter Gurobi port proves optimality — so these are
+  deterministic, time-budget-stable near-optimal incumbents, reported with their gaps. Also surfaced
+  that CarveFungi's *shipped* yeast localisation file is inert (RefSeq vs ORF id mismatch).
+* **Head-to-head vs RAVEN predictLocalization + CarveFungi positioning.** Benchmarked the
+  deterministic compartment-assignment MILP against RAVEN's stochastic `predictLocalization` on
+  identical yeast-GEM + DeepLoc inputs ([study](docs/studies/predictlocalization_comparison.md),
+  `scripts/compare_predictlocalization.py` + `scripts/run_predictlocalization.m`): on the common gene
+  set the MILP is ~7 pp more accurate (83.9% vs 76.8%), deterministic (vs 35% of genes flipping
+  between SA runs), and faster (90 s vs a multi-minute budget). Also a source-level
+  [analysis of CarveFungi](docs/studies/carvefungi_analysis.md), the contemporary
+  carve-a-universal-model method, showing how our transport-minimising assignment differs.
+* **Curation triage for localisation.** Added `triage_localization` — an optional companion to
+  compartment assignment that ranks the genes/reactions whose localisation is shakiest (low DeepLoc
+  confidence, borderline top-two margin, multi-source disagreement, no evidence, low-trust
+  compartment, multi-localised), each with a plain-English reason, so a curator knows where to look.
+  Returns a `ReviewReport`. `load_deeploc` gained `keep_raw_confidence=True` and `LocalizationScores`
+  a `raw_confidence` field (per-gene normalisation otherwise discards the confidence the triage needs).
+* **Finetuned localisation hyperparameters on the slow yeast run.** Refreshed the triage
+  `DEEPLOC_COMPARTMENT_TRUST` table from the slow (ProtT5) data (mitochondrion 0.67 → 0.86, `mm` now
+  trustworthy via the validated split, Golgi 0.23 → 0.01) and re-validated the `min_confidence` gate
+  (0.7 → 88.3% corroboration, 80% kept) and `membrane_threshold` (0.50 is inside the optimal plateau)
+  in a new [finetuning study](docs/studies/localization_finetuning.md)
+  (`scripts/finetune_localization_yeast.py`).
+* **Cross-species DeepLoc benchmark.** Generalised the predictor benchmark to any curated model
+  (`scripts/benchmark_deeploc.py --species {yeast,aracore,icre1355}`, a per-species compartment
+  config) and added independent non-yeast eukaryotes. DeepLoc 2.1 generalises across kingdoms — the
+  chloroplast is recovered in both *Arabidopsis*
+  ([AraCore](docs/studies/deeploc_aracore_benchmark.md), **80.3%** overall, plastid 89.9%) and the
+  green alga *Chlamydomonas* ([iCre1355](docs/studies/deeploc_icre1355_benchmark.md), plastid 78%,
+  though algal cytosol/mito are poor on an auto-generated model). A gene-level
+  [Human-GEM control](docs/studies/deeploc_humangem_benchmark.md)
+  (`scripts/benchmark_deeploc_humangem.py`) reaches 84.7% but, crucially, **excludes the 439 (15%)
+  gene compartments Human-GEM sourced from DeepLoc2** (which score 93.8% — DeepLoc grading itself).
+  The yeast run was refreshed to DeepLoc's slow (ProtT5) model, lifting organelle-collapsed accuracy
+  54.6% → 64.6% and mitochondrial-membrane recall 47% → 86%.
+* **Optional raw DeepLoc probabilities.** `load_deeploc` gained `normalise=False` to keep DeepLoc's
+  calibrated probabilities instead of rescaling each gene's best compartment to 1.0. A whole-model
+  yeast-GEM benchmark ([study](docs/studies/deeploc_normalisation_benchmark.md)) finds normalisation
+  is **accuracy-neutral** for compartment assignment (raw does not rescue the contested or
+  high-confidence calls); the only reproducible difference is that raw assigns fewer genes to
+  multiple compartments — a re-scaling of the existing `transport_cost`/`multi_compartment_penalty`
+  knobs, not new signal. So normalisation stays the **default** and `normalise=False` is an opt-in
+  for callers wanting the calibrated magnitudes (e.g. the `triage_localization` confidence signal).
+* **Fuse and tune localisation evidence.** Added `combine_scores` (weighted-sum consensus of several
+  `LocalizationScores`, so agreement across DeepLoc / UniProt / COMPARTMENTS is reinforced), and gave
+  `load_deeploc` / `load_mulocdeep` a `min_confidence=` gate (drop unreliable low-confidence genes)
+  plus, for `load_deeploc`, `membrane_split={"m":"mm"}` (route mitochondrion to its membrane
+  sub-compartment using the transmembrane signal — mito only; ER is not separable). Motivated and
+  validated by the [DeepLoc 2.1 yeast-GEM benchmark](docs/studies/deeploc_yeast_benchmark.md).
+* **Prepare sequence-predictor input.** Added `prepare_deeploc_input` (plus `fetch_protein_sequences`
+  and `write_fasta`) to write a DeepLoc-2.1-ready protein FASTA for a model's genes — sequences
+  fetched from UniProtKB, headers set to the gene ids so the predictor output lines up with the model
+  and `load_deeploc`. DeepLoc 2.1 has no batch API; the FASTA is chunked at the web server's
+  500-sequence limit, and genes without a reviewed sequence are reported. Script:
+  `scripts/prepare_deeploc_yeast.py`.
+* **Localisation loaders modernised.** Added `load_mulocdeep` (MULocDeep wide tables),
+  `load_compartments` (the COMPARTMENTS evidence database), `load_uniprot` (curated UniProtKB
+  `Subcellular location` exports) and `fetch_uniprot_localization` (the same via the UniProt REST
+  API by organism id), plus `DEFAULT_COMPARTMENT_MAP` to rename predictor labels to
+  model compartment ids and collapse synonyms. `load_deeploc` gained a `compartment_map`
+  argument. **Removed `load_wolfpsort`** — modern multi-label predictors, the COMPARTMENTS
+  database and UniProt supersede the single-label WoLF PSORT caller.
+* **Flux sampling: CHRR and ACHR, unified under `random_sampling`.** `random_sampling(model,
+  method=...)` is the single entry point and dispatches `"achr"` (the new default), `"chrr"`, and
+  `"random_objective"` (the historical Bordel et al. 2010 vertex method). **CHRR** — Coordinate
+  Hit-and-Run with Rounding (Haraldsdóttir et al. 2017) — does nullspace reduction, maximum-volume
+  ellipsoid rounding, then coordinate hit-and-run; it is the recommended sampler for enzyme-constrained
+  (ecModel + proteomics) and flux-measured models, whose feasible set is a thin, ill-conditioned slab
+  that defeats unrounded chains. cobrapy ships ACHR but no CHRR, so the ACHR path wraps
+  `cobra.sampling.ACHRSampler` while CHRR is a genuine new implementation. Also exports
+  `max_volume_ellipsoid` (Zhang & Gao 2003 primal-dual interior-point MVE solver), validated against
+  analytic cases (box → unit ball, scaled/sheared box, triangle → Steiner inellipse). All methods return
+  a unified `FluxSamplingResult`; `RandomSamplingResult` is kept as an alias. Reference:
+  `docs/reference/flux_sampling_algorithms.md`. **Breaking:** `random_sampling`'s default changed from
+  the random-objective vertex method to ACHR — pass `method="random_objective"` for the previous
+  behaviour.
+* **Gap-filling algorithms: LP, MILP, and topological.** Three strategies in `raven_toolbox.gapfilling`
+  complementing `connect_blocked_reactions`: `fill_gaps_fast_lp` (LP-relaxation connectivity
+  gap-filling, fastGapFill / Thiele et al. 2014, with `variant="swift"` for the SWIFTCORE single-LP
+  form, Tefagh & Boyd 2020 — no MILP solve); `fill_gaps_kumar_milp` (Kumar et al. 2007 global
+  growth-floor MILP, adding directionality-reversal repair on top of database-reaction addition); and
+  `analyse_topology` (Meneco-inspired BFS metabolite-producibility scope, reporting unreachable
+  metabolites and pruning candidate reactions with no solver call). These complement
+  `cobra.flux_analysis.gapfill`, which does objective-based gap-filling without reversal repair.
+  References: `docs/reference/gap_filling_algorithms.md`, `docs/reference/cobra_raven_comparison.md`.
+* **KEGG artefacts hosted in `raven-data`.** All KEGG artefact URLs move from `raven-toolbox` releases
+  to the dedicated `raven-data` repository (`raven-data/releases/download/kegg118/`), keeping the
+  toolbox release lean. Adds `scripts/publish_to_raven_data.py` to upload build artefacts to a
+  `raven-data` release, and updates the `_DATA_REGISTRY` URLs in `data.py` to match. Maintenance docs
+  (`maintaining_binaries.md`, `maintaining_kegg_data.md`, `data_manifest.md`) describe the 3-step
+  publish workflow; `docs/reference/matlab_raven_backports.md` is slimmed to the deliberate-omission
+  section now that every backport item is complete.
+* **kegg118 artefact set.** Regenerates `data/manifest.json` for kegg118 (versions, SHA256 checksums,
+  byte sizes for the core bundle, taxonomy, and the prokaryote/eukaryote HMM libraries) and syncs the
+  in-code `_DATA_REGISTRY`, which had been left at kegg116 and is the fallback when
+  `$RAVEN_PYTHON_MANIFEST` is unset. Fixes the generated release-asset URLs, which pointed at the
+  singular `…/release/download/…` path that GitHub does not serve — every download would have 404'd —
+  and `scripts/make_registry_snippet.py` now takes a release `--tag` and builds the
+  `…/releases/download/<tag>` prefix itself so the typo cannot recur. The HMM libraries are named
+  `kegg<version>_prokaryotes` / `_eukaryotes` consistently across the manifest, the Python resolver, and
+  MATLAB RAVEN.
+* **Binary provisioning: sets, fetch CLI, auto-fetch toggle, native-Windows HMMER.** Provisioning is
+  decoupled from pip (extras can only pull PyPI wheels, and downloading binaries during `pip install`
+  is a known anti-pattern) into: **binary sets** — `runtime` (blast, diamond, hmmsearch) vs `build`
+  (hmmbuild, mafft, cd-hit); an explicit **fetch CLI**, `raven-toolbox-binaries --set runtime|build|all`
+  (and `--list`), which is OS-aware, SHA256-verified, skips tools already on PATH, and reports per-tool
+  `present/downloaded/unavailable/error`; and the unchanged **lazy first-use download**, now disableable
+  via `RAVEN_PYTHON_AUTOFETCH=0` for air-gapped or conda-managed setups. Adds a `windows-x86_64` entry
+  on the `hmmer` bundle (HMMER 3.3.2 repackaged from RAVEN 2.10.5) so the KEGG HMM *query* runs on
+  native Windows without WSL — searching 3.4-built libraries with 3.3.2 is safe because the toolbox
+  ships ASCII `.hmm` libraries, the `HMMER3/f` format is unchanged 3.1→3.4, and 3.4 introduced no
+  protein-scoring change. HMM *building* stays WSL/conda-only (MAFFT and CD-HIT have no Windows
+  builds). `ensure_binary` now resolves `<name>.exe` on Windows, and sibling DLLs extract next to it.
+* **Resumable KEGG artefact build.** `scripts/build_kegg_artefacts.py` skips each stage whose output
+  already exists (parsed tables, taxonomy, per-domain HMM library, core bundle), so a build that dies
+  partway continues on re-run of the same command instead of restarting the multi-hour HMM step; a new
+  `--force` rebuilds from scratch. `build_ko_fastas` keeps already-written `<KO>.fa` files and writes a
+  `.ko_fastas_complete` marker so a finished run fast-paths without re-scanning `genes.pep`.
+  `organism_gene_ko` is loaded lazily, so a fully-published build re-runs as a clean no-op.
+* **Progress reporting for the KEGG build.** An opt-in `progress` flag (tqdm) on the maintainer-side
+  KEGG path, so long-running steps report progress instead of appearing to hang: per-file byte bars for
+  download and the multi-GB proteome gunzip, a byte bar over the dominant `organism_gene_ko` streaming
+  pass in `parse_kegg_dump`, and an "N of M KOs" counter over the HMM build loop. `progress` is
+  independent of `verbose`; with both on, per-KO log lines route through `tqdm.write` so they do not
+  corrupt the bar.
+* **Excel export of `model.ec`.** `export_to_excel` writes a populated `model.ec` (`EcData`) to two
+  further sheets, mirroring RAVEN's `exportToExcelFormat`: **ENZYMES** (`ID`, `GENE`, `MW`, `SEQUENCE`,
+  `CONC`) and **ENZRXNS** (`ID`, `KCAT`, `SOURCE`, `NOTE`, `EC-NUMBER`, `ENZYMES`), where the `ENZYMES`
+  column encodes subunit stoichiometry from `ec.rxn_enz_mat` as `enzyme:count` pairs. Written only when
+  the model carries a populated `model.ec`; plain cobra models are unchanged. Export-only — YAML remains
+  the round-trippable ecModel format.
+* **CI runs on macOS and Windows.** The `test` job gains a lean matrix — ubuntu × Python 3.11/3.12/3.13
+  plus macos × 3.12 and windows × 3.12 (5 jobs) — so OS-specific bugs in path handling, `subprocess`,
+  and file I/O are caught here rather than in downstream consumers. `lint` / `mypy` / `docs` stay
+  ubuntu-only.
+* **Docstring rendering fixes.** `set_gam`'s trailing "Returns the (mutated) model for chaining." sat
+  inside the `Parameters` block, which griffe read as a phantom parameter named `Returns`; it is now a
+  proper `Returns` section. `add_sbo_terms` used 4-space-indented bullets under plain-text headings,
+  which CommonMark renders as a code block rather than a list; it now uses bold headers with unindented
+  bullets. No API changes.
+
 ## 0.2.0 — 2026-06-14
 
 Project rename plus KEGG-reconstruction and CI improvements.

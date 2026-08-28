@@ -2,6 +2,10 @@
 
 Conceptual and API reference for raven-toolbox.
 
+- **[Roadmap](roadmap.md)** — the phased development plan: what ships in which
+  order, what each phase depends on, and the decisions still open. The item-level
+  backlog behind it is [Open work](todo.md).
+
 - **[RAVEN ↔ raven-toolbox migration map](migration.md)** — the function-by-function map
   from MATLAB RAVEN to raven-toolbox (and cobrapy where appropriate). Start here if you're
   porting RAVEN code.
@@ -13,6 +17,12 @@ Conceptual and API reference for raven-toolbox.
   docstrings.
 - **[COBRA vs RAVEN comparison](cobra_raven_comparison.md)** — feature-by-feature comparison
   of the COBRA Toolbox and RAVEN Toolbox, identifying gaps and overlap.
+- **[Evidence-aware transport scoring — design & plan](transport_evidence_scoring.md)** — a cross-repo
+  (RAVEN + raven-toolbox) plan to replace the blanket transport penalty in localisation with
+  transporter-evidence-weighted costs; carrier-general, organism-agnostic, local-binary-based.
+- **[Sound reaction-level multi-localisation — design](multi_localization_design.md)** — why naive
+  multi-localisation admits *dead* placements, and the ε-flux activity-coupling formulation
+  `assign_compartments` uses to forbid them (solver-independent).
 
 :::{admonition} Moved to raven-docs
 :class: note
@@ -28,9 +38,12 @@ discussed raven-toolbox's own gap-filling module).
 ```{toctree}
 :hidden:
 
+roadmap
 migration
 matlab_raven_backports
 improvements
 api/index
 cobra_raven_comparison
+transport_evidence_scoring
+multi_localization_design
 ```

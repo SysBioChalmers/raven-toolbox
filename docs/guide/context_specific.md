@@ -35,6 +35,14 @@ and the equivalence to MATLAB RAVEN is established in the
 [Human-GEM validation](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/humangem-validation.md)
 (both on raven-docs).
 
+`ftinit()` also takes two opt-in determinism flags, `strict_gap` and `canonical` (both default
+off → exact RAVEN behaviour), which pin *which* of the degenerate MILP's many equal-score optima
+is returned, giving a more parsimonious and more reproducible extraction. They do not make the
+model biologically more accurate, they cost 3–7× build time, and they are **not** a fix for
+gene-essentiality reproducibility — measurements and the trade-off are in the
+[extraction-determinism study](../studies/ftinit_determinism.md). For reproducible results
+across runs, pin the solver stack (raven-toolbox commit + `gurobipy` version) instead.
+
 :::{important}
 Genome-scale (f)tINIT MILPs currently require **Gurobi** for tractable solve times; toy and
 unit-test problems run on GLPK. See the

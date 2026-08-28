@@ -4,7 +4,19 @@ from __future__ import annotations
 import cobra
 import pytest
 
-from raven_toolbox.manipulation.compartments import copy_to_compartment, merge_compartments
+from raven_toolbox import manipulation
+from raven_toolbox.manipulation import copy_to_compartment, merge_compartments
+
+
+def test_exported_from_the_package():
+    """Both are public API, not just importable from the submodule.
+
+    They were missing from ``manipulation.__all__`` for a long time precisely because these
+    tests reached into ``manipulation.compartments`` directly, so nothing exercised the path
+    a user actually takes.
+    """
+    assert "merge_compartments" in manipulation.__all__
+    assert "copy_to_compartment" in manipulation.__all__
 
 
 def _two_compartment_model() -> cobra.Model:
@@ -28,14 +40,38 @@ def _two_compartment_model() -> cobra.Model:
     return m
 
 
+def _name_keyed_model() -> cobra.Model:
+    """Same topology as ``_two_compartment_model`` but keyed like yeast-GEM: the same species
+    gets a *different opaque id per compartment* (``s_1``..``s_4``), unified only by ``name``.
+    The default ``_base_id`` (suffix strip) can't collapse these — only a name key can."""
+    m = cobra.Model("named")
+    s1 = cobra.Metabolite("s_1", name="A", compartment="c")
+    s2 = cobra.Metabolite("s_2", name="A", compartment="m")
+    s3 = cobra.Metabolite("s_3", name="B", compartment="c")
+    s4 = cobra.Metabolite("s_4", name="B", compartment="m")
+    m.add_metabolites([s1, s2, s3, s4])
+
+    def rxn(rid, lb, ub, mets, gpr=None):
+        r = cobra.Reaction(rid, lower_bound=lb, upper_bound=ub)
+        r.add_metabolites(mets)
+        if gpr:
+            r.gene_reaction_rule = gpr
+        return r
+    m.add_reactions([rxn("r_c", 0, 1000, {s1: -1, s3: 1}, "g1"),
+                     rxn("r_m", 0, 1000, {s2: -1, s4: 1}, "g2"),
+                     rxn("tr_A", -1000, 1000, {s1: -1, s2: 1})])
+    return m
+
+
 # ----------------------------------------------------------------- merge_compartments
 
 def test_merge_compartments_collapses_to_one():
-    """A_c + A_m → A; B_c + B_m → B; transport A_c↔A_m self-cancels and is dropped."""
+    """A_c + A_m collapse to one species; B_c + B_m to another; transport A_c↔A_m self-cancels and is
+    dropped. No copy lived in the (default, synthetic) merged compartment 's', so each merged id is an
+    existing id adapted to it: A_s, B_s."""
     m = _two_compartment_model()
     merged, deleted, dupes = merge_compartments(m)
-    # Only the base ids survive.
-    assert {x.id for x in merged.metabolites} == {"A", "B"}
+    assert {x.id for x in merged.metabolites} == {"A_s", "B_s"}
     # The transport reaction collapsed (A → A) and was deleted.
     assert "tr_A" in deleted
     # r_c and r_m are now both A → B; one of them gets deduplicated.
@@ -77,11 +113,103 @@ def test_merge_compartments_keeps_single_met_reactions_when_asked():
     assert "sym" in {r.id for r in merged_keep.reactions}
 
 
+def test_merge_compartments_keeps_pre_existing_exchange_reactions():
+    """An exchange had one metabolite *before* merging, so it never became trivial and must
+    survive. Dropping these silently strips a model of its medium and its biomass reaction:
+    smallYeast grows at 0.1222 before flattening and at 0.0000 after, with no warning."""
+    m = _two_compartment_model()
+    uptake = cobra.Reaction("EX_A", lower_bound=-1000, upper_bound=1000)
+    uptake.add_metabolites({m.metabolites.A_c: 1})
+    m.add_reactions([uptake])
+
+    merged, deleted, _ = merge_compartments(m)
+
+    assert "EX_A" not in deleted
+    assert "EX_A" in {r.id for r in merged.reactions}
+    assert len(merged.boundary) == 1
+    # the genuinely-collapsed transport is still dropped
+    assert "tr_A" in deleted
+
+
+def test_merge_compartments_carries_the_objective_over():
+    """The merged model is rebuilt from scratch, so the objective must be copied across.
+    Without this the caller gets a model that silently optimises to 0.0."""
+    m = _two_compartment_model()
+    m.objective = "r_c"
+
+    merged, _, dupes = merge_compartments(m)
+
+    # r_c and r_m merge to the same reaction; whichever survives carries the objective.
+    survivor = next(r for r in merged.reactions if r.id in {"r_c", "r_m"})
+    assert str(merged.objective.expression) != "0"
+    if survivor.id == "r_c":
+        assert survivor.objective_coefficient == 1.0
+    assert merged.objective_direction == m.objective_direction
+
+
 def test_merge_compartments_deduplicate_off_keeps_both():
     m = _two_compartment_model()
     merged, _, dupes = merge_compartments(m, deduplicate_reactions=False)
     assert dupes == []
     assert {"r_c", "r_m"} <= {r.id for r in merged.reactions}
+
+
+def test_merge_compartments_default_key_cannot_unify_name_keyed_model():
+    """On yeast-GEM-style ids (different id per compartment, shared only by name), the default
+    suffix-stripping key leaves every metabolite distinct — nothing collapses. This is the failure
+    the base_metabolite override exists to fix."""
+    merged, deleted, _ = merge_compartments(_name_keyed_model())
+    # nothing unifies (4 distinct species); each existing id is adapted to the merged compartment 's'.
+    assert {x.id for x in merged.metabolites} == {"s_1_s", "s_2_s", "s_3_s", "s_4_s"}
+    assert deleted == []  # tr_A (s_1 -> s_2) still spans two distinct mets, not collapsed
+
+
+def test_merge_compartments_base_metabolite_unifies_by_name():
+    """With base_metabolite=lambda m: m.name the compartment copies unify by species: A_c/A_m
+    collapse to one, the A-transport self-cancels and is dropped, and the two now-identical
+    A->B reactions deduplicate — the same outcome as suffix-keyed ids get by default."""
+    merged, deleted, dupes = merge_compartments(
+        _name_keyed_model(), base_metabolite=lambda m: m.name)
+    # merged id is inherited from an existing member (adapted to 's'), NOT synthesised from the name key.
+    assert {x.id for x in merged.metabolites} == {"s_1_s", "s_3_s"}
+    assert "tr_A" in deleted
+    surviving = {r.id for r in merged.reactions}
+    assert len(surviving & {"r_c", "r_m"}) == 1
+    assert (set(dupes) | (surviving & {"r_c", "r_m"})) == {"r_c", "r_m"}
+    # The survivor keeps a real gene rule.
+    survivor = next(r for r in merged.reactions if r.id in {"r_c", "r_m"})
+    assert survivor.gene_reaction_rule in {"g1", "g2"}
+
+
+def test_merge_by_name_inherits_legal_ids_despite_punctuated_names():
+    """Real metabolite names carry whitespace AND punctuation (e.g.
+    '1-acyl-sn-glycerol 3-phosphate (16:0)'), which would crash the solver if used as a metabolite id
+    (cobra names each constraint after the id, and optlang forbids whitespace). Because the merged id
+    is *inherited* from an existing (legal) member id and never minted from the name key, merging by
+    name yields solver-safe ids by construction — the punctuated names only drive grouping."""
+    m = cobra.Model("named_punct")
+    a1 = cobra.Metabolite("x1", name="1-acyl-sn-glycerol 3-phosphate (16:0)", compartment="c")
+    a2 = cobra.Metabolite("x2", name="1-acyl-sn-glycerol 3-phosphate (16:0)", compartment="m")
+    b1 = cobra.Metabolite("x3", name="gamma", compartment="c")
+    m.add_metabolites([a1, a2, b1])
+    r = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r.add_metabolites({a1: -1, b1: 1})
+    tr = cobra.Reaction("tr", lower_bound=-1000, upper_bound=1000)
+    tr.add_metabolites({a1: -1, a2: 1})
+    m.add_reactions([r, tr])
+    merged, deleted, _ = merge_compartments(m, base_metabolite=lambda mm: mm.name)
+    ids = {x.id for x in merged.metabolites}
+    assert ids == {"x1_s", "x3_s"}       # inherited from x1/x3, adapted to 's' — never the raw name
+    assert "tr" in deleted               # the two punctuated copies unified, so the transport cancels
+    merged.slim_optimize()               # must not raise while building the solver problem
+
+
+def test_merge_into_existing_compartment_keeps_that_compartments_ids():
+    """When a copy already lives in the merged-into compartment, its id is kept verbatim (it already
+    reflects the compartment); other copies collapse into it."""
+    m = _two_compartment_model()  # A_c/A_m/B_c/B_m
+    merged, _, _ = merge_compartments(m, merged_id="c", merged_name="cytosol")
+    assert {x.id for x in merged.metabolites} == {"A_c", "B_c"}  # the 'c' copies' ids survive
 
 
 # ----------------------------------------------------------------- copy_to_compartment

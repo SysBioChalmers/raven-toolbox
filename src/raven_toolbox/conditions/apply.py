@@ -7,9 +7,13 @@ Schema (all keys optional):
     name: my_condition
     description: free-form text.
 
-    # Set every exchange reaction to (0, ub) before any per-rxn override.
+    # Set exchange reactions to (0, ub) before any per-rxn override.
+    # "in" / "out" (RAVEN's getExchangeRxns direction: the boundary metabolite
+    # is the reaction's substrate / product respectively) reset only that
+    # direction; "all" / "both", or any other truthy value, reset every
+    # exchange in either direction.
     prelude:
-      reset_exchanges: out                # str | bool truthy
+      reset_exchanges: out                # "in" | "out" | "all" | "both" | bool truthy
 
     # Remove metabolites from a pseudoreaction and rebalance H+
     # (or any other "balance" met) so total charge stays zero.
@@ -107,14 +111,44 @@ def set_reaction_bounds(rxn: cobra.Reaction, lb: float, ub: float) -> None:
 
 # --- step implementations ---------------------------------------------
 
+def _exchange_direction(rxn: cobra.Reaction) -> str | None:
+    """RAVEN ``getExchangeRxns``' in/out rule, direction-of-boundary-metabolite based.
+
+    "out": nothing is produced within the model at all (``sum(S > 0) == 0``) --- the
+    boundary metabolite is implicitly the reaction's product. "in": nothing is
+    consumed (``sum(S < 0) == 0``) --- the boundary metabolite is implicitly the
+    substrate. Neither (an ordinary internal reaction with both) returns ``None``.
+    Not restricted to single-metabolite reactions, matching RAVEN's own rule exactly
+    rather than cobra's narrower ``Reaction.boundary``.
+    """
+    has_product = any(c > 0 for c in rxn.metabolites.values())
+    has_reactant = any(c < 0 for c in rxn.metabolites.values())
+    if not has_product:
+        return "out"
+    if not has_reactant:
+        return "in"
+    return None
+
+
 def _apply_prelude(model: cobra.Model, cfg: dict[str, Any]) -> None:
     prelude = cfg.get("prelude") or {}
-    if prelude.get("reset_exchanges"):
-        # cobrapy doesn't distinguish RAVEN's in / out directions; we
-        # reset every exchange reaction.
-        for rxn in model.exchanges:
-            rxn.lower_bound = 0
-            rxn.upper_bound = DEFAULT_RESET_EXCHANGES_UPPER_BOUND
+    value = prelude.get("reset_exchanges")
+    if not value:
+        return
+    direction = value.lower() if isinstance(value, str) else None
+    if direction in ("in", "out"):
+        # A named direction resets only that direction, matching RAVEN's
+        # applyCondition, which forwards this same value straight through to
+        # getExchangeRxns as its direction filter.
+        targets = [r for r in model.reactions if _exchange_direction(r) == direction]
+    else:
+        # "all" / "both", or any other truthy value that isn't a direction
+        # keyword (e.g. a bare `true`): reset every reaction RAVEN's
+        # getExchangeRxns would call an exchange in either direction.
+        targets = [r for r in model.reactions if _exchange_direction(r) is not None]
+    for rxn in targets:
+        rxn.lower_bound = 0
+        rxn.upper_bound = DEFAULT_RESET_EXCHANGES_UPPER_BOUND
 
 
 def _apply_cofactor_pseudoreaction(model: cobra.Model, cfg: dict[str, Any]) -> None:
