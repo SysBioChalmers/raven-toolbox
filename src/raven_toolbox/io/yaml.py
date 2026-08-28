@@ -213,6 +213,16 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     version = raw.pop("version", None)
     foreign = {k: raw.pop(k) for k in list(raw) if k not in _COBRA_TOP_KEYS}
 
+    # RAVEN MATLAB omits a section entirely when it is empty -- a model with no
+    # genes has no `genes:` block at all, which YAML treats the same as an
+    # absent key. But a *present*, bare `genes:` key (nothing after the colon)
+    # parses to `None`, not an empty list, and every `raw.get(section)` call
+    # below would then iterate over `None` and crash. Normalise both shapes to
+    # `[]` up front, before anything reads these keys.
+    for section in ("metabolites", "reactions", "genes"):
+        if raw.get(section) is None:
+            raw[section] = []
+
     # Legacy quirk: per-metabolite top-level `smiles` -> annotation.smiles.
     # Done before model_from_dict so cobra sees the annotation in its
     # canonical place. No-op on current files.
@@ -255,13 +265,6 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     met_notes = _capture_entry_fields(raw.get("metabolites", []), _MET_FIELDS)
     rxn_notes = _capture_entry_fields(raw.get("reactions", []), _RXN_FIELDS)
     gene_notes = _capture_entry_fields(raw.get("genes", []), _GENE_FIELDS)
-
-    # RAVEN MATLAB omits a section entirely when it is empty -- a model with no
-    # genes has no ``genes:`` block at all. cobra's ``model_from_dict`` indexes
-    # these keys directly and raises ``KeyError``, so a valid RAVEN file would
-    # not load. Supply the empty lists it expects.
-    for section in ("metabolites", "reactions", "genes"):
-        raw.setdefault(section, [])
 
     model = model_from_dict(raw)
 
