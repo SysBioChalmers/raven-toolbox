@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """Driver for the KEGG arm of the homology cut-off study.
 
-Reproduces docs/studies/homology_cutoff_calibration.md: fetch proteomes keyed by
-KEGG gene id, align the template against each target once, then score every
+Reproduces the homology cut-off calibration study (raven-docs,
+docs/parameter-tuning/studies/homology-cutoff-calibration.md): fetch proteomes keyed
+by KEGG gene id, align the template against each target once, then score every
 threshold combination against KEGG's own orthology (do the two genes share a KO).
 
     python scripts/homology_cutoff_kegg.py fetch    --out work/

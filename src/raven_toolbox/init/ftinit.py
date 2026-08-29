@@ -64,7 +64,8 @@ _FORCE_ON = 0.1  # min flux for a reaction to count as "on" (RAVEN forceOnLim)
 _BIG_M = 100.0   # indicator/direction big-M cap on a *scored* reaction's flux (RAVEN's 100)
 _STRICT_ABS_GAP = 0.05  # absolute gap for the opt-in strict mode (below the 0.1 score granularity)
 _EXTRACT_SEED = 1234  # RAVEN optimizeProb Seed; a module constant so a determinism probe
-                      # can vary it (see docs/studies/ftinit_determinism.md) without editing code
+                      # can vary it (see the ftinit-determinism study on raven-docs) without
+                      # editing code
 
 
 def _dbg(msg: str) -> None:
@@ -118,6 +119,18 @@ def run_ftinit(
     metabolite" removal, e.g. H2O/H+). See the module docstring for the formulation.
     This is the single-step variant; the staged schedule
     (:func:`raven_toolbox.init.ftinit`) calls it per step.
+
+    ``mip_gap`` / ``time_limit``: the default ``None`` uses the solver's own
+    defaults (Gurobi: MIPGap≈1e-4, no time cap), which is fine for a single step
+    — solve time here is dominated by model construction, so a tight gap is
+    nearly free (measured on genome-scale Human-GEM, see the `INIT parameter
+    calibration study
+    <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-param-calibration.md>`_
+    on raven-docs). For the genome-scale staged
+    schedule (:func:`raven_toolbox.init.ftinit`), an essential-forced step can
+    run away without a cap (one severely-degraded case ran >75 min unbounded);
+    set ``time_limit`` ≈120-600 s/step, and loosen ``mip_gap`` to ``0.01`` (or
+    ``0.005``) for a ~37% speedup at ≥0.99 Jaccard vs. the tight-gap model.
 
     ``strict_abs_gap``, when set, proves the solve to this fixed absolute objective
     gap instead of a relative ``mip_gap``/``mip_gap_abs`` — see the ``strict_gap``

@@ -29,21 +29,25 @@ adapters — see the [omics guide](omics.md)).
 ftINIT's task layer keeps essential metabolic tasks feasible; define and check tasks with the
 [tasks guide](tasks_and_gapfilling.md). The parameter defaults (`mip_gap`, `big_m`,
 `force_on`, `eps`, `prod_weight`, scaling) and their robustness to noisy input are calibrated
-in the [parameter-calibration study](../studies/init_param_calibration.md), and the
-equivalence to MATLAB RAVEN is established in the
-[Human-GEM validation](../studies/humangem_validation.md).
+in the
+[INIT parameter calibration study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-param-calibration.md),
+and the equivalence to MATLAB RAVEN is established in the
+[Human-GEM validation](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/humangem-validation.md)
+(both on raven-docs).
 
 `ftinit()` also takes two opt-in determinism flags, `strict_gap` and `canonical` (both default
 off → exact RAVEN behaviour), which pin *which* of the degenerate MILP's many equal-score optima
 is returned, giving a more parsimonious and more reproducible extraction. They do not make the
 model biologically more accurate, they cost 3–7× build time, and they are **not** a fix for
 gene-essentiality reproducibility — measurements and the trade-off are in the
-[extraction-determinism study](../studies/ftinit_determinism.md). For reproducible results
+[extraction-determinism study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md)
+(raven-docs). For reproducible results
 across runs, pin the solver stack (raven-toolbox commit + `gurobipy` version) instead.
 
 :::{important}
 Genome-scale (f)tINIT MILPs currently require **Gurobi** for tractable solve times; toy and
 unit-test problems run on GLPK. See the
-[solver benchmark](../studies/init_solver_benchmark.md). Metabolomics-based scoring is the one
-piece not yet implemented (raises `NotImplementedError`).
+[INIT solver benchmark](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-solver-benchmark.md)
+(raven-docs). Metabolomics-based scoring is the one piece not yet implemented (raises
+`NotImplementedError`).
 :::

@@ -3,16 +3,19 @@
 Empirical validation runs and parameter calibrations that back raven-toolbox's defaults and
 its equivalence claims against MATLAB RAVEN.
 
-- **[Human-GEM validation](humangem_validation.md)** — raven-toolbox ftINIT vs MATLAB RAVEN
-  on 5 Hart2015 cell lines (Jaccard 0.975–0.980).
-- **[(f)tINIT parameter calibration](init_param_calibration.md)** — clean-data calibration
-  plus input-robustness study (`mip_gap` / `big_m` / `force_on` / `eps` / `prod_weight` /
-  scaling sweeps; dropout / noise / downsample robustness).
-- **[(f)tINIT solver benchmark](init_solver_benchmark.md)** — Gurobi vs HiGHS vs GLPK on
-  genome-scale ftINIT.
-- **[ftINIT extraction determinism](ftinit_determinism.md)** — what the opt-in `strict_gap` /
-  `canonical` flags buy on Human-GEM/DLD1: a 3.7× smaller reaction seed-swing, but *worse*
-  gene-essentiality determinism (5 → 19 flips) and a 3–7× build-time cost.
+:::{admonition} Some studies have moved to raven-docs
+:class: note
+
+The Human-GEM validation, (f)tINIT parameter calibration and solver benchmark, ftINIT
+extraction determinism, KEGG HMM and homology cut-off calibration, and predictLocalization
+head-to-head studies now live on
+[raven-docs](https://github.com/edkerk/raven-docs/tree/main/docs/parameter-tuning/studies) —
+they're about parameter defaults shared with MATLAB RAVEN, not raven-toolbox alone. The
+localisation/compartment-assignment/confidence-tracking studies below stay here for now,
+alongside their design docs — that whole area is still under active development, not yet
+settled enough to split across repos.
+:::
+
 - **[Yeast localization benchmark](yeast_localization_benchmark.md)** —
   `predict_localization` against curated yeast-GEM, with a predictor-noise sweep.
 - **[Compartment-assignment redesign](localization_redesign.md)** — the design of
@@ -41,8 +44,6 @@ its equivalence claims against MATLAB RAVEN.
   (84.7% addressable) and a circularity lesson: 15% of its compartments are DeepLoc-derived.
 - **[Localisation finetuning](localization_finetuning.md)** — tuning the DeepLoc-loading
   hyperparameters (`membrane_threshold`, `min_confidence`, triage trust) on the slow yeast run.
-- **[predictLocalization head-to-head](predictlocalization_comparison.md)** — the deterministic MILP
-  vs RAVEN's stochastic `predictLocalization` on identical inputs (determinism + accuracy + runtime).
 - **[CarveFungi analysis](carvefungi_analysis.md)** — how the contemporary carve-a-universal-model
   method works and how our transport-minimising assignment differs.
 - **[CarveFungi assignment head-to-head](carvefungi_milp_benchmark.md)** — our transport cost added to
@@ -52,32 +53,19 @@ its equivalence claims against MATLAB RAVEN.
 - **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
   (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
-- **[KEGG HMM cut-off calibration](kegg_hmm_cutoff_calibration.md)** — HMM E-value /
-  score-ratio sensitivity for the KEGG HMM-query reconstruction path.
-- **[Homology cut-off calibration](homology_cutoff_calibration.md)** — what the three
-  homology filters are worth, measured against two independent references across four
-  organisms. `min_identity` 40 confirmed, `min_align_len` lowered 200 → 100, `max_evalue`
-  shown to make no difference at all, and DIAMOND shown to need the same settings as BLAST.
 
 ```{toctree}
 :hidden:
 
-humangem_validation
-init_param_calibration
-init_solver_benchmark
-ftinit_determinism
 yeast_localization_benchmark
 deeploc_yeast_benchmark
 deeploc_aracore_benchmark
 deeploc_icre1355_benchmark
 deeploc_humangem_benchmark
 localization_finetuning
-predictlocalization_comparison
 carvefungi_analysis
 carvefungi_milp_benchmark
 deeploc_normalisation_benchmark
-kegg_hmm_cutoff_calibration
-homology_cutoff_calibration
 localization_redesign
 curation_priority_signals
 yeast_validation

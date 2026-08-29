@@ -38,7 +38,7 @@ COBRA ecosystem.
 ## Status
 
 raven-toolbox has been validated against MATLAB RAVEN on **Human-GEM** (5 Hart2015 cell-line
-models, Jaccard 0.975–0.980 — see [docs/humangem_validation.md](docs/studies/humangem_validation.md)).
+models, Jaccard 0.975–0.980 — see [the Human-GEM validation study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/humangem-validation.md) on raven-docs).
 The functional scope of the original RAVEN toolbox is covered with three principled
 omissions, all deliberately out of scope rather than pending work:
 
@@ -59,8 +59,8 @@ pip install -e ".[dev]"
 ```
 
 raven-toolbox requires Python ≥ 3.11. Genome-scale (f)tINIT MILPs currently require **Gurobi**
-([details on solver portability](docs/studies/init_solver_benchmark.md)); toy and unit-test work
-runs on the open-source GLPK.
+([details on solver portability](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-solver-benchmark.md)
+on raven-docs); toy and unit-test work runs on the open-source GLPK.
 
 ### External command-line tools (BLAST, DIAMOND, HMMER, MAFFT, CD-HIT)
 

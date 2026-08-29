@@ -59,7 +59,9 @@ context_model = ftinit(reference_model, scores)
 
 ftINIT, tINIT, the scoring adapters and task-aware gap-filling are detailed in the
 [context-specific modeling guide](context_specific.md). Genome-scale (f)tINIT currently
-needs **Gurobi** — see the [solver benchmark](../studies/init_solver_benchmark.md).
+needs **Gurobi** — see the
+[INIT solver benchmark](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-solver-benchmark.md)
+(raven-docs).
 
 :::{note}
 The snippets above show the entry points; consult each capability guide and the
