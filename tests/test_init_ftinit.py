@@ -188,6 +188,29 @@ def test_resolve_ties_safe_on_unique_optimum():
 
 
 # --------------------------------------------------------------------------- #
+# reference_reactions (stability) resolves ties only -- it must never override a
+# genuine, non-tied score preference.
+# --------------------------------------------------------------------------- #
+def test_reference_reactions_cannot_override_a_real_score_difference():
+    """A reference cannot flip a choice the data itself already decided.
+
+    R1 (score -1) is strictly cheaper to keep than R2 (score -3) -- not a tie, a real
+    preference. Anchoring to a reference that used R2 must not move the extraction off
+    its own optimum: the reference phase runs after the primary objective is fixed at
+    *this* model's own score optimum, so it can only choose among truly tied solutions.
+    """
+    m = _degenerate_model()
+    scores = {"R1": -1.0, "R2": -3.0}
+    unanchored = run_ftinit(m, scores, essential_rxns=["E"], resolve_ties=True)
+    assert "R1" in unanchored.kept_reactions and "R2" not in unanchored.kept_reactions
+
+    anchored = run_ftinit(m, scores, essential_rxns=["E"], resolve_ties=True,
+                          reference_reactions=["R2"])
+    assert "R1" in anchored.kept_reactions and "R2" not in anchored.kept_reactions
+    assert anchored.objective == pytest.approx(unanchored.objective, abs=1e-6)
+
+
+# --------------------------------------------------------------------------- #
 # seed as an explicit parameter, and the unproven-incumbent warning.
 # --------------------------------------------------------------------------- #
 def test_seed_is_an_explicit_parameter_not_a_hidden_constant():

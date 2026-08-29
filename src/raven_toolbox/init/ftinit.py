@@ -737,9 +737,14 @@ def ftinit(
     long as it shares this prep's underlying template — ids absent from this prep are
     silently ignored. The same set (untranslated — gap-fill candidates are already
     ``ref_model`` ids) also anchors the task gap-fill, when ``fill_gaps`` is on — see
-    :func:`raven_toolbox.init.fill_tasks`'s own ``reference_reactions``. This does not
-    eliminate re-selection drift, only reduces it — see the raven-docs reproducibility
-    study for measurements once available.
+    :func:`raven_toolbox.init.fill_tasks`'s own ``reference_reactions``.
+
+    This can only ever resolve a genuine tie, never suppress a real difference: the
+    reference-matching phase runs *after* the primary score objective is fixed at its own
+    optimum for *this* sample's own data (a floor constraint, same mechanism ``resolve_ties``
+    already uses), so a reaction the data genuinely prefers is already locked in before the
+    reference is ever consulted. This does not eliminate re-selection drift, only reduces
+    it — see the raven-docs reproducibility study for measurements once available.
     """
     if metabolomics:
         raise NotImplementedError(
