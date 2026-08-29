@@ -148,8 +148,9 @@ def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit,
     tol = max(abs(primary_cost) * 1e-7, 1e-7)
     work.add_cons_vars([prob.Constraint(cost_expr, ub=primary_cost + tol, name="_fill_cost_floor")])
     count = add([mul([Real(1.0), y]) for y in yvars.values()])
+    unproven: list[str] = []
 
-    def _phase(objective) -> bool:
+    def _phase(objective, label: str) -> bool:
         work.objective = objective
         try:  # integer objective → an absolute gap < 1 proves the optimum cheaply.
             work.solver.problem.Params.MIPGap = 0.0
@@ -157,6 +158,12 @@ def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit,
         except Exception:  # noqa: BLE001 - harmless on other backends
             pass
         work.slim_optimize()
+        # Mirrors _resolve_ties: a phase ending at the time limit still holds an
+        # incumbent, and adopting it means the tie-break is itself an arbitrary
+        # within-gap pick. Still adopted (it measurably reduces the spread) but
+        # recorded, so resolve_ties=True cannot silently mean "tried, failed".
+        if work.solver.status == "time_limit":
+            unproven.append(label)
         if work.solver.status not in ("optimal", "feasible", "suboptimal", "time_limit"):
             return False
         try:
@@ -169,7 +176,7 @@ def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit,
         # (signed sum — see _resolve_ties for why the dropped constant doesn't matter).
         mismatch = add([mul([Real(-1.0 if cid in reference else 1.0), y])
                         for cid, y in yvars.items()])
-        if not _phase(prob.Objective(mismatch, direction="min")):
+        if not _phase(prob.Objective(mismatch, direction="min"), "phaseR-reference"):
             return None
         rmin = work.objective.value
         if rmin is None or not math.isfinite(rmin):
@@ -178,16 +185,29 @@ def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit,
         work.add_cons_vars([prob.Constraint(mismatch, ub=rmin + 0.5, name="_fill_ref_floor")])
 
     # fewest added reactions (parsimony) ...
-    if not _phase(prob.Objective(count, direction="min")):
+    if not _phase(prob.Objective(count, direction="min"), "phase2a-parsimony"):
         return None
-    kmin = work.objective.value or 0.0
+    # A timed-out phase can report a non-finite objective. ``inf + 0.5`` is still ``inf``,
+    # which would make the cap below vacuous and silently disable the parsimony pin (the
+    # same failure mode fixed for the main extraction's _resolve_ties), so fall back to
+    # the incumbent's own achieved count instead.
+    kmin = work.objective.value
+    if kmin is None or not math.isfinite(kmin):
+        kmin = float(sum(1 for y in yvars.values() if (y.primal or 0.0) > 0.5))
     # ... then, among the sparsest, the unique lowest-id set.
     work.add_cons_vars([prob.Constraint(count, ub=kmin + 0.5, name="_fill_count_cap")])
     ranks = {cid: i for i, cid in enumerate(sorted(candidates))}
     idsum = add([mul([Real(float(1 + ranks[cid])), yvars[cid]]) for cid in candidates])
-    if not _phase(prob.Objective(idsum, direction="min")):
-        return None
-    return [cid for cid in candidates if (yvars[cid].primal or 0.0) > 0.5]
+    ok = _phase(prob.Objective(idsum, direction="min"), "phase2b-idrank")
+    if ok and unproven:
+        warnings.warn(
+            f"fill_tasks tie resolution did not converge ({', '.join(unproven)}): the "
+            "selection among equal-cost fills is itself an unproven incumbent, so "
+            "resolve_ties=True has reduced but not removed the run-to-run spread. "
+            "Raise time_limit for a proven tie-break.",
+            stacklevel=3,
+        )
+    return [cid for cid in candidates if (yvars[cid].primal or 0.0) > 0.5] if ok else None
 
 
 def _gap_fill_task(
@@ -279,7 +299,9 @@ def fill_tasks(
     ``should_fail`` tasks are ignored. Each gap-fill MILP is single-threaded with a fixed
     ``seed`` and bounded by ``time_limit`` (RAVEN's 300 s). ``resolve_ties`` (opt-in) pins the
     degenerate min-cost fill to the fewest, lowest-id reactions so the added set does not
-    depend on the solver seed/version — see :func:`_resolve_ties_fill`.
+    depend on the solver seed/version — see :func:`_resolve_ties_fill`. At genome scale its
+    own phases can themselves exhaust ``time_limit``; when that happens the (still-adopted)
+    incumbent is an unproven tie-break and a warning is raised, same as the main extraction.
 
     ``reference_reactions`` (requires ``resolve_ties=True``) is a set of reference-model
     reaction ids — e.g. a prior build's ``added_reactions`` — that each task's fill should
