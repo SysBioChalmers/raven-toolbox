@@ -112,6 +112,7 @@ def run_ftinit(
     time_limit: float | None = None,
     prove_abs_gap: float | None = None,
     resolve_ties: bool = False,
+    reference_reactions: Iterable[str] | None = None,
     seed: int = _EXTRACT_SEED,
     threads: int = _EXTRACT_THREADS,
 ) -> FtInitResult:
@@ -150,6 +151,15 @@ def run_ftinit(
     instead of an arbitrary tie-break. At genome scale the phase-2 solves themselves can
     exhaust ``time_limit``; when that happens the (still-adopted) incumbent is an
     unproven tie-break and a warning is raised. See :func:`_resolve_ties`.
+
+    ``reference_reactions`` (requires ``resolve_ties=True``) is a set of reaction ids —
+    this model's own ids, e.g. the ``kept_reactions`` of a prior :class:`FtInitResult` on
+    the same model — that a *reference* build kept. When given, it becomes the first
+    tie-break criterion, ahead of parsimony/id-rank: among the score-optimal solutions,
+    prefer the one whose removable-reaction decisions match the reference most closely.
+    This targets *stability*, not determinism — see :func:`ftinit`'s
+    ``reference_reactions`` for the intended use (comparing two similar inputs, or a
+    template before/after a small edit) and its own caveats.
 
     ``seed`` is Gurobi's ``Seed`` parameter (RAVEN's 1234). The MILP is degenerate, so the
     seed picks which of many equal-score optima the solver returns; varying it is the cheap
@@ -360,10 +370,14 @@ def run_ftinit(
                   for rid, terms in flux_terms.items()}
         return on, fluxes
 
+    if reference_reactions is not None and not resolve_ties:
+        raise ValueError("reference_reactions requires resolve_ties=True.")
+
     on, fluxes = _read_solution()  # the primary optimum
     # tie resolution is best-effort: keep its result only if phase 2 actually converged.
-    if resolve_ties and indicators and _resolve_ties(opt, prob, obj_expr, indicators,
-                                                      primary_obj, time_limit):
+    if resolve_ties and indicators and _resolve_ties(
+            opt, prob, obj_expr, indicators, primary_obj, time_limit,
+            reference=set(reference_reactions) if reference_reactions is not None else None):
         on, fluxes = _read_solution()
 
     kept = free_or_essential | on
@@ -389,7 +403,8 @@ def _has_solution(opt) -> bool:
         return True
 
 
-def _resolve_ties(opt, prob, obj_expr, indicators, primary, time_limit) -> bool:
+def _resolve_ties(opt, prob, obj_expr, indicators, primary, time_limit,
+                  reference: set[str] | None = None) -> bool:
     """Pin ftINIT's degenerate optimum to a single, reproducible solution (on ``opt``).
 
     The ftINIT MILP is highly degenerate: many reaction subsets reach the same score
@@ -421,6 +436,18 @@ def _resolve_ties(opt, prob, obj_expr, indicators, primary, time_limit) -> bool:
     study
     <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md>`_
     on raven-docs.
+
+    ``reference`` (opt-in, requires no change to the phases above when omitted) adds a
+    phase *before* parsimony: minimise the count of binaries whose keep/drop decision
+    disagrees with ``reference`` (a set of reaction ids this build should try to match).
+    This re-orders the lexicographic cascade to (score) → (match reference) → (parsimony)
+    → (id-rank), so among the score-optimal solutions the one closest to the reference is
+    preferred over the sparsest one. This is the tool for *stability* — keeping a
+    re-extraction close to a previous build, or two comparable inputs close to each other
+    — as opposed to plain determinism, which ``resolve_ties`` alone already provides.
+    Reaction ids not present in ``indicators`` (essential, free, or absent from this
+    template) are silently ignored, so ``reference`` can safely be a full reaction-id set
+    from an unrelated model.
 
     Returns ``True`` if phase 2 produced a usable solution (the caller then reads the
     resolved "on" set and fluxes), ``False`` if it did not converge to an incumbent (the
@@ -454,16 +481,38 @@ def _resolve_ties(opt, prob, obj_expr, indicators, primary, time_limit) -> bool:
         return (opt.status in ("optimal", "feasible", "suboptimal", "time_limit")
                 and _has_solution(opt))
 
+    def _clamp(label: str) -> float | None:
+        # A timed-out phase can report a non-finite objective. ``inf + 0.5`` is still
+        # ``inf``, which would make the next phase's cap vacuous and silently disable it,
+        # so fall back to reading the incumbent's own achieved value directly.
+        val = opt.objective.value
+        if val is None or not math.isfinite(val):
+            unproven.append(f"{label}-objective-not-finite")
+            return None
+        return val
+
+    # Phase R (opt-in) — among the score-optimal solutions, minimise disagreement with
+    # ``reference``. Signed sum, not a plain count: -1 per binary reference wants ON (so
+    # minimising pushes it towards 1), +1 per binary reference wants OFF. The dropped
+    # constant term (one per reference-ON binary) does not change which solution
+    # minimises it, only the objective's numeric value.
+    if reference:
+        mismatch = add([mul([Real(-1.0 if rid in reference else 1.0), ind])
+                        for rid, ind in binaries.items()])
+        if not _phase(prob.Objective(mismatch, direction="min"), "phaseR-reference"):
+            return False
+        rmin = _clamp("phaseR")
+        if rmin is None:
+            rmin = sum(-1.0 if rid in reference else 1.0
+                      for rid, ind in binaries.items() if (ind.primal or 0.0) >= 0.5)
+        opt.add(prob.Constraint(mismatch, ub=rmin + 0.5, name="_canon_ref_floor"))
+
     # Phase 2a — parsimony: the fewest kept removable reactions.
     if not _phase(prob.Objective(count, direction="min"), "phase2a-parsimony"):
         return False
-    # A timed-out phase can report a non-finite objective. ``inf + 0.5`` is still ``inf``,
-    # which would make the cap below vacuous and silently switch the parsimony pin off, so
-    # cap on the incumbent's actual count instead.
-    kmin = opt.objective.value
-    if kmin is None or not math.isfinite(kmin):
+    kmin = _clamp("phase2a")
+    if kmin is None:
         kmin = float(sum(1 for ind in binaries.values() if (ind.primal or 0.0) >= 0.5))
-        unproven.append("phase2a-objective-not-finite")
     # Phase 2b — among the sparsest, prefer lower reaction ids (deterministic tie-break).
     opt.add(prob.Constraint(count, ub=kmin + 0.5, name="_canon_count_cap"))
     ranks = {rid: i for i, rid in enumerate(sorted(binaries))}
@@ -503,7 +552,7 @@ def _nudge_scores(rxn_scores: Mapping[str, float]) -> dict[str, float]:
 def _solve_step(
     min_model, scores, step, *, essential, directions, ess_force, force_on, big_m,
     mip_gap, mip_gap_abs, time_limit, prove_abs_gap=None, resolve_ties=False,
-    seed=_EXTRACT_SEED, threads=_EXTRACT_THREADS,
+    reference_reactions=None, seed=_EXTRACT_SEED, threads=_EXTRACT_THREADS,
 ) -> FtInitResult:
     """Solve one ftINIT step, following RAVEN's multi-run gap-escalation schedule.
 
@@ -513,6 +562,10 @@ def _solve_step(
     soon as the previous run's achieved gap already meets the next (looser) target. A
     caller ``time_limit`` caps each run's own limit. With no schedule (``step.milp_runs``
     empty, e.g. the ``'full'`` series) this is a single solve at the caller's gap.
+
+    ``reference_reactions`` is already in ``min_model``'s (merged) id space — the caller
+    (:func:`ftinit`) translates a caller-facing, original-id reference exactly once, since
+    the merge grouping is identical across every step.
     """
     def _run(mg, mga, tl, prove=None):
         return run_ftinit(
@@ -521,7 +574,8 @@ def _solve_step(
             rem_pos_rev=step.pos_rev_off, ignore_mets=step.mets_to_ignore,
             force_on=force_on, force_on_ess=force_on, big_m=big_m,
             mip_gap=mg, mip_gap_abs=mga, time_limit=tl,
-            prove_abs_gap=prove, resolve_ties=resolve_ties, seed=seed, threads=threads,
+            prove_abs_gap=prove, resolve_ties=resolve_ties,
+            reference_reactions=reference_reactions, seed=seed, threads=threads,
         )
 
     if prove_abs_gap is not None:
@@ -552,6 +606,38 @@ def _solve_step(
     return res
 
 
+def _translate_reference(prep, reference_reactions: Iterable[str]) -> set[str]:
+    """Map a reference set of *original* reaction ids into ``prep.min_model``'s merged ids.
+
+    The merge grouping (``prep.group_of``/``prep.group_ids``) is fixed for a given prep —
+    identical across every ftINIT step, only the per-step scores differ — so this runs
+    once per :func:`ftinit` call rather than once per step.
+
+    A merged reaction "matches" the reference if **any** of its original members does.
+    A merge group is an all-or-nothing flux-carrying unit (RAVEN's linear-chain
+    contraction; see the ``kept_min`` → ``final_kept`` expansion at the end of
+    :func:`ftinit`), so for a reference built from *this exact* prep every member agrees
+    and "any" is exact. For a reference built from a related-but-edited prep (the
+    intended use: a template before/after a curation) group membership, or even which
+    member is the merged reaction's representative id, can differ — "any member matches"
+    is the natural, conservative fallback: it never requires a group to match perfectly to
+    carry the reference's preference forward for the un-edited part of the network.
+    """
+    ref_set = set(reference_reactions)
+    group_of = prep.group_of
+    members_of_group: dict[int, list[str]] = {}
+    for rid, gid in zip(prep.orig_rxn_ids, prep.group_ids, strict=True):
+        if gid:
+            members_of_group.setdefault(gid, []).append(rid)
+    matched = set()
+    for r in prep.min_model.reactions:
+        gid = group_of.get(r.id, 0)
+        members = members_of_group.get(gid, [r.id]) if gid else [r.id]
+        if not ref_set.isdisjoint(members):
+            matched.add(r.id)
+    return matched
+
+
 def ftinit(
     prep,
     rxn_scores: Mapping[str, float],
@@ -568,6 +654,7 @@ def ftinit(
     time_limit: float | None = None,
     prove_abs_gap: float | None = None,
     resolve_ties: bool = False,
+    reference_reactions: Iterable[str] | None = None,
     seed: int = _EXTRACT_SEED,
     threads: int = _EXTRACT_THREADS,
 ) -> cobra.Model:
@@ -637,13 +724,30 @@ def ftinit(
     essential-gene calls, both fully score-optimal — when comparing models before and
     after a curation, apply the edit to the extracted model as a control, not only to the
     template.
+
+    ``reference_reactions`` (requires ``resolve_ties=True``) targets that gap directly: a
+    set of **original** ``prep.ref_model`` reaction ids that a reference build kept (e.g.
+    ``{r.id for r in reference_model.reactions}``). When given, each step's tie-break
+    prefers the reaction subset that most closely matches the reference, ahead of
+    parsimony/id-rank — so a re-extraction of a lightly edited template, or of a
+    comparable-but-distinct sample, stays close to the reference wherever the data does
+    not force a difference, instead of the MILP re-selecting from scratch. Translated
+    once (via ``prep.group_of``) into every step's merged-reaction id space, so it is
+    safe to pass the reactions of a model built from a *different* (e.g. edited) prep, as
+    long as it shares this prep's underlying template — ids absent from this prep are
+    silently ignored. This does not eliminate re-selection drift, only reduces it — see
+    the raven-docs reproducibility study for measurements once available.
     """
     if metabolomics:
         raise NotImplementedError(
             "metabolomics production-bonus is not yet implemented."
         )
+    if reference_reactions is not None and not resolve_ties:
+        raise ValueError("reference_reactions requires resolve_ties=True.")
     steps = steps if steps is not None else get_init_steps(series)
     min_model, group_of = prep.min_model, prep.group_of
+    reference_merged = (None if reference_reactions is None
+                        else _translate_reference(prep, reference_reactions))
 
     # RAVEN nudges tiny reaction scores off zero once, before per-step grouping.
     rxn_scores = _nudge_scores(rxn_scores)
@@ -672,7 +776,7 @@ def ftinit(
             ess_force=ess_force, force_on=force_on, big_m=big_m,
             mip_gap=mip_gap, mip_gap_abs=mip_gap_abs, time_limit=time_limit,
             prove_abs_gap=prove_abs_gap, resolve_ties=resolve_ties,
-            seed=seed, threads=threads,
+            reference_reactions=reference_merged, seed=seed, threads=threads,
         )
         if res.status == "time_limit":
             # The step ran out of wall clock before proving its gap, so the kept set is

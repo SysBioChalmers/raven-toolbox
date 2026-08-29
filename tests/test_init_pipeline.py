@@ -182,3 +182,98 @@ def test_ftinit_resolve_ties_matches_oracle_and_is_stable():
     out2 = ftinit(prep, _scores(model), prove_abs_gap=0.05, resolve_ties=True)
     assert {r.id for r in out1.reactions} == set(TEST_MODEL_FTINIT_NO_TASKS)
     assert {r.id for r in out1.reactions} == {r.id for r in out2.reactions}
+
+
+# --------------------------------------------------------------------------- #
+# reference_reactions (stability under similar input) — axis-B follow-up.
+# resolve_ties/prove_abs_gap give determinism (same input -> same output); this
+# targets stability (similar input -> similar output) by preferring the tied
+# solution closest to a reference build instead of the sparsest/lowest-id one.
+# --------------------------------------------------------------------------- #
+def _degenerate_prep():
+    """R1/R2 are mutually redundant producers of an essential intermediate.
+
+    Forced essential directly on the built PrepData (RAVEN's own task-essential-reaction
+    detection correctly finds NEITHER individually essential here -- removing just one
+    still leaves the task feasible through the other, so this isolates the tie-break
+    question under test rather than fighting that, correct, detection).
+    """
+    import cobra
+
+    m = cobra.Model("degen")
+    a, mm, p = (cobra.Metabolite(x, name=x, compartment="s") for x in ("a", "m", "p"))
+    m.add_metabolites([a, mm, p])
+    R1 = cobra.Reaction("R1", lower_bound=0, upper_bound=1000)
+    R1.add_metabolites({a: -1, mm: 1})
+    R2 = cobra.Reaction("R2", lower_bound=0, upper_bound=1000)
+    R2.add_metabolites({a: -1, mm: 1})
+    E = cobra.Reaction("E", lower_bound=0, upper_bound=1000)
+    E.add_metabolites({mm: -1, p: 1})
+    EXa = cobra.Reaction("EX_a", lower_bound=-1000, upper_bound=1000)
+    EXa.add_metabolites({a: -1})
+    EXp = cobra.Reaction("EX_p", lower_bound=-1000, upper_bound=1000)
+    EXp.add_metabolites({p: -1})
+    m.add_reactions([R1, R2, E, EXa, EXp])
+    m.objective = "E"
+    prep = prep_init_model(m, ext_comp="s")
+    prep.essential_rxns = {"E"}
+    return prep
+
+
+def test_reference_reactions_redirects_the_tie_break():
+    """reference_reactions flips a degenerate choice, ahead of the id-rank default.
+
+    Exercises the full staged ftinit() pipeline (prep_init_model + merge id bookkeeping),
+    not just the single-step run_ftinit MILP: this is the layer that has to translate a
+    reference given in original ids into each step's merged-reaction id space.
+    """
+    prep = _degenerate_prep()
+    scores = {"R1": -1.0, "R2": -1.0}
+
+    baseline = ftinit(prep, scores, resolve_ties=True, fill_gaps=False)
+    baseline_ids = {r.id for r in baseline.reactions}
+    assert "R1" in baseline_ids and "R2" not in baseline_ids  # default: lower id wins
+
+    anchored = ftinit(prep, scores, resolve_ties=True, fill_gaps=False,
+                      reference_reactions={"R2", "E", "EX_a", "EX_p"})
+    anchored_ids = {r.id for r in anchored.reactions}
+    assert "R2" in anchored_ids and "R1" not in anchored_ids  # reference wins instead
+
+
+def test_reference_reactions_self_anchoring_is_idempotent():
+    """Anchoring a build to its own output must reproduce it exactly."""
+    model = make_test_model()
+    prep = prep_init_model(model, ext_comp="s")
+    baseline = ftinit(prep, _scores(model), resolve_ties=True, fill_gaps=False)
+    baseline_ids = {r.id for r in baseline.reactions}
+
+    anchored = ftinit(prep, _scores(model), resolve_ties=True, fill_gaps=False,
+                      reference_reactions=baseline_ids)
+    assert {r.id for r in anchored.reactions} == baseline_ids
+
+
+def test_reference_reactions_requires_resolve_ties():
+    """reference_reactions without resolve_ties is a usage error, not a silent no-op."""
+    import pytest
+
+    model = make_test_model()
+    prep = prep_init_model(model, ext_comp="s")
+    with pytest.raises(ValueError, match="resolve_ties=True"):
+        ftinit(prep, _scores(model), reference_reactions={"R1"}, fill_gaps=False)
+
+
+def test_reference_reactions_translates_through_merge_groups():
+    """The reference->merged-id translation matches via ANY member of a merged group.
+
+    testModel merges R1+R2 (survivor R1) and R3+R5 (survivor R3). Naming only the
+    non-survivor member of each group must still count as a match.
+    """
+    from raven_toolbox.init.ftinit import _translate_reference
+
+    model = make_test_model()
+    prep = prep_init_model(model, ext_comp="s")
+    assert prep.group_of["R1"] == prep.group_of["R2"] != 0
+    assert prep.group_of["R3"] == prep.group_of["R5"] != 0
+
+    matched = _translate_reference(prep, {"R2", "R5", "unknown_reaction_id"})
+    assert matched == {"R1", "R3"}
