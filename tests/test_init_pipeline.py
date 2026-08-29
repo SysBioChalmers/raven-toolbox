@@ -262,6 +262,17 @@ def test_reference_reactions_requires_resolve_ties():
         ftinit(prep, _scores(model), reference_reactions={"R1"}, fill_gaps=False)
 
 
+def test_reference_reactions_warns_when_it_matches_nothing():
+    """An id namespace mistake (or unrelated reference model) warns, not silent no-op."""
+    import pytest
+
+    model = make_test_model()
+    prep = prep_init_model(model, ext_comp="s")
+    with pytest.warns(UserWarning, match="matched no reaction"):
+        ftinit(prep, _scores(model), resolve_ties=True, fill_gaps=False,
+              reference_reactions={"not_a_real_reaction_id"})
+
+
 def test_reference_reactions_translates_through_merge_groups():
     """The reference->merged-id translation matches via ANY member of a merged group.
 
