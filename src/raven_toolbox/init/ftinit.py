@@ -744,7 +744,14 @@ def ftinit(
     optimum for *this* sample's own data (a floor constraint, same mechanism ``resolve_ties``
     already uses), so a reaction the data genuinely prefers is already locked in before the
     reference is ever consulted. This does not eliminate re-selection drift, only reduces
-    it — see the raven-docs reproducibility study for measurements once available.
+    it. Measured on Human-GEM/DLD1 with a template edit that used none of the reference
+    build's kept reactions (a null-ish edit — a perfectly stable extractor would show zero
+    downstream change): baseline re-extraction moved 58 reactions, flipped 13 genes
+    essential and dropped growth 14%; anchored to the reference, 46 reactions moved but
+    only 1 gene flipped and growth barely moved (−0.01%) — a 13× reduction in spurious
+    essential-gene drift. See the `ftINIT reproducibility study
+    <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md>`_
+    on raven-docs for the full measurement and its limitations.
     """
     if metabolomics:
         raise NotImplementedError(

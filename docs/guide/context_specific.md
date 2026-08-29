@@ -48,8 +48,11 @@ set of reaction ids a reference build kept, preferred ahead of parsimony/id-rank
 score-optimal solutions — so re-extracting a lightly edited template, or a comparable-but-distinct
 sample, stays close to the reference wherever the data does not force a difference. It cannot
 override a genuine data-driven preference (only ties are ever affected), and it reduces
-re-selection drift rather than eliminating it — pairing it with the edit-applied-to-the-extracted-model
-comparison is still worth doing when an exact, causal before/after diff is wanted. Measurements in the
+re-selection drift rather than eliminating it — measured on Human-GEM/DLD1, a template edit
+that used none of the reference build's kept reactions still flipped 13 genes essential
+unanchored, only 1 anchored (13× fewer spurious flips), while reaction-level movement barely
+changed (58 → 46) — so pairing it with the edit-applied-to-the-extracted-model comparison is
+still worth doing when an exact, causal before/after diff is wanted. Measurements in the
 [ftINIT reproducibility study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md)
 (raven-docs). Pinning the solver stack (raven-toolbox commit + `gurobipy` version) remains the
 zero-cost lever for run-to-run identity.

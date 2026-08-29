@@ -32,6 +32,32 @@ Milestones in the raven-toolbox port. For function-level status see
   [ftINIT reproducibility study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md)
   on raven-docs.
 
+* **`ftinit(..., resolve_ties=True, reference_reactions=...)`: anchor a re-extraction to a
+  prior build, for stability rather than just determinism.** `resolve_ties`/`prove_abs_gap`
+  make repeated builds of the *same* input identical; they do nothing for the common case
+  of re-extracting a lightly *edited* template (a curation, or a comparable-but-distinct
+  sample) — the MILP re-solves globally and can flip genes that have nothing to do with
+  the edit, because the degenerate optimum is a discontinuous function of the input.
+  `reference_reactions` (requires `resolve_ties=True`) is a set of reaction ids a reference
+  build kept; it adds a phase, ahead of parsimony/id-rank, that prefers the tied solution
+  closest to the reference — applied to both the main extraction (translated through merge
+  groups automatically) and the task gap-fill (`fill_tasks(..., reference_reactions=...)`,
+  no translation needed there). It can only ever resolve a genuine tie, never suppress a
+  real difference: the reference phase runs after the primary score objective is fixed at
+  the sample's own optimum, so a reaction the data actually prefers is locked in before the
+  reference is ever consulted (tested directly). **Measured on Human-GEM/DLD1**: removing
+  30 reactions the reference build never used (a null-ish edit — a perfectly stable
+  extractor shows zero downstream change) and re-extracting, baseline flips 13 genes
+  essential and drops growth 14%; anchored to the reference, only 1 gene flips and growth
+  barely moves (−0.01%) — a **13× reduction** in spurious essential-gene drift. Also fixes
+  two consistency gaps in the sibling gap-fill tie-break (`_resolve_ties_fill`) found while
+  extending it: the same non-finite-objective guard `resolve_ties` already had, and the
+  same unproven-tie-break warning. Warns if a given `reference_reactions` translates to
+  nothing (wrong id namespace, or an unrelated reference model) rather than silently having
+  no effect. Full measurement and the two workflows this targets — curation, comparable
+  samples — in the same
+  [ftINIT reproducibility study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md).
+
 ## 0.4.0 — 2026-08-28
 
 A `raven-gecko-parity` cross-validation harness went live this release and immediately paid for itself:
