@@ -60,6 +60,9 @@ def run_blast(
 ) -> pd.DataFrame:
     """Bidirectional BLAST+ between an organism and template organisms.
 
+    ``model_ids`` and ``ref_fastas`` are parallel: ``ref_fastas[i]`` is the
+    reference proteome for template ``model_ids[i]``.
+
     Returns the hits DataFrame (filtered at
     ``evalue``). Requires BLAST+ (`blastp`, `makeblastdb`).
 
@@ -108,6 +111,11 @@ def run_diamond(
 ) -> pd.DataFrame:
     """Bidirectional DIAMOND between an organism and template organisms.
 
+    ``model_ids`` and ``ref_fastas`` are parallel: ``ref_fastas[i]`` is the
+    reference proteome for template ``model_ids[i]``. ``sensitivity`` is
+    passed straight through as a DIAMOND CLI flag (e.g. ``"--more-sensitive"``,
+    ``"--sensitive"``, or ``""`` to use DIAMOND's default fast mode).
+
     Returns the hits DataFrame. Requires DIAMOND.
 
     The default matches MATLAB RAVEN's ``getDiamond``, which passes no
@@ -144,9 +152,8 @@ def run_diamond(
 
 
 def blast_from_table(source: str | Path | pd.DataFrame) -> pd.DataFrame:
-    """Load a precomputed homology hits table (CSV path or DataFrame).
+    """Load a precomputed homology hits table (CSV path or DataFrame, not Excel).
 
-    a plain CSV/DataFrame, not Excel.
     Must contain the ``HIT_COLUMNS`` columns.
     """
     # Force gene-id columns to str: an all-numeric gene-id column (e.g. Entrez ids)

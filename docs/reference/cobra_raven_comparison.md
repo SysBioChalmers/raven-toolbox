@@ -116,7 +116,7 @@ COBRA has capabilities that RAVEN lacks entirely.
   giving finer granularity on gene confidence than BLAST alone.
 - **ftINIT quality**: For human tissue-specific models based on HPA/GTEx protein/RNA data,
   ftINIT (RAVEN) is the state-of-the-art; COBRA's equivalent methods (GIMME, iMAT, FASTCORE)
-  predate it and are generally less accurate on human models.
+  predate it and are less accurate on human models.
 
 ---
 

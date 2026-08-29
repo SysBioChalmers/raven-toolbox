@@ -1,10 +1,10 @@
-"""Phase 4d.3: the single-step ftINIT MILP (run_ftinit).
+"""The single-step ftINIT MILP (run_ftinit).
 
 Validated on the testModel oracle against (a) a hand-checked score-optimal solution,
 (b) the formulation invariants, and (c) exact agreement with the already-tested
 run_init. The full-pipeline RAVEN outputs (tinitTests T0001/T0002) additionally
-involve linear merge + the toIgnore masks + staging + exchange re-adding, layered on
-in 4d.2/4d.3b/4d.5.
+involve linear merge + the toIgnore masks + staging + exchange re-adding, covered
+elsewhere.
 
 Note on the toy result: with strict mass balance and no metabolite-production reward
 (ftINIT, unlike classic INIT, only rewards metabolomics-detected mets), the
@@ -140,7 +140,7 @@ def test_forced_flux_lower_bound_is_respected():
 
 
 # --------------------------------------------------------------------------- #
-# canonical (deterministic uniqueness) — Tier 2 item 4.
+# canonical (deterministic uniqueness).
 # --------------------------------------------------------------------------- #
 def _degenerate_model():
     """Two interchangeable negative-score reactions (R1, R2) both feed an essential E.

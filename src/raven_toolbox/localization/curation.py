@@ -153,9 +153,14 @@ def curation_priority(
     already-flagged placements only (base priority ``>= essential_candidate_threshold``) and multiplies
     their score by ``1 + 0.6`` when removing them drops the *materialised* model's growth to near zero.
     Essentiality is measured against the applied model's own achievable growth, not the assignment's
-    (heuristic) ``min_growth`` floor, and is skipped entirely if the materialised model cannot beat that
-    floor (where the test could not discriminate). Set ``check_essential=False`` to skip the only
+    heuristic growth floor, and is skipped entirely if the materialised model cannot beat that floor
+    (where the test could not discriminate) — pass ``min_growth`` to override the floor used for this
+    comparison (default: the proposal's own floor). Set ``check_essential=False`` to skip the only
     non-cheap signal.
+
+    ``currency_metabolites`` extends the built-in currency/cofactor set (ATP, NAD(P)H, H+, H2O, CoA, Pi,
+    ...) that is excluded from the topology signals — pass ids or names for any organism-specific pool
+    that should also count as freely available.
 
     A reaction whose ``localization`` confidence has been marked ``curated`` (via
     :func:`~raven_toolbox.confidence.mark_curated`, e.g. after a curator settled its placement) is

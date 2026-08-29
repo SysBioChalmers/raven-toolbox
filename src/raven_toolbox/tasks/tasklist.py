@@ -120,8 +120,8 @@ def parse_task_list(path: str | Path) -> list[Task]:
             )
             tasks.append(current)
         if current is None:
-            # Continuation row appearing before any task ID: silently dropping it
-            # used to mask malformed task files. Warn (and skip) so the user sees it.
+            # Continuation row appearing before any task ID: warn and skip rather than
+            # silently dropping it, which would mask malformed task files.
             if any(cell(row, c) for c in _DATA_COLS):
                 warnings.warn(
                     f"{path}: row {row_no} carries task data but no task ID has "

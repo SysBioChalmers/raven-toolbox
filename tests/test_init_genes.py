@@ -1,4 +1,4 @@
-"""Phase 4d.5: remove_low_score_genes — the three RAVEN docstring oracle cases.
+"""remove_low_score_genes — the three RAVEN docstring oracle cases.
 
 Scores use distinct values to avoid the random tie-break RAVEN mentions when all
 isozyme alternatives are negative.

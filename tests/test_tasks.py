@@ -54,8 +54,8 @@ def test_parse_missing_id_column(tmp_path):
 
 
 def test_parse_warns_on_data_row_before_first_id(tmp_path):
-    """known_issues.md B3: continuation rows appearing before the first task ID
-    used to be silently dropped. Now warns so the user sees the malformed file."""
+    """Continuation rows appearing before the first task ID are malformed input;
+    parse_task_list warns instead of silently dropping them."""
     p = tmp_path / "orphan.txt"
     p.write_text(
         "ID\tDESCRIPTION\tIN\tIN UB\tOUT\tOUT UB\tSHOULD FAIL\n"
@@ -70,8 +70,8 @@ def test_parse_warns_on_data_row_before_first_id(tmp_path):
 
 
 def test_parse_task_list_xlsx_missing_tasks_sheet(tmp_path):
-    """A .xlsx without a 'TASKS' sheet used to raise a bare KeyError; now
-    raises a clear ValueError naming the actual sheets (known_issues.md C3)."""
+    """A .xlsx without a 'TASKS' sheet raises a ValueError naming the sheets
+    that are actually present."""
     pytest.importorskip("openpyxl")
     from openpyxl import Workbook
 
@@ -170,9 +170,9 @@ def test_unknown_metabolite_reported(model):
 
 
 def test_open_exchange_is_closed_so_task_controls_io(model):
-    # An open demand for B would let B leave for free; check_tasks closes it, so a
-    # task with no output for B and a forced... here: B has an open sink, but the
-    # task defines only input A and no output -> B must still balance (sink closed).
+    # An open sink would let B leave for free, but check_tasks closes all boundary
+    # reactions first. The task defines input A but no output for B, so B must still
+    # balance even though the sink existed.
     model.add_boundary(model.metabolites.B_c, type="sink")  # open B sink
     task = Task("need_D_out", inputs=[("A[c]", 0, 1000)], outputs=[("D[c]", 1, 1000)])
     (res,) = check_tasks(model, [task])

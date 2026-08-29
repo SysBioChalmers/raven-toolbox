@@ -1,4 +1,4 @@
-"""Tests for the INIT MILP (init/init.py, Phase 4c)."""
+"""Tests for the INIT MILP (init/init.py)."""
 import cobra
 import pytest
 from cobra.exceptions import OptimizationError
@@ -12,8 +12,8 @@ def _met(mid):
 
 @pytest.fixture
 def model(linear_chain_model):
-    # The linear-chain INIT model now lives in tests/conftest.py (it was built
-    # identically here, in test_init_build.py and test_init_solvers.py).
+    # Shared linear-chain INIT model, defined in tests/conftest.py (also used by
+    # test_init_build.py and test_init_solvers.py).
     return linear_chain_model
 
 

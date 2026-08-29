@@ -64,12 +64,12 @@ def test_charge_excluded(model):
     assert res.status == "balanced"
 
 
-# --- regression: empty reaction → unknown (known_issues.md F5) -------------
+# --- regression: empty reaction → unknown -----------------------------------
 
 def test_empty_reaction_is_unknown(model):
-    """A reaction with no metabolites used to be reported `balanced`
-    vacuously (any() over an empty list is False and check_mass_balance
-    returns no imbalance). Now reports `unknown`."""
+    """A reaction with no metabolites is reported `unknown`, not `balanced`:
+    any() over an empty list is False, so check_mass_balance would otherwise
+    report no imbalance."""
     empty = cobra.Reaction("R_empty", lower_bound=0, upper_bound=1000)
     model.add_reactions([empty])
     (res,) = get_elemental_balance(model, ["R_empty"])

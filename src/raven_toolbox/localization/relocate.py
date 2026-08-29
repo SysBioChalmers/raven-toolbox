@@ -67,6 +67,8 @@ class RelocationResult:
                                 base_metabolite=base_metabolite, universal=universal)
 
     def summary(self) -> str:
+        """Human-readable report of the relocation: reactions moved, transports changed, and the
+        growth outcome."""
         lines = [f"relocated {len(self.moved)} reaction(s) "
                  f"({len(self.co_moved)} co-moved for gene consistency)"]
         for rid, (frm, to) in self.moved.items():

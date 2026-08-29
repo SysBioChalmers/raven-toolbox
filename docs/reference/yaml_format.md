@@ -290,7 +290,7 @@ In a double-quoted string, only `\` and `"` are escaped. Other characters (inclu
 
 | File written by ↓ \ Reader → | cobrapy | raven-toolbox | RAVEN MATLAB |
 |---|---|---|---|
-| cobrapy (`save_yaml_model`) | full | full + extras land in `notes` via attribute fall-through | works for root-level `id` / `name` / `version` (added in this release) |
+| cobrapy (`save_yaml_model`) | full | full + extras land in `notes` via attribute fall-through | works for root-level `id` / `name` / `version` |
 | raven-toolbox (`write_yaml_model`) | core (no `metaData`-derived `id`); RAVEN extras live as unknown top-level keys but don't break parsing | full | full |
 | RAVEN MATLAB (`writeYAMLmodel`) | core (no `metaData`-derived `id`); RAVEN extras land via attribute fall-through | full | full |
 
@@ -314,19 +314,3 @@ Loading `yeast-GEM.yml` (2748 metabolites, 4102 reactions, 1143 genes) and re-wr
 | reactions with notes (rxnNotes) | 1443 |
 
 (Cobrapy round-trips give 2748 / 4102 / 1143 for the core but drop the RAVEN extensions in the rightmost column — that's the documented loss.)
-
----
-
-## What changed in `feat/yeast-gem-shared`
-
-- raven-toolbox writer no longer drops `!!omap` tags (was producing files RAVEN MATLAB's reader couldn't load).
-- raven-toolbox now preserves `eccodes` and accepts the legacy `rxnNotes` reaction key on read.
-- RAVEN MATLAB writer reorders metabolite / reaction fields to match cobrapy.
-- RAVEN MATLAB writer renames the reaction `rxnNotes` key to `notes` and emits SMILES inside the annotation block (still accepts both shapes on read).
-- RAVEN MATLAB writer's `preserveQuotes` default is now `false`; values that need quoting (SMILES with `[O-]`, leading flow indicators, booleans, `: `-containing strings) are quoted defensively per value.
-- RAVEN MATLAB writer emits whole-number bounds as `1000.0` (matches cobrapy / Python float repr) instead of `1000`.
-- RAVEN MATLAB reader accepts cobrapy's root-level `id` / `name` / `version` / `gecko_light`, the `!!omap`-tagged `metaData` header, and `notes` (canonical) in addition to `rxnNotes` (legacy).
-- Empty `reaction.metabolites` blocks are emitted as `!!omap []` (valid YAML 1.2) rather than an empty `!!omap` with no value.
-- Document-start marker `---` dropped to match cobrapy's bare `!!omap` root.
-
-These changes are byte-stable for cobrapy and raven-toolbox users; existing yeast-GEM YAML files continue to load. The first time a yeast-GEM curation pass rewrites the file with the new MATLAB writer, the diff will look large (because of the reordering and quote-style changes) but the model content is unchanged.

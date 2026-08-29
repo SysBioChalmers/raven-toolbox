@@ -84,11 +84,11 @@ def test_unknown_metabolite_raises(model):
         add_transport_reactions(model, "c", "m", ["NOPE"])
 
 
-# --- regression: duplicate name in compartment (known_issues.md A4) --------
+# --- regression: duplicate name in compartment ------------------------------
 
 def test_duplicate_name_in_source_compartment_warns(model):
     """Two source mets sharing a name in the same compartment warn instead of
-    silently collapsing — previously one was dropped from the lookup dict."""
+    silently collapsing to one."""
     model.add_metabolites([
         cobra.Metabolite("h2o2_c", name="H2O", compartment="c"),  # duplicate name
     ])

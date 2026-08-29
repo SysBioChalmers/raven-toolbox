@@ -26,7 +26,7 @@ def test_subsystem_to_str_joins_list_without_data_loss():
 
 
 def test_subsystem_to_str_coerces_non_string_items():
-    # Non-string items must not crash (the old excel.py ";".join did).
+    # Non-string items must not crash on join.
     assert subsystem_to_str([1, "name"]) == "1;name"
 
 
@@ -45,7 +45,7 @@ def test_excel_export_handles_list_subsystem(tmp_path):
     r = cobra.Reaction("R1", lower_bound=-1000, upper_bound=1000)
     model.add_reactions([r])
     r.add_metabolites({a: -1, b: 1})
-    r.subsystem = ["glycolysis", "TCA cycle"]  # list, would crash old ";".join
+    r.subsystem = ["glycolysis", "TCA cycle"]  # list subsystem, not a plain string
 
     out = tmp_path / "m.xlsx"
     export_to_excel(model, out)

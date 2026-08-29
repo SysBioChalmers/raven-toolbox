@@ -114,9 +114,9 @@ def test_too_few_good_reactions(model):
 def test_good_reactions_keeps_reactions_at_default_bound():
     """A legitimate reaction reaching the model's 1000 bound is not dropped as a loop.
 
-    Regression: the old loop_bound>=1000 test wrongly excluded any reaction that
-    reaches the default bound. Loopless FVA keeps it (real flux) and still drops a
-    closed loop.
+    Reaching the default bound alone is not evidence of a closed loop -- loopless
+    FVA distinguishes a real flux-carrying reaction (kept) from an actual closed
+    cycle (dropped).
     """
     m = cobra.Model("b")
     a, b = (cobra.Metabolite(x, compartment="c") for x in "ab")

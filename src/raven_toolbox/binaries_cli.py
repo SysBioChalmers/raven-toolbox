@@ -33,6 +33,11 @@ def _print_sets() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse CLI arguments and provision the requested binaries.
+
+    Prints a per-tool status line and returns the process exit code: ``0`` if
+    every tool ended up present or downloaded, ``1`` if any download failed.
+    """
     parser = argparse.ArgumentParser(
         prog="raven-toolbox-binaries",
         description="Download raven-toolbox's external binaries for this platform.",

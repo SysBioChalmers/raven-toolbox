@@ -21,8 +21,9 @@ from raven_toolbox.manipulation.add import _new_met_id
 def _index_by_name(mets: Iterable[Metabolite], compartment: str) -> dict[str, Metabolite]:
     """Index metabolites by name, warning when a name is duplicated.
 
-    Same-name duplicates in a single compartment are unusual but legal in cobra,
-    and the previous one-pass dict comprehension silently dropped all but one.
+    Same-name duplicates in a single compartment are unusual but legal in
+    cobra; a plain dict keyed by name would silently drop all but one, so
+    this warns and keeps the first.
     """
     out: dict[str, list[Metabolite]] = {}
     for m in mets:

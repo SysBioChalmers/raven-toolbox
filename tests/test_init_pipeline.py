@@ -1,4 +1,4 @@
-"""Phase 4d.3b: the staged ftINIT pipeline (prep_init_model + get_init_steps + ftinit).
+"""The staged ftINIT pipeline (prep_init_model + get_init_steps + ftinit).
 
 Oracles: RAVEN tinitTests T0001/T0002 on testModel with the default '1+1' schedule.
 """
@@ -162,7 +162,7 @@ def test_essential_merged_away_is_skipped():
 
 
 # --------------------------------------------------------------------------- #
-# strict_gap / canonical (deterministic extraction) — Tier 2 items 4 & 5.
+# strict_gap / canonical (deterministic extraction).
 # These are opt-in; the default path stays exact-RAVEN. On the toy oracle they must
 # reproduce T0001 (no regression) and be run-to-run identical.
 # --------------------------------------------------------------------------- #

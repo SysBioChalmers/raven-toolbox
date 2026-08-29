@@ -1,16 +1,14 @@
-# Known issues — deferred findings from the full-codebase review
+# Known issues — findings from the full-codebase review
 
-Low-priority issues found during the 2026-05-26 full critical review (see PROGRESS
-commits `db5a1fa`, `2b85830` for the bugs that *were* fixed). These are deliberately
-not fixed yet: each is an edge case, robustness gap, efficiency concern, dead code, or
-a documented design choice — none affects correctness on normal, well-formed inputs.
-Line numbers are indicative; refer to the named function.
+Low-priority issues found during the 2026-05-26 full critical review: each is an edge
+case, robustness gap, efficiency concern, dead code, or a documented design choice —
+none affects correctness on normal, well-formed inputs. All have since been fixed;
+kept here for reference. Line numbers are indicative; refer to the named function.
 
 ## A. Latent edge-case bugs
 
-All six items in this section were closed in a quality-sweep pass (see CHANGELOG
-"Quality sweep" entry); regression tests live alongside each fixed function. Kept
-here for traceability of the original review.
+All six items in this section have been fixed; regression tests live alongside each
+fixed function.
 
 - ✅ **`manipulation/add.py` — `add_reactions_from_equations` (name mode):** a
   metabolite whose *name* starts with a number (e.g. `"2 oxoglutarate"`) was
@@ -40,9 +38,8 @@ here for traceability of the original review.
 
 ## B. Silent misbehaviour on unusual inputs
 
-All four items in this section were closed in a quality-sweep pass (see CHANGELOG
-"Quality sweep — known-issues section B" entry); regression tests live alongside
-each fixed function. Kept here for traceability of the original review.
+All four items in this section have been fixed; regression tests live alongside each
+fixed function.
 
 - ✅ **`manipulation/merge.py` — `merge_models`:** name[comp]-matched metabolites
   with differing `formula` or `charge` across models now warn instead of silently
@@ -65,8 +62,8 @@ each fixed function. Kept here for traceability of the original review.
 
 ## C. Robustness gaps
 
-All four items closed in the same quality sweep (see CHANGELOG); regression
-tests live alongside each fixed function.
+All four items in this section have been fixed; regression tests live alongside each
+fixed function.
 
 - ✅ **`manipulation/simplify.py` — `constrain_reversible_reactions`:** the
   FVA call is now wrapped in a try/except + NaN check; both backend-raised
@@ -108,8 +105,8 @@ tests live alongside each fixed function.
 
 ## F. Documented design choices that differ from RAVEN (not bugs)
 
-All five items addressed in the quality-sweep pass (see CHANGELOG). The three
-docstring/comment items got documentation fixes; the two correctness items
+All five items in this section have been fixed. The three docstring/comment items
+got documentation fixes; the two correctness items
 (F3, F5) got code fixes plus matching RAVEN-back-port proposals in
 [IMPROVEMENTS.md](improvements.md) (FS4, B2).
 
@@ -132,8 +129,6 @@ docstring/comment items got documentation fixes; the two correctness items
   Internally consistent; same information available via the up/down `gene_fold_changes`
   partition.
 - ✅ **`utils/balance.py` — `get_elemental_balance`:** empty-stoichiometry
-  reactions now report `unknown` instead of `balanced`. (Original review
-  attributed the bug to `utils/validate.py::check_model`; the actual code
-  lives in `balance.py`.) Matching MATLAB back-port proposed as
-  IMPROVEMENTS B2. Test
+  reactions now report `unknown` instead of `balanced`. Matching MATLAB
+  back-port proposed as IMPROVEMENTS B2. Test
   `tests/test_utils_balance.py::test_empty_reaction_is_unknown`.

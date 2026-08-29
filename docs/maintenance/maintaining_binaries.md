@@ -10,7 +10,7 @@ to build **minimal-footprint** ZIPs to attach to a GitHub release.
 
 > **Hosting & the fast path.** Assets are hosted in the
 > [`raven-data`](https://github.com/SysBioChalmers/raven-data) repo, and the manual
-> ZIP-building steps below (§3–§7) are now **automated**: the current bundles are
+> ZIP-building steps below (§3–§7) are **automated**: the bundles are
 > produced from RAVEN's vetted `software/` binaries by
 > [`scripts/build_binary_bundles.py`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/scripts/build_binary_bundles.py)
 > and published with `publish_to_raven_data.py`. See

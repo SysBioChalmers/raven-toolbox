@@ -84,6 +84,8 @@ class BiomassConfig:
         proton_met: str,
         components: Iterable[BiomassComponent],
     ) -> BiomassConfig:
+        """Alternate constructor: build a :class:`BiomassConfig` from any iterable
+        of components (equivalent to calling the class directly)."""
         return cls(biomass_rxn=biomass_rxn, proton_met=proton_met,
                    components=tuple(components))
 

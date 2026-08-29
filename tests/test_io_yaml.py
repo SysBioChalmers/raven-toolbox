@@ -1,4 +1,4 @@
-"""Tests for raven_toolbox.io.yaml against the RAVEN fa281a1 (cobra-native !!omap) schema."""
+"""Tests for raven_toolbox.io.yaml against the RAVEN cobra-native (!!omap) schema."""
 from pathlib import Path
 
 import cobra
@@ -7,7 +7,7 @@ from cobra.io.yaml import yaml as cobra_yaml
 
 from raven_toolbox.io import read_yaml_model, write_yaml_model
 
-# A model laid out exactly as RAVEN writeYAMLmodel (fa281a1) emits: cobra-native
+# A model laid out exactly as RAVEN writeYAMLmodel emits: cobra-native
 # structure, RAVEN-only fields as top-level per-entry keys, smiles/ec-code inside
 # the annotation block, metaData provenance-only, id/name/version top-level,
 # plus the GECKO ec-* sections that populate `model.ec`.
