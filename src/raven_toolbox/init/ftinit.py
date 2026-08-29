@@ -735,8 +735,11 @@ def ftinit(
     once (via ``prep.group_of``) into every step's merged-reaction id space, so it is
     safe to pass the reactions of a model built from a *different* (e.g. edited) prep, as
     long as it shares this prep's underlying template — ids absent from this prep are
-    silently ignored. This does not eliminate re-selection drift, only reduces it — see
-    the raven-docs reproducibility study for measurements once available.
+    silently ignored. The same set (untranslated — gap-fill candidates are already
+    ``ref_model`` ids) also anchors the task gap-fill, when ``fill_gaps`` is on — see
+    :func:`raven_toolbox.init.fill_tasks`'s own ``reference_reactions``. This does not
+    eliminate re-selection drift, only reduces it — see the raven-docs reproducibility
+    study for measurements once available.
     """
     if metabolomics:
         raise NotImplementedError(
@@ -816,7 +819,8 @@ def ftinit(
         # The gap-fill MILP is its own problem (RAVEN ftINITFillGaps); it uses RAVEN's
         # fixed per-task 300 s limit and seed, not the main extraction's time_limit.
         out = fill_tasks(out, prep.ref_model, prep.tasks, rxn_scores=rxn_scores,
-                         resolve_ties=resolve_ties).model
+                         resolve_ties=resolve_ties,
+                         reference_reactions=reference_reactions).model
     if gene_scores is not None:   # prune negative-scoring genes from the GPRs
         out, _ = remove_low_score_genes(out, gene_scores)
     return out

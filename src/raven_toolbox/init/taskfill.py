@@ -14,6 +14,7 @@ inputs/outputs come from the task's ``b``), so they are excluded as candidates.
 """
 from __future__ import annotations
 
+import math
 import warnings
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -125,7 +126,8 @@ def _set_fill_solver(model: cobra.Model, time_limit: float | None, seed: int) ->
             model.solver.configuration.timeout = int(time_limit)
 
 
-def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit) -> list[str] | None:
+def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit,
+                       reference: set[str] | None = None) -> list[str] | None:
     """Pin the degenerate min-cost gap-fill to a single, reproducible set (on ``work``).
 
     Like the extraction MILP, the fill has many equal-cost solutions and the solver returns
@@ -133,6 +135,13 @@ def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit) -> list[st
     minimise the number of added reactions and then their summed id rank — both integer
     objectives, provable with a cheap absolute gap below 1. Returns the chosen reaction ids,
     or ``None`` if a phase did not converge (the caller then keeps the arbitrary min-cost fill).
+
+    ``reference`` (opt-in), a set of reference-model reaction ids a prior fill added,
+    inserts a phase before parsimony that minimises disagreement with it — same
+    lexicographic idea and mechanics as :func:`raven_toolbox.init.ftinit._resolve_ties`'s
+    own ``reference`` parameter (stability, not just determinism). Candidates are already
+    in ``reference_model`` id space here, so unlike the main extraction this needs no
+    merge-group translation.
     """
     yvars = {cid: work.variables[f"_fill_{cid}"] for cid in candidates}
     primary_cost = work.objective.value or 0.0
@@ -155,6 +164,19 @@ def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit) -> list[st
         except Exception:  # noqa: BLE001 - non-Gurobi backend: status is authoritative
             return True
 
+    if reference:
+        # Phase R: among the min-cost fills, minimise disagreement with the reference
+        # (signed sum — see _resolve_ties for why the dropped constant doesn't matter).
+        mismatch = add([mul([Real(-1.0 if cid in reference else 1.0), y])
+                        for cid, y in yvars.items()])
+        if not _phase(prob.Objective(mismatch, direction="min")):
+            return None
+        rmin = work.objective.value
+        if rmin is None or not math.isfinite(rmin):
+            rmin = sum(-1.0 if cid in reference else 1.0
+                      for cid, y in yvars.items() if (y.primal or 0.0) > 0.5)
+        work.add_cons_vars([prob.Constraint(mismatch, ub=rmin + 0.5, name="_fill_ref_floor")])
+
     # fewest added reactions (parsimony) ...
     if not _phase(prob.Objective(count, direction="min")):
         return None
@@ -171,7 +193,7 @@ def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit) -> list[st
 def _gap_fill_task(
     reference_model: cobra.Model, present_ids: set[str], task: Task,
     costs: dict[str, float], *, time_limit: float | None, seed: int,
-    resolve_ties: bool = False,
+    resolve_ties: bool = False, reference_reactions: set[str] | None = None,
 ) -> list[str]:
     """Min-cost reference reactions that make ``task`` feasible (RAVEN ``ftINITFillGaps``).
 
@@ -228,7 +250,8 @@ def _gap_fill_task(
     # best-effort: pin the degenerate min-cost fill to the fewest, lowest-id
     # reactions so the added set does not depend on the solver seed/version.
     if resolve_ties:
-        canon = _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit)
+        canon = _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit,
+                                   reference=reference_reactions)
         if canon is not None:
             chosen = canon
     return chosen
@@ -243,6 +266,7 @@ def fill_tasks(
     time_limit: float | None = _FILL_TIME_LIMIT,
     seed: int = _FILL_SEED,
     resolve_ties: bool = False,
+    reference_reactions: Iterable[str] | None = None,
 ) -> TaskFillResult:
     """Add minimum-cost reference reactions so every task is feasible in ``model``.
 
@@ -257,12 +281,22 @@ def fill_tasks(
     degenerate min-cost fill to the fewest, lowest-id reactions so the added set does not
     depend on the solver seed/version — see :func:`_resolve_ties_fill`.
 
+    ``reference_reactions`` (requires ``resolve_ties=True``) is a set of reference-model
+    reaction ids — e.g. a prior build's ``added_reactions`` — that each task's fill should
+    prefer to match, ahead of parsimony/id-rank, among its equal-cost solutions. Candidates
+    are already ``reference_model`` ids, so (unlike :func:`raven_toolbox.init.ftinit`'s own
+    ``reference_reactions``) no id translation is needed; passing the *same* set used there
+    is the intended use.
+
     Boundary reactions are closed while testing/solving each task, so task inputs and outputs
     come solely from the task's ranged metabolite bounds (RAVEN gap-fills the exchange-free
     model). The returned model keeps its boundary reactions. Tasks that could not be filled
     are returned in ``failed_tasks`` **and** raised as a warning — a non-empty list means the
     context model cannot perform those tasks, which callers should not ignore silently.
     """
+    if reference_reactions is not None and not resolve_ties:
+        raise ValueError("reference_reactions requires resolve_ties=True.")
+    ref_set = None if reference_reactions is None else set(reference_reactions)
     scores = dict(rxn_scores or {})
     tasks = list(tasks)
 
@@ -281,7 +315,8 @@ def fill_tasks(
                  for r in reference_model.reactions if r.id not in present and not r.boundary}
         try:
             chosen = _gap_fill_task(reference_model, present, task, costs,
-                                    time_limit=time_limit, seed=seed, resolve_ties=resolve_ties)
+                                    time_limit=time_limit, seed=seed,
+                                    resolve_ties=resolve_ties, reference_reactions=ref_set)
         except OptimizationError:
             failed.append(task.id)
             continue

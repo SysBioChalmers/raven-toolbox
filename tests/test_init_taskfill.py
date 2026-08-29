@@ -182,3 +182,52 @@ def test_resolve_ties_gap_fill_breaks_tie_by_id():
     res = fill_tasks(gapped, ref, [task], resolve_ties=True)
     assert res.added_reactions == ["RA"]
     assert not res.failed_tasks
+
+
+def test_reference_reactions_redirects_gap_fill_tie_break():
+    """reference_reactions flips the gap-fill's tie-break, ahead of the id-rank default.
+
+    Same degenerate fixture as the id-rank test above: without a reference, resolve_ties
+    picks RA (lower id); anchored to a reference that used RB, it must pick RB instead.
+    """
+    import cobra
+
+    from raven_toolbox.tasks import Task
+
+    ref = cobra.Model("ref")
+    A, M, P = (cobra.Metabolite(x, name=x, compartment="s") for x in ("A", "M", "P"))
+    ref.add_metabolites([A, M, P])
+    RA = cobra.Reaction("RA", lower_bound=0, upper_bound=1000)
+    RA.add_metabolites({A: -1, M: 1})
+    RB = cobra.Reaction("RB", lower_bound=0, upper_bound=1000)
+    RB.add_metabolites({A: -1, M: 1})
+    RP = cobra.Reaction("RP", lower_bound=0, upper_bound=1000)
+    RP.add_metabolites({M: -1, P: 1})
+    ref.add_reactions([RA, RB, RP])
+    task = Task(id="mkP", inputs=[("A[s]", 0.0, 1000.0)], outputs=[("P[s]", 1.0, 1000.0)])
+
+    gapped = ref.copy()
+    gapped.remove_reactions(["RA", "RB"], remove_orphans=False)
+    res = fill_tasks(gapped, ref, [task], resolve_ties=True, reference_reactions={"RB"})
+    assert res.added_reactions == ["RB"]
+    assert not res.failed_tasks
+
+
+def test_gap_fill_reference_reactions_requires_resolve_ties():
+    """reference_reactions without resolve_ties is a usage error, not a silent no-op."""
+    import cobra
+    import pytest
+
+    from raven_toolbox.tasks import Task
+
+    ref = cobra.Model("ref")
+    A, P = (cobra.Metabolite(x, name=x, compartment="s") for x in ("A", "P"))
+    ref.add_metabolites([A, P])
+    RA = cobra.Reaction("RA", lower_bound=0, upper_bound=1000)
+    RA.add_metabolites({A: -1, P: 1})
+    ref.add_reactions([RA])
+    task = Task(id="mkP", inputs=[("A[s]", 0.0, 1000.0)], outputs=[("P[s]", 1.0, 1000.0)])
+    gapped = ref.copy()
+    gapped.remove_reactions(["RA"], remove_orphans=False)
+    with pytest.raises(ValueError, match="resolve_ties=True"):
+        fill_tasks(gapped, ref, [task], reference_reactions={"RA"})
