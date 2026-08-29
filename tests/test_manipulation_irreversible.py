@@ -1,6 +1,5 @@
 """Tests for convert_to_irreversible (RAVEN convertToIrrev.m).
 
-Adopted from geckopy's tests/test_preprocess.py (the convert_to_irreversible subset).
 Exchange reactions are excluded from the split, matching MATLAB behavior.
 """
 import cobra

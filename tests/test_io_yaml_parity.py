@@ -149,8 +149,7 @@ def test_output_is_cobra_readable(src, tmp_path):
 
 def test_output_carries_omap_tags(src, tmp_path):
     """RAVEN MATLAB's reader is a line-based parser keyed on ``!!omap``;
-    the writer must emit those tags. (PR #17 originally dropped them
-    because _to_plain flattened OrderedDicts to plain dicts.)"""
+    the writer must emit those tags."""
     model = read_yaml_model(src)
     out = tmp_path / "out.yml"
     write_yaml_model(model, out)
@@ -258,9 +257,8 @@ PRE_SHIM_YAML = """\
 
 
 def test_pre_shim_format_loads(tmp_path):
-    """The pre-`feat/yeast-gem-shared` RAVEN MATLAB writer emitted a
-    file shape that differs from the current one in seven concrete
-    ways. The reader must continue to load every one of them:
+    """The legacy RAVEN MATLAB writer emitted a file shape that differs
+    from the current one in seven concrete ways. The reader must continue to load every one of them:
 
       1. ``---`` document-start marker (kept by old MATLAB writer)
       2. ``- metaData:`` as a plain block mapping (no ``!!omap`` tag)

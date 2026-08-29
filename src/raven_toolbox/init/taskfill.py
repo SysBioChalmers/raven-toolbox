@@ -177,10 +177,10 @@ def _gap_fill_task(
 
     The MILP runs on a **closed copy of the reference model**, which already contains every
     candidate reaction, rather than copying candidates into the target model one at a time.
-    This mirrors RAVEN's ``fullModel = tRefModel`` and is the crucial difference from a naive
-    port: copying the (thousands of) candidate reactions into a genome-scale model per task
-    both dominated the runtime and overflowed the recursion limit, so the growth task's fill
-    never returned an incumbent within the time limit and growth was silently left broken.
+    This mirrors RAVEN's ``fullModel = tRefModel``: copying the (thousands of) candidate
+    reactions into a genome-scale model per task dominates runtime and can overflow the
+    recursion limit, so a per-task copy risks never returning an incumbent within the time
+    limit.
 
     Every reference reaction not already ``present`` in the target model is gated by a binary
     (off ⇒ no flux) and its cost minimised subject to the task's ranged metabolite bounds.

@@ -141,8 +141,5 @@ def save_delta_g_csv(
     return len(rows)
 
 
-# Re-export the cobra Model type for type-checker friendliness; helps
-# IDEs surface the right hints to callers that hand us model.metabolites
-# / model.reactions directly.
 __all__ = ["DELTA_G_MISSING", "load_delta_g_csv", "save_delta_g_csv"]
-_ = cobra  # silence "imported but unused" — used for typing context above
+_ = cobra  # silence "imported but unused" — kept for type-checker/IDE context

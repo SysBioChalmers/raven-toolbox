@@ -113,7 +113,7 @@ def assign_kos(
     negative, so the best (smallest) hit gives ratio 1 and weaker hits give a
     smaller positive ratio.
 
-    Default calibration (see IMPROVEMENTS K15). Cross-validated against the true
+    Default calibration, cross-validated against the true
     KEGG gene→KO annotation of four organisms spanning the prok/euk libraries and
     the well-/lesser-studied axis (*S. cerevisiae*, *Cyanidioschyzon merolae*,
     *E. coli*, *Mycoplasma genitalium*): real annotations score

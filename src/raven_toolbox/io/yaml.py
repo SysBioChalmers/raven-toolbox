@@ -1,8 +1,7 @@
 """Read and write RAVEN/cobrapy YAML models.
 
-Aligned to RAVEN ``writeYAMLmodel.m`` / ``readYAMLmodel.m`` as of the
-``feat/geckopy-compat-yaml`` work (commit fa281a1), whose writer emits **cobra's
-native ``!!omap`` YAML**. Because the format *is* cobra's, the standard model
+Aligned to RAVEN ``writeYAMLmodel.m`` / ``readYAMLmodel.m``, whose writer emits
+**cobra's native ``!!omap`` YAML**. Because the format *is* cobra's, the standard model
 content — id, name, compartments, and per-entry id/name/compartment/formula/
 charge/bounds/gene_reaction_rule/objective_coefficient/subsystem/metabolites and
 the whole ``annotation`` block (which carries ``smiles`` for metabolites,
@@ -213,6 +212,16 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     version = raw.pop("version", None)
     foreign = {k: raw.pop(k) for k in list(raw) if k not in _COBRA_TOP_KEYS}
 
+    # RAVEN MATLAB omits a section entirely when it is empty -- a model with no
+    # genes has no `genes:` block at all, which YAML treats the same as an
+    # absent key. But a *present*, bare `genes:` key (nothing after the colon)
+    # parses to `None`, not an empty list, and every `raw.get(section)` call
+    # below would then iterate over `None` and crash. Normalise both shapes to
+    # `[]` up front, before anything reads these keys.
+    for section in ("metabolites", "reactions", "genes"):
+        if raw.get(section) is None:
+            raw[section] = []
+
     # Legacy quirk: per-metabolite top-level `smiles` -> annotation.smiles.
     # Done before model_from_dict so cobra sees the annotation in its
     # canonical place. No-op on current files.
@@ -255,13 +264,6 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     met_notes = _capture_entry_fields(raw.get("metabolites", []), _MET_FIELDS)
     rxn_notes = _capture_entry_fields(raw.get("reactions", []), _RXN_FIELDS)
     gene_notes = _capture_entry_fields(raw.get("genes", []), _GENE_FIELDS)
-
-    # RAVEN MATLAB omits a section entirely when it is empty -- a model with no
-    # genes has no ``genes:`` block at all. cobra's ``model_from_dict`` indexes
-    # these keys directly and raises ``KeyError``, so a valid RAVEN file would
-    # not load. Supply the empty lists it expects.
-    for section in ("metabolites", "reactions", "genes"):
-        raw.setdefault(section, [])
 
     model = model_from_dict(raw)
 
@@ -747,6 +749,15 @@ def write_yaml_model(
     for gene in doc.get("genes", []) or ():
         if isinstance(gene, dict) and gene.get("name") == "":
             gene.pop("name", None)
+
+    # Same deal for gene_reaction_rule: cobra's _reaction_to_dict always
+    # emits it (also a required attribute), but a GPR-less reaction reads
+    # back the same way with the key absent — cobra defaults it to '',
+    # and nothing here ever indexes the key directly — so RAVEN MATLAB
+    # drops it too. Match that rather than cobra's own convention.
+    for rxn in doc.get("reactions", []) or ():
+        if isinstance(rxn, dict) and rxn.get("gene_reaction_rule") == "":
+            rxn.pop("gene_reaction_rule", None)
 
     # ec sections come from the typed model.ec (when present), not from the
     # opaque foreign-keys stash. Drop any stale ec-* entries in `foreign` so

@@ -113,9 +113,6 @@ def test_reversible_reaction_allows_reverse_scope(chain_with_gap):
     result = analyse_topology(
         draft, template, seeds=["C_c"], targets=["A_c"], verbose=False
     )
-    # C -> B via reverse of r2? No — r2 is irreversible (lb=0)
-    # But B -> A via reverse of r1 (lb=-1000)?
-    # Seeds start from C_c. r2 fires forward: needs B (not reachable from C alone).
-    # r1 in reverse: substrate in reverse = B (not reachable). So A is not reachable.
-    # This test verifies the function runs without error.
+    # r2 is irreversible, so scope still can't reach B (and hence A) from seed
+    # C_c even with r1 now reversible; this only exercises the reverse-scope path.
     assert isinstance(result, TopologicalAnalysisResult)

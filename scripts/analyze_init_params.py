@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parameter calibration for (f)tINIT — intrinsic speed/quality sweeps (Phase 4d.7).
+"""Parameter calibration for (f)tINIT — intrinsic speed/quality sweeps.
 
 Genome-scale benchmark that sweeps the MILP/conditioning parameters of raven_toolbox's
 :func:`raven_toolbox.init.run_ftinit`, :func:`raven_toolbox.init.ftinit`, :func:`run_init`, and

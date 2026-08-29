@@ -1,8 +1,8 @@
 # Cross-language parity checks
 
 These tests answer one question: **does raven-toolbox still agree with MATLAB
-RAVEN?** Until now that agreement was reported in study documents and nothing
-would fail if it stopped being true.
+RAVEN?** Cross-language agreement is otherwise only reported in study documents,
+where nothing fails if it stops being true.
 
 Run them with:
 
@@ -26,7 +26,7 @@ parsing, gene-association normalisation, elemental balance, identifier sorting,
 model merging, reversibility splitting, KEGG table parsing. Values must match.
 A disagreement means one implementation is wrong.
 
-Note that *exact* means semantically exact, not byte-identical. RAVEN and
+*Exact* means semantically exact, not byte-identical. RAVEN and
 raven-toolbox both write valid YAML but differ in key order and quoting style,
 which carries no meaning; comparing bytes would test the serialiser's habits
 rather than the model.
@@ -109,11 +109,8 @@ string hashing per process, so a set iterated to build constraint rows gives a
 stable answer within one run and a different one in the next; repeating the call
 in-process cannot see that, so one test runs the computation under three
 `PYTHONHASHSEED` values through `_hashseed_worker.py` and compares digests.
-(That is what `scripts/determinism_probe.py` did by hand while the placement
-determinism fixes were being made.)
 
-It lives here because it protects the same property the parity tiers do — several recent fixes made compartment placement and gap-filling
-deterministic, and nothing would have caught a regression.
+It lives here because it protects the same property the parity tiers do.
 
 ## What is enforced today
 

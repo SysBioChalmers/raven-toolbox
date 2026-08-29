@@ -85,9 +85,9 @@ def build_ko_fastas(
 ) -> dict[str, Path]:
     """Write one ``<KO>.fa`` per KO with its member genes' sequences.
 
-    but with a stdlib offset index instead
-    of the Java-hashtable byte scan. ``organisms`` restricts to a domain's
-    organism codes (for the prok/euk split). Empty KOs are skipped (no file).
+    Uses a stdlib offset index instead of a Java-hashtable byte scan.
+    ``organisms`` restricts to a domain's organism codes (for the prok/euk
+    split). Empty KOs are skipped (no file).
     ``progress`` shows a tqdm bar over the per-KO writing pass. Returns
     ``{ko: path}`` for the files written.
 

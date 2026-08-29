@@ -30,7 +30,9 @@ class ModelComparison:
     All matrices are indexed by id (reactions/metabolites/genes/subsystems) with one
     column per model. ``presence`` matrices are 0/1; ``subsystems`` is the per-model
     reaction count per subsystem. ``similarity`` is the model × model Jaccard on the
-    reaction set (1 = identical, 0 = disjoint).
+    reaction set (1 = identical, 0 = disjoint). ``tasks`` is the per-model task
+    pass/fail matrix (``None`` unless task checking was requested); ``failed_tasks``
+    maps each model id to the failure messages for the tasks it did not pass.
     """
 
     model_ids: list[str]

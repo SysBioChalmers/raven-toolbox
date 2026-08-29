@@ -74,7 +74,7 @@ def test_cc_does_not_mutate_input(model, tmp_path):
 
 def test_collapsing_label_map_warns(model, tmp_path):
     """A label map that sends two distinct ids to the same label silently merges
-    nodes during the target-side dedup. Now warns so the user sees it."""
+    nodes during the target-side dedup; this warns so the collision is visible."""
     with pytest.warns(UserWarning, match="multiple ids to the same label"):
         export_model_to_sif(
             model, tmp_path / "g.sif", "rc",

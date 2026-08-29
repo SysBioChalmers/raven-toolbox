@@ -207,7 +207,9 @@ def prep_init_model(
     infeasible. Then classifies reactions into the omics-independent categories, linearly
     merges, and (unless ``scale=False``) rescales the merged model's stoichiometry
     (:func:`rescale_for_init`) so a single MILP big-M is valid across all reactions —
-    without this, genome-scale ftINIT is infeasible / intractable.
+    without this, genome-scale ftINIT is infeasible / intractable. ``simplify=False``
+    skips RAVEN's dead-end/FVA-blocked removal and reversibility-tightening passes,
+    leaving a larger merged model that may reach a different extraction optimum.
 
     ``essential_cache_path`` makes the (slow, genome-scale) essential-reaction discovery
     **resumable** across interruptions — see :func:`find_task_essential_reactions`.

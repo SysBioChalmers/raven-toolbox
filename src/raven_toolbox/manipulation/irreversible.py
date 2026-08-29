@@ -2,11 +2,6 @@
 
 cobrapy's own ``convert_to_irreversible`` was removed, so this is a genuine
 implementation rather than a wrapper.
-
-Provenance: first written for geckopy
-(``geckopy/ec_model/pipeline/preprocess.py``, makeEcModel stage 4, tagged
-"RAVENpy candidate") and adopted here as its canonical home; geckopy will
-import it from raven_toolbox once raven_toolbox is published.
 """
 from __future__ import annotations
 

@@ -71,7 +71,7 @@ def _reaction_compartment(rxn: cobra.Reaction) -> str | None:
 
 
 def _reaction_genes(rxn: cobra.Reaction) -> list[str]:
-    """Genes on the reaction's GPR (flat list; no AND/OR distinction in this v1)."""
+    """Genes on the reaction's GPR (flat list; no AND/OR distinction)."""
     return [g.id for g in rxn.genes]
 
 

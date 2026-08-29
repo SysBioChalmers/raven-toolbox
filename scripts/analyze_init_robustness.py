@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Robustness of (f)tINIT to degraded transcriptomics input (Phase 4d.7).
+"""Robustness of (f)tINIT to degraded transcriptomics input.
 
 The metabolic-task layer is *always part of the pipeline* — it is what makes the output a
 functional model. The experimental variable here is therefore the **transcriptomics

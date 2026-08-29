@@ -230,14 +230,15 @@ def test_no_arrow_errors(model):
         add_reactions_from_equations(model, [{"id": "R1", "equation": "atp_c + h2o_c"}])
 
 
-# --- regression: leading-number metabolite name (known_issues.md A1) -------
+# --- regression: leading-number metabolite name -------
 
 def test_name_mode_preserves_leading_number_name(model):
     """A metabolite name that begins with a number isn't misparsed as a coefficient.
 
-    Before the fix the token ``"2 oxoglutarate"`` was parsed as ``(coeff=2, name="oxoglutarate")``
-    silently — corrupting the stoichiometry. The resolver now prefers the full
-    token when it matches an existing metabolite name.
+    The resolver prefers a full-token match against an existing metabolite name
+    before falling back to splitting off a leading number as a coefficient --
+    otherwise ``"2 oxoglutarate"`` would parse as ``(coeff=2, name="oxoglutarate")``,
+    silently corrupting the stoichiometry.
     """
     model.add_metabolites([
         cobra.Metabolite("akg_c", name="2 oxoglutarate", compartment="c"),
@@ -263,7 +264,7 @@ def test_name_mode_coefficient_still_works_without_collision(model):
     assert rxn.get_coefficient("atp_c") == -2.0
 
 
-# --- regression: empty-stoichiometry warning (known_issues.md A2) ----------
+# --- regression: empty-stoichiometry warning ----------
 
 def test_empty_stoichiometry_warns(model):
     """All-terms-cancel reaction warns instead of silently shipping an empty rxn."""
@@ -274,11 +275,11 @@ def test_empty_stoichiometry_warns(model):
     assert len(rxn.metabolites) == 0
 
 
-# --- regression: unknown-compartment warning (known_issues.md B2) ----------
+# --- regression: unknown-compartment warning ----------
 
 def test_id_mode_unknown_compartment_warns(model):
-    """A typo'd compartment used to silently produce a one-met ghost compartment
-    in id mode (the name/[comp] path used to validate, id mode never did)."""
+    """Id mode validates unregistered compartments, matching the check the
+    name/[comp] path already applies."""
     with pytest.warns(UserWarning, match="unregistered compartment 'cyto'"):
         add_reactions_from_equations(
             model,

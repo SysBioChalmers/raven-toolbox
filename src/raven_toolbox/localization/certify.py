@@ -583,6 +583,14 @@ def assign_compartments(
     ``transport_cost``
         Accepted for signature compatibility but **not used**: the placement master is flux-free and
         score-only, and ``minimize_transports`` prunes transports by flux (pFBA), not by cost.
+    ``multi_compartment_penalty``
+        Weight (default ``0.5``) that discourages the primary placement pass from spreading one gene's
+        support across multiple compartments; higher values consolidate a gene's placement more
+        aggressively.
+    ``transportable``
+        Metabolites eligible for a cross-compartment transport, by base id. ``None`` (default) allows
+        every metabolite touched by a relocatable reaction; pass a narrower set to forbid transports
+        for the rest (those pools are then confinement-repaired by co-location instead).
     ``max_rounds``
         Budget on placement-tightening rounds (confinement repair + growth-failure feedback). The
         common genome-scale case (everything transportable) certifies in one round.

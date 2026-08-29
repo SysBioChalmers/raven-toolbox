@@ -42,6 +42,14 @@ def assemble_model_from_ko_genes(
     Returns ``(model, gpr_map)`` where ``gpr_map`` is the kept reactions' gene
     lists, so callers can add gene annotations afterwards.
 
+    ``rxn_flags`` is a per-reaction quality-flag table (a ``reaction`` column
+    plus any of ``spontaneous``/``undefined_stoich``/``incomplete``/``general``).
+    A reaction flagged ``undefined_stoich``, ``incomplete`` or ``general`` is
+    dropped unless its matching ``keep_*`` argument is True — this takes
+    precedence over the reaction having genes. ``keep_spontaneous`` (default
+    True) additionally keeps otherwise gene-less reactions flagged
+    ``spontaneous``.
+
     ``prune_orthology`` restricts each gene-backed reaction's ``kegg.orthology``
     annotation to the KOs that actually contributed a gene, matching RAVEN
     ``getKEGGModelForOrganism``'s HMM branch (the organism-annotation path keeps

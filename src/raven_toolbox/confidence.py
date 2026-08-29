@@ -484,6 +484,9 @@ def score_equation_confidence(model, *, overwrite_curated: bool = False, updated
     Bands, lowest first: a proven mass imbalance (``0.0``); a proven charge imbalance (``0.1``, a rung
     up because it is usually a protonation convention); a formula missing, unparseable, or generic
     (``0.3`` — unverifiable, not wrong); mass proven but charge unset (``0.6``); balanced (``1.0``).
+
+    ``tolerance`` is the absolute net-charge threshold below which a reaction counts as
+    charge-balanced rather than charge-imbalanced.
     """
     _warn_if_no_sbo(model)
     balances = {b.reaction_id: b for b in get_elemental_balance(model)}

@@ -224,14 +224,13 @@ def _canonical_gpr(reaction: cobra.Reaction) -> str:
 
     DNF-expand the parsed GPR, then sort the genes within each isozyme clause and sort the clauses, so
     operand order never registers as a difference: ``a and b`` == ``b and a`` and ``a or b`` ==
-    ``b or a``. Mirrors MATLAB RAVEN's ``diffModels`` (`RAVEN #686
-    <https://github.com/SysBioChalmers/RAVEN/pull/686>`_), which compares grRules as logic rather than
-    text. Gene ids are lowercased and duplicate genes/clauses collapse, preserving the formatting-drift
-    tolerance the previous string heuristic gave.
+    ``b or a``. Mirrors MATLAB RAVEN's ``diffModels``, which compares grRules as logic rather than
+    text. Gene ids are lowercased and duplicate genes/clauses collapse, so formatting differences
+    between equivalent rules don't register either.
 
-    Falls back to that whitespace/lowercase heuristic for a rule cobra could not parse (``gpr.body`` is
-    ``None`` while the rule string is non-empty), so a malformed rule is still compared rather than
-    silently equated to the empty rule.
+    Falls back to a whitespace-normalised, lowercased string comparison for a rule cobra could not parse
+    (``gpr.body`` is ``None`` while the rule string is non-empty), so a malformed rule is still compared
+    rather than silently equated to the empty rule.
     """
     gpr = reaction.gpr
     if gpr is not None and gpr.body is not None:

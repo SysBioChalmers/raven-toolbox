@@ -2,7 +2,7 @@
 
 Two layers: (1) end-to-end toys run through assign_compartments so the signals fire on real
 proposals, and (2) unit-level toys with hand-built AssignmentProposals that pin the exact placement /
-transport structure a signal needs, so each signal (and its v1.1 hardening — dual-localisation,
+transport structure a signal needs, so each signal (and its refinements — dual-localisation,
 sibling-compartment robustness, currency/cofactor keying, essentiality-vs-baseline) is asserted in
 isolation. The combination maths (noisy-OR, the essentiality stakes multiplier) and the ranking
 contract are checked on top.
