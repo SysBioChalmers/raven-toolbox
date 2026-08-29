@@ -4,6 +4,34 @@ Milestones in the raven-toolbox port. For function-level status see
 [docs/raven_migration.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/migration.md); for open work see
 [docs/todo.md](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/docs/reference/todo.md).
 
+## Unreleased
+
+* **ftINIT reproducibility parameters renamed, and two silent failure modes fixed:
+  `ftinit(..., strict_gap=True, canonical=True)` is now `ftinit(..., prove_abs_gap=1.0,
+  resolve_ties=True)`.** Both flags were new in 0.4.0 (a pre-release); renamed now, before
+  wider adoption, rather than carrying `strict_gap`/`canonical` as permanently confusing
+  names. `prove_abs_gap` becomes the float it always was internally, so the value is
+  visible and tunable instead of hard-coded at 0.05. `seed` and `threads` are now explicit
+  keyword parameters instead of module constants (a constant could not be patched
+  reliably from outside the module). `FtInitResult` carries the accepted solve's `status`.
+  Two silent failures fixed: a step that exhausts `time_limit` now warns (its kept set is
+  an arbitrary incumbent), and `resolve_ties`'s own tie-break phases — which can
+  themselves time out at genome scale — now warn rather than silently reporting a proven
+  selection that was not proven; the `kmin` count-cap arithmetic is also guarded against a
+  non-finite phase objective, which previously could silently disable the parsimony pin.
+  **The 0.4.0 numbers for these flags do not hold up under a corrected measurement**: the
+  reported essential-gene-determinism regression (5 → 19 flips) does not reproduce —
+  `resolve_ties` instead roughly halves the seed-to-seed spread (16 → 8), and stacking
+  `prove_abs_gap` narrows it further (→ 3). The real reason to set `prove_abs_gap` is not
+  determinism but a silent optimality defect in the default gap escalation, which returns
+  a solution 2.0–4.0 below the true optimum; **`prove_abs_gap=1.0`** recovers it and is
+  the recommended value — tighter (down to 0.05) proves nothing further and costs up to
+  3× more. Neither parameter makes the extraction *stable* under a curated template (a
+  re-extraction can flip genes unrelated to the edit); the corrected measurements, the
+  mechanism, and the stability control are in the
+  [ftINIT reproducibility study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md)
+  on raven-docs.
+
 ## 0.4.0 — 2026-08-28
 
 A `raven-gecko-parity` cross-validation harness went live this release and immediately paid for itself:

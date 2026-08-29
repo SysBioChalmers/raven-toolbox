@@ -20,6 +20,7 @@ import pytest
 from tinit_oracles import TEST_MODEL_SCORES, expr_for_rxn_score, make_test_model
 
 from raven_toolbox.init import FtInitResult, run_ftinit, run_init
+from raven_toolbox.init.ftinit import _EXTRACT_SEED
 from raven_toolbox.init.score import gene_scores_from_expression, score_reactions_from_genes
 
 _LOOP = {"R4", "R6", "R9", "R10"}  # the score-optimal subnetwork (8.0)
@@ -140,7 +141,7 @@ def test_forced_flux_lower_bound_is_respected():
 
 
 # --------------------------------------------------------------------------- #
-# canonical (deterministic uniqueness).
+# resolve_ties (deterministic selection among equal optima).
 # --------------------------------------------------------------------------- #
 def _degenerate_model():
     """Two interchangeable negative-score reactions (R1, R2) both feed an essential E.
@@ -166,10 +167,10 @@ def _degenerate_model():
     return m
 
 
-def test_canonical_breaks_degenerate_tie_by_id():
-    """canonical selects the unique sparsest, lowest-id optimum among equal alternatives."""
+def test_resolve_ties_breaks_degenerate_tie_by_id():
+    """resolve_ties selects the sparsest, lowest-id optimum among equal alternatives."""
     m = _degenerate_model()
-    res = run_ftinit(m, {"R1": -1.0, "R2": -1.0}, essential_rxns=["E"], canonical=True)
+    res = run_ftinit(m, {"R1": -1.0, "R2": -1.0}, essential_rxns=["E"], resolve_ties=True)
     # exactly one of the degenerate pair is kept (the tie is resolved, not doubled) ...
     assert len({"R1", "R2"} & set(res.kept_reactions)) == 1
     # ... and it is deterministically the lower-id one.
@@ -178,9 +179,109 @@ def test_canonical_breaks_degenerate_tie_by_id():
     assert res.objective == pytest.approx(-1.0, abs=1e-6)
 
 
-def test_canonical_safe_on_unique_optimum():
-    """On a non-degenerate model canonical returns the same optimum (no regression)."""
+def test_resolve_ties_safe_on_unique_optimum():
+    """On a non-degenerate model resolve_ties returns the same optimum (no regression)."""
     model = make_test_model()
-    res = run_ftinit(model, _scores(model), canonical=True)
+    res = run_ftinit(model, _scores(model), resolve_ties=True)
     assert set(res.kept_reactions) == _LOOP
     assert res.objective == pytest.approx(8.0, abs=1e-6)
+
+
+# --------------------------------------------------------------------------- #
+# seed as an explicit parameter, and the unproven-incumbent warning.
+# --------------------------------------------------------------------------- #
+def test_seed_is_an_explicit_parameter_not_a_hidden_constant():
+    """The solver seed is settable per call; the default matches RAVEN's 1234.
+
+    The seed decides which of several equal-score optima a degenerate MILP returns, so
+    varying it is how a caller probes whether a result rests on the tie-break rather than
+    on the data. It must not require patching a module constant.
+    """
+    m = _degenerate_model()
+    scores = {"R1": -1.0, "R2": -1.0}
+    default = run_ftinit(m, scores, essential_rxns=["E"])
+    explicit = run_ftinit(m, scores, essential_rxns=["E"], seed=_EXTRACT_SEED)
+    assert default.kept_reactions == explicit.kept_reactions
+    # A different seed is accepted and still yields a valid, score-optimal extraction.
+    other = run_ftinit(m, scores, essential_rxns=["E"], seed=7)
+    assert other.objective == pytest.approx(default.objective, abs=1e-6)
+    assert len({"R1", "R2"} & set(other.kept_reactions)) == 1
+
+
+def test_result_reports_solver_status():
+    """FtInitResult carries the accepted solve's status, so callers can spot a fallback."""
+    res = run_ftinit(_degenerate_model(), {"R1": -1.0, "R2": -1.0}, essential_rxns=["E"])
+    assert res.status == "optimal"
+
+
+def test_time_limit_fallback_warns(monkeypatch):
+    """A step that ends at the time limit warns that its kept set is arbitrary.
+
+    RAVEN accepts such an incumbent and so do we, but accepting it *silently* is what
+    makes an unchanged rebuild look like a model change.
+    """
+    import importlib
+
+    from raven_toolbox.init import prep_init_model
+
+    # NB: `raven_toolbox.init.ftinit` resolves to the *function* — the package rebinds the
+    # name — so the module has to be fetched explicitly before it can be patched.
+    ftinit_mod = importlib.import_module("raven_toolbox.init.ftinit")
+    model = make_test_model()
+    prep = prep_init_model(model, ext_comp="s")
+    scores = score_reactions_from_genes(
+        model, gene_scores_from_expression(expr_for_rxn_score(TEST_MODEL_SCORES), 1.0))
+    real = ftinit_mod._solve_step
+
+    def timed_out(*args, **kwargs):
+        res = real(*args, **kwargs)
+        return FtInitResult(res.model, res.kept_reactions, res.deleted_reactions,
+                            res.fluxes, res.objective, on_reactions=res.on_reactions,
+                            achieved_gap=0.42, status="time_limit")
+
+    monkeypatch.setattr(ftinit_mod, "_solve_step", timed_out)
+    with pytest.warns(UserWarning, match="unproven MIP gap"):
+        ftinit_mod.ftinit(prep, scores, fill_gaps=False)
+
+
+def test_unproven_tie_break_warns():
+    """resolve_ties reports when its own phase 2 ends unproven.
+
+    At genome scale the tie-break phases can exhaust the time limit. Their incumbent is
+    still adopted (it measurably reduces the spread), but it is an arbitrary within-gap
+    pick, so ``resolve_ties=True`` must not silently imply a proven canonical selection.
+    Driven through a stub solver, because at toy scale the phases prove instantly.
+    """
+    import importlib
+
+    from optlang import interface
+
+    ftinit_mod = importlib.import_module("raven_toolbox.init.ftinit")
+
+    class _Stub:
+        """Minimal optlang-shaped model that always finishes at the time limit."""
+
+        status = "time_limit"
+
+        def __init__(self):
+            self.objective = interface.Objective(0)
+            self.problem = type("P", (), {"Params": type("R", (), {})()})()
+            self.configuration = type("C", (), {"timeout": None})()
+
+        def add(self, item):
+            pass
+
+        def optimize(self):
+            return self.status
+
+    ind = interface.Variable("ind_R1", lb=0, ub=1)
+    stub = _Stub()
+    monkey = ftinit_mod._has_solution
+    ftinit_mod._has_solution = lambda opt: True
+    try:
+        with pytest.warns(UserWarning, match="tie resolution did not converge"):
+            ok = ftinit_mod._resolve_ties(stub, interface, interface.Variable("objx"),
+                                          {"R1": (ind, -1.0)}, -1.0, 1.0)
+    finally:
+        ftinit_mod._has_solution = monkey
+    assert ok  # the incumbent is still adopted, just no longer silently
