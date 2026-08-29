@@ -182,6 +182,7 @@ def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit,
         if rmin is None or not math.isfinite(rmin):
             rmin = sum(-1.0 if cid in reference else 1.0
                       for cid, y in yvars.items() if (y.primal or 0.0) > 0.5)
+            unproven.append("phaseR-objective-not-finite")
         work.add_cons_vars([prob.Constraint(mismatch, ub=rmin + 0.5, name="_fill_ref_floor")])
 
     # fewest added reactions (parsimony) ...
@@ -194,6 +195,7 @@ def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit,
     kmin = work.objective.value
     if kmin is None or not math.isfinite(kmin):
         kmin = float(sum(1 for y in yvars.values() if (y.primal or 0.0) > 0.5))
+        unproven.append("phase2a-objective-not-finite")
     # ... then, among the sparsest, the unique lowest-id set.
     work.add_cons_vars([prob.Constraint(count, ub=kmin + 0.5, name="_fill_count_cap")])
     ranks = {cid: i for i, cid in enumerate(sorted(candidates))}

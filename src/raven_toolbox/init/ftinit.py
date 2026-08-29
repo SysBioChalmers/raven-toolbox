@@ -757,15 +757,17 @@ def ftinit(
     reference_merged = (None if reference_reactions is None
                         else _translate_reference(prep, reference_reactions))
     if reference_reactions is not None and not reference_merged:
-        # Translated to nothing: every id was either not in prep.orig_rxn_ids at all, or
-        # only ever names essential/free reactions (no removable indicator to prefer). The
-        # likely cause is a wrong id namespace or an unrelated reference model — silent in
-        # that case this parameter would do nothing, which is exactly the kind of failure
-        # this session has been fixing rather than allowing.
+        # Translated to nothing: none of the given ids appear in prep.orig_rxn_ids at all
+        # (a merge-group match only requires ANY member, so this means total disjointness,
+        # not e.g. an essential-only reference — that case translates fine and is a no-op
+        # only later, inside _resolve_ties, since essential/free reactions carry no
+        # indicator to prefer). The likely cause here is a wrong id namespace or a
+        # reference model unrelated to this template — silently doing nothing in that case
+        # is exactly the kind of failure this session has been fixing rather than allowing.
         warnings.warn(
             "reference_reactions matched no reaction in this prep after translation "
-            "(possibly essential/free reactions only, or the wrong id namespace); "
-            "it will have no effect on this build.",
+            "(likely a wrong id namespace, or a reference model unrelated to this "
+            "template); it will have no effect on this build.",
             stacklevel=2,
         )
 
