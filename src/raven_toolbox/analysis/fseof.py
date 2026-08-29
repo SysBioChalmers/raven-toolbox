@@ -92,9 +92,9 @@ def fseof(
     Parameters
     ----------
     correlation_threshold:
-        Minimum |correlation| between a reaction's flux and the enforced product
-        flux for it to be reported as a target; raise it to keep only the most
-        cleanly-trending reactions.
+        Minimum absolute correlation between a reaction's flux and the enforced
+        product flux for it to be reported as a target; raise it to keep only
+        the most cleanly-trending reactions.
     flux_eps:
         Tolerance below which a flux or slope is treated as zero.
     """
