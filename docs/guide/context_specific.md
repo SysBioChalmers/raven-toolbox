@@ -40,7 +40,8 @@ off → exact RAVEN behaviour), which pin *which* of the degenerate MILP's many 
 is returned, giving a more parsimonious and more reproducible extraction. They do not make the
 model biologically more accurate, they cost 3–7× build time, and they are **not** a fix for
 gene-essentiality reproducibility — measurements and the trade-off are in the
-[extraction-determinism study](../studies/ftinit_determinism.md). For reproducible results
+[extraction-determinism study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md)
+(raven-docs). For reproducible results
 across runs, pin the solver stack (raven-toolbox commit + `gurobipy` version) instead.
 
 :::{important}

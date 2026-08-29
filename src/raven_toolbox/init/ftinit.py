@@ -64,7 +64,8 @@ _FORCE_ON = 0.1  # min flux for a reaction to count as "on" (RAVEN forceOnLim)
 _BIG_M = 100.0   # indicator/direction big-M cap on a *scored* reaction's flux (RAVEN's 100)
 _STRICT_ABS_GAP = 0.05  # absolute gap for the opt-in strict mode (below the 0.1 score granularity)
 _EXTRACT_SEED = 1234  # RAVEN optimizeProb Seed; a module constant so a determinism probe
-                      # can vary it (see docs/studies/ftinit_determinism.md) without editing code
+                      # can vary it (see the ftinit-determinism study on raven-docs) without
+                      # editing code
 
 
 def _dbg(msg: str) -> None:

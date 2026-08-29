@@ -217,10 +217,10 @@ def get_model_from_homology(
 
     ``strictness`` (1/2/3) is a legacy alias for ``bidirectional`` / ``best_hits_only``.
 
-    Defaults for the three filters come from
-    :doc:`a calibration against KEGG orthology </studies/homology_cutoff_calibration>`,
-    scored with precision weighted above recall (a wrongly transferred reaction
-    is harder to undo than a missing one):
+    Defaults for the three filters come from a `calibration against KEGG orthology
+    <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/homology-cutoff-calibration.md>`_
+    on raven-docs, scored with precision weighted above recall (a wrongly transferred
+    reaction is harder to undo than a missing one):
 
     * ``min_identity`` 40 is the binding filter and the measured optimum.
     * ``min_align_len`` 100 replaces RAVEN's 200, which discarded real orthologs

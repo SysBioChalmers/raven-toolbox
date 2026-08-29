@@ -6,18 +6,16 @@ its equivalence claims against MATLAB RAVEN.
 :::{admonition} Some studies have moved to raven-docs
 :class: note
 
-The Human-GEM validation, (f)tINIT parameter calibration, (f)tINIT solver benchmark, KEGG
-HMM cut-off calibration, and predictLocalization head-to-head studies now live on
+The Human-GEM validation, (f)tINIT parameter calibration and solver benchmark, ftINIT
+extraction determinism, KEGG HMM and homology cut-off calibration, and predictLocalization
+head-to-head studies now live on
 [raven-docs](https://github.com/edkerk/raven-docs/tree/main/docs/parameter-tuning/studies) —
 they're about parameter defaults shared with MATLAB RAVEN, not raven-toolbox alone. The
-studies below stay here for now; most validate Python-only capabilities (DeepLoc-based
-localisation, confidence tracking, CarveFungi comparison) that don't fit that page — tracked
-for a proper migration in [raven-docs#45](https://github.com/edkerk/raven-docs/issues/45).
+localisation/compartment-assignment/confidence-tracking studies below stay here for now,
+alongside their design docs — that whole area is still under active development, not yet
+settled enough to split across repos.
 :::
 
-- **[ftINIT extraction determinism](ftinit_determinism.md)** — what the opt-in `strict_gap` /
-  `canonical` flags buy on Human-GEM/DLD1: a 3.7× smaller reaction seed-swing, but *worse*
-  gene-essentiality determinism (5 → 19 flips) and a 3–7× build-time cost.
 - **[Yeast localization benchmark](yeast_localization_benchmark.md)** —
   `predict_localization` against curated yeast-GEM, with a predictor-noise sweep.
 - **[Compartment-assignment redesign](localization_redesign.md)** — the design of
@@ -55,15 +53,10 @@ for a proper migration in [raven-docs#45](https://github.com/edkerk/raven-docs/i
 - **[DeepLoc normalisation benchmark](deeploc_normalisation_benchmark.md)** — normalised
   (top→1.0) vs raw DeepLoc probabilities for compartment assignment on the whole yeast-GEM;
   accuracy-neutral, so normalisation stays the default and `normalise=False` is opt-in.
-- **[Homology cut-off calibration](homology_cutoff_calibration.md)** — what the three
-  homology filters are worth, measured against two independent references across four
-  organisms. `min_identity` 40 confirmed, `min_align_len` lowered 200 → 100, `max_evalue`
-  shown to make no difference at all, and DIAMOND shown to need the same settings as BLAST.
 
 ```{toctree}
 :hidden:
 
-ftinit_determinism
 yeast_localization_benchmark
 deeploc_yeast_benchmark
 deeploc_aracore_benchmark
@@ -73,7 +66,6 @@ localization_finetuning
 carvefungi_analysis
 carvefungi_milp_benchmark
 deeploc_normalisation_benchmark
-homology_cutoff_calibration
 localization_redesign
 curation_priority_signals
 yeast_validation
