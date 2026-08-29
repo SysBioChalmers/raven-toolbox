@@ -103,9 +103,16 @@ def random_sampling(
     fixed_width_tol:
         ``chrr`` — a reaction whose FVA range is narrower than this is folded into
         the equality system as fixed (keeps the reduced polytope full-dimensional).
-    n_objectives, good_reactions, replace_max_bound, min_flux, loopless_good_reactions, exclude_reactions, max_attempts, suppress_errors:
+    n_objectives, good_reactions, loopless_good_reactions, exclude_reactions, max_attempts, suppress_errors:
         ``random_objective`` only — see the method's parameters; ``good_reactions``
         can be passed back from a previous result to skip the one-off FVA.
+    replace_max_bound:
+        ``random_objective`` only — replace the largest finite bound with infinity
+        before sampling, so a reaction whose biological maximum exceeds the
+        model's arbitrary cap isn't pinned there. Off by default.
+    min_flux:
+        ``random_objective`` only — re-solve each sample parsimoniously to
+        minimise total flux at the optimum, squeezing residual loop flux out.
 
     Returns
     -------

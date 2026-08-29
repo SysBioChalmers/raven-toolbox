@@ -539,6 +539,9 @@ def stream_organism_gene_ko(
 ) -> pd.DataFrame:
     """Stream the ``ko`` file to a sorted, gzipped ``organism_gene_ko.tsv.gz``.
 
+    ``keep`` restricts output to that set of KO ids (e.g. only KOs linked to
+    reactions), mirroring ``keep`` on :func:`parse_kegg_kos`.
+
     Real KEGG has ~9M gene↔KO associations — far too many to hold in memory as a
     DataFrame. Rows are sorted by ``(organism, gene)`` before writing: gene IDs
     from one organism share long common prefixes (locus tags, numeric runs), so

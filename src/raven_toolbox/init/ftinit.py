@@ -111,12 +111,17 @@ def run_ftinit(
 
     ``rxn_scores`` maps reaction id → score (default 0 → reaction left free in the
     model, not scored or removable). ``essential_rxns`` are forced to carry flux
-    (≥ ``force_on_ess``); ``essential_directions`` maps an essential reaction id to
-    ``+1`` (forward) or ``-1`` (reverse) for the forced direction (default forward).
-    ``ignore_mets`` are metabolite **names** whose mass balance is dropped (RAVEN's
-    per-step "simple metabolite" removal, e.g. H2O/H+). See the module docstring for
-    the formulation. This is the single-step variant; the staged schedule
+    (≥ ``force_on_ess``, overridable per reaction via ``essential_force``);
+    ``essential_directions`` maps an essential reaction id to ``+1`` (forward) or
+    ``-1`` (reverse) for the forced direction (default forward). ``ignore_mets`` are
+    metabolite **names** whose mass balance is dropped (RAVEN's per-step "simple
+    metabolite" removal, e.g. H2O/H+). See the module docstring for the formulation.
+    This is the single-step variant; the staged schedule
     (:func:`raven_toolbox.init.ftinit`) calls it per step.
+
+    ``strict_abs_gap``, when set, proves the solve to this fixed absolute objective
+    gap instead of a relative ``mip_gap``/``mip_gap_abs`` — see the ``strict_gap``
+    parameter of :func:`ftinit` for when to use it.
 
     ``canonical`` (opt-in, default off to preserve RAVEN parity) resolves the MILP's
     degeneracy deterministically: after the score optimum is found, a lexicographic
@@ -495,11 +500,13 @@ def ftinit(
 
     ``prep`` is a :class:`raven_toolbox.init.PrepData`. ``rxn_scores`` maps **original**
     reaction id → score (e.g. from :func:`score_reactions_from_genes` on the template).
-    Each step (:func:`raven_toolbox.init.get_init_steps`) regroups scores under its
-    ``ignore_mask``, fixes the reactions turned on by earlier steps as essential (in
-    their flux direction), and solves :func:`run_ftinit` on the merged model. Reactions
-    never turned on (and not essential or left-in) are removed from the reference model;
-    exchange reactions are always kept (RAVEN re-adds them).
+    ``series`` selects which staged schedule to run — see :func:`get_init_steps` for
+    what each option changes (default ``'1+1'``); pass ``steps`` directly to use a
+    custom schedule instead. Each step regroups scores under its ``ignore_mask``, fixes
+    the reactions turned on by earlier steps as essential (in their flux direction), and
+    solves :func:`run_ftinit` on the merged model. Reactions never turned on (and not
+    essential or left-in) are removed from the reference model; exchange reactions are
+    always kept (RAVEN re-adds them).
 
     If ``fill_gaps`` and ``prep`` carries tasks, reactions are added back so every task
     is feasible (:func:`raven_toolbox.init.fill_tasks`). If ``gene_scores`` is given,

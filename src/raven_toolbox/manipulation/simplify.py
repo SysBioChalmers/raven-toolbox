@@ -65,11 +65,10 @@ def remove_dead_end_reactions(
 ) -> tuple[list[str], list[str]]:
     """Iteratively remove dead-end reactions and metabolites.
 
-    A metabolite
-    is a dead end if it participates in only one reaction, or if (accounting for
-    reaction directionality) it can only be produced or only consumed — such
-    metabolites cannot carry steady-state flux, so the reactions touching them
-    are removed. Repeats until stable.
+    A metabolite is a dead end if it participates in only one reaction, or if (accounting for
+    reaction directionality) it can only be produced or only consumed — such metabolites cannot
+    carry steady-state flux, so the reactions touching them are removed. Repeats until stable.
+    ``reserved`` reaction ids are never removed, even if they touch a dead-end metabolite.
 
     Returns ``(removed_reaction_ids, removed_metabolite_ids)``.
     """
@@ -332,11 +331,11 @@ def group_linear_reactions(
 ) -> None:
     """Merge linear (single-producer, single-consumer) reaction chains.
 
-    **Lossy**: gene-reaction
-    associations are discarded (RAVEN does the same), since merged reactions have
-    no meaningful combined GPR. The model is first made irreversible, then any
-    metabolite that is produced by exactly one reaction and consumed by exactly
-    one reaction is eliminated by merging the two reactions. Mutates in place.
+    **Lossy**: gene-reaction associations are discarded (RAVEN does the same), since merged
+    reactions have no meaningful combined GPR. The model is first made irreversible, then any
+    metabolite that is produced by exactly one reaction and consumed by exactly one reaction is
+    eliminated by merging the two reactions. ``reserved`` reaction ids are never merged away.
+    Mutates in place.
     """
     reserved = set(reserved or [])
 

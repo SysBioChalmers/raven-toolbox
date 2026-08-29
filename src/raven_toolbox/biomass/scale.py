@@ -33,10 +33,6 @@ def sum_biomass(model: cobra.Model, config: BiomassConfig) -> dict[str, float]:
     :class:`BiomassComponent` name plus ``"total"``. Components whose
     pseudoreaction is missing from the model contribute 0 (logged as a
     warning).
-
-    Substrate detection: in each component's pseudoreaction, the
-    substrate side is the metabolites with negative coefficient — the
-    same convention yeast-GEM uses.
     """
     fractions: dict[str, float] = {}
     total = 0.0

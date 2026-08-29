@@ -60,6 +60,9 @@ def run_blast(
 ) -> pd.DataFrame:
     """Bidirectional BLAST+ between an organism and template organisms.
 
+    ``model_ids`` and ``ref_fastas`` are parallel: ``ref_fastas[i]`` is the
+    reference proteome for template ``model_ids[i]``.
+
     Returns the hits DataFrame (filtered at
     ``evalue``). Requires BLAST+ (`blastp`, `makeblastdb`).
 
@@ -107,6 +110,11 @@ def run_diamond(
     diamond: str | Path | None = None,
 ) -> pd.DataFrame:
     """Bidirectional DIAMOND between an organism and template organisms.
+
+    ``model_ids`` and ``ref_fastas`` are parallel: ``ref_fastas[i]`` is the
+    reference proteome for template ``model_ids[i]``. ``sensitivity`` is
+    passed straight through as a DIAMOND CLI flag (e.g. ``"--more-sensitive"``,
+    ``"--sensitive"``, or ``""`` to use DIAMOND's default fast mode).
 
     Returns the hits DataFrame. Requires DIAMOND.
 

@@ -201,6 +201,8 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
     Consults the registry for the current platform, downloads the pinned ZIP,
     verifies its SHA256, extracts it into the cache, and returns the executable
     path. Raises ``FileNotFoundError`` if no bundle for this platform is hosted.
+    Pass ``registry`` to consult an alternate bundle registry instead of the
+    built-in one (mainly for tests or a custom manifest).
     """
     registry = _REGISTRY if registry is None else registry
     _maybe_autoload(registry)
@@ -359,8 +361,9 @@ def provision_binaries(
 
     With ``prefer_existing`` (default) a tool already on PATH or pointed at by its
     env var is left as-is (``"present"``) and not downloaded. Otherwise the bundle
-    is fetched via :func:`ensure_binary`. Never raises for an individual tool — a
-    missing platform bundle becomes ``"unavailable"`` and a failed download
+    is fetched via :func:`ensure_binary` (``registry``, if given, is forwarded to
+    it in place of the built-in registry). Never raises for an individual tool —
+    a missing platform bundle becomes ``"unavailable"`` and a failed download
     ``"error"``, so a caller can report the whole set at once.
     """
     out: list[BinaryStatus] = []

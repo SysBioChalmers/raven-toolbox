@@ -175,6 +175,9 @@ def rna_gene_scores(
     ``5·ln(TPM/reference)``-clamped scoring used elsewhere): selects the tissue, derives
     a reference if none is given (per-gene mean TPM across all tissues — RAVEN's default
     for ``arrayData.threshold``), and returns ``{gene_id: score}``.
+
+    ``factor`` scales how fast the score moves away from 0 as TPM diverges from
+    ``reference``; ``max_score``/``min_score`` clamp the result to that range.
     """
     if tissue not in set(rna.df["tissue"]):
         raise ValueError(f"tissue {tissue!r} not in dataset (tissues: {rna.tissues()})")

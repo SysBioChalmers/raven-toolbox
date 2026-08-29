@@ -44,10 +44,13 @@ class FSEOFResult:
 
     @property
     def amplification(self) -> pd.DataFrame:
+        """Targets classified ``"amplify"`` (flux rises with the enforced product)."""
         return self.targets[self.targets["target_type"] == "amplify"].reset_index(drop=True)
 
     @property
     def knockout(self) -> pd.DataFrame:
+        """Targets classified ``"knockout"`` or ``"knockdown"`` (flux falls toward
+        or to zero as the enforced product flux rises)."""
         mask = self.targets["target_type"].isin(["knockout", "knockdown"])
         return self.targets[mask].reset_index(drop=True)
 
@@ -85,6 +88,15 @@ def fseof(
     Enforces target flux from ``max_fraction/n_steps`` up to ``max_fraction`` of the
     theoretical maximum in ``n_steps`` steps, maximising growth (``biomass_rxn`` or the
     model's current objective) with pFBA at each step. Returns an :class:`FSEOFResult`.
+
+    Parameters
+    ----------
+    correlation_threshold:
+        Minimum |correlation| between a reaction's flux and the enforced product
+        flux for it to be reported as a target; raise it to keep only the most
+        cleanly-trending reactions.
+    flux_eps:
+        Tolerance below which a flux or slope is treated as zero.
     """
     with model:  # find the theoretical maximum target flux
         model.objective = target_rxn

@@ -150,6 +150,12 @@ def connect_blocked_reactions(
 
     The draft is expected to have exchange reactions for its nutrients (otherwise most
     reactions are trivially blocked).
+
+    ``eps`` is the minimum flux a blocked reaction must be able to carry to count as
+    rescuable, and the flux forced through it while solving. ``allow_net_production``
+    relaxes the steady-state balance from ``S @ v == 0`` to ``S @ v >= 0`` (metabolites
+    may accumulate), which can rescue reactions whose real fix is a missing
+    consumption route rather than a genuine connectivity gap.
     """
     if penalty <= 0:
         raise ValueError(f"penalty must be > 0 (a non-positive cost malforms the MILP); got {penalty}.")
