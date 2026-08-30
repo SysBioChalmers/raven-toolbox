@@ -5,9 +5,9 @@ raven-toolbox functionality still to be back-ported into MATLAB RAVEN.
 
 ---
 
-## Pending back-port: functionality-constrained compartment-assignment MILP
+## Back-ported but diverged: functionality-constrained compartment-assignment MILP
 
-raven-toolbox's `localization/` now hosts **two** compartment-assignment algorithms:
+raven-toolbox's `localization/` hosts **two** compartment-assignment algorithms:
 `predict_localization` (score-driven MILP) and **`assign_compartments`** (`localization/certify.py`) —
 the *functionality-constrained* method, seeded by the port of the retired `edkerk/assignCompartments`
 repo. Over the score-driven version it adds a **biomass/growth floor** enforced by certification:
@@ -17,15 +17,25 @@ biomass feasibility needs them) and **sound reaction-level multi-localisation** 
 kept only if a loopless FVA on the materialised model shows it carries real flux — design in
 [multi_localization_design.md](multi_localization_design.md)).
 
-MATLAB RAVEN has **no equivalent**: `core/predictLocalization.m` is a *simulated-annealing* heuristic
-(one gene → one compartment, no biomass constraint, no flux gating). The score adapters this needs are
-already in RAVEN (`parseScores`, `getUniProtScores`, `defaultCompartmentMap`).
+MATLAB RAVEN's default branch has no equivalent (`core/predictLocalization.m` is a
+*simulated-annealing* heuristic: one gene → one compartment, no biomass constraint, no flux gating),
+**but `develop3` already has `localization/assignCompartments.m`** — a port of raven-toolbox's
+*earlier* design, from around the original `assign_compartments` (PR #58): a single MILP with the
+biomass floor and flux gating fused directly into the placement problem (`bigM`-gated flux variables,
+`minGrowth`), mono-localisation only. It predates raven-toolbox's rework (PR #62 onward) to a
+flux-free placement MILP + separate real-FBA certification, and has none of the certification/feedback
+loop, gap-fill coupling, or sound multi-localisation described above. The two `assign_compartments` are
+no longer equivalent — the MATLAB side needs a re-sync, not a fresh port.
 
-**Port plan.** Add a new `assignCompartments.m` (MILP via RAVEN's `optimizeProb` / `getMILPParams`,
-Gurobi/GLPK) that **coexists** with `predictLocalization.m` (mirroring the Python coexistence), reusing
-`parseScores` for the `gene × compartment` scores. Verify the `.m` filename does not clash with a COBRA
-Toolbox function before committing. Tests under `testing/` mirroring `tests/test_localization_assign*.py`.
-Reference implementation: `src/raven_toolbox/localization/assign.py`.
+**Re-sync plan.** Rework `assignCompartments.m` to match the current design: drop the fused
+biomass/flux-gating constraints from the placement MILP, add a separate real-FBA certification pass
+(`optimizeProb` on the materialised model) plus the confinement-repair and feedback-loop steps, and the
+multi-localisation flux-activity coupling ([multi_localization_design.md](multi_localization_design.md)
+path 2). Verify the `.m` filename does not clash with a COBRA Toolbox function before committing (it
+already exists on `develop3`, so this is a rework in place, not a new file). Tests under `testing/`
+mirroring `tests/test_localization_certify.py`. Reference implementation:
+`src/raven_toolbox/localization/certify.py` (the algorithm) and
+`src/raven_toolbox/localization/assign.py` (`AssignmentProposal` / `apply_assignment` materialisation).
 
 ---
 
