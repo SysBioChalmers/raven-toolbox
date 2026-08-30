@@ -622,6 +622,14 @@ _META_ANNOTATION_FIELDS = (
     "sourceUrl",
 )
 
+# Every key _build_metadata places itself, from either the model or
+# stored_meta — anything else in stored_meta is a caller-specific field with
+# no RAVEN-defined slot and gets passed through instead of dropped (see
+# _build_metadata).
+_HANDLED_METADATA_KEYS = frozenset(
+    {"id", "name", "version", "date", "defaultLB", "defaultUB"}
+) | frozenset(_META_ANNOTATION_FIELDS)
+
 
 def _default_bounds(model: cobra.Model) -> tuple[float, float] | None:
     """The model's ``(min lower_bound, max upper_bound)`` across all reactions.
@@ -651,7 +659,13 @@ def _build_metadata(model: cobra.Model, stored_meta: dict, version) -> OrderedDi
     :func:`_default_bounds`) rather than merely echoed from a stored
     value. The remaining fields follow in the same order
     writeYAMLmodel.m's ``annoFields`` emits them, each only when present
-    and non-empty.
+    and non-empty. Any other key left in ``stored_meta`` — a
+    caller-specific provenance field with no RAVEN-defined slot, e.g.
+    geckopy's ``geckopy_version`` — is appended last, sorted
+    alphabetically for deterministic output, rather than dropped;
+    ``model_from_yaml_data`` already restores the full parsed metaData
+    dict verbatim on read, so this is the write-side half of a lossless
+    round trip (mirrors writeYAMLmodel.m's matching fallback).
     """
     metadata: OrderedDict = OrderedDict()
     metadata["id"] = model.id or "blankID"
@@ -664,6 +678,12 @@ def _build_metadata(model: cobra.Model, stored_meta: dict, version) -> OrderedDi
         metadata["defaultLB"], metadata["defaultUB"] = bounds
     for key in _META_ANNOTATION_FIELDS:
         value = stored_meta.get(key)
+        if value:
+            metadata[key] = value
+    for key in sorted(stored_meta):
+        if key in _HANDLED_METADATA_KEYS:
+            continue
+        value = stored_meta[key]
         if value:
             metadata[key] = value
     return metadata
