@@ -141,6 +141,20 @@ def test_round_trip(yaml_file, tmp_path):
     assert reloaded.ec.mw[0] == 50000.0
 
 
+def test_round_trip_preserves_unknown_metadata_field(yaml_file, tmp_path):
+    """A metaData key with no RAVEN-defined slot (e.g. geckopy's
+    geckopy_version) survives a write/read round trip alongside a normal
+    RAVEN annotation field (taxonomy), instead of being silently dropped."""
+    model = read_yaml_model(yaml_file)
+    model.notes["metaData"]["geckopy_version"] = "0.2.1"
+    out = tmp_path / "out.yml"
+    write_yaml_model(model, out)
+    reloaded = read_yaml_model(out)
+
+    assert reloaded.notes["metaData"]["geckopy_version"] == "0.2.1"
+    assert reloaded.notes["metaData"]["taxonomy"] == "taxonomy/559292"
+
+
 def test_extra_notes_not_dropped_when_free_text_note_present(yaml_file, tmp_path):
     """An entry with both a RAVEN free-text note and an extra note keeps both on write."""
     model = read_yaml_model(yaml_file)
