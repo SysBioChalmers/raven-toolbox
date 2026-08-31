@@ -10,7 +10,9 @@ import copy
 import cobra
 
 
-def convert_to_irreversible(model: cobra.Model) -> list[str]:
+def convert_to_irreversible(
+    model: cobra.Model, rxns: list[str] | None = None
+) -> list[str]:
     """Split every reversible reaction into a forward + reverse pair.
     For each reaction with ``lb < 0``, including exchange (boundary)
     reactions -- MATLAB's ``convertToIrrev`` does not special-case them,
@@ -40,6 +42,12 @@ def convert_to_irreversible(model: cobra.Model) -> list[str]:
     ----------
     model
         A cobra.Model, mutated in place.
+    rxns
+        Reaction IDs eligible for splitting. Reactions outside this set
+        are left untouched even if reversible. Defaults to every
+        reaction in the model, matching MATLAB's ``convertToIrrev``
+        default (its ``rxns`` name-value argument defaults to
+        ``model.rxns``).
 
     Returns
     -------
@@ -47,12 +55,16 @@ def convert_to_irreversible(model: cobra.Model) -> list[str]:
         Sorted IDs of newly added reverse reactions (the ones ending in
         ``_REV``). The forward reactions retain their original IDs.
     """
+    eligible = None if rxns is None else set(rxns)
+
     reverse_rxns_to_add: list[cobra.Reaction] = []
     forward_updates: list[cobra.Reaction] = []
     negative_objective: list[tuple[cobra.Reaction, cobra.Reaction, float]] = []
 
     for rxn in model.reactions:
         if rxn.lower_bound >= 0:
+            continue
+        if eligible is not None and rxn.id not in eligible:
             continue
 
         original_lb = rxn.lower_bound

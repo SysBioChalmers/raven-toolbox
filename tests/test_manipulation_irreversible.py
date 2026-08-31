@@ -213,3 +213,48 @@ def test_positive_objective_coefficient_stays_on_forward_reaction():
     rev = model.reactions.get_by_id("r1_REV")
     assert fwd.objective_coefficient == 1.0
     assert rev.objective_coefficient == 0.0
+
+
+# --------------------------------------------------------------------------- #
+# rxns parameter (MATLAB: convertToIrrev(model, 'rxns', rxns))
+# --------------------------------------------------------------------------- #
+
+def test_rxns_param_restricts_conversion_to_named_reactions():
+    """Reversible reactions outside the given rxns list are left alone,
+    even though they would otherwise be split -- this is how MATLAB's
+    makeEcModel.m keeps exchange reactions unsplit (it passes
+    nonExchRxns, the model's reactions minus its exchanges)."""
+    model = _build_model_with_bounds([
+        ("r1", {"A": -1.0, "B": 1.0}, -500.0, 1000.0),   # split
+        ("EX_A", {"A": -1.0}, -1000.0, 1000.0),          # excluded
+    ])
+
+    added = convert_to_irreversible(model, rxns=["r1"])
+
+    assert added == ["r1_REV"]
+    assert "EX_A_REV" not in {r.id for r in model.reactions}
+    assert model.reactions.get_by_id("EX_A").bounds == (-1000.0, 1000.0)
+
+
+def test_rxns_param_none_converts_all_reversible_reactions():
+    """The default (no rxns given) still splits every reversible
+    reaction, including exchanges -- matching convertToIrrev's own
+    model.rxns default."""
+    model = _build_model_with_bounds([
+        ("r1", {"A": -1.0, "B": 1.0}, -500.0, 1000.0),
+        ("EX_A", {"A": -1.0}, -1000.0, 1000.0),
+    ])
+
+    added = convert_to_irreversible(model)
+
+    assert added == ["EX_A_REV", "r1_REV"]
+
+
+def test_rxns_param_forward_only_reaction_in_list_is_not_split():
+    """Being named in rxns is necessary but not sufficient -- the
+    reaction still needs lb < 0 to be split."""
+    model = _build_model_with_bounds([
+        ("r1", {"A": -1.0, "B": 1.0}, 0.0, 1000.0),
+    ])
+    added = convert_to_irreversible(model, rxns=["r1"])
+    assert added == []
