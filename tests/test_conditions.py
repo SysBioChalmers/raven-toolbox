@@ -128,6 +128,24 @@ def test_charge_balance_recomputed_after_removal():
     assert rxn.metabolites[h_c] == -2
 
 
+def test_charge_balance_raises_on_unknown_charge():
+    m = _toy_model()
+    cofac = m.reactions.get_by_id("cofac")
+    mystery = cobra.Metabolite("mystery", name="uncharacterized cofactor", compartment="c")
+    m.add_metabolites([mystery])
+    cofac.add_metabolites({mystery: -1})
+    with pytest.raises(ValueError, match="mystery"):
+        apply_condition(
+            m,
+            {
+                "cofactor_pseudoreaction": {
+                    "rxn_id": "cofac",
+                    "charge_balance_met": "h_c",
+                }
+            },
+        )
+
+
 # --- biomass stoichiometry delta -------------------------------------
 
 def test_biomass_stoichiometry_delta_combines_with_existing():
