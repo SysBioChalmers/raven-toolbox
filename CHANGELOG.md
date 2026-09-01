@@ -32,6 +32,11 @@ Milestones in the raven-toolbox port. For function-level status see
   [ftINIT reproducibility study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md)
   on raven-docs.
 
+* **Removed `io.export_model_to_sif`.** `migration.md` listed it as a port of MATLAB's
+  `exportModelToSIF`, but no such function exists on any RAVEN branch — it was new,
+  Python-only functionality mislabeled as a back-ported one. Removed rather than kept as
+  an undocumented MATLAB gap; Cytoscape SIF export is not currently provided.
+
 ## 0.4.0 — 2026-08-28
 
 A `raven-gecko-parity` cross-validation harness went live this release and immediately paid for itself:

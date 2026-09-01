@@ -484,7 +484,6 @@ note in the docstring for users porting MATLAB workflows that expect the `'keep'
 | `export_for_git` | `sub_dirs` | `True` | N/A | — Python-only |
 | `export_to_excel` | `sort_ids` | `False` | implicit (unsorted) | ✓ |
 | `write_yaml_model` | `sort_ids` | `False` | N/A | ✓ |
-| `export_model_to_sif` | `graph_type` | `'rc'` | N/A | ✓ |
 
 ---
 

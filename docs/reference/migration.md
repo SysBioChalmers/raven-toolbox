@@ -54,7 +54,6 @@ standard plus the geckopy enzyme-constrained extension, so ecModels round-trip.
 | RAVEN | raven-toolbox | Notes |
 |---|---|---|
 | `readYAMLmodel`, `writeYAMLmodel` | ✅ [`io.read_yaml_model`, `write_yaml_model`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/io/yaml.py) | Aligned to cobra's `!!omap` writer (RAVEN `fa281a1`). Adds the RAVEN-only top-level per-entry keys (inchis/deltaG/metFrom/notes, confidence_score/references/rxnFrom/deltaG, protein) into `.notes`, plus `version`/`metaData`/GECKO `ec-*`. cobra-readable output verified. |
-| `exportModelToSIF` | ✅ [`io.export_model_to_sif`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/io/sif.py) | Cytoscape SIF (`rc`/`rr`/`cc` graphs). |
 | `exportToExcelFormat` (export only) | ✅ [`io.export_to_excel`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/io/excel.py) | RAVEN 5-sheet xlsx (RXNS / METS / COMPS / GENES / MODEL). Excel **import** is intentionally excluded. |
 | `exportForGit` | ✅ [`io.export_for_git`](https://github.com/SysBioChalmers/raven-toolbox/blob/develop/src/raven_toolbox/io/git.py) | Standard-GEM repo layout (`model/<fmt>/…`). |
 | `importYAML/SBML/Mat/Excel` | 🗒️ cobra's standard readers | `cobra.io.read_sbml_model` / `load_json_model` / etc.; Excel import not ported. |
