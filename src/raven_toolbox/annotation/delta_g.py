@@ -18,27 +18,6 @@ from pathlib import Path
 import cobra
 import pandas as pd
 
-#: The "no valid ΔG" sentinel used by the ΔG side-car tables (e.g. yeast-GEM's
-#: ``model_rxnDeltaG.csv``). yeast-GEM's ``checkrxnDirection.m`` gates on it verbatim:
-#: ``if ~isequal(seed_rxnInfo{...},'10000000.0') %check if database contains valid deltaG
-#: value``. Stamping it would present a physically impossible 10⁷ kJ/mol as a measurement.
-#: Pass this as ``load_delta_g_csv``'s ``missing_value`` to have it treated as missing
-#: instead of stored verbatim — RAVEN's own ``deltaGCSV`` has no sentinel concept by
-#: default either, so this is opt-in on both sides, not automatic on either.
-DELTA_G_MISSING = 1e7
-
-
-def _is_missing(value, sentinel: float) -> bool:
-    """True when ``value`` is the sentinel, whether it arrived as a number or as text.
-
-    The CSV round-trips through MATLAB and pandas, so the same sentinel shows up as ``10000000``,
-    ``10000000.0`` or ``"10000000.0"`` depending on the writer and the column's inferred dtype.
-    """
-    try:
-        return math.isclose(float(value), sentinel, rel_tol=1e-9)
-    except (TypeError, ValueError):
-        return False
-
 
 def load_delta_g_csv(
     entities: Iterable,
@@ -47,10 +26,16 @@ def load_delta_g_csv(
     id_column: str = "Var1",
     value_column: str = "Var2",
     note_key: str = "deltaG",
-    missing_value: float | None = None,
     verbose: bool = False,
 ) -> int:
-    """Stamp ``note_key`` on each entity from a CSV of ``id → value``.
+    """Record ``note_key`` on each entity from a CSV of ``id → value``.
+
+    Every matched value is recorded exactly as it appears in the CSV,
+    including yeast-GEM's own "no measurement" placeholder (``10000000.0``,
+    on 777 of its 4102 reaction rows) -- this function does not interpret
+    CSV values, matching RAVEN's own ``loadDeltaGCSV``. Callers that need to
+    treat a particular value as absent should filter it themselves after
+    loading.
 
     Parameters
     ----------
@@ -64,20 +49,13 @@ def load_delta_g_csv(
     note_key
         Key under which the value is stored on ``entity.notes``.
         Default ``"deltaG"``.
-    missing_value
-        A sentinel standing for "no value", left unstamped rather than
-        recorded as a measurement. Default ``None``: every matched value
-        is stamped verbatim, matching RAVEN's own ``deltaGCSV`` (which has
-        no sentinel concept of its own). Pass :data:`DELTA_G_MISSING`
-        (10⁷) to opt into yeast-GEM's own convention, which covers 777 of
-        yeast-GEM's 4102 reaction rows.
     verbose
         Print a summary of unmatched entity ids.
 
     Returns
     -------
-    The number of entities that were stamped (i.e. matched the CSV and
-    carried a real value).
+    The number of entities that were recorded (i.e. matched the CSV and
+    carried a value).
     """
     df = pd.read_csv(path)
     if id_column not in df.columns or value_column not in df.columns:
@@ -92,9 +70,6 @@ def load_delta_g_csv(
     for entity in entities:
         value = lookup.get(entity.id)
         if value is None or (isinstance(value, float) and math.isnan(value)):
-            missing.append(entity.id)
-            continue
-        if missing_value is not None and _is_missing(value, missing_value):
             missing.append(entity.id)
             continue
         entity.notes[note_key] = str(value)
@@ -141,5 +116,5 @@ def save_delta_g_csv(
     return len(rows)
 
 
-__all__ = ["DELTA_G_MISSING", "load_delta_g_csv", "save_delta_g_csv"]
+__all__ = ["load_delta_g_csv", "save_delta_g_csv"]
 _ = cobra  # silence "imported but unused" — kept for type-checker/IDE context
