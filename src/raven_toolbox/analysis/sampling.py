@@ -31,12 +31,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from typing import Optional
 
 import cobra
 import numpy as np
 import pandas as pd
 from cobra.exceptions import OptimizationError
 from cobra.flux_analysis import flux_variability_analysis, pfba
+from cobra.util import ProcessPool
 from optlang.symbolics import add
 
 from raven_toolbox.analysis.flux_sampling import (
@@ -69,6 +71,7 @@ def random_sampling(
     exclude_reactions: Iterable[str] | None = None,
     max_attempts: int = 100,
     suppress_errors: bool = False,
+    n_proc: Optional[int] = None,
 ) -> FluxSamplingResult:
     """Sample ``model``'s flux space — entry point for all sampling methods.
 
@@ -128,6 +131,14 @@ def random_sampling(
     min_flux:
         ``random_objective`` only — re-solve each sample parsimoniously to
         minimise total flux at the optimum, squeezing residual loop flux out.
+    n_proc:
+        ``random_objective`` only — worker processes for drawing samples in
+        parallel (each sample is an independent LP solve). Defaults to
+        ``cobra.Configuration().processes``; set to 1 to sample serially.
+        Reproducible for a given ``seed`` regardless of ``n_proc`` — each
+        sample draws from its own independent RNG stream spawned from
+        ``seed``, not from one continuously-advancing generator, so results
+        no longer match pre-parallelization output for the same seed value.
 
     Returns
     -------
@@ -161,6 +172,7 @@ def random_sampling(
             max_attempts=max_attempts,
             suppress_errors=suppress_errors,
             seed=seed,
+            n_proc=n_proc,
         )
     raise ValueError(
         f"Unknown method {method!r}; expected 'achr', 'chrr', or 'random_objective'."
@@ -196,6 +208,103 @@ def find_good_reactions(
     ]
 
 
+def _draw_one_sample(
+    model: cobra.Model,
+    good_rxn_objs: list,
+    n_objectives: int,
+    min_flux: bool,
+    max_attempts: int,
+    suppress_errors: bool,
+    reaction_ids: list[str],
+    seed_seq: np.random.SeedSequence,
+    sample_index: int,
+) -> np.ndarray:
+    """Draw one random-objective sample, retrying on a degenerate objective.
+
+    ``model``'s objective is mutated and re-solved in place -- callers must
+    give each concurrent caller its own model copy (``ProcessPool`` does this
+    for the parallel path; the serial path reuses one copy across samples,
+    same as before parallelization).
+    """
+    rng = np.random.default_rng(seed_seq)
+    for attempt in range(1, max_attempts + 1):
+        chosen = rng.choice(len(good_rxn_objs), size=n_objectives, replace=False)
+        signs = rng.choice((-1.0, 1.0), size=n_objectives)
+        weights = rng.random(n_objectives) * signs
+        terms = [w * good_rxn_objs[j].flux_expression
+                 for j, w in zip(chosen, weights, strict=True)]
+        # add() (not sum()) builds the symbolic objective in one pass; sum()
+        # re-canonicalises the optlang expression on every term (O(n^2)).
+        model.objective = model.problem.Objective(add(terms), direction="max")
+        sol = model.optimize()
+        if sol.status == "optimal" and abs(sol.objective_value) > 1e-8:
+            fluxes = (pfba(model) if min_flux else sol).fluxes.reindex(reaction_ids)
+            if fluxes.isna().any():  # solver returned an unexpected reaction set
+                missing = fluxes.index[fluxes.isna()].tolist()
+                raise OptimizationError(
+                    "solver returned fluxes missing reaction(s) "
+                    f"{missing[:5]}; cannot assemble a NaN-free sample matrix."
+                )
+            return fluxes.to_numpy()
+        if attempt == max_attempts:
+            if not suppress_errors:
+                raise OptimizationError(
+                    "Could not find a non-zero, loop-free solution after "
+                    f"{max_attempts} attempts for sample {sample_index}. Review the "
+                    "model's constraints, or set suppress_errors=True."
+                )
+            logger.warning("Sample %d: kept a degenerate solution after %d attempts.",
+                           sample_index, max_attempts)
+            return sol.fluxes.reindex(reaction_ids).to_numpy()
+
+
+# --------------------------------------------------------------------------- #
+# Worker globals for the parallel path (n_proc > 1): populated once per
+# worker process by _init_worker and reused for every sample it draws.
+# --------------------------------------------------------------------------- #
+
+_WORKER_MODEL: Optional[cobra.Model] = None
+_WORKER_GOOD_RXN_IDS: Optional[list[str]] = None
+_WORKER_REACTION_IDS: Optional[list[str]] = None
+_WORKER_N_OBJECTIVES: Optional[int] = None
+_WORKER_MIN_FLUX: Optional[bool] = None
+_WORKER_MAX_ATTEMPTS: Optional[int] = None
+_WORKER_SUPPRESS_ERRORS: Optional[bool] = None
+
+
+def _init_worker(
+    model: cobra.Model,
+    good_rxn_ids: list[str],
+    reaction_ids: list[str],
+    n_objectives: int,
+    min_flux: bool,
+    max_attempts: int,
+    suppress_errors: bool,
+) -> None:
+    """Pool initializer: stash this worker's own model copy (deserialised by
+    ``ProcessPool``, not by us) and everything else needed to draw a sample."""
+    global _WORKER_MODEL, _WORKER_GOOD_RXN_IDS, _WORKER_REACTION_IDS
+    global _WORKER_N_OBJECTIVES, _WORKER_MIN_FLUX, _WORKER_MAX_ATTEMPTS, _WORKER_SUPPRESS_ERRORS
+    _WORKER_MODEL = model
+    _WORKER_GOOD_RXN_IDS = good_rxn_ids
+    _WORKER_REACTION_IDS = reaction_ids
+    _WORKER_N_OBJECTIVES = n_objectives
+    _WORKER_MIN_FLUX = min_flux
+    _WORKER_MAX_ATTEMPTS = max_attempts
+    _WORKER_SUPPRESS_ERRORS = suppress_errors
+
+
+def _sample_worker(task: tuple[int, np.random.SeedSequence]) -> np.ndarray:
+    assert _WORKER_MODEL is not None, "_sample_worker called before _init_worker"
+    sample_index, seed_seq = task
+    good_rxn_objs = [_WORKER_MODEL.reactions.get_by_id(r) for r in _WORKER_GOOD_RXN_IDS]
+    return _draw_one_sample(
+        _WORKER_MODEL, good_rxn_objs, _WORKER_N_OBJECTIVES, _WORKER_MIN_FLUX,
+        _WORKER_MAX_ATTEMPTS, _WORKER_SUPPRESS_ERRORS, _WORKER_REACTION_IDS,
+        seed_seq, sample_index,
+    )
+
+
 def _random_objective(
     model: cobra.Model,
     n_samples: int = 1000,
@@ -209,6 +318,7 @@ def _random_objective(
     max_attempts: int = 100,
     suppress_errors: bool = False,
     seed: int | None = None,
+    n_proc: Optional[int] = None,
 ) -> FluxSamplingResult:
     """Random-objective sampling of ``model``'s flux space (Bordel et al. 2010).
 
@@ -246,7 +356,17 @@ def _random_objective(
         ``max_attempts`` failures this raises, unless ``suppress_errors`` (then the
         degenerate solution is kept with a warning).
     seed
-        Seed for reproducible objective draws.
+        Seed for reproducible objective draws. Sample ``i`` always draws from
+        the ``i``-th child stream of ``numpy.random.SeedSequence(seed)``,
+        independent of every other sample and of ``n_proc`` — so a given seed
+        reproduces the same samples whether drawn serially or in parallel.
+    n_proc
+        Worker processes for drawing samples in parallel. Defaults to
+        ``cobra.Configuration().processes``; set to 1 to sample serially in
+        this process. Each sample is an independent LP solve (a fresh random
+        objective, then optimize), so this parallelises via
+        ``cobra.util.ProcessPool`` — the same pool cobrapy's own
+        ``flux_variability_analysis``/``single_reaction_deletion`` use.
 
     Returns
     -------
@@ -254,7 +374,6 @@ def _random_objective(
     """
     if n_samples <= 0:
         raise ValueError("n_samples must be positive.")
-    rng = np.random.default_rng(seed)
     model = model.copy()
 
     if model.slim_optimize(error_value=None) is None:
@@ -286,41 +405,40 @@ def _random_objective(
             f"n_objectives={n_objectives}. Check the model's constraints."
         )
 
-    good_rxn_objs = [model.reactions.get_by_id(r) for r in good_reactions]
     reaction_ids = [r.id for r in model.reactions]
     samples = np.zeros((n_samples, len(reaction_ids)))
 
-    for i in range(n_samples):
-        for attempt in range(1, max_attempts + 1):
-            chosen = rng.choice(len(good_rxn_objs), size=n_objectives, replace=False)
-            signs = rng.choice((-1.0, 1.0), size=n_objectives)
-            weights = rng.random(n_objectives) * signs
-            terms = [w * good_rxn_objs[j].flux_expression
-                     for j, w in zip(chosen, weights, strict=True)]
-            # add() (not sum()) builds the symbolic objective in one pass; sum()
-            # re-canonicalises the optlang expression on every term (O(n^2)).
-            model.objective = model.problem.Objective(add(terms), direction="max")
-            sol = model.optimize()
-            if sol.status == "optimal" and abs(sol.objective_value) > 1e-8:
-                fluxes = (pfba(model) if min_flux else sol).fluxes.reindex(reaction_ids)
-                if fluxes.isna().any():  # solver returned an unexpected reaction set
-                    missing = fluxes.index[fluxes.isna()].tolist()
-                    raise OptimizationError(
-                        "solver returned fluxes missing reaction(s) "
-                        f"{missing[:5]}; cannot assemble a NaN-free sample matrix."
-                    )
-                samples[i, :] = fluxes.to_numpy()
-                break
-            if attempt == max_attempts:
-                if not suppress_errors:
-                    raise OptimizationError(
-                        "Could not find a non-zero, loop-free solution after "
-                        f"{max_attempts} attempts for sample {i}. Review the model's "
-                        "constraints, or set suppress_errors=True."
-                    )
-                logger.warning("Sample %d: kept a degenerate solution after %d attempts.",
-                               i, max_attempts)
-                samples[i, :] = sol.fluxes.reindex(reaction_ids).to_numpy()
+    # One independent, reproducible RNG stream per sample -- spawned once up
+    # front so sample i's draws never depend on execution order, only on i.
+    # That's what lets serial (n_proc=1) and parallel (n_proc>1) produce
+    # identical output for the same seed.
+    tasks = list(enumerate(np.random.SeedSequence(seed).spawn(n_samples)))
+
+    if n_proc is None:
+        n_proc = cobra.Configuration().processes
+    n_proc = max(1, int(n_proc))
+
+    if n_proc == 1:
+        good_rxn_objs = [model.reactions.get_by_id(r) for r in good_reactions]
+        for i, seed_seq in tasks:
+            samples[i, :] = _draw_one_sample(
+                model, good_rxn_objs, n_objectives, min_flux, max_attempts,
+                suppress_errors, reaction_ids, seed_seq, i,
+            )
+    else:
+        # ProcessPool (cobra.util.process_pool) handles serialising the
+        # model to each worker -- including a Windows-specific performance
+        # workaround -- so `model` is passed as-is, not pre-pickled.
+        chunk = max(1, n_samples // (n_proc * 4))
+        with ProcessPool(
+            n_proc, initializer=_init_worker,
+            initargs=(
+                model, good_reactions, reaction_ids, n_objectives, min_flux,
+                max_attempts, suppress_errors,
+            ),
+        ) as pool:
+            for i, fluxes in enumerate(pool.map(_sample_worker, tasks, chunksize=chunk)):
+                samples[i, :] = fluxes
 
     return FluxSamplingResult(
         samples=pd.DataFrame(samples, columns=reaction_ids),
