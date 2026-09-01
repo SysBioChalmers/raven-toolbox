@@ -162,23 +162,23 @@ def test_essential_merged_away_is_skipped():
 
 
 # --------------------------------------------------------------------------- #
-# strict_gap / canonical (deterministic extraction).
+# prove_abs_gap / resolve_ties (deterministic extraction).
 # These are opt-in; the default path stays exact-RAVEN. On the toy oracle they must
 # reproduce T0001 (no regression) and be run-to-run identical.
 # --------------------------------------------------------------------------- #
-def test_ftinit_strict_gap_matches_oracle():
-    """strict_gap: one near-proven-optimal solve per step, still gives T0001."""
+def test_ftinit_prove_abs_gap_matches_oracle():
+    """prove_abs_gap: one near-proven-optimal solve per step, still gives T0001."""
     model = make_test_model()
     prep = prep_init_model(model, ext_comp="s")
-    out = ftinit(prep, _scores(model), strict_gap=True)
+    out = ftinit(prep, _scores(model), prove_abs_gap=0.05)
     assert {r.id for r in out.reactions} == set(TEST_MODEL_FTINIT_NO_TASKS)
 
 
-def test_ftinit_canonical_matches_oracle_and_is_stable():
-    """canonical (+ strict_gap): preserves T0001 and is identical across repeated runs."""
+def test_ftinit_resolve_ties_matches_oracle_and_is_stable():
+    """resolve_ties (+ prove_abs_gap): preserves T0001, identical across repeated runs."""
     model = make_test_model()
     prep = prep_init_model(model, ext_comp="s")
-    out1 = ftinit(prep, _scores(model), strict_gap=True, canonical=True)
-    out2 = ftinit(prep, _scores(model), strict_gap=True, canonical=True)
+    out1 = ftinit(prep, _scores(model), prove_abs_gap=0.05, resolve_ties=True)
+    out2 = ftinit(prep, _scores(model), prove_abs_gap=0.05, resolve_ties=True)
     assert {r.id for r in out1.reactions} == set(TEST_MODEL_FTINIT_NO_TASKS)
     assert {r.id for r in out1.reactions} == {r.id for r in out2.reactions}

@@ -158,8 +158,8 @@ def test_additions_carry_forward_to_later_tasks():
     assert not res.failed_tasks
 
 
-def test_canonical_gap_fill_breaks_tie_by_id():
-    """Two equal-cost candidate fills: canonical adds the lower-id one deterministically."""
+def test_resolve_ties_gap_fill_breaks_tie_by_id():
+    """Two equal-cost candidate fills: resolve_ties adds the lower-id one deterministically."""
     import cobra
 
     from raven_toolbox.tasks import Task
@@ -178,7 +178,7 @@ def test_canonical_gap_fill_breaks_tie_by_id():
 
     gapped = ref.copy()
     gapped.remove_reactions(["RA", "RB"], remove_orphans=False)  # both routes to M removed
-    # exactly one equal-cost route is needed; canonical must pick the lower id (RA).
-    res = fill_tasks(gapped, ref, [task], canonical=True)
+    # exactly one equal-cost route is needed; resolve_ties must pick the lower id (RA).
+    res = fill_tasks(gapped, ref, [task], resolve_ties=True)
     assert res.added_reactions == ["RA"]
     assert not res.failed_tasks
