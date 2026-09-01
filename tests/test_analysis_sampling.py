@@ -81,6 +81,22 @@ def test_seed_is_reproducible(model):
     assert np.allclose(a.to_numpy(), b.to_numpy())
 
 
+def test_parallel_matches_serial(model):
+    """n_proc=2 must yield the same samples as n_proc=1 for the same seed.
+
+    Each sample draws from its own independent RNG stream spawned from
+    `seed`, so results don't depend on whether they were drawn serially in
+    this process or distributed across worker processes.
+    """
+    serial = random_sampling(
+        model, method="random_objective", n_samples=12, seed=11, n_proc=1,
+    ).samples
+    parallel = random_sampling(
+        model, method="random_objective", n_samples=12, seed=11, n_proc=2,
+    ).samples
+    assert np.allclose(serial.to_numpy(), parallel.to_numpy())
+
+
 def test_good_reactions_reused(model):
     """Passing good_reactions back in reproduces the FVA-derived set without recomputing."""
     good = find_good_reactions(model)
