@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
-from typing import Optional
 
 import cobra
 import numpy as np
@@ -71,7 +70,7 @@ def random_sampling(
     exclude_reactions: Iterable[str] | None = None,
     max_attempts: int = 100,
     suppress_errors: bool = False,
-    n_proc: Optional[int] = None,
+    n_proc: int | None = None,
 ) -> FluxSamplingResult:
     """Sample ``model``'s flux space — entry point for all sampling methods.
 
@@ -263,13 +262,13 @@ def _draw_one_sample(
 # worker process by _init_worker and reused for every sample it draws.
 # --------------------------------------------------------------------------- #
 
-_WORKER_MODEL: Optional[cobra.Model] = None
-_WORKER_GOOD_RXN_IDS: Optional[list[str]] = None
-_WORKER_REACTION_IDS: Optional[list[str]] = None
-_WORKER_N_OBJECTIVES: Optional[int] = None
-_WORKER_MIN_FLUX: Optional[bool] = None
-_WORKER_MAX_ATTEMPTS: Optional[int] = None
-_WORKER_SUPPRESS_ERRORS: Optional[bool] = None
+_WORKER_MODEL: cobra.Model | None = None
+_WORKER_GOOD_RXN_IDS: list[str] | None = None
+_WORKER_REACTION_IDS: list[str] | None = None
+_WORKER_N_OBJECTIVES: int | None = None
+_WORKER_MIN_FLUX: bool | None = None
+_WORKER_MAX_ATTEMPTS: int | None = None
+_WORKER_SUPPRESS_ERRORS: bool | None = None
 
 
 def _init_worker(
@@ -296,6 +295,12 @@ def _init_worker(
 
 def _sample_worker(task: tuple[int, np.random.SeedSequence]) -> np.ndarray:
     assert _WORKER_MODEL is not None, "_sample_worker called before _init_worker"
+    assert _WORKER_GOOD_RXN_IDS is not None
+    assert _WORKER_REACTION_IDS is not None
+    assert _WORKER_N_OBJECTIVES is not None
+    assert _WORKER_MIN_FLUX is not None
+    assert _WORKER_MAX_ATTEMPTS is not None
+    assert _WORKER_SUPPRESS_ERRORS is not None
     sample_index, seed_seq = task
     good_rxn_objs = [_WORKER_MODEL.reactions.get_by_id(r) for r in _WORKER_GOOD_RXN_IDS]
     return _draw_one_sample(
@@ -318,7 +323,7 @@ def _random_objective(
     max_attempts: int = 100,
     suppress_errors: bool = False,
     seed: int | None = None,
-    n_proc: Optional[int] = None,
+    n_proc: int | None = None,
 ) -> FluxSamplingResult:
     """Random-objective sampling of ``model``'s flux space (Bordel et al. 2010).
 
