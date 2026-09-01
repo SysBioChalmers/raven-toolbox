@@ -47,16 +47,27 @@ def _prune_orphan_metabolites(model: cobra.Model) -> list[str]:
 
 
 def _can_produce_and_consume(met) -> tuple[bool, bool]:
-    """Whether the network can both produce and consume ``met`` (given directions)."""
+    """Whether the network can both produce and consume ``met``, by direction alone.
+
+    Purely topological, matching RAVEN ``deleteInaccessible``: a reaction's forward
+    direction always counts (regardless of its bounds), and its reverse direction
+    counts exactly when it is reversible (``lower_bound < 0``). This deliberately
+    ignores ``upper_bound`` and does not check whether a reaction can actually carry
+    flux — that bounds-aware check is ``remove_no_flux_reactions``'s job (RAVEN
+    ``deleteMinMax``, via FVA); mixing it into this cheap structural pass previously
+    made a reaction locked at zero flux (``lb == ub == 0``) silently drop out as a
+    producer/consumer here, diverging from RAVEN when this pass runs alone.
+    """
     produce = consume = False
     for rxn in met.reactions:
         coef = rxn.get_coefficient(met)
+        reversible = rxn.lower_bound < 0
         if coef > 0:
-            produce |= rxn.upper_bound > 0
-            consume |= rxn.lower_bound < 0
+            produce = True
+            consume |= reversible
         elif coef < 0:
-            consume |= rxn.upper_bound > 0
-            produce |= rxn.lower_bound < 0
+            consume = True
+            produce |= reversible
     return produce, consume
 
 

@@ -42,6 +42,33 @@ def test_dead_end_respects_reserved():
     assert "R_dead" in {r.id for r in m.reactions}
 
 
+def test_dead_end_ignores_bounds_on_its_own_matching_raven():
+    """raven-gecko-parity#69: run alone, RAVEN's deleteInaccessible reads dead ends
+    off the sign pattern of S only -- a reaction locked at zero flux (lb == ub == 0)
+    still counts as a structural producer/consumer, exactly as if unconstrained.
+    Detecting reactions that are *actually* blocked by their bounds is
+    remove_no_flux_reactions's job (RAVEN deleteMinMax, via FVA); nothing should be
+    removed here on bounds grounds alone.
+    """
+    m = cobra.Model("t")
+    m.add_metabolites([cobra.Metabolite(x, compartment="c") for x in ("a", "b", "c")])
+    add_reactions_from_equations(
+        m,
+        [
+            {"id": "R_in", "equation": " --> a"},
+            {"id": "R1", "equation": "a --> b"},
+            # Locked at zero flux -- still a structural producer of c / consumer of
+            # b, per RAVEN's bounds-blind sign-pattern check.
+            {"id": "R_locked", "equation": "b --> c", "bounds": (0.0, 0.0)},
+            {"id": "R_out", "equation": "c --> "},
+        ],
+    )
+    removed_rxns, removed_mets = remove_dead_end_reactions(m)
+    assert removed_rxns == []
+    assert removed_mets == []
+    assert {"R_in", "R1", "R_locked", "R_out"} == {r.id for r in m.reactions}
+
+
 # --- remove_duplicate_reactions -------------------------------------------
 
 def test_duplicates_removed():
