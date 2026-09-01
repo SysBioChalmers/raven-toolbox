@@ -125,8 +125,8 @@ def _set_fill_solver(model: cobra.Model, time_limit: float | None, seed: int) ->
             model.solver.configuration.timeout = int(time_limit)
 
 
-def _canonicalize_fill(work, prob, candidates, cost_expr, time_limit) -> list[str] | None:
-    """Pin the degenerate min-cost gap-fill to a single canonical set (in place on ``work``).
+def _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit) -> list[str] | None:
+    """Pin the degenerate min-cost gap-fill to a single, reproducible set (on ``work``).
 
     Like the extraction MILP, the fill has many equal-cost solutions and the solver returns
     an arbitrary one (seed/version dependent). Hold the cost at its optimum, then lexicographically
@@ -171,16 +171,16 @@ def _canonicalize_fill(work, prob, candidates, cost_expr, time_limit) -> list[st
 def _gap_fill_task(
     reference_model: cobra.Model, present_ids: set[str], task: Task,
     costs: dict[str, float], *, time_limit: float | None, seed: int,
-    canonical: bool = False,
+    resolve_ties: bool = False,
 ) -> list[str]:
     """Min-cost reference reactions that make ``task`` feasible (RAVEN ``ftINITFillGaps``).
 
     The MILP runs on a **closed copy of the reference model**, which already contains every
     candidate reaction, rather than copying candidates into the target model one at a time.
-    This mirrors RAVEN's ``fullModel = tRefModel`` and is the crucial difference from a naive
-    port: copying the (thousands of) candidate reactions into a genome-scale model per task
-    both dominated the runtime and overflowed the recursion limit, so the growth task's fill
-    never returned an incumbent within the time limit and growth was silently left broken.
+    This mirrors RAVEN's ``fullModel = tRefModel``: copying the (thousands of) candidate
+    reactions into a genome-scale model per task dominates runtime and can overflow the
+    recursion limit, so a per-task copy risks never returning an incumbent within the time
+    limit.
 
     Every reference reaction not already ``present`` in the target model is gated by a binary
     (off ⇒ no flux) and its cost minimised subject to the task's ranged metabolite bounds.
@@ -225,10 +225,10 @@ def _gap_fill_task(
 
     chosen = [cid for cid in candidates
               if (work.variables[f"_fill_{cid}"].primal or 0.0) > 0.5]
-    # canonical (best-effort): pin the degenerate min-cost fill to the fewest, lowest-id
+    # best-effort: pin the degenerate min-cost fill to the fewest, lowest-id
     # reactions so the added set does not depend on the solver seed/version.
-    if canonical:
-        canon = _canonicalize_fill(work, prob, candidates, cost_expr, time_limit)
+    if resolve_ties:
+        canon = _resolve_ties_fill(work, prob, candidates, cost_expr, time_limit)
         if canon is not None:
             chosen = canon
     return chosen
@@ -242,7 +242,7 @@ def fill_tasks(
     rxn_scores: Mapping[str, float] | None = None,
     time_limit: float | None = _FILL_TIME_LIMIT,
     seed: int = _FILL_SEED,
-    canonical: bool = False,
+    resolve_ties: bool = False,
 ) -> TaskFillResult:
     """Add minimum-cost reference reactions so every task is feasible in ``model``.
 
@@ -253,9 +253,9 @@ def fill_tasks(
     the model, excluding exchange/boundary reactions); ``rxn_scores`` (original reaction id →
     score) sets each candidate's cost as ``−min(score, −0.1)`` (missing → cost 1).
     ``should_fail`` tasks are ignored. Each gap-fill MILP is single-threaded with a fixed
-    ``seed`` and bounded by ``time_limit`` (RAVEN's 300 s). ``canonical`` (opt-in) pins the
+    ``seed`` and bounded by ``time_limit`` (RAVEN's 300 s). ``resolve_ties`` (opt-in) pins the
     degenerate min-cost fill to the fewest, lowest-id reactions so the added set does not
-    depend on the solver seed/version — see :func:`_canonicalize_fill`.
+    depend on the solver seed/version — see :func:`_resolve_ties_fill`.
 
     Boundary reactions are closed while testing/solving each task, so task inputs and outputs
     come solely from the task's ranged metabolite bounds (RAVEN gap-fills the exchange-free
@@ -281,7 +281,7 @@ def fill_tasks(
                  for r in reference_model.reactions if r.id not in present and not r.boundary}
         try:
             chosen = _gap_fill_task(reference_model, present, task, costs,
-                                    time_limit=time_limit, seed=seed, canonical=canonical)
+                                    time_limit=time_limit, seed=seed, resolve_ties=resolve_ties)
         except OptimizationError:
             failed.append(task.id)
             continue

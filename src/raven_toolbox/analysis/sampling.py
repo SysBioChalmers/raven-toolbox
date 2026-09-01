@@ -47,9 +47,8 @@ from raven_toolbox.analysis.flux_sampling import (
 
 logger = logging.getLogger(__name__)
 
-# Backwards-compatible alias. The historical RandomSamplingResult is now the
-# unified FluxSamplingResult returned by every sampling method (its
-# ``good_reactions`` field is populated for method='random_objective' only).
+# Alias for the FluxSamplingResult returned by every sampling method; its
+# ``good_reactions`` field is populated for method='random_objective' only.
 RandomSamplingResult = FluxSamplingResult
 
 
@@ -82,8 +81,7 @@ def random_sampling(
       polytopes such as enzyme-constrained models.
     * ``"random_objective"`` — the random-objective vertex method of Bordel et al.
       (2010): each sample maximises a small random objective, returning a polytope
-      vertex. This was ``random_sampling``'s historical behaviour; it is no longer
-      the default.
+      vertex.
 
     The ``"achr"``/``"chrr"`` methods draw the (near-)uniform interior distribution;
     ``"random_objective"`` draws diverse vertices. Set any constraints you want to
@@ -100,14 +98,36 @@ def random_sampling(
         Seed for reproducible chains/draws.
     thinning:
         ``achr``/``chrr`` — Markov-chain steps between recorded samples (default 100).
+        The default is calibrated for small models (~200–500 reactions). On genome-scale
+        models (>2000 reactions) lag-1 autocorrelation remains high even at thinning=100
+        (measured: 0.926 on yeast-GEM with 4102 reactions), giving roughly 12 effective
+        samples from 300 stored samples (ESS ≈ n × (1−ρ)/(1+ρ)). Independent chains at
+        these default settings also frequently fail to agree with each other: on
+        yeast-GEM, the *median* reaction fails the Gelman-Rubin R-hat>1.1 convergence
+        threshold across 4 independent chains (67.5% of reactions fail it; 96.5% fail
+        the stricter R-hat>1.01). Treat default-settings genome-scale output as
+        unconverged for most reactions, not a caveat for a minority of hard ones. For
+        genome-scale analyses either increase thinning substantially (≥1000), increase
+        n_samples to compensate, try ``method='chrr'`` (raven-toolbox's rounding-based
+        alternative, not wired into ACHR), or use an ESS/R-hat diagnostic to assess
+        sample quality (see the `sampling convergence calibration study
+        <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/sampling-convergence-calibration.md>`_
+        on raven-docs).
     warmup:
         ``chrr`` — burn-in steps discarded before the first recorded sample.
     fixed_width_tol:
         ``chrr`` — a reaction whose FVA range is narrower than this is folded into
         the equality system as fixed (keeps the reduced polytope full-dimensional).
-    n_objectives, good_reactions, replace_max_bound, min_flux, loopless_good_reactions, exclude_reactions, max_attempts, suppress_errors:
+    n_objectives, good_reactions, loopless_good_reactions, exclude_reactions, max_attempts, suppress_errors:
         ``random_objective`` only — see the method's parameters; ``good_reactions``
         can be passed back from a previous result to skip the one-off FVA.
+    replace_max_bound:
+        ``random_objective`` only — replace the largest finite bound with infinity
+        before sampling, so a reaction whose biological maximum exceeds the
+        model's arbitrary cap isn't pinned there. Off by default.
+    min_flux:
+        ``random_objective`` only — re-solve each sample parsimoniously to
+        minimise total flux at the optimum, squeezing residual loop flux out.
 
     Returns
     -------

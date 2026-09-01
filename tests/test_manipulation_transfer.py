@@ -109,12 +109,12 @@ def test_note_and_confidence_stored(draft, source):
     assert rxn.notes["confidence_score"] == 2
 
 
-# --- regression: intra-batch met-id minting collision (known_issues.md A3) ---
+# --- regression: intra-batch met-id minting collision -----------------------
 
 def test_intra_batch_id_minting_unique():
     """Two source mets whose ids both collide with the draft and whose name[comp]
-    differs both get routed through new-id minting. The fix tracks ids minted in
-    the current batch so the two don't collapse to the same generated id."""
+    differs both get routed through new-id minting. Ids minted within the same
+    batch are tracked so the two don't collapse to the same generated id."""
     draft = cobra.Model("draft")
     draft.add_metabolites([
         cobra.Metabolite("atp_c", name="ATP-draft", compartment="c"),

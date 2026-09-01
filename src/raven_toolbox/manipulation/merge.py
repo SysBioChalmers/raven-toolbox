@@ -80,9 +80,8 @@ def merge_models(
         if key in met_lookup:
             existing = met_lookup[key]
             # Two source models can map to the same name[comp] (or id) with
-            # different formula/charge; silently picking the first-seen has
-            # quietly corrupted mass balance in the past. Warn so the caller
-            # sees the conflict.
+            # different formula/charge; silently picking the first-seen would
+            # quietly corrupt mass balance. Warn so the caller sees the conflict.
             if src.formula and existing.formula and src.formula != existing.formula:
                 warnings.warn(
                     f"merge_models: metabolite {existing.id!r} (from earlier model) "

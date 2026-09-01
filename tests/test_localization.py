@@ -1,4 +1,4 @@
-"""Tests for raven_toolbox.localization — predictor loaders + the MILP + apply (Phase 7)."""
+"""Tests for raven_toolbox.localization — predictor loaders, the MILP, and apply."""
 from __future__ import annotations
 
 from textwrap import dedent
@@ -391,7 +391,7 @@ def test_apply_localization_idempotent_on_empty_proposal():
     assert added == []
 
 
-# ----------------------------------------- multi-compartment scoring (NEW)
+# ----------------------------------------- multi-compartment scoring
 
 def test_predict_multi_compartment_when_secondary_score_beats_penalty():
     """Dual-localised gene: secondary compartment score 0.8 > penalty 0.3 → gene lands in

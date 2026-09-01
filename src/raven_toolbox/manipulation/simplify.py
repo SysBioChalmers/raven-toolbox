@@ -47,16 +47,27 @@ def _prune_orphan_metabolites(model: cobra.Model) -> list[str]:
 
 
 def _can_produce_and_consume(met) -> tuple[bool, bool]:
-    """Whether the network can both produce and consume ``met`` (given directions)."""
+    """Whether the network can both produce and consume ``met``, by direction alone.
+
+    Purely topological, matching RAVEN ``deleteInaccessible``: a reaction's forward
+    direction always counts (regardless of its bounds), and its reverse direction
+    counts exactly when it is reversible (``lower_bound < 0``). This deliberately
+    ignores ``upper_bound`` and does not check whether a reaction can actually carry
+    flux — that bounds-aware check is ``remove_no_flux_reactions``'s job (RAVEN
+    ``deleteMinMax``, via FVA); mixing it into this cheap structural pass previously
+    made a reaction locked at zero flux (``lb == ub == 0``) silently drop out as a
+    producer/consumer here, diverging from RAVEN when this pass runs alone.
+    """
     produce = consume = False
     for rxn in met.reactions:
         coef = rxn.get_coefficient(met)
+        reversible = rxn.lower_bound < 0
         if coef > 0:
-            produce |= rxn.upper_bound > 0
-            consume |= rxn.lower_bound < 0
+            produce = True
+            consume |= reversible
         elif coef < 0:
-            consume |= rxn.upper_bound > 0
-            produce |= rxn.lower_bound < 0
+            consume = True
+            produce |= reversible
     return produce, consume
 
 
@@ -65,11 +76,10 @@ def remove_dead_end_reactions(
 ) -> tuple[list[str], list[str]]:
     """Iteratively remove dead-end reactions and metabolites.
 
-    A metabolite
-    is a dead end if it participates in only one reaction, or if (accounting for
-    reaction directionality) it can only be produced or only consumed — such
-    metabolites cannot carry steady-state flux, so the reactions touching them
-    are removed. Repeats until stable.
+    A metabolite is a dead end if it participates in only one reaction, or if (accounting for
+    reaction directionality) it can only be produced or only consumed — such metabolites cannot
+    carry steady-state flux, so the reactions touching them are removed. Repeats until stable.
+    ``reserved`` reaction ids are never removed, even if they touch a dead-end metabolite.
 
     Returns ``(removed_reaction_ids, removed_metabolite_ids)``.
     """
@@ -284,8 +294,8 @@ def constrain_reversible_reactions(
         pass
     # Infeasible models surface as either OptimizationError (Gurobi/HiGHS) or
     # NaN-filled ranges (some optlang backends silently). Catch both and raise
-    # a single clear error — the original ``abs(NaN) < eps`` comparison would
-    # have silently no-op'd, letting bogus "all reactions truly reversible"
+    # a single clear error — an unguarded ``abs(NaN) < eps`` comparison silently
+    # evaluates to False, letting bogus "all reactions truly reversible"
     # decisions sneak through.
     try:
         fva = flux_variability_analysis(
@@ -332,11 +342,11 @@ def group_linear_reactions(
 ) -> None:
     """Merge linear (single-producer, single-consumer) reaction chains.
 
-    **Lossy**: gene-reaction
-    associations are discarded (RAVEN does the same), since merged reactions have
-    no meaningful combined GPR. The model is first made irreversible, then any
-    metabolite that is produced by exactly one reaction and consumed by exactly
-    one reaction is eliminated by merging the two reactions. Mutates in place.
+    **Lossy**: gene-reaction associations are discarded (RAVEN does the same), since merged
+    reactions have no meaningful combined GPR. The model is first made irreversible, then any
+    metabolite that is produced by exactly one reaction and consumed by exactly one reaction is
+    eliminated by merging the two reactions. ``reserved`` reaction ids are never merged away.
+    Mutates in place.
     """
     reserved = set(reserved or [])
 
@@ -350,8 +360,8 @@ def group_linear_reactions(
 
     # Worklist of metabolites to (re)consider for merging. Each metabolite
     # participating in a merge can expose new linear chains in its neighbours,
-    # so we re-enqueue the touched mets rather than restart the whole scan
-    # (the old O(n²·m) restart-after-every-merge loop).
+    # so touched mets are re-enqueued rather than restarting a full scan of
+    # all metabolites after every merge.
     pending: list = list(model.metabolites)
     seen_in_pass: set = set()
     while pending:

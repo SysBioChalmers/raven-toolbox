@@ -4,11 +4,10 @@ Not a cross-language check, but it protects the property the parity tiers rest
 on: a comparison against MATLAB means nothing if raven-toolbox itself returns a
 different model each run.
 
-Compartment placement and gap-filling were made deterministic in #76, #83 and
-the assignment gap-fill rework, all without a regression test -- the property
-was verified once, by hand, and nothing has guarded it since. Tie-breaking in a
-MILP is easy to reintroduce accidentally (an unordered set, a dict iteration
-order, an unseeded solver), and the symptom is a benchmark that quietly moves.
+Compartment placement and gap-filling determinism were verified once, by hand,
+and nothing has guarded it since. Tie-breaking in a MILP is easy to reintroduce
+accidentally (an unordered set, a dict iteration order, an unseeded solver), and
+the symptom is a benchmark that quietly moves.
 """
 from __future__ import annotations
 
@@ -130,9 +129,8 @@ def test_result_does_not_depend_on_the_process_hash_seed(tmp_path):
     above cannot see it, however many times they run. Two processes with
     different PYTHONHASHSEED values can.
 
-    This is what scripts/determinism_probe.py checked by hand while the
-    placement determinism fixes were being made. Running it as a test means
-    nobody has to remember to.
+    This automates what scripts/determinism_probe.py otherwise checks by
+    hand, so nobody has to remember to run it.
     """
     worker = Path(__file__).with_name("_hashseed_worker.py")
     results = {}

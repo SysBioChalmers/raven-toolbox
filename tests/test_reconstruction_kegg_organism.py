@@ -181,7 +181,7 @@ def test_from_artefacts_roundtrip(kegg_dump, tmp_path):
 
 def test_from_artefacts_domain_mode_auto_resolves_taxonomy(kegg_dump, tmp_path):
     # Domain mode must auto-resolve the taxonomy artefact from artefact_dir, without the
-    # caller passing taxonomy= (previously raised "Domain mode needs the KEGG taxonomy").
+    # caller passing taxonomy=.
     import gzip
     import shutil
 

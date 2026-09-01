@@ -28,8 +28,9 @@ pip install -e ".[excel,dev]"
 
 Linear and most MILP work runs on the open-source **GLPK** that ships with cobra.
 Genome-scale **(f)tINIT** MILPs currently require **Gurobi** for tractable solve times —
-see the [solver benchmark](studies/init_solver_benchmark.md) for the Gurobi vs HiGHS vs GLPK
-comparison and portability notes.
+see the
+[INIT solver benchmark](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-solver-benchmark.md)
+(raven-docs) for the Gurobi vs HiGHS vs GLPK comparison and portability notes.
 
 ## External binaries
 

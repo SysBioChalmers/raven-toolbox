@@ -125,6 +125,17 @@ def run_init(
     means *different things* in the two variants. If you want score-0
     reactions kept here, pass a small positive value (e.g. ``min_score`` from
     `gene_scores_from_expression`) instead of 0.
+
+    ``mip_gap`` / ``time_limit``: the default ``None`` uses the solver's own
+    defaults (Gurobi: MIPGap≈1e-4, no time cap). Measured on genome-scale
+    Human-GEM (see the `INIT parameter calibration study
+    <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/init-param-calibration.md>`_
+    on raven-docs): ``mip_gap=0.001``
+    reproduces the tightest-gap model exactly (Jaccard 1.0); ``mip_gap=0.01``
+    is ~30% faster at ~3% reaction-set drift. Set an explicit ``time_limit``
+    for degraded or hard inputs — an unbounded solve was observed to run
+    >75 min on one severely-degraded case; ``time_limit=400`` (seconds) is a
+    working genome-scale value from that study.
     """
     scores = dict(rxn_scores or {})
     essential = set(essential_rxns or [])

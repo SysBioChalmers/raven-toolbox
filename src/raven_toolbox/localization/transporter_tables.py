@@ -13,8 +13,8 @@ Classes are drawn from :data:`COARSE_CLASSES`. Many carriers are promiscuous, so
 *set* of classes; matching succeeds on any overlap with the metabolite's class(es). Entries are
 deliberately conservative and easily extended — the build script verifies every accession against the
 live InterPro API, so a stale/typo'd accession is reported rather than silently shipped. The precise
-per-substrate ChEBI mapping (TCDB substrate table + ChEBI ontology roll-up) is a later increment; this
-layer is the coarse fallback.
+per-substrate ChEBI mapping (TCDB substrate table + ChEBI ontology roll-up, see
+:mod:`raven_toolbox.localization.substrate_ontology`) sits on top of this coarse fallback.
 """
 from __future__ import annotations
 

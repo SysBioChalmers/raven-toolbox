@@ -1,4 +1,4 @@
-"""Tests for Reporter Metabolites (analysis/reporter.py, Phase 5)."""
+"""Tests for Reporter Metabolites (analysis/reporter.py)."""
 import cobra
 import pytest
 

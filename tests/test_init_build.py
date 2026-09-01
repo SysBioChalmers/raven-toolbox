@@ -85,7 +85,14 @@ def model(linear_chain_model_with_genes):
 
 def test_get_init_model_from_gene_scores(model):
     # g1,g2 expressed (positive), g3 not (negative) -> keep r1,r2, drop r3.
-    res = get_init_model(model, gene_scores={"g1": 5.0, "g2": 5.0, "g3": -5.0}, prod_weight=0.0)
+    # allow_excretion=True: this model has no boundary reaction for B/C/D, so with
+    # strict mass balance the only way r2 could carry flux would be for r3 to also
+    # carry it (nothing else consumes the C that r2 produces) -- allow_excretion
+    # lets the productive path run without dragging the dead-scored branch along.
+    res = get_init_model(
+        model, gene_scores={"g1": 5.0, "g2": 5.0, "g3": -5.0}, prod_weight=0.0,
+        allow_excretion=True,
+    )
     assert isinstance(res, InitModelResult)
     kept = {r.id for r in res.model.reactions}
     assert {"r1", "r2"} <= kept
@@ -102,8 +109,11 @@ def test_get_init_model_requires_one_score_source(model):
 
 def test_get_init_model_essential_kept(model):
     # r3 negative-scored but essential -> kept.
+    # allow_excretion=True: D (r3's product) has no boundary reaction, so under
+    # strict mass balance forcing r3 on (essential) would be infeasible outright.
     res = get_init_model(
-        model, rxn_scores={"r1": 1, "r2": 1, "r3": -1}, essential_rxns=["r3"], prod_weight=0.0
+        model, rxn_scores={"r1": 1, "r2": 1, "r3": -1}, essential_rxns=["r3"], prod_weight=0.0,
+        allow_excretion=True,
     )
     assert "r3" in {r.id for r in res.model.reactions}
 

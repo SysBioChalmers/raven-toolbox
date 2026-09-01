@@ -67,7 +67,13 @@ def score_reactions_from_genes(
     complex_scoring: str = "min",
     no_gene_score: float = -2.0,
 ) -> dict[str, float]:
-    """Return ``{reaction_id: score}`` from per-gene scores via each reaction's GPR."""
+    """Score each reaction from per-gene scores via its GPR (``{reaction_id: score}``).
+
+    Isozymes (GPR **OR**) are combined with ``isozyme_scoring`` (default ``max``);
+    complex subunits (**AND**) with ``complex_scoring`` (default ``min``). A reaction
+    with no genes, or whose genes are all missing from ``gene_scores``, gets
+    ``no_gene_score`` (default -2).
+    """
     iso, cplx = resolve_aggregators(isozyme_scoring, complex_scoring)
 
     scores: dict[str, float] = {}

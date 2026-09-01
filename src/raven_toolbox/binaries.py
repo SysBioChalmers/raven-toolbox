@@ -201,6 +201,8 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
     Consults the registry for the current platform, downloads the pinned ZIP,
     verifies its SHA256, extracts it into the cache, and returns the executable
     path. Raises ``FileNotFoundError`` if no bundle for this platform is hosted.
+    Pass ``registry`` to consult an alternate bundle registry instead of the
+    built-in one (mainly for tests or a custom manifest).
     """
     registry = _REGISTRY if registry is None else registry
     _maybe_autoload(registry)
@@ -229,9 +231,9 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
 
     cached = _find_exe()
     if cached is not None:
-        # Re-applied on the cached path too, not only after extraction: a bundle
-        # left behind by an older version of this function has only the one
-        # executable it was asked for marked, and the rest still unusable.
+        # Re-applied on the cached path too, not only after extraction: a stale
+        # cache dir may only have the one executable it was asked for marked,
+        # leaving the rest unusable.
         _make_executable(cached)
         return cached
 
@@ -262,9 +264,8 @@ def ensure_binary(executable: str, *, registry: dict | None = None) -> Path:
             f"None of {candidates} found in the extracted bundle at {dest_dir}."
         )
     # Every executable the bundle provides, not just the one asked for. The BLAST
-    # bundle ships blastp *and* makeblastdb; marking only the requested one left
-    # the other non-executable, and the failure surfaced much later as a
-    # PermissionError from whichever tool happened to be called second.
+    # bundle ships blastp *and* makeblastdb; marking only the requested one would
+    # leave the other non-executable.
     for provided in bundle.get("provides", []):
         for name in ([f"{provided}.exe", provided] if key.startswith("windows-") else [provided]):
             sibling = dest_dir / name
@@ -360,8 +361,9 @@ def provision_binaries(
 
     With ``prefer_existing`` (default) a tool already on PATH or pointed at by its
     env var is left as-is (``"present"``) and not downloaded. Otherwise the bundle
-    is fetched via :func:`ensure_binary`. Never raises for an individual tool — a
-    missing platform bundle becomes ``"unavailable"`` and a failed download
+    is fetched via :func:`ensure_binary` (``registry``, if given, is forwarded to
+    it in place of the built-in registry). Never raises for an individual tool —
+    a missing platform bundle becomes ``"unavailable"`` and a failed download
     ``"error"``, so a caller can report the whole set at once.
     """
     out: list[BinaryStatus] = []

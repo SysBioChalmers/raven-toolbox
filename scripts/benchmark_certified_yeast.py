@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Authoritative, reproducible yeast benchmark for ``assign_compartments``.
 
-Regenerates the numbers the earlier studies produced with the now-superseded method. Two parts, one
-JSON output (``.research_tmp/certified_yeast.json``):
+Two parts, one JSON output (``.research_tmp/certified_yeast.json``):
 
 1. **Comparison 1 (vs curated yeast-GEM):** reaction- and gene-level compartment agreement,
    added-transport count, materialised growth, and functional connectivity (blocked-reaction fraction).

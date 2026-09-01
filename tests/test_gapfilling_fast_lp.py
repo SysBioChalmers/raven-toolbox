@@ -53,7 +53,6 @@ def test_model_returned(linear_gap):
 
 
 def test_fills_blocked_reaction(linear_gap):
-    """After fill, r1 should be in the returned model and added reactions non-empty."""
     draft, template = linear_gap
     result = fill_gaps_fast_lp(draft, template, verbose=False)
     assert "r1" in result.newly_connected
@@ -67,7 +66,6 @@ def test_cannot_connect_is_list(linear_gap):
 
 
 def test_swift_variant_runs(linear_gap):
-    """swiftLP variant should produce a valid result."""
     draft, template = linear_gap
     result = fill_gaps_fast_lp(draft, template, variant="swift", verbose=False)
     assert isinstance(result, FastLPResult)
@@ -75,7 +73,6 @@ def test_swift_variant_runs(linear_gap):
 
 
 def test_no_gaps_returns_early(linear_gap):
-    """A model with no blocked reactions should return empty added_reactions."""
     _, template = linear_gap
     # Use template as both model (all reactions connected) and template
     draft_complete = template.copy()

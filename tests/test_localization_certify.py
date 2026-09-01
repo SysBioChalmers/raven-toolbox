@@ -370,12 +370,11 @@ def test_no_gratuitous_gapfill():
 
 
 def test_gapfill_reuses_relocated_compartment_metabolite():
-    # Regression: _add_universal_reaction used to match a gap-fill candidate's metabolite ids verbatim
-    # against the model instead of routing them through the shared base-id/compartment resolver that
-    # _move_reaction uses. A relocated reaction materialises its non-default-compartment metabolites
-    # under a *generated* id ("A_c__m"), never the universal candidate's own "A_m" -- so the old code
-    # never found a match and silently created a second, disconnected "A_m", leaving the gap-fill
-    # reaction an island nothing else in the model touches. It never raised; it just built a wrong model.
+    # Gap-fill candidates must resolve metabolite ids through the shared base-id/compartment resolver
+    # that _move_reaction uses, not match them verbatim. A relocated reaction materialises its
+    # non-default-compartment metabolites under a *generated* id ("A_c__m"), never the universal
+    # candidate's own "A_m" -- matching verbatim silently creates a second, disconnected "A_m" instead
+    # of raising, leaving the gap-fill reaction an island nothing else in the model touches.
     m = _linear()  # EX_A -> r1: A_c->B_c (g1) -> bio: B_c->
     proposal = AssignmentProposal(placements={"r1": ["m"]}, added_reactions=["rD"])
 

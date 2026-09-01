@@ -63,8 +63,8 @@ def test_organisms_in_domain_prefix_match(kegg_dump):
 
 
 def test_parse_taxonomy_handles_skipped_depth(tmp_path):
-    """A ``##`` directly under a ``#`` (skipping ``##`` level) used to corrupt
-    the stack. Now pads with '' placeholders and warns once (known_issues.md C4)."""
+    """A ``##`` directly under a ``#`` (skipping the ``##`` level) is padded
+    with '' placeholders and warns once."""
     p = tmp_path / "tax"
     p.write_text(
         "#Domain1\n"

@@ -30,7 +30,8 @@ FASTA via HMM search.
 - **Your sequences (HMM search):** {func}`raven_toolbox.reconstruction.kegg.assign_kos` →
   {func}`raven_toolbox.reconstruction.kegg.get_kegg_model_from_sequences`. The HMM cut-off
   defaults are calibrated in the
-  [KEGG HMM cut-off study](../studies/kegg_hmm_cutoff_calibration.md).
+  [KEGG HMM cut-off calibration study](https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/kegg-hmm-cutoff-calibration.md)
+  (raven-docs).
 
 The KEGG artefact bundle (KO tables, reference model, HMM libraries) is fetched by
 {mod}`raven_toolbox.data`; building and publishing it is a maintainer task — see

@@ -22,7 +22,7 @@ So this port keeps only the parts cobra lacks:
 
 Instead of RAVEN's ``eqnType`` integer (1/2/3) the matching mode is a readable
 keyword: ``mets_by="id"`` or ``mets_by="name"``, with ``name[comp]`` recognised
-automatically. See IMPROVEMENTS.md (A-series) for the rationale.
+automatically.
 """
 from __future__ import annotations
 
@@ -98,10 +98,10 @@ def _new_met_id(model: cobra.Model, prefix: str) -> str:
 
 
 def _build_met_index(model: cobra.Model) -> dict[tuple[str, str | None], Metabolite]:
-    """Build a ``(name, compartment) -> metabolite`` index (first match wins,
-    mirroring the old linear scan). Lets name / name[comp] resolution be O(1)
-    instead of re-scanning ``model.metabolites`` per token; callers update it as
-    new mets are created so later tokens dedup against earlier ones."""
+    """Build a ``(name, compartment) -> metabolite`` index (first match wins).
+    Lets name / name[comp] resolution be O(1) instead of re-scanning
+    ``model.metabolites`` per token; callers update it as new mets are created
+    so later tokens dedup against earlier ones."""
     index: dict[tuple[str, str | None], Metabolite] = {}
     for met in model.metabolites:
         index.setdefault((met.name, met.compartment), met)
@@ -194,10 +194,9 @@ def _resolve_metabolite(
 def _warn_unknown_compartment(model: cobra.Model, compartment: str, identifier: str) -> None:
     """Warn when a new metabolite would be born into a not-yet-registered compartment.
 
-    Both ``mets_by`` paths previously created the metabolite without validating
-    the compartment, so a typo (``"cyto"`` for ``"c"``) silently produced a
+    A typo (``"cyto"`` for ``"c"``) would otherwise silently produce a
     one-metabolite ghost compartment. cobra inherits the compartment from the
-    first metabolite assigned to it, so the fix is a warning, not a hard error.
+    first metabolite assigned to it, so this stays a warning, not a hard error.
     """
     known = set(model.compartments) | set(model._compartments)
     if compartment not in known:

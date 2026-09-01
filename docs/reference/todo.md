@@ -102,7 +102,7 @@ automatically, so a parity claim cannot fail a build.
   documented regeneration step reruns MATLAB to refresh the oracles.
 * **P0 — Tier the parity contract**, because "identical output" is not achievable uniformly.
   The tiers are also what `differences/parity.md` publishes:
-  1. **Exact** — YAML/Excel/SIF export, task-list parsing, GPR normalisation, elemental
+  1. **Exact** — YAML/Excel export, task-list parsing, GPR normalisation, elemental
      balance, `sort_identifiers`, `merge_models`, `convert_to_irreversible`, `expand_model`,
      KEGG table parsing, homology ortholog maps.
   2. **Set-level** — MILP outcomes ((f)tINIT extraction, gap-filling, localisation): assert

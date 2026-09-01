@@ -16,7 +16,9 @@ Schema (all keys optional):
       reset_exchanges: out                # "in" | "out" | "all" | "both" | bool truthy
 
     # Remove metabolites from a pseudoreaction and rebalance H+
-    # (or any other "balance" met) so total charge stays zero.
+    # (or any other "balance" met) so total charge stays zero. Raises
+    # ValueError if any remaining participant has no charge set --- an
+    # unknown charge is not the same as a neutral one.
     cofactor_pseudoreaction:
       rxn_id: r_4598
       remove_mets:
@@ -163,8 +165,19 @@ def _apply_cofactor_pseudoreaction(model: cobra.Model, cfg: dict[str, Any]) -> N
     if balance_met_id:
         balance_met = model.metabolites.get_by_id(balance_met_id)
         _set_coefficient(rxn, balance_met, 0.0)
+        # Only the participating metabolites may be summed. A missing charge
+        # (None) is unknown, not neutral -- treating it as 0 would silently
+        # write the wrong balancing coefficient, matching RAVEN's
+        # applyCondition, which raises rather than defaulting to 0 here.
+        unknown = sorted(m.id for m in rxn.metabolites if m.charge is None)
+        if unknown:
+            raise ValueError(
+                f"Cannot charge balance {rxn.id!r}: the following metabolites "
+                "have no charge, so the charge balance is unknown rather "
+                f"than zero: {', '.join(unknown)}"
+            )
         total_charge = sum(
-            (m.charge or 0) * coef
+            m.charge * coef
             for m, coef in rxn.metabolites.items()
         )
         _set_coefficient(rxn, balance_met, -total_charge)

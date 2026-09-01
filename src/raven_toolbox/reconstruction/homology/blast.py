@@ -7,6 +7,7 @@ located via :func:`raven_toolbox.binaries.resolve_binary` (arg → env → PATH 
 from __future__ import annotations
 
 import io
+import os
 import subprocess
 import tempfile
 from collections.abc import Sequence
@@ -54,18 +55,24 @@ def run_blast(
     ref_fastas: Sequence[str | Path],
     *,
     evalue: float = 1e-4,
-    threads: int = 1,
+    threads: int = max(1, (os.cpu_count() or 2) - 1),
     blastp: str | Path | None = None,
     makeblastdb: str | Path | None = None,
 ) -> pd.DataFrame:
     """Bidirectional BLAST+ between an organism and template organisms.
+
+    ``model_ids`` and ``ref_fastas`` are parallel: ``ref_fastas[i]`` is the
+    reference proteome for template ``model_ids[i]``.
 
     Returns the hits DataFrame (filtered at
     ``evalue``). Requires BLAST+ (`blastp`, `makeblastdb`).
 
     The default matches MATLAB RAVEN's ``getBlast``, which hardcodes
     ``-evalue 10e-5`` -- that is 1e-4, not 1e-5. Unlike RAVEN's, this one is an
-    argument, so a stricter search stays available.
+    argument, so a stricter search stays available; it's also a loose
+    pre-filter only, dominated downstream by
+    :func:`~raven_toolbox.reconstruction.homology.homology.get_model_from_homology`'s
+    much stricter ``max_evalue``/``min_align_len``/``min_identity``.
     """
     model_ids = list(model_ids)
     ref_fastas = _as_list(ref_fastas)
@@ -102,11 +109,16 @@ def run_diamond(
     ref_fastas: Sequence[str | Path],
     *,
     evalue: float = 1e-3,
-    threads: int = 1,
+    threads: int = max(1, (os.cpu_count() or 2) - 1),
     sensitivity: str = "--more-sensitive",
     diamond: str | Path | None = None,
 ) -> pd.DataFrame:
     """Bidirectional DIAMOND between an organism and template organisms.
+
+    ``model_ids`` and ``ref_fastas`` are parallel: ``ref_fastas[i]`` is the
+    reference proteome for template ``model_ids[i]``. ``sensitivity`` is
+    passed straight through as a DIAMOND CLI flag (e.g. ``"--more-sensitive"``,
+    ``"--sensitive"``, or ``""`` to use DIAMOND's default fast mode).
 
     Returns the hits DataFrame. Requires DIAMOND.
 
@@ -144,9 +156,8 @@ def run_diamond(
 
 
 def blast_from_table(source: str | Path | pd.DataFrame) -> pd.DataFrame:
-    """Load a precomputed homology hits table (CSV path or DataFrame).
+    """Load a precomputed homology hits table (CSV path or DataFrame, not Excel).
 
-    a plain CSV/DataFrame, not Excel.
     Must contain the ``HIT_COLUMNS`` columns.
     """
     # Force gene-id columns to str: an all-numeric gene-id column (e.g. Entrez ids)

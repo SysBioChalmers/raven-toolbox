@@ -2,11 +2,6 @@
 
 Operates on cobra's GPR AST, so the model stays a plain ``cobra.Model`` throughout.
 
-Provenance: this implementation was first written for geckopy
-(``geckopy/ec_model/pipeline/expand.py``, where it backed makeEcModel stage 5)
-and is adopted here as its canonical home; geckopy will import it from raven_toolbox
-once raven_toolbox is published.
-
 MATLAB-COMPAT: GECKO MATLAB and RAVEN ``expandModel.m`` use string manipulation
 on grRules to detect and split isozymes. raven_toolbox uses cobrapy's GPR AST
 instead. Output should be equivalent for any well-formed GPR; cases that differ

@@ -1,8 +1,9 @@
 # User guide
 
 Task-oriented guides for each raven-toolbox capability. Every guide links to the relevant
-[API reference](../reference/api/index.md) entries and, where one exists, the
-[validation study](../studies/index.md) that backs the defaults.
+[API reference](../reference/api/index.md) entries and, where one exists, the validation or
+parameter-calibration study (on [raven-docs](https://github.com/edkerk/raven-docs), alongside
+MATLAB RAVEN's own defaults) that backs the defaults.
 
 If you are coming from MATLAB RAVEN, read the
 [migration map](../reference/migration.md) first — it tells you, function by function, what

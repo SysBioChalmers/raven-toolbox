@@ -119,9 +119,10 @@ def apply_assignment(
 ) -> cobra.Model:
     """Build the compartmentalised model from a proposal (deep copy; original untouched).
 
-    Pass the same ``base_metabolite`` and ``universal`` used in :func:`assign_compartments`
-    so the same compartment-agnostic keying is used (existing per-compartment metabolites are reused
-    rather than duplicated) and the chosen gap-fill reactions are added.
+    ``default_compartment`` is the hub compartment star-topology transports route through. Pass the
+    same ``base_metabolite`` and ``universal`` used in :func:`assign_compartments` so the same
+    compartment-agnostic keying is used (existing per-compartment metabolites are reused rather than
+    duplicated) and the chosen gap-fill reactions are added.
     """
     out = model.copy()
     base = base_metabolite if base_metabolite is not None else _base_met

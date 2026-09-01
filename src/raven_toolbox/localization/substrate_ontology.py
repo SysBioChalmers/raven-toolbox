@@ -76,6 +76,9 @@ class SubstrateOntology:
         relations_path: str | Path | None = None,
         substrates_path: str | Path | None = None,
     ) -> SubstrateOntology:
+        """Build a :class:`SubstrateOntology` from the ChEBI relations graph and the TCDB substrate
+        table, auto-downloading/caching each (the packaged raven-data artefacts) when its path is
+        left as ``None``."""
         relations_path = (relations_path if relations_path is not None
                           else ensure_data_file("transporters", "chebi_relations.tsv.gz"))
         edges: dict[str, set[str]] = defaultdict(set)

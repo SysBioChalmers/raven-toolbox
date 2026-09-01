@@ -1,4 +1,4 @@
-"""Tests for raven_toolbox.io.yaml against the RAVEN fa281a1 (cobra-native !!omap) schema."""
+"""Tests for raven_toolbox.io.yaml against the RAVEN cobra-native (!!omap) schema."""
 from pathlib import Path
 
 import cobra
@@ -7,7 +7,7 @@ from cobra.io.yaml import yaml as cobra_yaml
 
 from raven_toolbox.io import read_yaml_model, write_yaml_model
 
-# A model laid out exactly as RAVEN writeYAMLmodel (fa281a1) emits: cobra-native
+# A model laid out exactly as RAVEN writeYAMLmodel emits: cobra-native
 # structure, RAVEN-only fields as top-level per-entry keys, smiles/ec-code inside
 # the annotation block, metaData provenance-only, id/name/version top-level,
 # plus the GECKO ec-* sections that populate `model.ec`.
@@ -139,6 +139,20 @@ def test_round_trip(yaml_file, tmp_path):
     assert reloaded.ec.source[0] == "brenda"
     assert reloaded.ec.enzymes == ["P12345"]
     assert reloaded.ec.mw[0] == 50000.0
+
+
+def test_round_trip_preserves_unknown_metadata_field(yaml_file, tmp_path):
+    """A metaData key with no RAVEN-defined slot (e.g. geckopy's
+    geckopy_version) survives a write/read round trip alongside a normal
+    RAVEN annotation field (taxonomy), instead of being silently dropped."""
+    model = read_yaml_model(yaml_file)
+    model.notes["metaData"]["geckopy_version"] = "0.2.1"
+    out = tmp_path / "out.yml"
+    write_yaml_model(model, out)
+    reloaded = read_yaml_model(out)
+
+    assert reloaded.notes["metaData"]["geckopy_version"] == "0.2.1"
+    assert reloaded.notes["metaData"]["taxonomy"] == "taxonomy/559292"
 
 
 def test_extra_notes_not_dropped_when_free_text_note_present(yaml_file, tmp_path):

@@ -85,9 +85,9 @@ def build_ko_fastas(
 ) -> dict[str, Path]:
     """Write one ``<KO>.fa`` per KO with its member genes' sequences.
 
-    but with a stdlib offset index instead
-    of the Java-hashtable byte scan. ``organisms`` restricts to a domain's
-    organism codes (for the prok/euk split). Empty KOs are skipped (no file).
+    Uses a stdlib offset index instead of a Java-hashtable byte scan.
+    ``organisms`` restricts to a domain's organism codes (for the prok/euk
+    split). Empty KOs are skipped (no file).
     ``progress`` shows a tqdm bar over the per-KO writing pass. Returns
     ``{ko: path}`` for the files written.
 
@@ -326,7 +326,7 @@ def build_ko_hmm(
     *,
     seq_identity: float = 0.9,
     parttree_residues: int | None = None,
-    threads: int = 1,
+    threads: int = max(1, (os.cpu_count() or 2) - 1),
     fast: bool = True,
     verbose: bool = False,
     cdhit: str | Path | None = None,
@@ -431,7 +431,7 @@ def build_hmm_library(
     domain: str,
     seq_identity: float = 0.9,
     parttree_residues: int | None = None,
-    threads: int = 1,
+    threads: int = max(1, (os.cpu_count() or 2) - 1),
     fast: bool = True,
     verbose: bool = False,
     progress: bool = False,

@@ -195,17 +195,18 @@ and ChEBI-ontology tables) and the pipeline is **validated** on yeast-GEM (see *
 ## Validation
 
 The pipeline is validated on real curated ground truth using only the shipped public API — no
-benchmark-specific scaffolding — in two studies under `docs/studies/`:
+benchmark-specific scaffolding — in [yeast_validation.md](../studies/yeast_validation.md):
 
-* [**Replicate yeast-GEM**](../studies/replicate_yeast_gem.md) — flatten curated yeast-GEM to one
-  compartment with `merge_compartments`, then run `annotate_proteome` -> `evidence_aware_transport_cost`
-  -> `assign_compartments` and score the recovered compartmentalisation (reaction- and gene-level
-  agreement, added-transport count, functional connectivity, growth) against the curated original.
-* [**vs CarveFungi**](../studies/vs_carvefungi.md) — the same evidence-aware assignment head-to-head
-  with CarveFungi's own compartment prediction, scored against yeast-GEM at gene level and against
-  CarveFungi's own placement.
+* [**Replicate yeast-GEM**](../studies/yeast_validation.md#1-recovering-curated-yeast-gem-comparison-1)
+  — flatten curated yeast-GEM to one compartment with `merge_compartments`, then run
+  `annotate_proteome` -> `evidence_aware_transport_cost` -> `assign_compartments` and score the
+  recovered compartmentalisation (reaction- and gene-level agreement, added-transport count,
+  functional connectivity, growth) against the curated original.
+* [**vs CarveFungi**](../studies/yeast_validation.md#2-head-to-head-with-carvefungi-comparison-2)
+  — the same evidence-aware assignment head-to-head with CarveFungi's own compartment prediction,
+  scored against yeast-GEM at gene level and against CarveFungi's own placement.
 
-Both drive the real functions on the yeast proteome + DeepLoc inputs in `data/deeploc/`; see each
+Both drive the real functions on the yeast proteome + DeepLoc inputs in `data/deeploc/`; see the
 study for the current numbers.
 
 ## Open questions / risks

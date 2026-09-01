@@ -217,10 +217,32 @@ def get_model_from_homology(
 
     ``strictness`` (1/2/3) is a legacy alias for ``bidirectional`` / ``best_hits_only``.
 
-    Defaults for the three filters come from
-    :doc:`a calibration against KEGG orthology </studies/homology_cutoff_calibration>`,
-    scored with precision weighted above recall (a wrongly transferred reaction
-    is harder to undo than a missing one):
+    Other parameters that materially change the result:
+
+    * ``bidirectional`` (default True) requires a reciprocal hit — a template
+      gene and a new-organism gene must each be the other's best match —
+      rather than trusting a hit in just one direction.
+    * ``best_hits_only`` (default False) keeps only each gene's single best
+      hit (ranked by ``score``) instead of every hit that passes the filters.
+    * ``map_direction`` picks which one-directional search to trust when
+      ``bidirectional`` is False: ``"new_to_old"`` (default, hits found
+      searching from ``model_for``) or ``"old_to_new"``.
+    * ``score`` is the metric used to rank hits for ``best_hits_only``:
+      ``"bitscore"`` (default) or ``"evalue"``.
+    * ``complex_policy`` decides what happens to an AND-linked subunit with no
+      ortholog: ``"flag"`` (default) keeps the reaction with a placeholder
+      gene for later curator review, ``"keep"`` drops just that subunit,
+      ``"drop"`` drops the whole reaction.
+    * ``only_genes_in_models`` restricts the hits table to genes that actually
+      appear in the given ``models`` before mapping orthologs.
+    * ``preferred_order`` breaks ties when more than one template maps the
+      same new-organism gene: the earlier template in the list wins that gene
+      (default: the order of ``models``).
+
+    Defaults for the three filters come from a `calibration against KEGG orthology
+    <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/homology-cutoff-calibration.md>`_
+    on raven-docs, scored with precision weighted above recall (a wrongly transferred
+    reaction is harder to undo than a missing one):
 
     * ``min_identity`` 40 is the binding filter and the measured optimum.
     * ``min_align_len`` 100 replaces RAVEN's 200, which discarded real orthologs

@@ -67,6 +67,7 @@ class ReviewReport:
     signals_used: list[str] = field(default_factory=list)
 
     def top(self, n: int = 15) -> pd.DataFrame:
+        """Return the ``n`` highest-uncertainty items (the report is already sorted by it)."""
         return self.items.head(n)
 
     def __str__(self) -> str:
@@ -114,7 +115,13 @@ def triage_localization(
     :class:`LocalizationScores`, e.g. ``{"DeepLoc": ..., "UniProt": ...}``) enables the source-conflict
     signal — :func:`combine_scores` destroys it. ``model`` (a cobra model) adds a ``reactions`` column
     listing the reactions each gene gates. ``compartment_trust`` overrides
-    :data:`DEEPLOC_COMPARTMENT_TRUST`. Returns a :class:`ReviewReport` ranked by ``uncertainty``.
+    :data:`DEEPLOC_COMPARTMENT_TRUST`.
+
+    ``confidence_threshold``, ``margin_threshold``, and ``entropy_threshold`` set the cutoffs that
+    trigger the low-confidence, borderline, and diffuse signals respectively (see the module
+    docstring for what each signal means). ``weights`` controls how much each signal counts toward
+    the blended ``uncertainty`` score. ``top_n`` caps how many rows are returned. Returns a
+    :class:`ReviewReport` ranked by ``uncertainty``.
     """
     df = scores.df
     trust = dict(DEEPLOC_COMPARTMENT_TRUST if compartment_trust is None else compartment_trust)
