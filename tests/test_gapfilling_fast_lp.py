@@ -91,3 +91,47 @@ def test_candidates_per_reaction_populated(linear_gap):
     assert isinstance(result.candidates_per_reaction, dict)
     for v in result.candidates_per_reaction.values():
         assert isinstance(v, list)
+
+
+@pytest.fixture
+def two_independent_gaps():
+    """Draft with two separate blocked reactions, each rescuable by its own
+    independent template chain -- r1/r3 don't share any metabolite, so their
+    LPs are fully independent (good for exercising n_proc > 1)."""
+    A, B, D, F = _met("A_c"), _met("B_c"), _met("D_c"), _met("F_c")
+    draft = cobra.Model("draft")
+    exa = cobra.Reaction("EX_A", lower_bound=-10, upper_bound=1000)
+    exa.add_metabolites({A: -1})
+    r1 = cobra.Reaction("r1", lower_bound=0, upper_bound=1000)
+    r1.add_metabolites({A: -1, B: 1})
+    exd = cobra.Reaction("EX_D", lower_bound=-10, upper_bound=1000)
+    exd.add_metabolites({D: -1})
+    r3 = cobra.Reaction("r3", lower_bound=0, upper_bound=1000)
+    r3.add_metabolites({D: -1, F: 1})
+    draft.add_reactions([exa, r1, exd, r3])
+
+    template = cobra.Model("template")
+    r2 = cobra.Reaction("r2", lower_bound=0, upper_bound=1000)
+    r2.add_metabolites({_met("B_c"): -1, _met("C_c"): 1})
+    exc = cobra.Reaction("EX_C", lower_bound=-1000, upper_bound=1000)
+    exc.add_metabolites({_met("C_c"): -1})
+    r4 = cobra.Reaction("r4", lower_bound=0, upper_bound=1000)
+    r4.add_metabolites({_met("F_c"): -1, _met("G_c"): 1})
+    exg = cobra.Reaction("EX_G", lower_bound=-1000, upper_bound=1000)
+    exg.add_metabolites({_met("G_c"): -1})
+    template.add_reactions([r2, exc, r4, exg])
+
+    return draft, template
+
+
+def test_parallel_matches_serial(two_independent_gaps):
+    """n_proc=2 must yield the same result as n_proc=1 (same set of added
+    reactions, same per-reaction candidates -- each blocked reaction's LP
+    only depends on the shared merged model, reverted after each solve, so
+    running them in worker processes shouldn't change anything)."""
+    draft, template = two_independent_gaps
+    serial = fill_gaps_fast_lp(draft, template, verbose=False, n_proc=1)
+    parallel = fill_gaps_fast_lp(draft, template, verbose=False, n_proc=2)
+    assert serial.added_reactions == parallel.added_reactions
+    assert serial.newly_connected == parallel.newly_connected
+    assert serial.candidates_per_reaction == parallel.candidates_per_reaction
