@@ -28,6 +28,7 @@ from typing import Literal
 
 import cobra
 from cobra.flux_analysis import find_blocked_reactions, flux_variability_analysis
+from cobra.util import ProcessPool
 
 from raven_toolbox.manipulation.transfer import add_reactions_from_model
 
@@ -183,6 +184,44 @@ def _solve_swiftlp(
         ]
 
 
+# --------------------------------------------------------------------------- #
+# Worker globals for the parallel path (n_proc > 1): populated once per
+# worker process by _init_worker and reused for every blocked reaction it
+# solves.
+# --------------------------------------------------------------------------- #
+
+_WORKER_MODEL: cobra.Model | None = None
+_WORKER_TEMPLATE_IDS: list[str] | None = None
+_WORKER_EPSILON: float | None = None
+_WORKER_VARIANT: Literal["fast", "swift"] | None = None
+
+
+def _init_worker(
+    working: cobra.Model,
+    template_ids: list[str],
+    epsilon: float,
+    variant: Literal["fast", "swift"],
+) -> None:
+    """Pool initializer: stash this worker's own model copy (deserialised by
+    ``ProcessPool``, not by us) and everything else needed to solve one
+    blocked reaction's LP."""
+    global _WORKER_MODEL, _WORKER_TEMPLATE_IDS, _WORKER_EPSILON, _WORKER_VARIANT
+    _WORKER_MODEL = working
+    _WORKER_TEMPLATE_IDS = template_ids
+    _WORKER_EPSILON = epsilon
+    _WORKER_VARIANT = variant
+
+
+def _solve_worker(blocked_rid: str) -> tuple[str, list[str]]:
+    assert _WORKER_MODEL is not None, "_solve_worker called before _init_worker"
+    assert _WORKER_TEMPLATE_IDS is not None
+    assert _WORKER_EPSILON is not None
+    assert _WORKER_VARIANT is not None
+    solve_fn = _solve_fastlp if _WORKER_VARIANT == "fast" else _solve_swiftlp
+    active = solve_fn(_WORKER_MODEL, blocked_rid, _WORKER_TEMPLATE_IDS, epsilon=_WORKER_EPSILON)
+    return blocked_rid, active
+
+
 def fill_gaps_fast_lp(
     model: cobra.Model,
     templates: cobra.Model | Iterable[cobra.Model],
@@ -190,6 +229,7 @@ def fill_gaps_fast_lp(
     epsilon: float = 1e-4,
     variant: Literal["fast", "swift"] = "fast",
     verbose: bool = True,
+    n_proc: int | None = None,
 ) -> FastLPResult:
     """LP-based gap-filling (fastGapFill / swiftGapFill).
 
@@ -211,6 +251,14 @@ def fill_gaps_fast_lp(
         but stochastic).
     verbose:
         Print progress messages.
+    n_proc:
+        Worker processes for solving each blocked reaction's LP in parallel.
+        Defaults to ``cobra.Configuration().processes``; set to 1 to solve
+        serially in this process. Each blocked reaction's LP only depends on
+        the merged draft+template model (reverted after each solve via
+        ``with working as m:``), never on another blocked reaction's result,
+        so this parallelises via ``cobra.util.ProcessPool`` — the same pool
+        ``ec_fva``/``flux_variability_analysis`` use.
 
     Returns
     -------
@@ -263,13 +311,32 @@ def fill_gaps_fast_lp(
         )
 
     # ---- Run LP for each rescuable blocked reaction ----
-    solve_fn = _solve_fastlp if variant == "fast" else _solve_swiftlp
     candidates_per_rxn: dict[str, list[str]] = {}
     all_added: set[str] = set()
     n_skipped = 0
 
-    for blocked_rid in rescuable:
-        active = solve_fn(working, blocked_rid, template_ids, epsilon=epsilon)
+    if n_proc is None:
+        n_proc = cobra.Configuration().processes
+    n_proc = max(1, int(n_proc))
+
+    if n_proc == 1:
+        solve_fn = _solve_fastlp if variant == "fast" else _solve_swiftlp
+        results = [
+            (blocked_rid, solve_fn(working, blocked_rid, template_ids, epsilon=epsilon))
+            for blocked_rid in rescuable
+        ]
+    else:
+        # ProcessPool (cobra.util.process_pool) handles serialising the
+        # model to each worker -- including a Windows-specific performance
+        # workaround -- so `working` is passed as-is, not pre-pickled.
+        chunk = max(1, len(rescuable) // (n_proc * 4))
+        with ProcessPool(
+            n_proc, initializer=_init_worker,
+            initargs=(working, template_ids, epsilon, variant),
+        ) as pool:
+            results = pool.map(_solve_worker, rescuable, chunksize=chunk)
+
+    for blocked_rid, active in results:
         if active:
             candidates_per_rxn[blocked_rid] = active
             all_added.update(active)
