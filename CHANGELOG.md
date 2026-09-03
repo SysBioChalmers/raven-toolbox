@@ -6,6 +6,14 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Fixed: `write_yaml_model(..., sort_ids=True)` dropped the `!!omap` tag on
+  `compartments`.** The alphabetising step rebuilt the section as a plain `dict`
+  instead of an `OrderedDict`; ruamel only tags the latter as `!!omap`, so the
+  sorted output silently regressed to a plain mapping that RAVEN's line-based
+  `readYAMLmodel.m` (keyed on that tag) cannot recognise. Unsorted output was
+  never affected. Caught by `raven-gecko-parity`'s nightly `yaml_roundtrip_smallyeast`
+  scenario.
+
 * **ftINIT reproducibility parameters renamed, and two silent failure modes fixed:
   `ftinit(..., strict_gap=True, canonical=True)` is now `ftinit(..., prove_abs_gap=1.0,
   resolve_ties=True)`.** Both flags were new in 0.4.0 (a pre-release); renamed now, before

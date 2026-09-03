@@ -745,7 +745,10 @@ def write_yaml_model(
             if section in doc:
                 doc[section] = sorted(doc[section], key=lambda e: e.get("id", ""))
         if isinstance(doc.get("compartments"), dict):
-            doc["compartments"] = dict(sorted(doc["compartments"].items()))
+            # OrderedDict, not dict --- see _to_plain's docstring: a plain
+            # dict here would drop the !!omap tag ruamel gives OrderedDict,
+            # producing a file readYAMLmodel.m cannot load.
+            doc["compartments"] = OrderedDict(sorted(doc["compartments"].items()))
 
     _emit_entry_fields(doc.get("metabolites", []), _MET_FIELDS)
     _emit_entry_fields(doc.get("reactions", []), _RXN_FIELDS)

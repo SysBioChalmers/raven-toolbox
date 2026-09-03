@@ -19,6 +19,20 @@ def _model():
     return m
 
 
+def _model_with_compartments():
+    m = _model()
+    # A compartment only reaches the written file if some metabolite is
+    # actually in it (cobra's own model_to_dict derives the section from
+    # metabolite membership, not from model.compartments verbatim) --- so
+    # an unused mitochondrial metabolite is added purely to make "m" appear
+    # alongside "c". Insertion order is deliberately not alphabetical, so a
+    # sorted-output assertion actually exercises the sort rather than
+    # passing by luck.
+    m.compartments = {"m": "mitochondria", "c": "cytosol"}
+    m.add_metabolites([cobra.Metabolite("x_m", compartment="m")])
+    return m
+
+
 def test_sort_identifiers_orders_everything():
     m = _model()
     sort_identifiers(m)
@@ -40,3 +54,23 @@ def test_write_yaml_sort_ids_does_not_mutate(tmp_path):
     assert text.index("R1") < text.index("R2")
     reloaded = read_yaml_model(out)
     assert [r.id for r in reloaded.reactions] == ["R1", "R2"]
+
+
+def test_write_yaml_sort_ids_keeps_compartments_omap_tag(tmp_path):
+    """A regression test for a sort_ids=True-only bug: sorting compartments
+    into a plain dict (rather than an OrderedDict) drops the !!omap tag
+    ruamel would otherwise give it, so RAVEN's line-based readYAMLmodel.m
+    --- keyed on that tag --- silently fails to recognise the section. The
+    unsorted path (test_output_carries_omap_tags in test_io_yaml_parity.py)
+    never exercised this, since it never took the sort_ids=True branch."""
+    m = _model_with_compartments()
+    out = tmp_path / "m.yml"
+    write_yaml_model(m, out, sort_ids=True)
+    text = out.read_text()
+
+    assert "- compartments: !!omap" in text
+    assert text.index("c: cytosol") < text.index("m: mitochondria")
+
+    reloaded = read_yaml_model(out)
+    assert reloaded.compartments == {"c": "cytosol", "m": "mitochondria"}
+    assert {x.id for x in reloaded.metabolites} == {"a_c", "b_c", "x_m"}
