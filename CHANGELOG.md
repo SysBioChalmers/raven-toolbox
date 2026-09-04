@@ -6,6 +6,16 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **New: `utils.generate_new_ids`.** Mints fresh sequential ids after a model's
+  existing numbering for a prefix, e.g. `r_0001`, `r_0002`. Ported from RAVEN's
+  `manipulation/generateNewIds.m`, quirks included: the existing maximum and its
+  numeric width are both found by sorting the stripped ids as strings rather
+  than as integers, so a prefix mixing widths (`r_9` alongside `r_10`) can
+  disagree with what a numeric sort would give — verified directly against
+  real RAVEN output for four cases, including that one. `add_transport_reactions`
+  keeps its own private, narrower id-allocation helper unchanged; this is an
+  additive, general-purpose port, not a refactor of that.
+
 * **Fixed: `write_yaml_model` wrote an infinite or NaN reaction bound as the bare
   word `inf`/`nan`, not the YAML 1.1 token (`.inf`/`.nan`).** cobra's own
   `model_to_dict` stringifies these bounds (JSON has no literal for either); its
