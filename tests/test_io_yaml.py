@@ -206,6 +206,34 @@ def test_write_emits_raven_top_level_keys(yaml_file, tmp_path):
     assert "metaData:" in text
 
 
+def test_write_emits_yaml_infinity_token_for_unbounded_reaction(tmp_path):
+    """cobra's own model_to_dict stringifies an infinite or NaN bound as
+    e.g. "inf" (JSON has no literal for either) --- its own reader tolerates
+    this, unconditionally casting both bound fields through float(v). Left
+    as a string rather than converted back, ruamel has no reason to emit
+    the YAML 1.1 infinity token (.inf) and writes the bare word "inf"
+    instead, which is not that token and parses back as the *string* "inf"
+    on any YAML reader that doesn't share cobra's specific convention
+    (confirmed against ruamel's own round-trip and safe loaders, and
+    PyYAML's safe_load: bare "inf" parses as a string on every one of
+    them). writeYAMLmodel.m emits .inf here regardless."""
+    m = cobra.Model("t")
+    a = cobra.Metabolite("a_c", compartment="c")
+    m.add_metabolites([a])
+    r = cobra.Reaction("R1", lower_bound=0, upper_bound=float("inf"))
+    r.add_metabolites({a: 1})
+    m.add_reactions([r])
+
+    out = tmp_path / "m.yml"
+    write_yaml_model(m, out)
+    text = out.read_text()
+    assert "upper_bound: .inf" in text
+    assert "upper_bound: inf\n" not in text  # the malformed, non-spec token
+
+    reloaded = read_yaml_model(out)
+    assert reloaded.reactions.get_by_id("R1").upper_bound == float("inf")
+
+
 def test_legacy_id_in_metadata(tmp_path):
     # Older RAVEN files nest id/name under metaData and have no top-level id.
     legacy = {

@@ -6,6 +6,15 @@ Milestones in the raven-toolbox port. For function-level status see
 
 ## Unreleased
 
+* **Fixed: `write_yaml_model` wrote an infinite or NaN reaction bound as the bare
+  word `inf`/`nan`, not the YAML 1.1 token (`.inf`/`.nan`).** cobra's own
+  `model_to_dict` stringifies these bounds (JSON has no literal for either); its
+  own reader tolerates the string by unconditionally casting both bound fields
+  through `float(v)`, so this project's own round trip already survived it, but
+  the file itself was not spec-compliant YAML and would silently become the
+  *string* `"inf"` on any reader that doesn't share that specific convention.
+  `writeYAMLmodel.m` was never affected.
+
 * **Fixed: `write_yaml_model(..., sort_ids=True)` dropped the `!!omap` tag on
   `compartments`.** The alphabetising step rebuilt the section as a plain `dict`
   instead of an `OrderedDict`; ruamel only tags the latter as `!!omap`, so the
