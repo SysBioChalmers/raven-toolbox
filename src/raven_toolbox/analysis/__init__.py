@@ -4,6 +4,7 @@
 * :func:`fseof` — Flux Scanning based on Enforced Objective Flux.
 * :func:`random_sampling` — flux sampling: ACHR/CHRR MCMC (default ACHR) or the
   random-objective vertex method, selected via ``method=``.
+* :func:`walk_fluxes` / :class:`FluxWalker` — interactive flux-network navigation.
 """
 from raven_toolbox.analysis.flux_sampling import (
     FluxSamplingResult,
@@ -16,10 +17,19 @@ from raven_toolbox.analysis.sampling import (
     find_good_reactions,
     random_sampling,
 )
+from raven_toolbox.analysis.walk import (
+    FluxWalker,
+    MetaboliteGroup,
+    NeighborReaction,
+    walk_fluxes,
+)
 
 __all__ = [
     "FSEOFResult",
     "FluxSamplingResult",
+    "FluxWalker",
+    "MetaboliteGroup",
+    "NeighborReaction",
     "RandomSamplingResult",
     "ReporterResult",
     "find_good_reactions",
@@ -27,4 +37,5 @@ __all__ = [
     "max_volume_ellipsoid",
     "random_sampling",
     "reporter_metabolites",
+    "walk_fluxes",
 ]
