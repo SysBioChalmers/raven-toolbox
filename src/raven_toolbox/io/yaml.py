@@ -708,6 +708,28 @@ def _normalize_subsystems(reactions) -> None:
             del rxn["subsystem"]
 
 
+def _normalize_bounds(reactions) -> None:
+    """Convert a stringified lower_bound/upper_bound back to float.
+
+    cobra's own model_to_dict stringifies an infinite or NaN bound (JSON has
+    no literal for either) --- its own reader tolerates this, unconditionally
+    casting both fields through float(v) on the way back in, so the round
+    trip survives. But left as the string "inf" rather than a real float,
+    ruamel has no reason to emit the YAML 1.1 infinity token (.inf) for it,
+    and writes the bare word instead --- which is not that token, and parses
+    back as the string "inf" on any reader that does not share cobra's
+    specific convention. writeYAMLmodel.m emits .inf here regardless.
+    Normalises in place.
+    """
+    for rxn in reactions:
+        if not isinstance(rxn, dict):
+            continue
+        for key in ("lower_bound", "upper_bound"):
+            value = rxn.get(key)
+            if isinstance(value, str):
+                rxn[key] = float(value)
+
+
 def write_yaml_model(
     model: cobra.Model, path: str | Path, *, sort_ids: bool = False
 ) -> None:
@@ -754,6 +776,7 @@ def write_yaml_model(
     _emit_entry_fields(doc.get("reactions", []), _RXN_FIELDS)
     _emit_entry_fields(doc.get("genes", []), _GENE_FIELDS)
     _normalize_subsystems(doc.get("reactions", []) or ())
+    _normalize_bounds(doc.get("reactions", []) or ())
     # An unset charge is left omitted (cobra's own default), not defaulted to
     # 0 — readYAMLmodel.m's own fill-missing-fields step is a positional
     # backfill shared by several columns, not a "charge defaults to 0" rule:
