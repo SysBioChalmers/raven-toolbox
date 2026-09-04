@@ -6,10 +6,17 @@
   random-objective vertex method, selected via ``method=``.
 * :func:`walk_fluxes` / :class:`FluxWalker` — interactive flux-network navigation.
 * :func:`get_min_nr_fluxes` — minimum-cardinality flux distribution (big-M MILP).
+* :func:`follow_changed` — reactions whose flux changed between two solutions.
 """
 from raven_toolbox.analysis.flux_sampling import (
     FluxSamplingResult,
     max_volume_ellipsoid,
+)
+from raven_toolbox.analysis.follow_changed import (
+    ChangedReaction,
+    FollowChangedResult,
+    follow_changed,
+    print_changed_fluxes,
 )
 from raven_toolbox.analysis.fseof import FSEOFResult, fseof
 from raven_toolbox.analysis.min_flux_count import MinNrFluxesResult, get_min_nr_fluxes
@@ -27,18 +34,22 @@ from raven_toolbox.analysis.walk import (
 )
 
 __all__ = [
+    "ChangedReaction",
     "FSEOFResult",
     "FluxSamplingResult",
     "FluxWalker",
+    "FollowChangedResult",
     "MetaboliteGroup",
     "MinNrFluxesResult",
     "NeighborReaction",
     "RandomSamplingResult",
     "ReporterResult",
     "find_good_reactions",
+    "follow_changed",
     "fseof",
     "get_min_nr_fluxes",
     "max_volume_ellipsoid",
+    "print_changed_fluxes",
     "random_sampling",
     "reporter_metabolites",
     "walk_fluxes",
