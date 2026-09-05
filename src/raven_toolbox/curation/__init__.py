@@ -11,6 +11,7 @@ Public API:
 * :func:`batch_curate` — entrypoint taking pandas DataFrames.
 * :func:`batch_curate_from_tsv` — file-path convenience wrapper.
 * :class:`CurationResult` — record of what was added / updated.
+* :func:`rename_model_genes` — rename gene identifiers from a mapping table.
 
 Schema (mirrors yeast-GEM's ``data/modelCuration/template/`` layout):
 
@@ -42,6 +43,7 @@ from raven_toolbox.curation.batch import (
     batch_curate,
     batch_curate_from_tsv,
 )
+from raven_toolbox.curation.rename_genes import RenameGenesResult, rename_model_genes
 
 __all__ = [
     "DEFAULT_CORE_GENE_COLUMNS",
@@ -49,6 +51,8 @@ __all__ = [
     "DEFAULT_CORE_RXN_COEFFS_COLUMNS",
     "DEFAULT_CORE_RXN_COLUMNS",
     "CurationResult",
+    "RenameGenesResult",
     "batch_curate",
     "batch_curate_from_tsv",
+    "rename_model_genes",
 ]
