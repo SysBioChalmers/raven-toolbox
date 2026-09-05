@@ -12,6 +12,10 @@ Public API:
 * :func:`batch_curate_from_tsv` — file-path convenience wrapper.
 * :class:`CurationResult` — record of what was added / updated.
 * :func:`rename_model_genes` — rename gene identifiers from a mapping table.
+* :func:`get_gene_data` / :func:`download_genome_data` — build that mapping
+  table from an NCBI genome assembly's GFF3 annotation.
+* :func:`process_protein_fasta_file` — rename a protein FASTA's headers
+  from the same mapping table.
 
 Schema (mirrors yeast-GEM's ``data/modelCuration/template/`` layout):
 
@@ -43,6 +47,12 @@ from raven_toolbox.curation.batch import (
     batch_curate,
     batch_curate_from_tsv,
 )
+from raven_toolbox.curation.genome_data import (
+    download_genome_data,
+    get_gene_data,
+    parse_gff_gene_table,
+)
+from raven_toolbox.curation.process_protein_fasta import process_protein_fasta_file
 from raven_toolbox.curation.rename_genes import RenameGenesResult, rename_model_genes
 
 __all__ = [
@@ -54,5 +64,9 @@ __all__ = [
     "RenameGenesResult",
     "batch_curate",
     "batch_curate_from_tsv",
+    "download_genome_data",
+    "get_gene_data",
+    "parse_gff_gene_table",
+    "process_protein_fasta_file",
     "rename_model_genes",
 ]
