@@ -189,7 +189,10 @@ def find_duplicate_reactions(
 
 
 def remove_duplicate_reactions(
-    model: cobra.Model, *, reserved: Iterable[str] | None = None
+    model: cobra.Model,
+    *,
+    reserved: Iterable[str] | None = None,
+    restrict_to_metabolites: Iterable[cobra.Metabolite] | None = None,
 ) -> list[str]:
     """Remove all-but-one of each set of duplicate reactions.
 
@@ -207,11 +210,24 @@ def remove_duplicate_reactions(
     is assumed to have gone through ``expand_model``, and the suffix is stripped
     from the survivor's id — so an expand-then-remove-duplicates round trip
     returns the original reaction id, not an arbitrarily-numbered expansion copy.
+
+    Parameters
+    ----------
+    restrict_to_metabolites:
+        If given, only reactions touching at least one of these metabolites
+        are checked for duplicates; every other reaction is left alone even
+        if it is already a duplicate of another (matching ``contractModel``'s
+        ``mets`` argument, used internally by ``replace_metabolite``).
     """
     reserved = set(reserved or [])
+    touching = (
+        {r for m in restrict_to_metabolites for r in m.reactions}
+        if restrict_to_metabolites is not None else None
+    )
     groups: dict = {}
-    for rxn in model.reactions:
-        groups.setdefault(_signature(rxn), []).append(rxn)
+    for i, rxn in enumerate(model.reactions):
+        key = _signature(rxn) if touching is None or rxn in touching else (object(), i)
+        groups.setdefault(key, []).append(rxn)
 
     removed: list[str] = []
     for rxns in groups.values():

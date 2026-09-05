@@ -10,6 +10,7 @@ from .irreversible import convert_to_irreversible
 from .merge import merge_models
 from .parameters import set_exchange_bounds, set_variance_bounds
 from .remove import remove_genes, remove_metabolites
+from .replace import replace_metabolite
 from .simplify import (
     constrain_reversible_reactions,
     find_duplicate_reactions,
@@ -45,6 +46,7 @@ __all__ = [
     "remove_metabolites",
     "remove_no_flux_reactions",
     "remove_zero_interval_reactions",
+    "replace_metabolite",
     "set_exchange_bounds",
     "set_variance_bounds",
     "simplify_model",
