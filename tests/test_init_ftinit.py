@@ -74,6 +74,37 @@ def test_essential_force_clamps_to_capacity():
     assert res2.fluxes["LOW"] >= 0.04 - 1e-9
 
 
+def test_solver_tolerances_reach_gurobi_and_default_to_raven(monkeypatch):
+    """feas_tol/opt_tol/int_feas_tol/presolve are applied to the solver; defaults are RAVEN's."""
+    import importlib
+
+    try:  # optlang ships the module even without gurobipy, so import for real
+        gi = importlib.import_module("optlang.gurobi_interface")
+    except ImportError:
+        pytest.skip("gurobi is not installed; the Params under test are Gurobi-specific")
+
+    seen: list[tuple] = []
+    orig = gi.Model.optimize
+
+    def spy(self, *args, **kwargs):
+        p = self.problem.Params
+        seen.append((p.FeasibilityTol, p.OptimalityTol, p.IntFeasTol, p.Presolve))
+        return orig(self, *args, **kwargs)
+
+    monkeypatch.setattr(gi.Model, "optimize", spy)
+
+    model = make_test_model()
+    model.solver = "gurobi"
+    scores = _scores(model)
+
+    run_ftinit(model, scores)
+    assert seen[-1] == (1e-9, 1e-9, 1e-9, 2)
+
+    res = run_ftinit(model, scores, feas_tol=1e-6, opt_tol=1e-7, int_feas_tol=1e-5, presolve=1)
+    assert seen[-1] == (1e-6, 1e-7, 1e-5, 1)
+    assert res.objective == pytest.approx(8.0, abs=1e-6)  # relaxed tolerances, same optimum
+
+
 def test_essential_reaction_forced_on():
     """An essential reaction is kept and carries flux even when its score is negative."""
     model = make_test_model()
