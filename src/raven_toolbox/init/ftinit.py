@@ -70,6 +70,8 @@ _FORCE_ON = 0.1  # min flux for a reaction to count as "on" (RAVEN forceOnLim)
 _BIG_M = 100.0   # indicator/direction big-M cap on a *scored* reaction's flux (RAVEN's 100)
 _EXTRACT_SEED = 1234  # RAVEN optimizeProb Seed (default for the ``seed`` parameter)
 _EXTRACT_THREADS = 1  # RAVEN forces single-threaded solving; see the ``threads`` parameter
+_EXTRACT_TOL = 1e-9   # RAVEN optimizeProb Feasibility/Optimality/IntFeas tolerances (Gurobi's floor)
+_EXTRACT_PRESOLVE = 2  # RAVEN optimizeProb Presolve (aggressive)
 
 # A resolve_ties tie-break phase is adopted whether it proves or times out (see
 # _resolve_ties), so it is given a fraction of the primary solve's own budget rather than
@@ -126,6 +128,10 @@ def run_ftinit(
     prod_weight: float = 0.5,
     seed: int = _EXTRACT_SEED,
     threads: int = _EXTRACT_THREADS,
+    feas_tol: float = _EXTRACT_TOL,
+    opt_tol: float = _EXTRACT_TOL,
+    int_feas_tol: float = _EXTRACT_TOL,
+    presolve: int = _EXTRACT_PRESOLVE,
 ) -> FtInitResult:
     """Run the single-step ftINIT MILP and return the extracted model.
 
@@ -189,6 +195,16 @@ def run_ftinit(
     ``seed`` is Gurobi's ``Seed`` parameter (RAVEN's 1234). The MILP is degenerate, so the
     seed picks which of many equal-score optima the solver returns; varying it is the cheap
     way to probe how much of a result rests on the tie-break rather than on the data.
+
+    ``feas_tol``, ``opt_tol`` and ``int_feas_tol`` are Gurobi's ``FeasibilityTol``,
+    ``OptimalityTol`` and ``IntFeasTol`` (RAVEN's 1e-9 each, Gurobi's minimum; Gurobi's own
+    defaults are 1e-6, 1e-6 and 1e-5), and ``presolve`` is Gurobi's ``Presolve`` (RAVEN's 2).
+    They are RAVEN parity settings: they steer which optimal vertex the degenerate MILP lands
+    on and how binaries round at the 0.5 on/off cut. An "off" binary may sit at up to
+    ``int_feas_tol`` and still permit flux up to ``big_m * int_feas_tol``, so relaxing
+    ``int_feas_tol`` loosens the on/off gate in proportion to ``big_m``. Their effect on
+    runtime and on the extracted model has not been benchmarked; leave them at the defaults
+    unless you are measuring that.
 
     ``threads`` is Gurobi's ``Threads`` (RAVEN's 1). Raising it speeds the solve but
     **forfeits reproducibility**: multi-threaded Gurobi races between equal optima, so two
@@ -370,14 +386,15 @@ def run_ftinit(
         #     picks among equal optima non-deterministically and can even report the MILP
         #     infeasible (RAVEN issue #607). This is the dominant reproducibility lever.
         #   * Presolve=2, FeasibilityTol/OptimalityTol/IntFeasTol=1e-9 — RAVEN's
-        #     optimizeProb defaults; they steer which optimal vertex a degenerate MILP
-        #     lands on and how binaries round at the 0.5 on/off cut.
+        #     optimizeProb defaults (the ``presolve``/``feas_tol``/``opt_tol``/
+        #     ``int_feas_tol`` parameters); they steer which optimal vertex a degenerate
+        #     MILP lands on and how binaries round at the 0.5 on/off cut.
         #   * Seed — fixed by default so tie-breaking is reproducible (see ``seed``).
         opt.problem.Params.Threads = threads
-        opt.problem.Params.Presolve = 2
-        opt.problem.Params.FeasibilityTol = 1e-9
-        opt.problem.Params.OptimalityTol = 1e-9
-        opt.problem.Params.IntFeasTol = 1e-9
+        opt.problem.Params.Presolve = presolve
+        opt.problem.Params.FeasibilityTol = feas_tol
+        opt.problem.Params.OptimalityTol = opt_tol
+        opt.problem.Params.IntFeasTol = int_feas_tol
         opt.problem.Params.Seed = seed
     except Exception:  # noqa: BLE001
         pass
@@ -657,6 +674,8 @@ def _solve_step(
     mip_gap, mip_gap_abs, time_limit, prove_abs_gap=None, resolve_ties=False,
     metabolomics=None, prod_weight=0.5,
     seed=_EXTRACT_SEED, threads=_EXTRACT_THREADS,
+    feas_tol=_EXTRACT_TOL, opt_tol=_EXTRACT_TOL, int_feas_tol=_EXTRACT_TOL,
+    presolve=_EXTRACT_PRESOLVE,
 ) -> FtInitResult:
     """Solve one ftINIT step, following RAVEN's multi-run gap-escalation schedule.
 
@@ -676,7 +695,8 @@ def _solve_step(
             mip_gap=mg, mip_gap_abs=mga, time_limit=tl,
             prove_abs_gap=prove, resolve_ties=resolve_ties,
             metabolomics=metabolomics, prod_weight=prod_weight,
-            seed=seed, threads=threads,
+            seed=seed, threads=threads, feas_tol=feas_tol, opt_tol=opt_tol,
+            int_feas_tol=int_feas_tol, presolve=presolve,
         )
 
     if prove_abs_gap is not None:
@@ -726,6 +746,10 @@ def ftinit(
     resolve_ties: bool = False,
     seed: int = _EXTRACT_SEED,
     threads: int = _EXTRACT_THREADS,
+    feas_tol: float = _EXTRACT_TOL,
+    opt_tol: float = _EXTRACT_TOL,
+    int_feas_tol: float = _EXTRACT_TOL,
+    presolve: int = _EXTRACT_PRESOLVE,
     verbose: bool = False,
 ) -> cobra.Model:
     """Run the full ftINIT pipeline on prepData and return the context-specific model.
@@ -792,8 +816,10 @@ def ftinit(
         counter-productive — 0.5 and below stop being provable within the time limit and
         return the same model anyway.
 
-    ``seed`` (RAVEN's 1234) and ``threads`` (RAVEN's 1) are forwarded to every step; see
-    :func:`run_ftinit` for what they trade off. Neither flag makes the extraction *stable*
+    ``seed`` (RAVEN's 1234), ``threads`` (RAVEN's 1) and the solver tolerances
+    ``feas_tol``/``opt_tol``/``int_feas_tol``/``presolve`` (RAVEN's 1e-9 and 2) are
+    forwarded to every step; see :func:`run_ftinit` for what they trade off. Neither
+    ``seed`` nor ``threads`` makes the extraction *stable*
     under small input changes, which is a separate property — see the `ftINIT
     reproducibility study
     <https://github.com/edkerk/raven-docs/blob/main/docs/parameter-tuning/studies/ftinit-determinism.md>`_
@@ -855,7 +881,8 @@ def ftinit(
             mip_gap=mip_gap, mip_gap_abs=mip_gap_abs, time_limit=time_limit,
             prove_abs_gap=prove_abs_gap, resolve_ties=resolve_ties,
             metabolomics=met_producers, prod_weight=prod_weight,
-            seed=seed, threads=threads,
+            seed=seed, threads=threads, feas_tol=feas_tol, opt_tol=opt_tol,
+            int_feas_tol=int_feas_tol, presolve=presolve,
         )
         if res.status == "time_limit":
             # The step ran out of wall clock before proving its gap, so the kept set is
