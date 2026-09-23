@@ -412,3 +412,23 @@ def test_metabolomics_two_metabolites_mixed_categories_no_crash():
                      metabolomics={"x": {"R1"}, "y": {"R2"}}, prod_weight=5.0)
     assert {"R1", "R2"} <= set(res.kept_reactions)
     assert res.objective == pytest.approx(5.0, abs=1e-6)  # 2·bonus(5) - cost(2) - cost(3)
+
+
+def test_glpk_backend_warns_and_does_not_resolve():
+    """A GLPK MILP warns that it is not solving on Gurobi, and optlang's
+    "auto" presolve is pinned so a non-optimal status is not solved a second time."""
+    model = make_test_model()
+    model.solver = "glpk"
+    solves = []
+    original = model.problem.Model._optimize
+
+    def hits_time_limit(self):  # a solve that stops at time_limit with an incumbent
+        solves.append(1)
+        original(self)
+        return "time_limit"
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(model.problem.Model, "_optimize", hits_time_limit)
+        with pytest.warns(UserWarning, match="with GLPK"):
+            run_ftinit(model, _scores(model))
+    assert len(solves) == 1

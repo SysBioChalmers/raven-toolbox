@@ -108,6 +108,7 @@ def merge_compartments(
     # cobra in-place rewrite would require careful constraint surgery, so a clean
     # rebuild is simpler and less error-prone.
     merged = cobra.Model(out.id or "merged")
+    merged.solver = out.problem  # else cobra's global default, not the model's
     merged.compartments = {merged_id: merged_name}
     merged.add_metabolites(list(canonical.values()))
     deleted_single: list[str] = []
