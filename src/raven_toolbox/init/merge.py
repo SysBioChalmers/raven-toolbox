@@ -165,6 +165,7 @@ def merge_linear(
 def _build_model(template: cobra.Model, rxns: list[_Rxn]) -> cobra.Model:
     """Assemble the reduced cobra model (gene-free) from the merged working reactions."""
     reduced = cobra.Model(template.id)
+    reduced.solver = template.problem  # else cobra's global default, not the template's
     used = {m for rx in rxns for m in rx.coeffs}
     reduced.add_metabolites([
         cobra.Metabolite(m.id, name=m.name, compartment=m.compartment, formula=m.formula)

@@ -222,6 +222,19 @@ def run_ftinit(
     ignore_met_names = set(ignore_mets)
     prob = model.problem
     opt = prob.Model()
+    on_gurobi = _is_gurobi(prob)
+    if prob.__name__ == "optlang.glpk_interface":
+        warnings.warn(
+            "ftINIT is solving its MILP with GLPK, which rarely solves a genome-scale "
+            "ftINIT MILP within time_limit, and the seed, threads, tolerance, presolve and "
+            "MIP-gap settings are Gurobi parameters that GLPK ignores. Set "
+            "model.solver = 'gurobi' first.",
+            stacklevel=2,
+        )
+    # With presolve "auto" (GLPK's default), optlang solves again from scratch after
+    # any non-optimal status, which doubles the cost of a solve that hit time_limit.
+    if opt.configuration.presolve == "auto":
+        opt.configuration.presolve = True
 
     # A detected metabolite already produced by an essential reaction needs no bonus
     # (it is produced regardless); dropping it here avoids an unused mon/constraint pair.
@@ -379,9 +392,10 @@ def run_ftinit(
     obj_expr = add([mul([Real(score), ind]) for ind, score in indicators.values()]
                    + met_bonus_terms)
     opt.objective = prob.Objective(obj_expr, direction="max")
-    try:  # Gurobi-specific; harmless if the backend differs. Match RAVEN's optimizeProb
-        # defaults exactly, because the ftINIT MILP is highly degenerate and the chosen
-        # incumbent (hence which reactions are kept) depends on these:
+    if on_gurobi:
+        # Match RAVEN's optimizeProb defaults exactly, because the ftINIT MILP is highly
+        # degenerate and the chosen incumbent (hence which reactions are kept) depends on
+        # these:
         #   * Threads=1 — RAVEN forces single-threaded solving; multi-threaded Gurobi
         #     picks among equal optima non-deterministically and can even report the MILP
         #     infeasible (RAVEN issue #607). This is the dominant reproducibility lever.
@@ -396,8 +410,6 @@ def run_ftinit(
         opt.problem.Params.OptimalityTol = opt_tol
         opt.problem.Params.IntFeasTol = int_feas_tol
         opt.problem.Params.Seed = seed
-    except Exception:  # noqa: BLE001
-        pass
     if prove_abs_gap is not None:
         # One solve proven to this fixed *absolute* gap, replacing the relative-gap
         # escalation below. Measured on genome-scale Human-GEM: the escalation returns a
@@ -405,16 +417,11 @@ def run_ftinit(
         # study); any value in 1.0-2.0 recovers the optimum and stays provable within a
         # normal time_limit, while going tighter (<=0.5) stops proving within the time
         # limit and returns the identical model anyway. 1.0 is the recommended value.
-        try:  # Gurobi-specific; harmless if the backend differs
+        if on_gurobi:
             opt.problem.Params.MIPGap = 0.0
             opt.problem.Params.MIPGapAbs = prove_abs_gap
-        except Exception:  # noqa: BLE001
-            pass
-    elif mip_gap is not None:
-        try:  # Gurobi-specific; harmless if the backend differs
-            opt.problem.Params.MIPGap = mip_gap
-        except Exception:  # noqa: BLE001
-            pass
+    elif mip_gap is not None and on_gurobi:
+        opt.problem.Params.MIPGap = mip_gap
 
     if prove_abs_gap is None and mip_gap_abs is not None:
         # RAVEN's multi-run gap strategy (ftINIT.m). The final staged step has a
@@ -431,21 +438,20 @@ def run_ftinit(
         opt.optimize()
         obj = abs(opt.objective.value) if opt.objective.value is not None else 0.0
         _dbg(f"[ftinit] estimate solve: obj={opt.objective.value} status={opt.status}")
-        if obj > 0:
+        if obj > 0 and on_gurobi:
             eff_gap = min(max(mip_gap or 0.0, mip_gap_abs / obj), 1.0)
             _dbg(f"[ftinit] eff_gap = max({mip_gap}, {mip_gap_abs}/{obj:.1f}) = {eff_gap:.5f}")
-            try:
-                opt.problem.Params.MIPGap = eff_gap
-            except Exception:  # noqa: BLE001
-                pass
+            opt.problem.Params.MIPGap = eff_gap
 
     if time_limit is not None:
         opt.configuration.timeout = int(time_limit)
     opt.optimize()
-    try:
-        _achieved = opt.problem.MIPGap
-    except Exception:  # noqa: BLE001
-        _achieved = None
+    _achieved = None
+    if on_gurobi:
+        try:  # unset when there is no MIP incumbent, e.g. no integer variables at all
+            _achieved = opt.problem.MIPGap
+        except AttributeError:
+            pass
     _status = opt.status  # capture before the tie-resolution phase 2 re-solves in place
     _dbg(f"[ftinit] final solve: obj={opt.objective.value} status={_status} "
          f"achieved_gap={_achieved}")
@@ -484,6 +490,11 @@ def run_ftinit(
     return FtInitResult(out, sorted(kept), sorted(deleted), fluxes,
                         primary_obj, on_reactions=on,
                         achieved_gap=_achieved, status=_status)
+
+
+def _is_gurobi(interface) -> bool:
+    """Whether ``interface`` (an optlang interface module) is the Gurobi backend."""
+    return interface.__name__ == "optlang.gurobi_interface"
 
 
 def _has_solution(opt) -> bool:
@@ -546,11 +557,9 @@ def _resolve_ties(opt, prob, obj_expr, indicators, primary, time_limit) -> bool:
 
     def _phase(objective, label: str) -> bool:
         opt.objective = objective
-        try:  # integer objective: an absolute gap < 1 proves the optimum cheaply.
+        if _is_gurobi(prob):  # integer objective: an absolute gap < 1 proves it cheaply
             opt.problem.Params.MIPGap = 0.0
             opt.problem.Params.MIPGapAbs = 0.4
-        except Exception:  # noqa: BLE001 - GLPK solves exactly; harmless
-            pass
         if time_limit is not None:
             # A fraction of the primary solve's own budget, not the full amount again —
             # see _TIE_BREAK_TIME_FRACTION.

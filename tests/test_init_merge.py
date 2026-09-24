@@ -3,6 +3,7 @@
 Oracles: RAVEN tinitTests T0004. testModel merges {R1,R2},{R3,R5},{R4,R6},{R7,R8},
 {R9,R10}; testModel4 merges {R5,R6},{R7,R8},{R9,R10} with two reactions flipped.
 """
+import cobra
 import pytest
 from tinit_oracles import (
     TEST_MODEL4_GROUP_IDS,
@@ -107,3 +108,19 @@ def test_group_scores_zero_handling():
     grouped = group_rxn_scores(reduced, scores, orig_ids, group_ids)
     assert grouped["R3"] == pytest.approx(0.01)        # cancelled group rescued
     assert grouped["R4"] == pytest.approx(0.02)         # {R4,R6} both genuine-0 → 0.01+0.01
+
+
+@pytest.mark.parametrize("default", ["glpk", "gurobi"])
+def test_reduced_model_keeps_template_solver(default):
+    """The reduced model uses the template's solver, not cobra's global default."""
+    pytest.importorskip("gurobipy")
+    template = make_test_model()
+    template.solver = "gurobi" if default == "glpk" else "glpk"
+    config = cobra.Configuration()
+    previous = config.solver
+    config.solver = default
+    try:
+        reduced, _, _, _ = merge_linear(template)
+    finally:
+        config.solver = previous
+    assert reduced.problem is template.problem
