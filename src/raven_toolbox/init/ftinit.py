@@ -167,7 +167,9 @@ def run_ftinit(
     the kept set is the sparsest optimum found, independent of solver seed/version,
     instead of an arbitrary tie-break. At genome scale the phase-2 solves themselves can
     exhaust ``time_limit``; when that happens the (still-adopted) incumbent is an
-    unproven tie-break and a warning is raised. See :func:`_resolve_ties`.
+    unproven tie-break and a warning is raised. The tie-break is skipped when the primary
+    solve itself stops at ``time_limit``, since there is then no proven optimum to hold.
+    See :func:`_resolve_ties`.
 
     ``metabolomics`` (already in **this model's** id space — :func:`ftinit` resolves a
     caller-facing metabolite-name list into this once) maps a detected-metabolite label
@@ -478,8 +480,13 @@ def run_ftinit(
 
     on, fluxes = _read_solution()  # the primary optimum
     # tie resolution is best-effort: keep its result only if phase 2 actually converged.
-    if resolve_ties and indicators and _resolve_ties(opt, prob, obj_expr, indicators,
-                                                      primary_obj, time_limit):
+    # It is skipped when the primary solve stopped at the time limit: phase 2 would pin
+    # an unproven incumbent's objective, so it cannot select among true optima, and at
+    # genome scale it then only spends its own time budget without finding a solution.
+    if resolve_ties and indicators and _status == "time_limit":
+        _dbg("[ftinit] tie-break skipped: the primary solve stopped at the time limit")
+    elif resolve_ties and indicators and _resolve_ties(opt, prob, obj_expr, indicators,
+                                                        primary_obj, time_limit):
         on, fluxes = _read_solution()
 
     kept = free_or_essential | on

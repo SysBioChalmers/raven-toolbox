@@ -195,6 +195,23 @@ def test_resolve_ties_breaks_degenerate_tie_by_id():
     assert res.objective == pytest.approx(-1.0, abs=1e-6)
 
 
+def test_resolve_ties_skipped_after_time_limited_primary(monkeypatch):
+    """No tie-break when the primary solve stops at the time limit: the phase-1 set is kept."""
+    import importlib
+
+    import optlang.interface
+
+    ftinit_module = importlib.import_module("raven_toolbox.init.ftinit")
+
+    calls = []
+    monkeypatch.setattr(ftinit_module, "_resolve_ties", lambda *a, **k: calls.append(a) or True)
+    monkeypatch.setattr(optlang.interface.Model, "status", property(lambda self: "time_limit"))
+    m = _degenerate_model()
+    res = run_ftinit(m, {"R1": -1.0, "R2": -1.0}, essential_rxns=["E"], resolve_ties=True)
+    assert calls == []
+    assert res.status == "time_limit"
+
+
 def test_resolve_ties_safe_on_unique_optimum():
     """On a non-degenerate model resolve_ties returns the same optimum (no regression)."""
     model = make_test_model()
