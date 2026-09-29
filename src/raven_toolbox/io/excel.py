@@ -164,10 +164,15 @@ def export_to_excel(
     ws.append(["#", "ID", "NAME", "UNCONSTRAINED", "MIRIAM", "COMPOSITION", "InChI",
                "COMPARTMENT", "REPLACEMENT ID", "CHARGE"])
     for m in metabolites:
+        # The structure goes in its own InChI column (RAVEN's inchis field), not in
+        # MIRIAM, which lists database cross-references only.
         inchi = m.notes.get("inchis")
+        if not inchi:
+            annotated = m.annotation.get("inchi")
+            inchi = annotated if isinstance(annotated, str) else (annotated or [None])[0]
         ws.append([
             None, f"{m.name}[{m.compartment}]", m.name, None,
-            _miriam_string(m.annotation, exclude=("smiles",)),
+            _miriam_string(m.annotation, exclude=("smiles", "inchi")),
             m.formula, inchi, m.compartment, m.id, m.charge,
         ])
 
