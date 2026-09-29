@@ -248,6 +248,12 @@ def model_from_yaml_data(raw: dict) -> cobra.Model:
     # would otherwise leave met.compartment as None.
     _default_missing_compartment(raw.get("metabolites"), raw.get("compartments"))
 
+    # writeYAMLmodel.m (RAVEN 3) and write_yaml_model write every number as a
+    # float, so a charge arrives as -1.0. cobra models charge as an int, and its
+    # SBML writer passes it unchanged to libsbml's setCharge, which does not keep
+    # a float: without this the charges are lost on the way to SBML.
+    _integer_charges(raw.get("metabolites"))
+
     # Normalise legacy reaction-side YAML keys (e.g. RAVEN MATLAB's
     # ``rxnNotes`` -> the canonical ``notes``) before any field capture so
     # the capture step sees a single key per concept.
@@ -342,6 +348,20 @@ def _normalize_annotation_values(entries) -> None:
         for key, value in annotation.items():
             if not isinstance(value, list):
                 annotation[key] = [value]
+
+
+def _integer_charges(metabolites) -> None:
+    """Turn whole-number charges (``-1.0``) into ints, in place.
+
+    A charge that is not a whole number is left as it is, so no information is
+    lost; ``None`` (an unset charge) is left alone too.
+    """
+    for met in metabolites or ():
+        if not isinstance(met, dict):
+            continue
+        charge = met.get("charge")
+        if isinstance(charge, float) and charge.is_integer():
+            met["charge"] = int(charge)
 
 
 def _default_missing_compartment(metabolites, compartments) -> None:
