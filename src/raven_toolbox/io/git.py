@@ -20,6 +20,7 @@ import cobra
 
 from raven_toolbox.io.excel import _equation, export_to_excel
 from raven_toolbox.io.yaml import write_yaml_model
+from raven_toolbox.utils.parse import subsystem_to_str
 from raven_toolbox.utils.sort import sort_identifiers
 
 _ALL_FORMATS = ("yml", "xml", "mat", "xlsx", "txt")
@@ -30,6 +31,21 @@ def _version(package: str) -> str:
         return _md.version(package)
     except _md.PackageNotFoundError:
         return "unknown"
+
+
+def _string_subsystems(model: cobra.Model) -> cobra.Model:
+    """A copy of ``model`` whose subsystems are strings, for the MATLAB export.
+
+    read_yaml_model keeps a subsystem as a list, as the YAML format writes it,
+    while cobra's save_matlab_model only handles a string. The subsystems are
+    joined with subsystem_to_str, as export_to_excel does, so none are lost.
+    """
+    if all(not isinstance(r.subsystem, (list, tuple)) for r in model.reactions):
+        return model
+    out = model.copy()
+    for rxn in out.reactions:
+        rxn.subsystem = subsystem_to_str(rxn.subsystem)
+    return out
 
 
 def _write_txt(model: cobra.Model, path: Path) -> None:
@@ -97,7 +113,8 @@ def export_for_git(
     if "xml" in formats:
         cobra.io.write_sbml_model(model, str(target("xml")))
     if "mat" in formats:
-        cobra.io.save_matlab_model(model, str(target("mat")), varname=varname)
+        cobra.io.save_matlab_model(_string_subsystems(model), str(target("mat")),
+                                   varname=varname)
     if "xlsx" in formats:
         export_to_excel(model, target("xlsx"))
     if "txt" in formats:
