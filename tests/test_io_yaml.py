@@ -304,3 +304,44 @@ def test_code_built_model_round_trips(tmp_path):
     # The objective survives the round-trip (no other I/O test checks this).
     assert {x.id for x in back.reactions if x.objective_coefficient != 0} == {"BIOMASS"}
     assert back.reactions.get_by_id("BIOMASS").objective_coefficient == 1.0
+
+
+def test_read_yaml_model_gives_integer_charges(tmp_path):
+    """Charges written as floats (RAVEN 3 format) are read as ints and reach SBML."""
+    path = tmp_path / "float_charges.yml"
+    path.write_text(
+        "!!omap\n"
+        "- metabolites:\n"
+        "  - !!omap\n"
+        "    - id: a_c\n"
+        "    - name: A\n"
+        "    - compartment: c\n"
+        "    - charge: -1.0\n"
+        "    - formula: C2H3O2\n"
+        "  - !!omap\n"
+        "    - id: b_c\n"
+        "    - name: B\n"
+        "    - compartment: c\n"
+        "    - charge: 0.5\n"
+        "- reactions:\n"
+        "  - !!omap\n"
+        "    - id: r1\n"
+        "    - metabolites: !!omap\n"
+        "      - a_c: -1.0\n"
+        "      - b_c: 1.0\n"
+        "    - lower_bound: 0.0\n"
+        "    - upper_bound: 1000.0\n"
+        "- genes: []\n"
+        "- compartments: !!omap\n"
+        "  - c: cytosol\n",
+        encoding="utf-8",
+    )
+    model = read_yaml_model(path)
+    a = model.metabolites.get_by_id("a_c")
+    assert a.charge == -1 and isinstance(a.charge, int)
+    # a fractional charge is kept as it is
+    assert model.metabolites.get_by_id("b_c").charge == 0.5
+
+    sbml = tmp_path / "float_charges.xml"
+    cobra.io.write_sbml_model(model, str(sbml))
+    assert cobra.io.read_sbml_model(str(sbml)).metabolites.get_by_id("a_c").charge == -1
