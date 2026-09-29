@@ -67,3 +67,22 @@ def test_txt_table_content(model, tmp_path):
 def test_bad_format(model, tmp_path):
     with pytest.raises(ValueError, match="Unknown format"):
         export_for_git(model, tmp_path, formats=("yml", "json"))
+
+
+def test_mat_export_with_subsystem_lists(tmp_path):
+    """A model read from YAML keeps subsystems as lists; the MATLAB export still
+    works and writes them as strings, without changing the model passed in."""
+    m = cobra.Model("m")
+    a = cobra.Metabolite("a_c", compartment="c")
+    b = cobra.Metabolite("b_c", compartment="c")
+    r1, r2 = cobra.Reaction("r1"), cobra.Reaction("r2")
+    r1.add_metabolites({a: -1, b: 1})
+    r2.add_metabolites({b: -1})
+    m.add_reactions([r1, r2])
+    r1.subsystem = ["Glycolysis"]
+    r2.subsystem = ["Transport", "Exchange"]
+    export_for_git(m, tmp_path, prefix="m", formats=("mat",), sub_dirs=False)
+    back = cobra.io.load_matlab_model(str(tmp_path / "m.mat"))
+    assert back.reactions.get_by_id("r1").subsystem == "Glycolysis"
+    assert back.reactions.get_by_id("r2").subsystem == "Transport;Exchange"
+    assert r1.subsystem == ["Glycolysis"]
