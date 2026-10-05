@@ -136,3 +136,58 @@ def test_preferred_order_routes_gene_to_one_model():
     # ng1's reaction comes only from modelA
     sources = {r.notes.get("homology_source") for r in res.model.reactions if r.id.startswith("R_single")}
     assert sources == {"modelA"}
+
+
+# --- gene-free reactions, notes, duplicate genes, metadata ------------------------
+
+def _template_with_extras():
+    m = _template()
+    m.add_metabolites(cobra.Metabolite("e", name="E", compartment="c"))
+    add_reactions_from_equations(
+        m, [{"id": "R_free", "equation": "d --> e"}], allow_new_mets=False,
+    )
+    m.reactions.R_single.notes = {"references": "PMID:1", "confidence_score": 4}
+    m.notes = {"metaData": {"id": "templateGEM", "version": "9.9.9"}, "version": "9.9.9", "keep": "me"}
+    return m
+
+
+def test_gene_free_reactions_dropped_by_default():
+    hits = make_ortholog_hits([("tg1", "ng1")], "templateGEM", "bug")
+    res = get_model_from_homology([_template_with_extras()], hits, "bug")
+    assert "R_free" not in {r.id for r in res.model.reactions}
+
+
+def test_keep_gene_free_transfers_reactions_without_a_gpr():
+    hits = make_ortholog_hits([("tg1", "ng1")], "templateGEM", "bug")
+    res = get_model_from_homology([_template_with_extras()], hits, "bug", keep_gene_free=True)
+    ids = {r.id for r in res.model.reactions}
+    assert {"R_single", "R_free"} <= ids
+    assert res.model.reactions.get_by_id("R_free").gene_reaction_rule == ""
+
+
+def test_preserve_notes_keeps_template_notes_and_adds_source():
+    hits = make_ortholog_hits([("tg1", "ng1")], "templateGEM", "bug")
+    kept = get_model_from_homology([_template_with_extras()], hits, "bug", preserve_notes=True)
+    notes = kept.model.reactions.R_single.notes
+    assert notes["references"] == "PMID:1" and notes["confidence_score"] == 4
+    assert notes["homology_source"] == "templateGEM"
+    default = get_model_from_homology([_template_with_extras()], hits, "bug")
+    assert default.model.reactions.R_single.notes["note"] == "Included by get_model_from_homology"
+
+
+def test_duplicate_orthologs_are_not_repeated_in_a_rule():
+    hits = make_ortholog_hits([("tg2", "ng"), ("tg3", "ng")], "templateGEM", "bug")
+    res = get_model_from_homology([_template()], hits, "bug")
+    assert res.model.reactions.R_iso.gene_reaction_rule == "ng"
+
+
+def test_isozymes_mapping_to_shared_orthologs_are_deduplicated():
+    hits = make_ortholog_hits([("tg2", "na"), ("tg2", "nb"), ("tg3", "nb")], "templateGEM", "bug")
+    res = get_model_from_homology([_template()], hits, "bug")
+    assert res.model.reactions.R_iso.gene_reaction_rule == "na or nb"
+
+
+def test_draft_does_not_inherit_template_version_and_date():
+    hits = make_ortholog_hits([("tg1", "ng1")], "templateGEM", "bug")
+    res = get_model_from_homology([_template_with_extras()], hits, "bug")
+    assert res.model.notes == {"keep": "me"}
