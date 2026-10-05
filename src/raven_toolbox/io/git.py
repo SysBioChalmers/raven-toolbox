@@ -11,6 +11,7 @@ single-file reaction table (txt).
 """
 from __future__ import annotations
 
+import datetime
 import importlib.metadata as _md
 import platform
 from collections.abc import Iterable
@@ -19,6 +20,7 @@ from pathlib import Path
 import cobra
 
 from raven_toolbox.io.excel import _equation, export_to_excel
+from raven_toolbox.io.metadata import set_model_metadata
 from raven_toolbox.io.yaml import write_yaml_model
 from raven_toolbox.utils.parse import subsystem_to_str
 from raven_toolbox.utils.sort import sort_identifiers
@@ -67,6 +69,8 @@ def export_for_git(
     formats: Iterable[str] = ("yml", "xml", "mat", "xlsx"),
     sub_dirs: bool = True,
     varname: str | None = None,
+    version: str | None = None,
+    date: str | datetime.date | None = None,
 ) -> Path:
     """Write ``model`` into a Standard-GEM repository layout.
 
@@ -86,6 +90,10 @@ def export_for_git(
         Variable name for the MATLAB (``.mat``) struct. ``None`` (default) lets
         cobra use its own default (the model id); set it when a repository pins a
         specific name (e.g. Human-GEM's ``humanGEM``).
+    version, date
+        Stamped into the exported copy's metadata (see
+        :func:`raven_toolbox.io.set_model_metadata`); the model passed in is not changed.
+        Left out, the model's own version and date are written.
 
     Returns
     -------
@@ -99,6 +107,8 @@ def export_for_git(
 
     # Sort a copy so the caller's model is untouched.
     model = sort_identifiers(model.copy())
+    if version is not None or date is not None:
+        set_model_metadata(model, version=version, date=date)
 
     root = Path(path) / "model" if sub_dirs else Path(path)
     root.mkdir(parents=True, exist_ok=True)

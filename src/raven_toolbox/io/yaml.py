@@ -767,6 +767,8 @@ def write_yaml_model(
     model_notes = dict(model.notes or {})
     stored_meta = model_notes.pop("metaData", None) or {}
     version = model_notes.pop("version", None)
+    if version is None:  # a version kept only in metaData is still the model's version
+        version = stored_meta.get("version")
     foreign = model_notes.pop("_yaml_sections", None) or {}
 
     doc = OrderedDict(_to_plain(model_to_dict(model)))
