@@ -57,42 +57,60 @@ class _Unmapped:
 def _rewrite_node(node, ortho: dict, policy: str, model_id: str):
     """Rewrite a GPR AST node, substituting template genes by their orthologs.
 
-    Returns a GPR sub-expression string, ``None`` (nothing survives), or an
-    ``_Unmapped`` for a bare unmapped leaf (the parent decides what to do).
+    Returns ``None`` (nothing survives), a gene id, an ``_Unmapped`` for a bare unmapped
+    leaf (the parent decides what to do), or ``(operator, [children])`` for a group.
+    Groups are flattened and free of duplicates, so several template genes that map to the
+    same ortholog do not repeat it.
     """
     if isinstance(node, ast.Name):
         new_genes = ortho.get(node.id)
         if new_genes:
-            return new_genes[0] if len(new_genes) == 1 else "(" + " or ".join(new_genes) + ")"
+            return _group("or", list(new_genes))
         return _Unmapped(node.id)
 
     if isinstance(node, ast.BoolOp):
         children = [_rewrite_node(c, ortho, policy, model_id) for c in node.values]
         if isinstance(node.op, ast.Or):
             # An isozyme branch with no ortholog is simply absent.
-            parts = [c for c in children if isinstance(c, str)]
-            if not parts:
-                return None
-            return parts[0] if len(parts) == 1 else "(" + " or ".join(parts) + ")"
+            return _group("or", [c for c in children if c is not None and not isinstance(c, _Unmapped)])
         # And: apply the complex policy to unmapped subunits.
         parts = []
         for child in children:
-            if isinstance(child, str):
-                parts.append(child)
-            elif isinstance(child, _Unmapped):
+            if isinstance(child, _Unmapped):
                 if policy == "flag":
                     parts.append(f"OLD_{model_id}_{child.gene}")
                 elif policy == "drop":
                     return None  # incomplete complex -> reaction unsupported
                 # policy == "keep": drop the unmapped subunit
-            else:  # None (a dead sub-branch)
+            elif child is None:  # a dead sub-branch
                 if policy == "drop":
                     return None
-        if not parts:
-            return None
-        return parts[0] if len(parts) == 1 else "(" + " and ".join(parts) + ")"
+            else:
+                parts.append(child)
+        return _group("and", parts)
 
     return None
+
+
+def _group(op: str, children: list):
+    """Flatten same-operator groups, drop duplicates, and unwrap a single child."""
+    flat: list = []
+    for child in children:
+        for part in (child[1] if isinstance(child, tuple) and child[0] == op else [child]):
+            if part not in flat:
+                flat.append(part)
+    if not flat:
+        return None
+    return flat[0] if len(flat) == 1 else (op, flat)
+
+
+def _render(expr, parent: str | None = None) -> str:
+    """GPR string for a rewritten tree; nested groups of the other operator get parentheses."""
+    if isinstance(expr, str):
+        return expr
+    op, children = expr
+    text = f" {op} ".join(_render(c, op) for c in children)
+    return f"({text})" if parent is not None and parent != op else text
 
 
 def _rewrite_gpr(rxn, ortho: dict, policy: str, model_id: str):
@@ -103,9 +121,9 @@ def _rewrite_gpr(rxn, ortho: dict, policy: str, model_id: str):
     if not any(g.id in ortho for g in rxn.genes):
         return None
     result = _rewrite_node(rxn.gpr.body, ortho, policy, model_id)
-    if isinstance(result, str):
-        return result
-    return None
+    if result is None or isinstance(result, _Unmapped):
+        return None
+    return _render(result)
 
 
 def _strictness_to_flags(strictness: int) -> tuple[bool, bool]:
@@ -206,6 +224,8 @@ def get_model_from_homology(
     min_align_len: int = 100,
     min_identity: float = 40,
     review_identity: float | None = None,
+    keep_gene_free: bool = False,
+    preserve_notes: bool = False,
 ) -> HomologyResult:
     """Build a draft model for ``model_for`` by transferring reactions from templates.
 
@@ -231,6 +251,13 @@ def get_model_from_homology(
       ``"drop"`` drops the whole reaction.
     * ``only_genes_in_models`` restricts the hits table to genes that actually
       appear in the given ``models`` before mapping orthologs.
+    * ``keep_gene_free`` (default False) also transfers the template reactions that have no
+      GPR (spontaneous, transport, exchange, artificial). By default they are dropped, as in
+      RAVEN, because nothing supports them in the new organism. Set it when the template is
+      a curated reference whose gene-free reactions belong in every derived model.
+    * ``preserve_notes`` (default False) keeps each transferred reaction's own ``notes``
+      (references, confidence score, free text) and only adds ``homology_source``. By default
+      they are replaced by a note that the reaction was included by this function.
     * ``preferred_order`` breaks ties when more than one template maps the
       same new-organism gene: the earlier template in the list wins that gene
       (default: the order of ``models``).
@@ -299,7 +326,8 @@ def get_model_from_homology(
     if preferred_order and len(models) > 1:
         ortho = _apply_preferred_order(ortho, order)
 
-    draft = _transfer(model_by_id, order, ortho, model_for, model_ids, complex_policy)
+    draft = _transfer(model_by_id, order, ortho, model_for, model_ids, complex_policy,
+                      keep_gene_free, preserve_notes)
 
     candidates = None
     if review_identity is not None:
@@ -315,7 +343,8 @@ def get_model_from_homology(
         if preferred_order and len(models) > 1:
             loose_ortho = _apply_preferred_order(loose_ortho, order)
         loose = _transfer(
-            model_by_id, order, loose_ortho, model_for, model_ids, complex_policy
+            model_by_id, order, loose_ortho, model_for, model_ids, complex_policy,
+            keep_gene_free, preserve_notes,
         )
         extra = {r.id for r in loose.reactions} - {r.id for r in draft.reactions}
         candidates = _candidate_evidence(
@@ -327,7 +356,8 @@ def get_model_from_homology(
     return HomologyResult(model=draft, gene_map=ortho, candidates=candidates)
 
 
-def _transfer(model_by_id, order, ortho, model_for, model_ids, complex_policy) -> cobra.Model:
+def _transfer(model_by_id, order, ortho, model_for, model_ids, complex_policy,
+              keep_gene_free=False, preserve_notes=False) -> cobra.Model:
     """Assemble the draft: per-template reactions whose GPRs survive rewriting."""
     transferred = []
     for mid in order:
@@ -339,20 +369,28 @@ def _transfer(model_by_id, order, ortho, model_for, model_ids, complex_policy) -
         keep: dict[str, str] = {}
         for rxn in m.reactions:
             new_gpr = _rewrite_gpr(rxn, per_model, complex_policy, mid)
+            if new_gpr is None and keep_gene_free and not rxn.gene_reaction_rule:
+                new_gpr = ""
             if new_gpr is not None:
                 keep[rxn.id] = new_gpr
         m.remove_reactions([r for r in m.reactions if r.id not in keep], remove_orphans=True)
         for rid, gpr in keep.items():
             r = m.reactions.get_by_id(rid)
             r.gene_reaction_rule = gpr
-            r.notes = {"note": "Included by get_model_from_homology", "confidence_score": 2,
-                       "homology_source": mid}
+            if preserve_notes:
+                r.notes = {**r.notes, "homology_source": mid}
+            else:
+                r.notes = {"note": "Included by get_model_from_homology", "confidence_score": 2,
+                           "homology_source": mid}
         if m.reactions:
             transferred.append(m)
 
     draft = merge_models(transferred, match_by="name") if transferred else cobra.Model()
     draft.id = model_for
     draft.name = "Generated by get_model_from_homology using " + ", ".join(model_ids)
+    # The draft is a new model: the template's version, date and description are not its own.
+    if draft.notes:
+        draft.notes = {k: v for k, v in draft.notes.items() if k not in ("metaData", "version")}
 
     # Drop OLD_ placeholder genes left orphaned (none survive in OR branches by construction).
     for g in [g for g in draft.genes if not g.reactions]:
