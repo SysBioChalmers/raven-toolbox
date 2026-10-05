@@ -19,10 +19,13 @@ __all__ = ["get_model_metadata", "set_model_metadata"]
 
 
 def get_model_metadata(model: cobra.Model) -> dict:
-    """The model's metadata as a plain dict: ``version``, ``date`` and any descriptive fields.
+    """Everything the model stores as metadata, as a plain dict (a copy).
 
-    ``version`` is taken from ``notes["version"]``, falling back to ``notes["metaData"]``.
-    Fields the model does not carry are absent.
+    That is ``version``, ``date`` and the descriptive fields, plus whatever else a file read
+    with :func:`read_yaml_model` put in ``metaData`` (for example ``id``, ``name`` and the
+    default bounds). ``version`` is taken from ``notes["version"]``, falling back to
+    ``notes["metaData"]``, the same order :func:`write_yaml_model` uses. Fields the model
+    does not carry are absent.
     """
     notes = model.notes or {}
     meta = dict(notes.get("metaData") or {})
@@ -46,8 +49,9 @@ def set_model_metadata(
     version
         Model version, e.g. ``"1.2.0"``.
     date
-        Model date, as ``YYYY-MM-DD`` or a ``datetime.date``. The YAML writer stamps today's
-        date only when the model has none, so pass one when the date should change.
+        Model date, as ``YYYY-MM-DD`` or a ``datetime.date`` (a ``datetime`` is reduced to its
+        date). Anything else raises. The YAML writer stamps today's date only when the model
+        has none, so pass one when the date should change.
     **fields
         Descriptive ``metaData`` fields: ``givenName``, ``familyName``, ``authors``,
         ``email``, ``organization``, ``taxonomy``, ``note`` and ``sourceUrl``.
@@ -62,7 +66,21 @@ def set_model_metadata(
     if version is not None:
         notes["version"] = meta["version"] = str(version)
     if date is not None:
-        meta["date"] = date.isoformat() if isinstance(date, datetime.date) else str(date)
+        meta["date"] = _iso_date(date)
     meta.update(fields)
     notes["metaData"] = meta
     model.notes = notes
+
+
+def _iso_date(value: str | datetime.date) -> str:
+    """``YYYY-MM-DD`` for a date, a datetime or an ISO date string; ValueError otherwise."""
+    if isinstance(value, datetime.datetime):
+        return value.date().isoformat()
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    try:
+        if not isinstance(value, str):
+            raise ValueError
+        return datetime.date.fromisoformat(value).isoformat()
+    except ValueError:
+        raise ValueError(f"date must be YYYY-MM-DD or a datetime.date, got {value!r}") from None

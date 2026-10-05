@@ -61,3 +61,33 @@ def test_export_for_git_stamps_a_copy(model, tmp_path):
     meta = get_model_metadata(read_yaml_model(root / "yml" / "m.yml"))
     assert (meta["version"], meta["date"]) == ("2.0.0", "2026-10-06")
     assert get_model_metadata(model) == {}
+
+
+def test_datetime_is_reduced_to_its_date(model):
+    set_model_metadata(model, date=datetime.datetime(2026, 10, 5, 13, 30))
+    assert get_model_metadata(model)["date"] == "2026-10-05"
+
+
+@pytest.mark.parametrize("bad", ["yesterday", "2026-13-01", "05/10/2026", 20261005])
+def test_date_that_is_not_iso_is_an_error(model, bad):
+    with pytest.raises(ValueError, match="date must be"):
+        set_model_metadata(model, date=bad)
+    assert get_model_metadata(model) == {}
+
+
+def test_version_kept_only_in_metadata_is_written(model, tmp_path):
+    model.notes = {"metaData": {"version": "3.0.0"}}
+    write_yaml_model(model, tmp_path / "m.yml")
+    assert get_model_metadata(read_yaml_model(tmp_path / "m.yml"))["version"] == "3.0.0"
+
+
+def test_notes_version_wins_over_metadata_version(model, tmp_path):
+    model.notes = {"version": "2.0.0", "metaData": {"version": "1.0.0"}}
+    write_yaml_model(model, tmp_path / "m.yml")
+    assert get_model_metadata(read_yaml_model(tmp_path / "m.yml"))["version"] == "2.0.0"
+
+
+def test_export_for_git_stamps_sbml_too(model, tmp_path):
+    root = export_for_git(model, tmp_path, prefix="m", formats=("xml",), version="2.0.0", date="2026-10-06")
+    xml = (root / "xml" / "m.xml").read_text()
+    assert "2.0.0" in xml and "2026-10-06" in xml
