@@ -82,8 +82,28 @@ def _for_sbml(model: cobra.Model) -> cobra.Model:
     # as "<p>note: ...</p>". RAVEN's exportModel instead puts a bare note
     # inside a <body> that cobra never emits, which is why importModel has to
     # look for both shapes.
-    if meta.get("note") and "note" not in (out.notes or {}):
-        out.notes = {**(out.notes or {}), "note": str(meta["note"])}
+    # The note, version and date go in as their own notes entries, so cobra
+    # writes each as "<p>key: value</p>". RAVEN's exportModel instead puts a
+    # bare note inside a <body> that cobra never emits, which is why
+    # importModel has to look for both shapes; the version and date reached
+    # the file only inside the metaData repr dropped below.
+    stamped = dict(out.notes or {})
+    for key in ("note", "version", "date"):
+        if meta.get(key) and key not in stamped:
+            stamped[key] = str(meta[key])
+    out.notes = stamped
+
+    # cobra writes a notes entry as "<p>key: value</p>" with str(value), so a
+    # non-string value is published as its Python repr -- read_yaml_model parks
+    # the parsed metaData block in notes["metaData"], which came out as
+    # "metaData: {&apos;id&apos;: &apos;HumanGEM&apos;, ...}" in the file. Its
+    # content already goes in as the model id, name, annotation and note, so
+    # only string-valued entries are written.
+    out.notes = {
+        key: value
+        for key, value in (out.notes or {}).items()
+        if isinstance(value, str)
+    }
 
     if not out.groups:
         members: dict[str, list] = {}
