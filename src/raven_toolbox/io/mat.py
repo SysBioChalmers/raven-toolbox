@@ -198,7 +198,7 @@ def _subsystems(reactions) -> list[list[str]]:
     model built in cobra or read from SBML has a single string; both shapes
     reach here.
     """
-    out = []
+    out: list[list[str]] = []
     for rxn in reactions:
         subsystem = rxn.subsystem
         if not subsystem:
@@ -589,11 +589,11 @@ def read_matlab_model(path: str | Path, *, varname: str | None = None) -> cobra.
     for field, note_key in _MET_NOTE_FIELDS:
         for met, value in zip(metabolites, _column(struct, field, n_mets), strict=False):
             _set_note(met, note_key, value)
-    for met, value in zip(
+    for met, number in zip(
         metabolites, _as_floats(_field(struct, "metDeltaG")), strict=False
     ):
-        if not np.isnan(value):
-            _set_note(met, "deltaG", value)
+        if not np.isnan(number):
+            _set_note(met, "deltaG", number)
 
     rxn_ids = _as_list(_field(struct, "rxns"))
     n_rxns = len(rxn_ids)
@@ -643,15 +643,15 @@ def read_matlab_model(path: str | Path, *, varname: str | None = None) -> cobra.
     for field, note_key in _RXN_NOTE_FIELDS:
         for rxn, value in zip(reactions, _column(struct, field, n_rxns), strict=False):
             _set_note(rxn, note_key, value)
-    for rxn, value in zip(
+    for rxn, number in zip(
         reactions, _as_floats(_field(struct, "rxnConfidenceScores")), strict=False
     ):
-        _set_note(rxn, "confidence_score", value)
-    for rxn, value in zip(
+        _set_note(rxn, "confidence_score", number)
+    for rxn, number in zip(
         reactions, _as_floats(_field(struct, "rxnDeltaG")), strict=False
     ):
-        if not np.isnan(value):
-            _set_note(rxn, "deltaG", value)
+        if not np.isnan(number):
+            _set_note(rxn, "deltaG", number)
 
     gene_ids = _as_list(_field(struct, "genes"))
     short_names = _column(struct, "geneShortNames", len(gene_ids))
@@ -665,7 +665,7 @@ def read_matlab_model(path: str | Path, *, varname: str | None = None) -> cobra.
         if gene_miriams[i]:
             gene.annotation = dict(gene_miriams[i])
 
-    metadata = {}
+    metadata: dict[str, str | float] = {}
     for key in ("id", "name"):
         value = _as_str(_field(struct, key))
         if value:
