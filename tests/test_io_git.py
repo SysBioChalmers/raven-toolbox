@@ -1,8 +1,10 @@
 """Tests for raven_toolbox.io.git (exportForGit port)."""
 import cobra
 import pytest
+from cobra.core import Group
 
-from raven_toolbox.io import export_for_git
+from raven_toolbox.io import export_for_git, read_matlab_model, set_model_metadata
+from raven_toolbox.io.git import _for_sbml
 from raven_toolbox.manipulation import add_reactions_from_equations
 
 
@@ -70,8 +72,9 @@ def test_bad_format(model, tmp_path):
 
 
 def test_mat_export_with_subsystem_lists(tmp_path):
-    """A model read from YAML keeps subsystems as lists; the MATLAB export still
-    works and writes them as strings, without changing the model passed in."""
+    """A model read from YAML keeps subsystems as lists; the MATLAB export keeps
+    them as a cell per reaction, the way RAVEN stores them, without changing the
+    model passed in."""
     m = cobra.Model("m")
     a = cobra.Metabolite("a_c", compartment="c")
     b = cobra.Metabolite("b_c", compartment="c")
@@ -82,7 +85,76 @@ def test_mat_export_with_subsystem_lists(tmp_path):
     r1.subsystem = ["Glycolysis"]
     r2.subsystem = ["Transport", "Exchange"]
     export_for_git(m, tmp_path, prefix="m", formats=("mat",), sub_dirs=False)
-    back = cobra.io.load_matlab_model(str(tmp_path / "m.mat"))
-    assert back.reactions.get_by_id("r1").subsystem == "Glycolysis"
-    assert back.reactions.get_by_id("r2").subsystem == "Transport;Exchange"
+    back = read_matlab_model(tmp_path / "m.mat")
+    assert back.reactions.get_by_id("r1").subsystem == ["Glycolysis"]
+    assert back.reactions.get_by_id("r2").subsystem == ["Transport", "Exchange"]
     assert r1.subsystem == ["Glycolysis"]
+
+
+def _sbml_model():
+    m = cobra.Model("sbmlGEM")
+    m.compartments = {"c": "cytoplasm"}
+    m.add_metabolites(
+        [cobra.Metabolite("a_c", compartment="c"),
+         cobra.Metabolite("b_c", compartment="c")]
+    )
+    add_reactions_from_equations(
+        m, [{"id": "R1", "equation": "a_c <=> b_c"}, {"id": "R2", "equation": "b_c -> "}]
+    )
+    m.reactions.R1.subsystem = ["Glycolysis", "Transport"]
+    m.reactions.R2.subsystem = ["Transport"]
+    m.reactions.R1.notes = {
+        "note": "curated", "references": "PMID:1", "confidence_score": 3,
+        "rxnFrom": "testDB",
+    }
+    set_model_metadata(m, taxonomy="9606")
+    return m
+
+
+def test_sbml_builds_groups_from_subsystems():
+    """RAVEN reads subSystems from the groups package, which cobra writes
+    from model.groups; a model read from YAML has them on the reaction."""
+    shaped = _for_sbml(_sbml_model())
+    by_name = {g.name: {r.id for r in g.members} for g in shaped.groups}
+    assert by_name == {"Glycolysis": {"R1"}, "Transport": {"R1", "R2"}}
+    assert all(g.kind == "partonomy" for g in shaped.groups)
+
+
+def test_sbml_renames_notes_to_raven_labels():
+    """importModel's parseNote looks for its own labels, not cobra's keys."""
+    notes = _for_sbml(_sbml_model()).reactions.R1.notes
+    assert notes["NOTES"] == "curated"
+    assert notes["AUTHORS"] == "PMID:1"
+    assert notes["Confidence Level"] == 3
+    assert notes["rxnFrom"] == "testDB"  # no RAVEN label, passed through
+    for cobra_key in ("note", "references", "confidence_score"):
+        assert cobra_key not in notes
+
+
+def test_sbml_sets_taxonomy_annotation():
+    """RAVEN recovers annotation.taxonomy from the identifiers.org URL."""
+    assert _for_sbml(_sbml_model()).annotation["taxonomy"] == "9606"
+
+
+def test_sbml_shaping_leaves_the_caller_model_alone():
+    m = _sbml_model()
+    _for_sbml(m)
+    assert not m.groups
+    assert "note" in m.reactions.R1.notes
+    assert "taxonomy" not in (m.annotation or {})
+
+
+def test_sbml_keeps_existing_groups():
+    m = _sbml_model()
+    group = Group(id="g1", name="Preset", kind="partonomy")
+    group.add_members([m.reactions.R1])
+    m.add_groups([group])
+    shaped = _for_sbml(m)
+    assert [g.name for g in shaped.groups] == ["Preset"]
+
+
+def test_sbml_exposes_the_model_note():
+    """RAVEN reads annotation.note; cobra only writes what is in model.notes."""
+    m = _sbml_model()
+    set_model_metadata(m, note="a generic human cell")
+    assert _for_sbml(m).notes["note"] == "a generic human cell"
