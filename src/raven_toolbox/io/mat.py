@@ -446,8 +446,67 @@ def _set_note(obj, key, value) -> None:
     obj.notes = notes
 
 
+
+# Fields that only a COBRA Toolbox structure carries. 'rules' is decisive --
+# cobra writes it and RAVEN never does -- and the rest catch a file written
+# without it. A RAVEN structure always has 'id', which cobra's writer never
+# emits (it puts the identifier in 'description').
+_COBRA_MARKERS = frozenset(
+    {"rules", "description", "modelName", "rxnECNumbers", "geneNames", "osenseStr"}
+)
+
+
+def _is_cobra_struct(names) -> bool:
+    """Whether the struct is a COBRA Toolbox model rather than a RAVEN one."""
+    names = set(names or ())
+    if "rules" in names:
+        return True
+    return "id" not in names and bool(names & _COBRA_MARKERS)
+
+
+def _listify_annotations(model: cobra.Model) -> None:
+    """Make every annotation value a list, in place.
+
+    cobra's MATLAB reader leaves a single cross-reference as a bare string;
+    :func:`read_yaml_model` and the RAVEN branch of this reader both give a
+    list, so a model read from any of them presents annotations the same way.
+    """
+    for entity in (*model.reactions, *model.metabolites, *model.genes):
+        annotation = entity.annotation
+        if not annotation:
+            continue
+        entity.annotation = {
+            key: value if isinstance(value, list) else [value]
+            for key, value in annotation.items()
+        }
+
+
+def _read_cobra_struct(path: Path) -> cobra.Model:
+    """Read a COBRA Toolbox .mat through cobra, then normalise it.
+
+    The COBRA structure keeps the same data under its own field names
+    (``description``/``modelName`` for the identifier, ``rxnECNumbers`` for EC
+    codes, ``geneNames`` for gene names, one flat field per cross-reference
+    namespace), so cobra's own reader already knows every mapping; this wraps
+    it rather than repeating the table. Human-GEM 2.0.1 and 2.1.0 shipped such
+    a file, so reading one is the way back from those releases.
+    """
+    model = cobra.io.load_matlab_model(str(path))
+    # cobra hands these back as numpy strings, which surprise anything that
+    # serialises the model later.
+    model.id = str(model.id)
+    model.name = str(model.name or "")
+    _listify_annotations(model)
+    return model
+
 def read_matlab_model(path: str | Path, *, varname: str | None = None) -> cobra.Model:
-    """Read a RAVEN model structure from a MATLAB ``.mat`` file.
+    """Read a model structure from a MATLAB ``.mat`` file.
+
+    Reads a RAVEN structure natively. A COBRA Toolbox structure is recognised
+    and handed to cobra's own reader instead, so a file written by
+    ``save_matlab_model`` — Human-GEM 2.0.1 and 2.1.0 shipped one — is read
+    rather than silently coming back without its identifier, EC codes, gene
+    names and cross-references. A struct that is neither raises.
 
     The inverse of :func:`write_matlab_model`: RAVEN-only fields land where
     :func:`read_yaml_model` puts the same data, so a model read from either
@@ -480,6 +539,15 @@ def read_matlab_model(path: str | Path, *, varname: str | None = None) -> cobra.
     else:
         raise KeyError(f"{path} holds {candidates}; pass varname to choose one")
     struct = raw[name]
+    names = struct.dtype.names
+    if _is_cobra_struct(names):
+        return _read_cobra_struct(path)
+    if "rxns" not in (names or ()) or "mets" not in (names or ()):
+        raise ValueError(
+            f"{path} holds a struct with neither RAVEN nor COBRA model fields "
+            f"(found {sorted(names or ())[:10]}); it is not a model file this "
+            f"reader understands"
+        )
 
     model = cobra.Model(_as_str(_field(struct, "id")) or name)
     model.name = _as_str(_field(struct, "name"))

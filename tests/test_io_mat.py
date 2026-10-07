@@ -245,3 +245,45 @@ def test_read_honours_varname(model, tmp_path):
     assert read_matlab_model(path, varname="humanGEM").id == "testGEM"
     with pytest.raises(KeyError, match="no variable"):
         read_matlab_model(path, varname="nope")
+
+
+def _cobra_writable(model):
+    """A copy whose subsystems are strings, which is all cobra's writer takes."""
+    out = model.copy()
+    for rxn in out.reactions:
+        if isinstance(rxn.subsystem, (list, tuple)):
+            rxn.subsystem = ";".join(rxn.subsystem)
+    return out
+
+
+def test_reads_a_cobra_structure(model, tmp_path):
+    """A COBRA .mat is recognised and read through cobra, not half-read.
+
+    Human-GEM 2.0.1 and 2.1.0 shipped such a file, so this is the way back
+    from those releases.
+    """
+    path = tmp_path / "cobra.mat"
+    cobra.io.save_matlab_model(_cobra_writable(model), str(path))
+    back = read_matlab_model(path)
+    assert len(back.reactions) == len(model.reactions)
+    assert len(back.metabolites) == len(model.metabolites)
+    # the fields COBRA renames, which a RAVEN-only read would drop
+    assert back.id == model.id
+    assert back.reactions.R1.annotation["ec-code"] == ["3.6.1.3", "3.6.1.-"]
+    assert back.genes.g1.name == "ATPase1"
+    assert back.metabolites.atp_c.annotation["kegg.compound"] == ["C00002"]
+
+
+def test_cobra_annotations_are_lists(model, tmp_path):
+    """Single cross-references come back as lists, as from the RAVEN path."""
+    path = tmp_path / "cobra.mat"
+    cobra.io.save_matlab_model(_cobra_writable(model), str(path))
+    annotation = read_matlab_model(path).reactions.R1.annotation
+    assert all(isinstance(v, list) for v in annotation.values()), annotation
+
+
+def test_rejects_a_struct_that_is_neither(tmp_path):
+    path = tmp_path / "odd.mat"
+    scipy.io.savemat(str(path), {"thing": {"alpha": [1.0], "beta": [2.0]}})
+    with pytest.raises(ValueError, match="neither RAVEN nor COBRA"):
+        read_matlab_model(path)
