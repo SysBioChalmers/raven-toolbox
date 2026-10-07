@@ -6,7 +6,7 @@ Git-maintained model repository (Metabolic Atlas / Human-GEM / yeast-GEM style),
 plus a ``dependencies.txt`` recording tool versions.
 
 Thin orchestration over the writers raven_toolbox already exposes: ``write_yaml_model``,
-cobra's ``write_sbml_model`` and ``save_matlab_model``, ``export_to_excel``, plus a
+cobra's ``write_sbml_model``, ``write_matlab_model``, ``export_to_excel``, plus a
 single-file reaction table (txt).
 """
 from __future__ import annotations
@@ -18,11 +18,12 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import cobra
+from cobra.core import Group
 
 from raven_toolbox.io.excel import _equation, export_to_excel
-from raven_toolbox.io.metadata import set_model_metadata
+from raven_toolbox.io.mat import write_matlab_model
+from raven_toolbox.io.metadata import get_model_metadata, set_model_metadata
 from raven_toolbox.io.yaml import write_yaml_model
-from raven_toolbox.utils.parse import subsystem_to_str
 from raven_toolbox.utils.sort import sort_identifiers
 
 _ALL_FORMATS = ("yml", "xml", "mat", "xlsx", "txt")
@@ -35,18 +36,74 @@ def _version(package: str) -> str:
         return "unknown"
 
 
-def _string_subsystems(model: cobra.Model) -> cobra.Model:
-    """A copy of ``model`` whose subsystems are strings, for the MATLAB export.
+# RAVEN's importModel reads these reaction fields out of the SBML <notes>
+# block, keyed by its own labels (see parseNote in importModel.m). cobra
+# writes a note as "<p>key: value</p>" straight from the notes dict, so the
+# keys are renamed to RAVEN's labels for the SBML export only.
+_SBML_NOTE_LABELS = {
+    "note": "NOTES",
+    "references": "AUTHORS",
+    "confidence_score": "Confidence Level",
+}
 
-    read_yaml_model keeps a subsystem as a list, as the YAML format writes it,
-    while cobra's save_matlab_model only handles a string. The subsystems are
-    joined with subsystem_to_str, as export_to_excel does, so none are lost.
+
+def _for_sbml(model: cobra.Model) -> cobra.Model:
+    """A copy of ``model`` shaped so RAVEN's importModel finds everything.
+
+    Two things are lost otherwise, both silently:
+
+    * **subSystems.** RAVEN reads them from the SBML groups package, which
+      cobra writes from ``model.groups``. A model read with read_yaml_model
+      carries its subsystems on the reaction instead, so without groups the
+      SBML has no subsystem information at all.
+    * **rxnNotes / rxnReferences / rxnConfidenceScores.** Present in the
+      file, but under cobra's key names rather than the labels RAVEN parses.
+
+    The model passed in is not changed.
     """
-    if all(not isinstance(r.subsystem, (list, tuple)) for r in model.reactions):
-        return model
     out = model.copy()
+
     for rxn in out.reactions:
-        rxn.subsystem = subsystem_to_str(rxn.subsystem)
+        notes = rxn.notes or {}
+        renamed = {_SBML_NOTE_LABELS.get(key, key): value for key, value in notes.items()}
+        if renamed != notes:
+            rxn.notes = renamed
+
+    # RAVEN recovers model.annotation.taxonomy from the identifiers.org URL
+    # cobra emits for a model-level annotation entry.
+    meta = get_model_metadata(model)
+    taxonomy = meta.get("taxonomy")
+    if taxonomy and "taxonomy" not in (out.annotation or {}):
+        annotation = dict(out.annotation or {})
+        annotation["taxonomy"] = str(taxonomy).replace("taxonomy/", "")
+        out.annotation = annotation
+
+    # The model's own note goes in as its own notes entry, so cobra writes it
+    # as "<p>note: ...</p>". RAVEN's exportModel instead puts a bare note
+    # inside a <body> that cobra never emits, which is why importModel has to
+    # look for both shapes.
+    if meta.get("note") and "note" not in (out.notes or {}):
+        out.notes = {**(out.notes or {}), "note": str(meta["note"])}
+
+    if not out.groups:
+        members: dict[str, list] = {}
+        for rxn in out.reactions:
+            subsystem = rxn.subsystem
+            if not subsystem:
+                continue
+            names = subsystem if isinstance(subsystem, (list, tuple)) else [subsystem]
+            for name in names:
+                name = str(name).strip()
+                if name:
+                    members.setdefault(name, []).append(rxn)
+        groups = []
+        for index, (name, rxns) in enumerate(members.items(), start=1):
+            group = Group(id=f"group{index}", name=name, kind="partonomy")
+            group.add_members(rxns)
+            groups.append(group)
+        if groups:
+            out.add_groups(groups)
+
     return out
 
 
@@ -121,10 +178,9 @@ def export_for_git(
     if "yml" in formats:
         write_yaml_model(model, target("yml"))
     if "xml" in formats:
-        cobra.io.write_sbml_model(model, str(target("xml")))
+        cobra.io.write_sbml_model(_for_sbml(model), str(target("xml")))
     if "mat" in formats:
-        cobra.io.save_matlab_model(_string_subsystems(model), str(target("mat")),
-                                   varname=varname)
+        write_matlab_model(model, target("mat"), varname=varname)
     if "xlsx" in formats:
         export_to_excel(model, target("xlsx"))
     if "txt" in formats:
