@@ -158,3 +158,19 @@ def test_sbml_exposes_the_model_note():
     m = _sbml_model()
     set_model_metadata(m, note="a generic human cell")
     assert _for_sbml(m).notes["note"] == "a generic human cell"
+
+
+def test_sbml_notes_drop_non_strings():
+    """cobra serialises a notes value with str(), so a dict would be published
+    as its Python repr; read_yaml_model parks the metaData block there."""
+    m = _sbml_model()
+    m.notes = {**(m.notes or {}), "metaData": {"id": "x", "defaultLB": -1000.0}}
+    notes = _for_sbml(m).notes
+    assert "metaData" not in notes
+    assert all(isinstance(v, str) for v in notes.values())
+
+
+def test_sbml_notes_keep_the_model_note():
+    m = _sbml_model()
+    set_model_metadata(m, note="a generic human cell")
+    assert _for_sbml(m).notes["note"] == "a generic human cell"
